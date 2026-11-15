@@ -156,4 +156,81 @@ describe("Order Lifecycle Service (Soles Discount Floor, Approval, Stock & 4-Res
       client.release();
     }
   });
+
+  it("supports Contra Entrega (collectOnDelivery) without premature settlement, blocks seller overrideBasePricePen, stamps delivered_at only on DELIVERED, and enforces strict state transitions", async () => {
+    const pool = getPool("dev");
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      const whRes = await client.query(
+        `SELECT warehouse_id FROM erp.warehouses WHERE code = 'MAIN' LIMIT 1`
+      );
+      const warehouseId = Number(whRes.rows[0].warehouse_id);
+
+      const prodRes = await client.query(
+        `INSERT INTO erp.products (sku, name, unit_of_measure, fulfillment_mode, list_sale_price_pen, min_sale_price_pen, ref_cost_pen)
+         VALUES ('TEST-CONTRA-SKU', 'PRODUCTO CONTRA ENTREGA', 'UND', 'STOCKED', 100, 95, 70)
+         RETURNING product_id`
+      );
+      const productId = Number(prodRes.rows[0].product_id);
+
+      await client.query(
+        `INSERT INTO erp.inventory_movements (warehouse_id, product_id, movement_date, movement_type, quantity_delta, unit_cost_pen, notes)
+         VALUES ($1, $2, NOW(), 'ADJUSTMENT', 20, 70, 'TEST_STOCK')`,
+        [warehouseId, productId]
+      );
+
+      // Issue #1 & #4: Seller passes overrideBasePricePen=50 (must be ignored for EXTERNAL_SELLER) and collectOnDelivery=true on CASH order
+      const contraOrder = await createOrder(client, sellerActor, {
+        customerNameRaw: "CLIENTE CONTRA ENTREGA",
+        paymentMode: "CASH",
+        collectOnDelivery: true,
+        lines: [{ productId, quantity: 2, overrideBasePricePen: 50 }],
+      });
+
+      const checkOrder = await client.query(
+        `SELECT total_pen, paid_pen, balance_due_pen, is_settled, promised_payment_date::text AS promised_payment_date
+         FROM erp.sales_orders WHERE order_id = $1`,
+        [contraOrder.orderId]
+      );
+      // Must use catalog price 100 * 2 = 200 (ignoring seller's overrideBasePricePen=50)
+      expect(Number(checkOrder.rows[0].total_pen)).toBe(200);
+      // Contra Entrega: paid_pen must be 0 until collected on delivery
+      expect(Number(checkOrder.rows[0].paid_pen)).toBe(0);
+      expect(Number(checkOrder.rows[0].balance_due_pen)).toBe(200);
+      expect(Boolean(checkOrder.rows[0].is_settled)).toBe(false);
+
+      // Issue #6: Reject skipping from REGISTERED directly to DELIVERED
+      await expect(
+        advanceWarehouseStatus(client, warehouseActor, contraOrder.orderId, "DELIVERED")
+      ).rejects.toThrow(ValidationError);
+
+      await advanceWarehouseStatus(client, warehouseActor, contraOrder.orderId, "PICKING");
+      await advanceWarehouseStatus(client, warehouseActor, contraOrder.orderId, "READY");
+      await advanceWarehouseStatus(client, warehouseActor, contraOrder.orderId, "IN_ROUTE");
+
+      // Issue #5: On IN_ROUTE, delivered_by_user_id is set but delivered_at must still be NULL
+      const inRouteCheck = await client.query(
+        `SELECT delivered_by_user_id, delivered_at FROM erp.sales_orders WHERE order_id = $1`,
+        [contraOrder.orderId]
+      );
+      expect(Number(inRouteCheck.rows[0].delivered_by_user_id)).toBe(warehouseActor.userId);
+      expect(inRouteCheck.rows[0].delivered_at).toBeNull();
+
+      await advanceWarehouseStatus(client, warehouseActor, contraOrder.orderId, "DELIVERED");
+      const deliveredCheck = await client.query(
+        `SELECT delivered_at FROM erp.sales_orders WHERE order_id = $1`,
+        [contraOrder.orderId]
+      );
+      expect(deliveredCheck.rows[0].delivered_at).not.toBeNull();
+
+      // Issue #6: Reject backwards transition from DELIVERED to PICKING
+      await expect(
+        advanceWarehouseStatus(client, warehouseActor, contraOrder.orderId, "PICKING")
+      ).rejects.toThrow(ValidationError);
+    } finally {
+      await client.query("ROLLBACK");
+      client.release();
+    }
+  });
 });

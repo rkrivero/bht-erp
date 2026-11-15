@@ -75,6 +75,7 @@ export default function VendedorPage() {
   const [searchProduct, setSearchProduct] = useState("");
   const [customerNameRaw, setCustomerNameRaw] = useState("");
   const [paymentMode, setPaymentMode] = useState<"CASH" | "CREDIT" | "YAPE_PLIN" | "TRANSFER">("CASH");
+  const [collectOnDelivery, setCollectOnDelivery] = useState<boolean>(true);
   const [creditDays, setCreditDays] = useState<number>(7);
   const [customPromiseDate, setCustomPromiseDate] = useState<string>("");
   const [initialPaidPen, setInitialPaidPen] = useState<string>("");
@@ -86,6 +87,7 @@ export default function VendedorPage() {
   const [debtorView, setDebtorView] = useState<"orders" | "customers">("orders");
   const [promiseFilter, setPromiseFilter] = useState<string>("ALL");
   const [selectedOrderForAbono, setSelectedOrderForAbono] = useState<OrderDebtItem | null>(null);
+  const [selectedCustomerForFifo, setSelectedCustomerForFifo] = useState<CustomerDebtSummary | null>(null);
   const [abonoAmount, setAbonoAmount] = useState("");
   const [abonoMode, setAbonoMode] = useState<"CASH" | "YAPE_PLIN" | "TRANSFER">("CASH");
   const [abonoNextDays, setAbonoNextDays] = useState<number>(7);
@@ -154,6 +156,7 @@ export default function VendedorPage() {
         action: "create",
         customerNameRaw,
         paymentMode,
+        collectOnDelivery: paymentMode !== "CREDIT" ? collectOnDelivery : undefined,
         creditDays: paymentMode === "CREDIT" ? creditDays : undefined,
         promisedPaymentDate:
           paymentMode === "CREDIT" && customPromiseDate ? customPromiseDate : null,
@@ -189,19 +192,29 @@ export default function VendedorPage() {
 
   async function handleSubmitAbono(e: React.FormEvent) {
     e.preventDefault();
-    if (!selectedOrderForAbono) return;
+    if (!selectedOrderForAbono && !selectedCustomerForFifo) return;
     setFeedback(null);
+    const payload = selectedCustomerForFifo
+      ? {
+          mode: "fifo_customer",
+          customerPartyId: selectedCustomerForFifo.customerPartyId,
+          totalAmountPen: Number(abonoAmount),
+          paymentMode: abonoMode,
+          nextCollectionDays: abonoNextDays,
+          notes: "Abono general FIFO en ruta",
+        }
+      : {
+          mode: "single_order",
+          orderId: selectedOrderForAbono!.orderId,
+          amountPen: Number(abonoAmount),
+          paymentMode: abonoMode,
+          nextCollectionDays: abonoNextDays,
+          notes: "Abono registrado en ruta",
+        };
     const res = await fetch("/api/collections", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        mode: "single_order",
-        orderId: selectedOrderForAbono.orderId,
-        amountPen: Number(abonoAmount),
-        paymentMode: abonoMode,
-        nextCollectionDays: abonoNextDays,
-        notes: "Abono registrado en ruta",
-      }),
+      body: JSON.stringify(payload),
     });
     const data = await res.json();
     if (!res.ok) {
@@ -209,10 +222,13 @@ export default function VendedorPage() {
       return;
     }
     setSelectedOrderForAbono(null);
+    setSelectedCustomerForFifo(null);
     setAbonoAmount("");
     setFeedback({
       type: "ok",
-      msg: data.isSettled
+      msg: selectedCustomerForFifo
+        ? `Abono general FIFO aplicado a ${data.allocations?.length ?? 1} pedido(s).`
+        : data.isSettled
         ? "¡Pedido cancelado al 100%!"
         : `Abono registrado. Nuevo saldo pendiente: S/ ${Number(data.newBalanceDuePen).toFixed(2)}`,
     });
@@ -352,6 +368,33 @@ export default function VendedorPage() {
                 ))}
               </div>
             </div>
+
+            {paymentMode !== "CREDIT" && (
+              <div className="flex gap-2 rounded-xl border border-slate-200 bg-slate-50 p-2">
+                <button
+                  type="button"
+                  onClick={() => setCollectOnDelivery(true)}
+                  className={`flex-1 rounded-lg py-2 text-xs font-bold ${
+                    collectOnDelivery
+                      ? "bg-blue-600 text-white shadow"
+                      : "bg-white text-slate-700"
+                  }`}
+                >
+                  Cobrar Contra Entrega (en destino)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCollectOnDelivery(false)}
+                  className={`flex-1 rounded-lg py-2 text-xs font-bold ${
+                    !collectOnDelivery
+                      ? "bg-emerald-600 text-white shadow"
+                      : "bg-white text-slate-700"
+                  }`}
+                >
+                  Ya pagó ahora al registrar
+                </button>
+              </div>
+            )}
 
             {paymentMode === "CREDIT" && (
               <div className="space-y-3 rounded-xl border border-amber-200 bg-amber-50 p-3">
@@ -658,30 +701,46 @@ export default function VendedorPage() {
             )}
           </div>
 
-          {selectedOrderForAbono && (
+          {(selectedOrderForAbono || selectedCustomerForFifo) && (
             <form
               onSubmit={handleSubmitAbono}
               className="rounded-2xl border-2 border-blue-600 bg-white p-4 shadow-lg space-y-3"
             >
               <div className="flex items-center justify-between">
                 <h3 className="text-sm font-extrabold text-slate-900">
-                  Registrar Abono · {selectedOrderForAbono.customerName}
+                  {selectedCustomerForFifo
+                    ? `Abono General FIFO · ${selectedCustomerForFifo.customerName}`
+                    : `Registrar Abono · ${selectedOrderForAbono!.customerName}`}
                 </h3>
                 <button
                   type="button"
-                  onClick={() => setSelectedOrderForAbono(null)}
+                  onClick={() => {
+                    setSelectedOrderForAbono(null);
+                    setSelectedCustomerForFifo(null);
+                  }}
                   className="text-xs font-bold text-slate-500"
                 >
                   Cerrar
                 </button>
               </div>
               <p className="text-xs text-slate-600">
-                Pedido {selectedOrderForAbono.orderCode} · Total: S/{" "}
-                {selectedOrderForAbono.totalPen.toFixed(2)} · Ya abonó: S/{" "}
-                {selectedOrderForAbono.paidPen.toFixed(2)} ·{" "}
-                <strong className="text-red-700">
-                  Saldo: S/ {selectedOrderForAbono.balanceDuePen.toFixed(2)}
-                </strong>
+                {selectedCustomerForFifo ? (
+                  <>
+                    Se repartirá desde el pedido más antiguo ({selectedCustomerForFifo.openOrdersCount} pedidos) ·{" "}
+                    <strong className="text-red-700">
+                      Deuda Total: S/ {selectedCustomerForFifo.totalBalanceDuePen.toFixed(2)}
+                    </strong>
+                  </>
+                ) : (
+                  <>
+                    Pedido {selectedOrderForAbono!.orderCode} · Total: S/{" "}
+                    {selectedOrderForAbono!.totalPen.toFixed(2)} · Ya abonó: S/{" "}
+                    {selectedOrderForAbono!.paidPen.toFixed(2)} ·{" "}
+                    <strong className="text-red-700">
+                      Saldo: S/ {selectedOrderForAbono!.balanceDuePen.toFixed(2)}
+                    </strong>
+                  </>
+                )}
               </p>
               <div className="flex gap-2">
                 <input
@@ -696,7 +755,13 @@ export default function VendedorPage() {
                 <button
                   type="button"
                   onClick={() =>
-                    setAbonoAmount(String(selectedOrderForAbono.balanceDuePen))
+                    setAbonoAmount(
+                      String(
+                        selectedCustomerForFifo
+                          ? selectedCustomerForFifo.totalBalanceDuePen
+                          : selectedOrderForAbono!.balanceDuePen
+                      )
+                    )
                   }
                   className="rounded-xl bg-slate-200 px-3 py-2 text-xs font-bold"
                 >
@@ -707,7 +772,13 @@ export default function VendedorPage() {
                   onClick={() =>
                     setAbonoAmount(
                       String(
-                        Number((selectedOrderForAbono.balanceDuePen / 2).toFixed(2))
+                        Number(
+                          (
+                            (selectedCustomerForFifo
+                              ? selectedCustomerForFifo.totalBalanceDuePen
+                              : selectedOrderForAbono!.balanceDuePen) / 2
+                          ).toFixed(2)
+                        )
                       )
                     )
                   }
@@ -883,6 +954,18 @@ export default function VendedorPage() {
                     {c.maxDaysOverdue} días · Próxima visita:{" "}
                     {c.earliestPromisedPaymentDate || "-"}
                   </p>
+                  {c.customerPartyId && (
+                    <button
+                      onClick={() => {
+                        setSelectedOrderForAbono(null);
+                        setSelectedCustomerForFifo(c);
+                        setAbonoAmount(String(c.totalBalanceDuePen));
+                      }}
+                      className="mt-2 w-full rounded-xl bg-blue-600 py-2 text-xs font-extrabold text-white"
+                    >
+                      + Abono General a Cuenta del Cliente (FIFO)
+                    </button>
+                  )}
                 </div>
               ))}
             </div>

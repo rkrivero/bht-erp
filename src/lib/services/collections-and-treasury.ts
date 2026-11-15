@@ -1,5 +1,6 @@
 import type { PoolClient } from "pg";
 import { assertRole, isPartnerRole } from "../rbac";
+import { getLimaDateString } from "./orders";
 import {
   AuthorizationError,
   ValidationError,
@@ -79,9 +80,7 @@ function computeNextPromisedDate(
 ): string | null {
   if (nextPromisedPaymentDate) return nextPromisedPaymentDate;
   if (nextCollectionDays && nextCollectionDays > 0) {
-    const d = new Date();
-    d.setDate(d.getDate() + nextCollectionDays);
-    return d.toISOString().slice(0, 10);
+    return getLimaDateString(nextCollectionDays);
   }
   return null;
 }
@@ -115,6 +114,7 @@ export async function registerOrderPayment(
   const orderRes = await client.query(
     `SELECT
        order_id, order_code, customer_party_id, customer_name_raw,
+       operational_status::text AS operational_status,
        total_pen, paid_pen, balance_due_pen, is_settled, promised_payment_date::text AS promised_payment_date
      FROM erp.sales_orders
      WHERE order_id = $1
@@ -125,6 +125,14 @@ export async function registerOrderPayment(
     throw new ValidationError("Pedido no encontrado");
   }
   const order = orderRes.rows[0];
+  if (
+    order.operational_status === "PENDING_PARTNER_APPROVAL" ||
+    order.operational_status === "CANCELLED"
+  ) {
+    throw new ValidationError(
+      "No se puede registrar abonos en pedidos pendientes de aprobación o anulados"
+    );
+  }
   const currentBalance = Number(order.balance_due_pen);
   if (amountPen > currentBalance + 0.05) {
     throw new ValidationError("El abono supera el saldo pendiente del pedido");
@@ -226,7 +234,7 @@ export async function registerCustomerFifoPayment(
      WHERE customer_party_id = $1
        AND is_settled = FALSE
        AND balance_due_pen > 0.05
-       AND operational_status <> 'CANCELLED'
+       AND operational_status NOT IN ('CANCELLED', 'PENDING_PARTNER_APPROVAL')
      ORDER BY order_date ASC, order_id ASC
      FOR UPDATE`,
     [input.customerPartyId]
@@ -313,6 +321,7 @@ export async function listDebtors(
        last_payment_date::text AS last_payment_date,
        created_by_name
      FROM analytics.v_debtors_aging
+     WHERE operational_status NOT IN ('CANCELLED', 'PENDING_PARTNER_APPROVAL')
      ORDER BY
        CASE promise_status
          WHEN 'PROMISE_BROKEN' THEN 0

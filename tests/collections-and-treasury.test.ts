@@ -65,6 +65,28 @@ describe("Collections, Partial Amortizations, FIFO, Debtors Aging, Treasury & Da
         lines: [{ productId, quantity: 10, unitDiscountPen: 0 }],
       });
 
+      // Issue #2: Unapproved order (PENDING_PARTNER_APPROVAL) must NOT appear in listDebtors or accept registerOrderPayment
+      const unapprovedOrder = await createOrder(client, sellerActor, {
+        customerNameRaw: "CLIENTE DESCUENTO PENDIENTE",
+        paymentMode: "CREDIT",
+        creditDays: 7,
+        lines: [{ productId, quantity: 2, unitDiscountPen: 10 }], // 100 - 10 = 90 < min 95
+      });
+      expect(unapprovedOrder.operationalStatus).toBe("PENDING_PARTNER_APPROVAL");
+
+      const debtorsCheck = await listDebtors(client, partnerActor);
+      expect(
+        debtorsCheck.byOrder.some((d) => d.orderId === unapprovedOrder.orderId)
+      ).toBe(false);
+
+      await expect(
+        registerOrderPayment(client, sellerActor, {
+          orderId: unapprovedOrder.orderId,
+          amountPen: 50,
+          paymentMode: "CASH",
+        })
+      ).rejects.toThrow(ValidationError);
+
       // 2. Partial Abono #2 of S/ 350 and reschedule next visit in 7 days
       const abono2 = await registerOrderPayment(client, sellerActor, {
         orderId: order.orderId,

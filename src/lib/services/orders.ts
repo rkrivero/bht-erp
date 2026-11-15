@@ -19,6 +19,7 @@ export interface CreateOrderInput {
   customerPartyId?: number | null;
   customerNameRaw: string;
   paymentMode: PaymentMode;
+  collectOnDelivery?: boolean;
   creditDays?: number;
   promisedPaymentDate?: string | null;
   initialPaidPen?: number;
@@ -30,6 +31,20 @@ export interface CreateOrderInput {
     unitDiscountPen?: number;
     overrideBasePricePen?: number;
   }>;
+}
+
+export function getLimaDateString(offsetDays = 0): string {
+  const now = new Date();
+  const limaStr = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Lima",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(now);
+  if (offsetDays === 0) return limaStr;
+  const [y, m, d] = limaStr.split("-").map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d + offsetDays));
+  return dt.toISOString().slice(0, 10);
 }
 
 async function getMainWarehouseId(client: PoolClient): Promise<number> {
@@ -177,7 +192,7 @@ export async function createOrder(
     }
     const prod = prodRes.rows[0];
     const baseUnitPricePen =
-      item.overrideBasePricePen !== undefined
+      isPartnerRole(actor.role) && item.overrideBasePricePen !== undefined
         ? Number(item.overrideBasePricePen)
         : Number(prod.list_sale_price_pen ?? 0);
 
@@ -221,20 +236,20 @@ export async function createOrder(
     : "REGISTERED";
   const stockDeducted = !requiresApproval;
 
-  // Compute promised_payment_date for CREDIT orders (quick chips: +1, +3, +7 default, +10, +15 or explicit date)
+  // Compute promised_payment_date for CREDIT or Contra Entrega orders in America/Lima timezone
   let promisedPaymentDate: string | null = null;
   if (input.paymentMode === "CREDIT") {
     if (input.promisedPaymentDate) {
       promisedPaymentDate = input.promisedPaymentDate;
     } else {
       const days = input.creditDays && input.creditDays > 0 ? input.creditDays : 7;
-      const d = new Date();
-      d.setDate(d.getDate() + days);
-      promisedPaymentDate = d.toISOString().slice(0, 10);
+      promisedPaymentDate = getLimaDateString(days);
     }
+  } else if (input.collectOnDelivery) {
+    promisedPaymentDate = getLimaDateString(0);
   }
 
-  const orderCode = `SO-${new Date().toISOString().slice(0, 10).replace(/-/g, "")}-${Math.floor(
+  const orderCode = `SO-${getLimaDateString(0).replace(/-/g, "")}-${Math.floor(
     100000 + Math.random() * 900000
   )}`;
 
@@ -305,11 +320,14 @@ export async function createOrder(
     await deductStockForOrderLines(client, warehouseId, orderId, orderCode);
   }
 
-  // Record initial payment if CASH/TRANSFER/YAPE_PLIN or CREDIT with initial down payment (Adelanto)
+  // Record initial payment if paid upfront or CREDIT with initial down payment (Adelanto)
+  // If collectOnDelivery is true (Contra Entrega), initialPaid defaults to 0 so the order stays open for collection upon delivery
   const initialPaid =
     input.paymentMode !== "CREDIT"
       ? input.initialPaidPen !== undefined
         ? Number(input.initialPaidPen)
+        : input.collectOnDelivery
+        ? 0
         : totalPen
       : Number(input.initialPaidPen ?? 0);
 
@@ -454,12 +472,16 @@ export async function advanceWarehouseStatus(
     throw new ValidationError("Pedido no encontrado");
   }
   const currentStatus = String(res.rows[0].status) as OrderOperationalStatus;
-  if (
-    currentStatus === "PENDING_PARTNER_APPROVAL" ||
-    currentStatus === "CANCELLED"
-  ) {
+  const expectedNextByCurrent: Partial<Record<OrderOperationalStatus, OrderOperationalStatus>> = {
+    REGISTERED: "PICKING",
+    PICKING: "READY",
+    READY: "IN_ROUTE",
+    IN_ROUTE: "DELIVERED",
+  };
+
+  if (expectedNextByCurrent[currentStatus] !== nextStatus) {
     throw new ValidationError(
-      `No se puede avanzar un pedido en estado ${currentStatus}`
+      `Transición inválida de ${currentStatus} a ${nextStatus}`
     );
   }
 
@@ -472,7 +494,15 @@ export async function advanceWarehouseStatus(
        WHERE order_id = $3`,
       [nextStatus, actor.userId, orderId]
     );
-  } else if (nextStatus === "DELIVERED" || nextStatus === "IN_ROUTE") {
+  } else if (nextStatus === "IN_ROUTE") {
+    await client.query(
+      `UPDATE erp.sales_orders
+       SET operational_status = $1,
+           delivered_by_user_id = $2
+       WHERE order_id = $3`,
+      [nextStatus, actor.userId, orderId]
+    );
+  } else if (nextStatus === "DELIVERED") {
     await client.query(
       `UPDATE erp.sales_orders
        SET operational_status = $1,

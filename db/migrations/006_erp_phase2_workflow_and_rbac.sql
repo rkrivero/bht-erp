@@ -160,5 +160,5 @@ LEFT JOIN payment_stats ps ON ps.order_id = so.order_id
 LEFT JOIN erp.app_users u ON u.user_id = so.created_by_user_id
 WHERE so.is_settled = FALSE
   AND so.balance_due_pen > 0.05
-  AND so.operational_status <> 'CANCELLED'
+  AND so.operational_status NOT IN ('CANCELLED', 'PENDING_PARTNER_APPROVAL')
 ORDER BY so.promised_payment_date ASC NULLS LAST, so.order_date ASC, so.order_id ASC;
