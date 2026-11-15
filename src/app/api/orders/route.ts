@@ -23,27 +23,27 @@ export async function GET(req: NextRequest) {
     ]);
 
     const data = await withClient(async (client) => {
-      const [orders, catalog, customersRes, accountsRes] = await Promise.all([
-        listOrdersForRole(client, actor, 80),
-        listCatalogForRole(client, actor),
+      const orders = await listOrdersForRole(client, actor, 80);
+      const catalog = await listCatalogForRole(client, actor);
+      const customersRes =
         actor.role === "WAREHOUSE_DELIVERY"
-          ? Promise.resolve({ rows: [] })
-          : client.query(
+          ? { rows: [] }
+          : await client.query(
               `SELECT party_id, COALESCE(trade_name, legal_name) AS name, doc_number, phone, address
                FROM erp.parties
                WHERE party_type = 'CUSTOMER' AND is_active = TRUE
                ORDER BY COALESCE(trade_name, legal_name) ASC
                LIMIT 250`
-            ),
+            );
+      const accountsRes =
         actor.role === "WAREHOUSE_DELIVERY"
-          ? Promise.resolve({ rows: [] })
-          : client.query(
+          ? { rows: [] }
+          : await client.query(
               `SELECT account_id, code, name, account_type
                FROM erp.cash_accounts
                WHERE is_active = TRUE
                ORDER BY account_id ASC`
-            ),
-      ]);
+            );
       return {
         orders,
         catalog,
