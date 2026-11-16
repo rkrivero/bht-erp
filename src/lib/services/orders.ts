@@ -6,6 +6,7 @@ import {
   projectProductForRole,
 } from "../rbac";
 import {
+  AuthorizationError,
   ValidationError,
   type OrderOperationalStatus,
   type PaymentMode,
@@ -24,10 +25,13 @@ export interface CreateOrderInput {
   promisedPaymentDate?: string | null;
   initialPaidPen?: number;
   paymentAccountId?: number;
+  quoteId?: number | null;
+  tripId?: number | null;
   notes?: string;
   lines: Array<{
     productId: number;
     quantity: number;
+    packFactorApplied?: number;
     unitDiscountPen?: number;
     overrideBasePricePen?: number;
   }>;
@@ -62,11 +66,38 @@ async function getDefaultCashAccountId(
   actor: SessionUser,
   explicitAccountId?: number
 ): Promise<number> {
-  if (explicitAccountId) return explicitAccountId;
-  if (actor.defaultCashAccountId) return actor.defaultCashAccountId;
+  const targetId = explicitAccountId || actor.defaultCashAccountId || null;
+  if (targetId) {
+    const res = await client.query<{
+      account_id: number;
+      account_type: string;
+      is_active: boolean;
+    }>(
+      `SELECT account_id, account_type, is_active
+       FROM erp.cash_accounts
+       WHERE account_id = $1
+       LIMIT 1`,
+      [targetId]
+    );
+    if (res.rowCount === 0 || !res.rows[0].is_active) {
+      throw new ValidationError("Cuenta de caja inválida o inactiva");
+    }
+    if (
+      actor.role === "EXTERNAL_SELLER" &&
+      res.rows[0].account_type === "PARTNER_CUSTODY"
+    ) {
+      throw new AuthorizationError(
+        "El Vendedor Externo no puede operar sobre cuentas de custodia de socio"
+      );
+    }
+    return Number(res.rows[0].account_id);
+  }
   const res = await client.query(
-    `SELECT account_id FROM erp.cash_accounts WHERE code = 'CAJA_RUTA' LIMIT 1`
+    `SELECT account_id FROM erp.cash_accounts WHERE code = 'CAJA_RUTA' AND is_active = TRUE LIMIT 1`
   );
+  if (res.rowCount === 0) {
+    throw new ValidationError("Cuenta de caja por defecto no encontrada");
+  }
   return Number(res.rows[0].account_id);
 }
 
@@ -76,47 +107,31 @@ async function deductStockForOrderLines(
   orderId: number,
   orderCode: string
 ): Promise<void> {
-  const linesRes = await client.query(
-    `SELECT
-       sol.order_line_id,
+  // Single set-based INSERT keeps line_no order for BEFORE INSERT triggers
+  // while skipping ON_DEMAND lines marked PENDING_SUPPLIER_PURCHASE.
+  await client.query(
+    `INSERT INTO erp.inventory_movements (
+       warehouse_id, product_id, movement_date, movement_type,
+       quantity_delta, unit_cost_pen, reference_table, reference_id,
+       source_origin, notes
+     )
+     SELECT
+       $1,
        sol.product_id,
-       sol.quantity,
+       NOW(),
+       'SALE_OUT',
+       -(sol.quantity * sol.pack_factor_applied),
        sol.unit_cost_snapshot_pen,
-       p.fulfillment_mode::text AS fulfillment_mode,
-       COALESCE(vcs.stock_on_hand, 0) AS stock_on_hand
+       'erp.sales_orders',
+       $3,
+       'ERP_APP',
+       $4
      FROM erp.sales_order_lines sol
-     JOIN erp.products p ON p.product_id = sol.product_id
-     LEFT JOIN erp.v_current_stock vcs
-       ON vcs.warehouse_id = $1 AND vcs.product_id = sol.product_id
      WHERE sol.order_id = $2
+       AND sol.fulfillment_status = 'FULFILLED'
      ORDER BY sol.line_no ASC`,
-    [warehouseId, orderId]
+    [warehouseId, orderId, String(orderId), `Reserva/Salida venta ${orderCode}`]
   );
-
-  for (const row of linesRes.rows) {
-    const qty = Number(row.quantity);
-    const stockOnHand = Number(row.stock_on_hand);
-    const mode = String(row.fulfillment_mode);
-    if (mode === "ON_DEMAND" && stockOnHand < qty) {
-      // ON_DEMAND without physical stock: trigger on sales_order_lines already marked PENDING_SUPPLIER_PURCHASE
-      continue;
-    }
-    await client.query(
-      `INSERT INTO erp.inventory_movements (
-         warehouse_id, product_id, movement_date, movement_type,
-         quantity_delta, unit_cost_pen, reference_table, reference_id,
-         source_origin, notes
-       ) VALUES ($1, $2, NOW(), 'SALE_OUT', $3, $4, 'erp.sales_orders', $5, 'ERP_APP', $6)`,
-      [
-        warehouseId,
-        Number(row.product_id),
-        -qty,
-        row.unit_cost_snapshot_pen !== null ? Number(row.unit_cost_snapshot_pen) : null,
-        String(orderId),
-        `Reserva/Salida venta ${orderCode}`,
-      ]
-    );
-  }
 }
 
 export async function createOrder(
@@ -148,6 +163,8 @@ export async function createOrder(
     sku: string;
     name: string;
     quantity: number;
+    packFactorApplied: number;
+    requiredBaseQty: number;
     baseUnitPricePen: number;
     unitDiscountPen: number;
     unitPricePen: number;
@@ -160,37 +177,63 @@ export async function createOrder(
 
   const preparedLines: PreparedLine[] = [];
 
-  for (let idx = 0; idx < input.lines.length; idx++) {
-    const item = input.lines[idx];
+  for (const item of input.lines) {
     if (!item.quantity || item.quantity <= 0) {
       throw new ValidationError("La cantidad debe ser mayor a 0");
+    }
+    const packFactorApplied =
+      item.packFactorApplied !== undefined ? Number(item.packFactorApplied) : 1;
+    if (!Number.isFinite(packFactorApplied) || packFactorApplied <= 0) {
+      throw new ValidationError("El factor de empaque debe ser mayor a 0");
     }
     const unitDiscountPen = Number(item.unitDiscountPen ?? 0);
     if (unitDiscountPen < 0) {
       throw new ValidationError("El descuento en Soles no puede ser negativo");
     }
+  }
 
-    const prodRes = await client.query(
-      `SELECT
-         p.product_id,
-         p.sku,
-         p.name,
-         p.fulfillment_mode::text AS fulfillment_mode,
-         p.list_sale_price_pen,
-         p.min_sale_price_pen,
-         p.ref_cost_pen,
-         COALESCE(vcs.stock_on_hand, 0) AS stock_on_hand
-       FROM erp.products p
-       LEFT JOIN erp.v_current_stock vcs
-         ON vcs.warehouse_id = $1 AND vcs.product_id = p.product_id
-       WHERE p.product_id = $2
-       LIMIT 1`,
-      [warehouseId, item.productId]
-    );
-    if (prodRes.rowCount === 0) {
+  const uniqueProductIds = Array.from(
+    new Set(input.lines.map((item) => Number(item.productId)))
+  ).sort((a, b) => a - b);
+
+  // Lock SKU rows in deterministic order before reading v_current_stock
+  await client.query(
+    `SELECT product_id
+     FROM erp.products
+     WHERE product_id = ANY($1::bigint[])
+     ORDER BY product_id ASC
+     FOR UPDATE`,
+    [uniqueProductIds]
+  );
+
+  const prodRes = await client.query(
+    `SELECT
+       p.product_id,
+       p.sku,
+       p.name,
+       p.fulfillment_mode::text AS fulfillment_mode,
+       p.list_sale_price_pen,
+       p.min_sale_price_pen,
+       p.ref_cost_pen,
+       COALESCE(vcs.stock_on_hand, 0) AS stock_on_hand
+     FROM erp.products p
+     LEFT JOIN erp.v_current_stock vcs
+       ON vcs.warehouse_id = $1 AND vcs.product_id = p.product_id
+     WHERE p.product_id = ANY($2::bigint[])`,
+    [warehouseId, uniqueProductIds]
+  );
+  const productById = new Map<number, (typeof prodRes.rows)[number]>();
+  for (const row of prodRes.rows) {
+    productById.set(Number(row.product_id), row);
+  }
+
+  for (let idx = 0; idx < input.lines.length; idx++) {
+    const item = input.lines[idx];
+    const unitDiscountPen = Number(item.unitDiscountPen ?? 0);
+    const prod = productById.get(item.productId);
+    if (!prod) {
       throw new ValidationError(`Producto ID ${item.productId} no encontrado`);
     }
-    const prod = prodRes.rows[0];
     const baseUnitPricePen =
       isPartnerRole(actor.role) && item.overrideBasePricePen !== undefined
         ? Number(item.overrideBasePricePen)
@@ -212,6 +255,15 @@ export async function createOrder(
 
     const lineTotalPen = Number((item.quantity * unitPricePen).toFixed(2));
     totalPen = Number((totalPen + lineTotalPen).toFixed(2));
+    const packFactorApplied = Number(
+      (item.packFactorApplied !== undefined
+        ? Number(item.packFactorApplied)
+        : 1
+      ).toFixed(4)
+    );
+    const requiredBaseQty = Number(
+      (Number(item.quantity) * packFactorApplied).toFixed(4)
+    );
 
     preparedLines.push({
       lineNo: idx + 1,
@@ -219,6 +271,8 @@ export async function createOrder(
       sku: String(prod.sku),
       name: String(prod.name),
       quantity: Number(item.quantity),
+      packFactorApplied,
+      requiredBaseQty,
       baseUnitPricePen,
       unitDiscountPen,
       unitPricePen,
@@ -229,6 +283,41 @@ export async function createOrder(
       stockOnHand: Number(prod.stock_on_hand),
       belowMinPriceFlag,
     });
+  }
+
+  let validatedTripId: number | null = null;
+  if (input.tripId !== undefined && input.tripId !== null) {
+    const tripId = Number(input.tripId);
+    if (!Number.isInteger(tripId) || tripId <= 0) {
+      throw new ValidationError("ID de ruta/viaje inválido");
+    }
+    const tripRes = await client.query<{ status: string }>(
+      `SELECT status::text AS status FROM erp.route_trips WHERE trip_id = $1 LIMIT 1`,
+      [tripId]
+    );
+    if (tripRes.rowCount === 0) {
+      throw new ValidationError("Viaje/ruta no encontrado");
+    }
+    if (tripRes.rows[0].status !== "OPEN") {
+      throw new ValidationError("Solo se puede asignar pedidos a una ruta OPEN");
+    }
+    validatedTripId = tripId;
+  }
+
+  let validatedQuoteId: number | null = null;
+  if (input.quoteId !== undefined && input.quoteId !== null) {
+    const quoteId = Number(input.quoteId);
+    if (!Number.isInteger(quoteId) || quoteId <= 0) {
+      throw new ValidationError("ID de cotización inválido");
+    }
+    const qRes = await client.query<{ status: string }>(
+      `SELECT status::text AS status FROM erp.quotes WHERE quote_id = $1 LIMIT 1`,
+      [quoteId]
+    );
+    if (qRes.rowCount === 0) {
+      throw new ValidationError("Cotización no encontrada");
+    }
+    validatedQuoteId = quoteId;
   }
 
   const operationalStatus: OrderOperationalStatus = requiresApproval
@@ -259,13 +348,13 @@ export async function createOrder(
        payment_mode, operational_status, total_pen, paid_pen,
        due_date, promised_payment_date,
        created_by_user_id, approved_by_user_id, approved_at,
-       stock_deducted, source_origin, notes
+       stock_deducted, trip_id, quote_id, source_origin, notes
      ) VALUES (
-       $1, CURRENT_DATE, $2, $3, $4,
+       $1, (NOW() AT TIME ZONE 'America/Lima')::date, $2, $3, $4,
        $5, $6, $7, 0,
        $11, $11,
        $8, $9, $10,
-       $12, 'ERP_APP', $13
+       $12, $13, $14, 'ERP_APP', $15
      ) RETURNING order_id`,
     [
       orderCode,
@@ -280,56 +369,93 @@ export async function createOrder(
       isPartnerRole(actor.role) ? new Date().toISOString() : null,
       promisedPaymentDate,
       stockDeducted,
+      validatedTripId,
+      validatedQuoteId,
       input.notes ?? null,
     ]
   );
   const orderId = Number(orderInsert.rows[0].order_id);
 
+  const remainingStockByProduct = new Map<number, number>();
   for (const line of preparedLines) {
-    const fulfillmentStatus =
-      line.fulfillmentMode === "ON_DEMAND" && line.stockOnHand < line.quantity
-        ? "PENDING_SUPPLIER_PURCHASE"
-        : "FULFILLED";
+    if (!remainingStockByProduct.has(line.productId)) {
+      remainingStockByProduct.set(line.productId, line.stockOnHand);
+    }
+  }
 
-    await client.query(
-      `INSERT INTO erp.sales_order_lines (
-         order_id, line_no, product_id, raw_description, quantity,
-         base_unit_price_pen, unit_discount_pen, unit_price_pen,
-         line_total_pen, unit_cost_snapshot_pen, fulfillment_status,
-         below_min_price_flag
-       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
-      [
-        orderId,
-        line.lineNo,
+  const lineValuesClauses: string[] = [];
+  const lineParams: unknown[] = [];
+  for (const line of preparedLines) {
+    const availableStock = remainingStockByProduct.get(line.productId) ?? 0;
+    const isPendingPurchase =
+      line.fulfillmentMode === "ON_DEMAND" && availableStock < line.requiredBaseQty;
+    const fulfillmentStatus = isPendingPurchase
+      ? "PENDING_SUPPLIER_PURCHASE"
+      : "FULFILLED";
+    if (!isPendingPurchase) {
+      remainingStockByProduct.set(
         line.productId,
-        line.name,
-        line.quantity,
-        line.baseUnitPricePen,
-        line.unitDiscountPen,
-        line.unitPricePen,
-        line.lineTotalPen,
-        line.unitCostSnapshotPen,
-        fulfillmentStatus,
-        line.belowMinPriceFlag,
-      ]
+        Number((availableStock - line.requiredBaseQty).toFixed(4))
+      );
+    }
+    const offset = lineParams.length;
+    lineValuesClauses.push(
+      `($${offset + 1}, $${offset + 2}, $${offset + 3}, $${offset + 4}, $${offset + 5}, $${offset + 6}, $${offset + 7}, $${offset + 8}, $${offset + 9}, $${offset + 10}, $${offset + 11}, $${offset + 12}, $${offset + 13})`
+    );
+    lineParams.push(
+      orderId,
+      line.lineNo,
+      line.productId,
+      line.name,
+      line.quantity,
+      line.packFactorApplied,
+      line.baseUnitPricePen,
+      line.unitDiscountPen,
+      line.unitPricePen,
+      line.lineTotalPen,
+      line.unitCostSnapshotPen,
+      fulfillmentStatus,
+      line.belowMinPriceFlag
     );
   }
+
+  await client.query(
+    `INSERT INTO erp.sales_order_lines (
+       order_id, line_no, product_id, raw_description, quantity, pack_factor_applied,
+       base_unit_price_pen, unit_discount_pen, unit_price_pen,
+       line_total_pen, unit_cost_snapshot_pen, fulfillment_status,
+       below_min_price_flag
+     ) VALUES ${lineValuesClauses.join(", ")}`,
+    lineParams
+  );
 
   // Deduct stock immediately only if order is already REGISTERED (not PENDING_PARTNER_APPROVAL)
   if (!requiresApproval) {
     await deductStockForOrderLines(client, warehouseId, orderId, orderCode);
   }
 
-  // Record initial payment if paid upfront or CREDIT with initial down payment (Adelanto)
-  // If collectOnDelivery is true (Contra Entrega), initialPaid defaults to 0 so the order stays open for collection upon delivery
-  const initialPaid =
-    input.paymentMode !== "CREDIT"
-      ? input.initialPaidPen !== undefined
-        ? Number(input.initialPaidPen)
-        : input.collectOnDelivery
-        ? 0
-        : totalPen
-      : Number(input.initialPaidPen ?? 0);
+  // Record initial payment only when order does NOT require Partner approval.
+  // Forbid explicit initialPaidPen > 0 on PENDING_PARTNER_APPROVAL and never auto-collect before approval.
+  if (requiresApproval) {
+    if (
+      input.initialPaidPen !== undefined &&
+      Number(input.initialPaidPen) > 0
+    ) {
+      throw new ValidationError(
+        "No se puede registrar un pago inicial en un pedido pendiente de aprobación de Socio"
+      );
+    }
+  }
+
+  const initialPaid = requiresApproval
+    ? 0
+    : input.paymentMode !== "CREDIT"
+    ? input.initialPaidPen !== undefined
+      ? Number(input.initialPaidPen)
+      : input.collectOnDelivery
+      ? 0
+      : totalPen
+    : Number(input.initialPaidPen ?? 0);
 
   if (initialPaid > 0) {
     if (initialPaid > totalPen + 0.05) {
@@ -349,7 +475,7 @@ export async function createOrder(
          expense_category, is_internal_transfer, reference_table, reference_id,
          description, source_origin
        ) VALUES (
-         CURRENT_DATE, $1, $2, 'IN', $3,
+         (NOW() AT TIME ZONE 'America/Lima')::date, $1, $2, 'IN', $3,
          'COBRANZA_VENTA', FALSE, 'erp.sales_orders', $4,
          $5, 'ERP_APP'
        ) RETURNING ledger_id`,
@@ -367,7 +493,7 @@ export async function createOrder(
          order_id, payment_date, amount_pen, payment_mode,
          account_id, reference_doc, collected_by_user_id,
          source_origin, notes
-       ) VALUES ($1, CURRENT_DATE, $2, $3, $4, $5, $6, 'ERP_APP', $7)`,
+       ) VALUES ($1, (NOW() AT TIME ZONE 'America/Lima')::date, $2, $3, $4, $5, $6, 'ERP_APP', $7)`,
       [
         orderId,
         initialPaid,
@@ -425,10 +551,139 @@ export async function approveDiscountedOrder(
     );
   }
 
+  const warehouseId = Number(order.warehouse_id);
+
+  // Re-evaluate live stock under deterministic SKU locks before deducting
+  const linesRes = await client.query<{
+    order_line_id: number;
+    line_no: number;
+    product_id: number;
+    sku: string;
+    quantity: string | number;
+    pack_factor_applied: string | number;
+    fulfillment_mode: "STOCKED" | "ON_DEMAND";
+    fulfillment_status: string;
+  }>(
+    `SELECT
+       sol.order_line_id,
+       sol.line_no,
+       sol.product_id,
+       p.sku,
+       sol.quantity,
+       sol.pack_factor_applied,
+       p.fulfillment_mode::text AS fulfillment_mode,
+       sol.fulfillment_status::text AS fulfillment_status
+     FROM erp.sales_order_lines sol
+     JOIN erp.products p ON p.product_id = sol.product_id
+     WHERE sol.order_id = $1
+     ORDER BY sol.line_no ASC
+     FOR UPDATE OF sol`,
+    [orderId]
+  );
+
+  const uniqueProductIds = Array.from(
+    new Set(linesRes.rows.map((l) => Number(l.product_id)))
+  ).sort((a, b) => a - b);
+
+  if (uniqueProductIds.length > 0) {
+    await client.query(
+      `SELECT product_id
+       FROM erp.products
+       WHERE product_id = ANY($1::bigint[])
+       ORDER BY product_id ASC
+       FOR UPDATE`,
+      [uniqueProductIds]
+    );
+
+    const stockRes = await client.query<{
+      product_id: number;
+      stock_on_hand: string | number;
+    }>(
+      `SELECT product_id, COALESCE(stock_on_hand, 0) AS stock_on_hand
+       FROM erp.v_current_stock
+       WHERE warehouse_id = $1 AND product_id = ANY($2::bigint[])`,
+      [warehouseId, uniqueProductIds]
+    );
+    const remainingStockByProduct = new Map<number, number>();
+    for (const row of stockRes.rows) {
+      remainingStockByProduct.set(
+        Number(row.product_id),
+        Number(row.stock_on_hand)
+      );
+    }
+
+    for (const line of linesRes.rows) {
+      const pid = Number(line.product_id);
+      const requiredQty = Number(line.quantity) * Number(line.pack_factor_applied || 1);
+      const availableStock = remainingStockByProduct.get(pid) ?? 0;
+
+      if (line.fulfillment_mode === "ON_DEMAND") {
+        const nextStatus =
+          availableStock >= requiredQty
+            ? "FULFILLED"
+            : "PENDING_SUPPLIER_PURCHASE";
+
+        if (nextStatus !== line.fulfillment_status) {
+          await client.query(
+            `UPDATE erp.sales_order_lines
+             SET fulfillment_status = $1::erp.line_fulfillment_status
+             WHERE order_line_id = $2`,
+            [nextStatus, Number(line.order_line_id)]
+          );
+        }
+
+        if (nextStatus === "PENDING_SUPPLIER_PURCHASE") {
+          await client.query(
+            `INSERT INTO erp.audit_flags (
+               flag_code, severity, entity_table, entity_id,
+               message, details, source_origin
+             ) VALUES (
+               'ON_DEMAND_PENDING_PURCHASE',
+               'WARNING',
+               'erp.sales_order_lines',
+               $1,
+               $2,
+               $3::jsonb,
+               'ERP_APP'
+             )
+             ON CONFLICT (flag_code, entity_table, entity_id)
+             WHERE status = 'OPEN'
+             DO UPDATE SET
+               message = EXCLUDED.message,
+               details = EXCLUDED.details`,
+            [
+              String(line.order_line_id),
+              `ON_DEMAND sale line #${line.order_line_id} for SKU ${line.sku} awaiting supplier purchase (on_hand=${availableStock}, required=${requiredQty})`,
+              JSON.stringify({
+                order_id: orderId,
+                order_line_id: Number(line.order_line_id),
+                product_id: pid,
+                sku: line.sku,
+                warehouse_id: warehouseId,
+                on_hand_at_order: availableStock,
+                required_base_qty: requiredQty,
+              }),
+            ]
+          );
+        } else {
+          remainingStockByProduct.set(
+            pid,
+            Number((availableStock - requiredQty).toFixed(4))
+          );
+        }
+      } else {
+        remainingStockByProduct.set(
+          pid,
+          Number((availableStock - requiredQty).toFixed(4))
+        );
+      }
+    }
+  }
+
   if (!order.stock_deducted) {
     await deductStockForOrderLines(
       client,
-      Number(order.warehouse_id),
+      warehouseId,
       orderId,
       String(order.order_code)
     );
@@ -472,14 +727,19 @@ export async function advanceWarehouseStatus(
     throw new ValidationError("Pedido no encontrado");
   }
   const currentStatus = String(res.rows[0].status) as OrderOperationalStatus;
-  const expectedNextByCurrent: Partial<Record<OrderOperationalStatus, OrderOperationalStatus>> = {
-    REGISTERED: "PICKING",
-    PICKING: "READY",
-    READY: "IN_ROUTE",
-    IN_ROUTE: "DELIVERED",
+  const allowedNextByCurrent: Partial<
+    Record<
+      OrderOperationalStatus,
+      ReadonlyArray<"PICKING" | "READY" | "IN_ROUTE" | "DELIVERED">
+    >
+  > = {
+    REGISTERED: ["PICKING", "READY"],
+    PICKING: ["READY"],
+    READY: ["IN_ROUTE", "DELIVERED"],
+    IN_ROUTE: ["DELIVERED"],
   };
 
-  if (expectedNextByCurrent[currentStatus] !== nextStatus) {
+  if (!allowedNextByCurrent[currentStatus]?.includes(nextStatus)) {
     throw new ValidationError(
       `Transición inválida de ${currentStatus} a ${nextStatus}`
     );
@@ -551,35 +811,84 @@ export async function cancelOrder(
 
   // Only restore stock if stock was actually deducted
   if (order.stock_deducted) {
-    const moveRes = await client.query(
-      `SELECT product_id, SUM(quantity_delta) AS net_delta, MAX(unit_cost_pen) AS unit_cost_pen
+    await client.query(
+      `INSERT INTO erp.inventory_movements (
+         warehouse_id, product_id, movement_date, movement_type,
+         quantity_delta, unit_cost_pen, reference_table, reference_id,
+         source_origin, notes
+       )
+       SELECT
+         $1,
+         product_id,
+         NOW(),
+         'RETURN_IN',
+         ABS(SUM(quantity_delta)),
+         MAX(unit_cost_pen),
+         'erp.sales_orders',
+         $2,
+         'ERP_APP',
+         $3
        FROM erp.inventory_movements
        WHERE reference_table = 'erp.sales_orders'
-         AND reference_id = $1
-       GROUP BY product_id`,
-      [String(orderId)]
+         AND reference_id = $2
+       GROUP BY product_id
+       HAVING SUM(quantity_delta) < 0`,
+      [
+        Number(order.warehouse_id),
+        String(orderId),
+        `Reingreso por anulación de ${order.order_code}: ${reason}`,
+      ]
     );
-    for (const mv of moveRes.rows) {
-      const netDelta = Number(mv.net_delta);
-      if (netDelta < 0) {
-        await client.query(
-          `INSERT INTO erp.inventory_movements (
-             warehouse_id, product_id, movement_date, movement_type,
-             quantity_delta, unit_cost_pen, reference_table, reference_id,
-             source_origin, notes
-           ) VALUES ($1, $2, NOW(), 'RETURN_IN', $3, $4, 'erp.sales_orders', $5, 'ERP_APP', $6)`,
-          [
-            Number(order.warehouse_id),
-            Number(mv.product_id),
-            Math.abs(netDelta),
-            mv.unit_cost_pen !== null ? Number(mv.unit_cost_pen) : null,
-            String(orderId),
-            `Reingreso por anulación de ${order.order_code}: ${reason}`,
-          ]
-        );
-      }
-    }
   }
+
+  // Reverse AR payments (trg_sync_ar_payment_to_order updates paid_pen = 0) and ERP_APP cash ledger inflows
+  await client.query(
+    `DELETE FROM erp.ar_payments
+     WHERE order_id = $1`,
+    [orderId]
+  );
+  await client.query(
+    `DELETE FROM erp.cash_ledger
+     WHERE reference_table = 'erp.sales_orders'
+       AND reference_id = $1
+       AND source_origin = 'ERP_APP'`,
+    [String(orderId)]
+  );
+
+  // Close open ON_DEMAND purchase flags tied to cancelled order lines
+  await client.query(
+    `UPDATE erp.audit_flags
+     SET status = 'RESOLVED',
+         resolved_at = NOW(),
+         resolved_by = $2
+     WHERE flag_code = 'ON_DEMAND_PENDING_PURCHASE'
+       AND entity_table = 'erp.sales_order_lines'
+       AND status = 'OPEN'
+       AND entity_id IN (
+         SELECT order_line_id::text
+         FROM erp.sales_order_lines
+         WHERE order_id = $1
+       )`,
+    [orderId, actor.username]
+  );
+
+  // Resolve ON_DEMAND_STOCK_DEFICIT flags for SKUs on this order if stock returned to >= 0
+  await client.query(
+    `UPDATE erp.audit_flags af
+     SET status = 'RESOLVED',
+         resolved_at = NOW(),
+         resolved_by = $3
+     FROM erp.sales_order_lines sol
+     LEFT JOIN erp.v_current_stock vcs
+       ON vcs.warehouse_id = $2 AND vcs.product_id = sol.product_id
+     WHERE sol.order_id = $1
+       AND af.flag_code = 'ON_DEMAND_STOCK_DEFICIT'
+       AND af.entity_table = 'erp.products'
+       AND af.entity_id = (sol.product_id::text || '@' || $2::text)
+       AND af.status = 'OPEN'
+       AND COALESCE(vcs.stock_on_hand, 0) >= 0`,
+    [orderId, Number(order.warehouse_id), actor.username]
+  );
 
   await client.query(
     `UPDATE erp.sales_order_lines
@@ -604,11 +913,22 @@ export async function cancelOrder(
   );
 }
 
-export async function listOrdersForRole(
+export interface OrdersPaginationMeta {
+  limit: number;
+  offset: number;
+  totalCount: number;
+  hasMore: boolean;
+}
+
+export async function listOrdersPaginatedForRole(
   client: PoolClient,
   actor: SessionUser,
-  limit = 60
-): Promise<Record<string, unknown>[]> {
+  limit = 60,
+  offset = 0
+): Promise<{
+  orders: Record<string, unknown>[];
+  pagination: OrdersPaginationMeta;
+}> {
   assertRole(actor, [
     "PARTNER_ADMIN",
     "PARTNER_MANAGER",
@@ -616,10 +936,20 @@ export async function listOrdersForRole(
     "WAREHOUSE_DELIVERY",
   ]);
 
+  const safeLimit = Math.max(1, Math.min(200, Math.floor(limit || 60)));
+  const safeOffset = Math.max(0, Math.floor(offset || 0));
+
   const filterClause =
     actor.role === "WAREHOUSE_DELIVERY"
       ? `WHERE so.operational_status NOT IN ('PENDING_PARTNER_APPROVAL', 'CANCELLED') AND so.source_origin = 'ERP_APP'`
       : `WHERE so.operational_status <> 'CANCELLED'`;
+
+  const countRes = await client.query<{ total_count: number }>(
+    `SELECT COUNT(*)::int AS total_count
+     FROM erp.sales_orders so
+     ${filterClause}`
+  );
+  const totalCount = Number(countRes.rows[0]?.total_count ?? 0);
 
   const ordersRes = await client.query(
     `SELECT
@@ -629,6 +959,9 @@ export async function listOrdersForRole(
        so.customer_party_id,
        COALESCE(pa.trade_name, pa.legal_name, so.customer_name_raw, 'CLIENTE') AS customer_name,
        so.operational_status::text AS operational_status,
+       so.trip_id,
+       rt.trip_code,
+       so.quote_id,
        so.payment_mode::text AS payment_mode,
        so.promised_payment_date::text AS promised_payment_date,
        so.total_pen,
@@ -646,6 +979,7 @@ export async function listOrdersForRole(
        so.delivered_at::text AS delivered_at
      FROM erp.sales_orders so
      LEFT JOIN erp.parties pa ON pa.party_id = so.customer_party_id
+     LEFT JOIN erp.route_trips rt ON rt.trip_id = so.trip_id
      LEFT JOIN erp.app_users u_create ON u_create.user_id = so.created_by_user_id
      LEFT JOIN erp.app_users u_app ON u_app.user_id = so.approved_by_user_id
      LEFT JOIN erp.app_users u_pick ON u_pick.user_id = so.picked_by_user_id
@@ -655,11 +989,21 @@ export async function listOrdersForRole(
        CASE WHEN so.source_origin = 'ERP_APP' THEN 0 ELSE 1 END ASC,
        so.order_date DESC,
        so.order_id DESC
-     LIMIT $1`,
-    [limit]
+     LIMIT $1 OFFSET $2`,
+    [safeLimit, safeOffset]
   );
 
-  if (ordersRes.rowCount === 0) return [];
+  if (ordersRes.rowCount === 0) {
+    return {
+      orders: [],
+      pagination: {
+        limit: safeLimit,
+        offset: safeOffset,
+        totalCount,
+        hasMore: false,
+      },
+    };
+  }
 
   const orderIds = ordersRes.rows.map((r) => Number(r.order_id));
   const linesRes = await client.query(
@@ -670,7 +1014,9 @@ export async function listOrdersForRole(
        sol.product_id,
        p.sku,
        sol.raw_description,
+       p.unit_of_measure,
        sol.quantity,
+       COALESCE(sol.pack_factor_applied, 1) AS pack_factor_applied,
        COALESCE(sol.base_unit_price_pen, sol.unit_price_pen) AS base_unit_price_pen,
        COALESCE(sol.unit_discount_pen, 0) AS unit_discount_pen,
        sol.unit_price_pen,
@@ -696,7 +1042,9 @@ export async function listOrdersForRole(
       product_id: Number(row.product_id),
       sku: String(row.sku),
       raw_description: String(row.raw_description),
+      unit_of_measure: String(row.unit_of_measure || "NIU"),
       quantity: Number(row.quantity),
+      pack_factor_applied: Number(row.pack_factor_applied ?? 1),
       base_unit_price_pen: Number(row.base_unit_price_pen),
       unit_discount_pen: Number(row.unit_discount_pen),
       unit_price_pen: Number(row.unit_price_pen),
@@ -711,7 +1059,7 @@ export async function listOrdersForRole(
     });
   }
 
-  return ordersRes.rows.map((row) => {
+  const orders = ordersRes.rows.map((row) => {
     const rawOrder: RawOrderWithLines = {
       order_id: Number(row.order_id),
       order_code: String(row.order_code),
@@ -720,6 +1068,9 @@ export async function listOrdersForRole(
         row.customer_party_id !== null ? Number(row.customer_party_id) : null,
       customer_name: String(row.customer_name),
       operational_status: row.operational_status,
+      trip_id: row.trip_id !== null && row.trip_id !== undefined ? Number(row.trip_id) : null,
+      trip_code: row.trip_code ?? null,
+      quote_id: row.quote_id !== null && row.quote_id !== undefined ? Number(row.quote_id) : null,
       payment_mode: row.payment_mode,
       promised_payment_date: row.promised_payment_date ?? null,
       total_pen: Number(row.total_pen),
@@ -739,6 +1090,26 @@ export async function listOrdersForRole(
     };
     return projectOrderForRole(rawOrder, actor.role);
   });
+
+  return {
+    orders,
+    pagination: {
+      limit: safeLimit,
+      offset: safeOffset,
+      totalCount,
+      hasMore: safeOffset + orders.length < totalCount,
+    },
+  };
+}
+
+export async function listOrdersForRole(
+  client: PoolClient,
+  actor: SessionUser,
+  limit = 60,
+  offset = 0
+): Promise<Record<string, unknown>[]> {
+  const { orders } = await listOrdersPaginatedForRole(client, actor, limit, offset);
+  return orders;
 }
 
 export async function listCatalogForRole(
@@ -751,7 +1122,6 @@ export async function listCatalogForRole(
     "EXTERNAL_SELLER",
     "WAREHOUSE_DELIVERY",
   ]);
-  const warehouseId = await getMainWarehouseId(client);
   const res = await client.query(
     `SELECT
        p.product_id,
@@ -764,11 +1134,12 @@ export async function listCatalogForRole(
        p.min_sale_price_pen,
        p.ref_cost_pen
      FROM erp.products p
+     JOIN erp.warehouses w
+       ON w.code = 'MAIN' AND w.is_active = TRUE
      LEFT JOIN erp.v_current_stock vcs
-       ON vcs.warehouse_id = $1 AND vcs.product_id = p.product_id
+       ON vcs.warehouse_id = w.warehouse_id AND vcs.product_id = p.product_id
      WHERE p.is_active = TRUE
-     ORDER BY p.name ASC`,
-    [warehouseId]
+     ORDER BY p.name ASC`
   );
 
   return res.rows.map((r) =>

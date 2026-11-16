@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { SESSION_COOKIE_NAME, verifySessionToken } from "@/lib/auth";
+import {
+  SESSION_COOKIE_NAME,
+  requireActiveSession,
+  verifySessionToken,
+} from "@/lib/auth";
 import { withClient, withTransaction } from "@/lib/db";
 import { assertRole } from "@/lib/rbac";
 import {
@@ -8,12 +12,19 @@ import {
   registerCustomerFifoPayment,
   registerOrderPayment,
 } from "@/lib/services/collections-and-treasury";
-import { AuthorizationError, ValidationError } from "@/lib/types";
+import {
+  parsePositiveInt,
+  resolveHttpError,
+} from "@/lib/types";
+
+export const dynamic = "force-dynamic";
+
+const NO_STORE_HEADERS = { "Cache-Control": "no-store" };
 
 export async function GET(req: NextRequest) {
   try {
     const token = req.cookies.get(SESSION_COOKIE_NAME)?.value;
-    const actor = assertRole(verifySessionToken(token), [
+    const parsedActor = assertRole(verifySessionToken(token), [
       "PARTNER_ADMIN",
       "PARTNER_MANAGER",
       "EXTERNAL_SELLER",
@@ -21,28 +32,29 @@ export async function GET(req: NextRequest) {
 
     const orderIdParam = req.nextUrl.searchParams.get("orderId");
     const data = await withClient(async (client) => {
+      const actor = assertRole(await requireActiveSession(client, parsedActor), [
+        "PARTNER_ADMIN",
+        "PARTNER_MANAGER",
+        "EXTERNAL_SELLER",
+      ]);
       if (orderIdParam) {
+        const orderId = parsePositiveInt(orderIdParam, "Pedido");
         const timeline = await getOrderPaymentTimeline(
           client,
           actor,
-          Number(orderIdParam)
+          orderId
         );
         return { timeline };
       }
       return await listDebtors(client, actor);
     });
 
-    return NextResponse.json(data);
+    return NextResponse.json(data, { headers: NO_STORE_HEADERS });
   } catch (err) {
-    const status =
-      err instanceof AuthorizationError
-        ? 403
-        : err instanceof ValidationError
-        ? 400
-        : 500;
+    const { status, error } = resolveHttpError(err, "Error en cobranzas");
     return NextResponse.json(
-      { error: err instanceof Error ? err.message : "Error en cobranzas" },
-      { status }
+      { error },
+      { status, headers: NO_STORE_HEADERS }
     );
   }
 }
@@ -50,7 +62,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const token = req.cookies.get(SESSION_COOKIE_NAME)?.value;
-    const actor = assertRole(verifySessionToken(token), [
+    const parsedActor = assertRole(verifySessionToken(token), [
       "PARTNER_ADMIN",
       "PARTNER_MANAGER",
       "EXTERNAL_SELLER",
@@ -58,47 +70,49 @@ export async function POST(req: NextRequest) {
 
     const body = await req.json();
     const mode = String(body.mode || "single_order");
+    const nextCollectionDays =
+      body.nextCollectionDays === null
+        ? null
+        : body.nextCollectionDays !== undefined && body.nextCollectionDays !== ""
+        ? Number(body.nextCollectionDays)
+        : undefined;
 
     const result = await withTransaction(async (client) => {
+      const actor = assertRole(await requireActiveSession(client, parsedActor), [
+        "PARTNER_ADMIN",
+        "PARTNER_MANAGER",
+        "EXTERNAL_SELLER",
+      ]);
       if (mode === "fifo_customer") {
         const allocations = await registerCustomerFifoPayment(client, actor, {
-          customerPartyId: Number(body.customerPartyId),
+          customerPartyId: parsePositiveInt(body.customerPartyId, "Cliente"),
           totalAmountPen: Number(body.totalAmountPen),
           paymentMode: body.paymentMode || "CASH",
-          accountId: body.accountId ? Number(body.accountId) : undefined,
+          accountId: body.accountId ? parsePositiveInt(body.accountId, "Cuenta") : undefined,
           notes: body.notes,
-          nextCollectionDays: body.nextCollectionDays
-            ? Number(body.nextCollectionDays)
-            : undefined,
+          nextCollectionDays,
           nextPromisedPaymentDate: body.nextPromisedPaymentDate ?? null,
         });
         return { allocations };
       }
 
       return await registerOrderPayment(client, actor, {
-        orderId: Number(body.orderId),
+        orderId: parsePositiveInt(body.orderId, "Pedido"),
         amountPen: Number(body.amountPen),
         paymentMode: body.paymentMode || "CASH",
-        accountId: body.accountId ? Number(body.accountId) : undefined,
+        accountId: body.accountId ? parsePositiveInt(body.accountId, "Cuenta") : undefined,
         notes: body.notes,
-        nextCollectionDays: body.nextCollectionDays
-          ? Number(body.nextCollectionDays)
-          : undefined,
+        nextCollectionDays,
         nextPromisedPaymentDate: body.nextPromisedPaymentDate ?? null,
       });
     });
 
-    return NextResponse.json(result);
+    return NextResponse.json(result, { headers: NO_STORE_HEADERS });
   } catch (err) {
-    const status =
-      err instanceof AuthorizationError
-        ? 403
-        : err instanceof ValidationError
-        ? 400
-        : 500;
+    const { status, error } = resolveHttpError(err, "Error registrando abono");
     return NextResponse.json(
-      { error: err instanceof Error ? err.message : "Error registrando abono" },
-      { status }
+      { error },
+      { status, headers: NO_STORE_HEADERS }
     );
   }
 }

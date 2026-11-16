@@ -203,11 +203,25 @@ describe("Collections, Partial Amortizations, FIFO, Debtors Aging, Treasury & Da
         },
       ]);
 
-      const debtors = await listDebtors(client, partnerActor);
+      const debtors = await listDebtors(client, sellerActor);
       const fifoCust = debtors.byCustomer.find(
         (c) => c.customerPartyId === customerPartyId
       );
       expect(fifoCust?.totalBalanceDuePen).toBe(300);
+      const fifoOrder = debtors.byOrder.find(
+        (o) => o.orderId === newerOrder.orderId
+      );
+      expect(fifoOrder?.customerKey).toBe(`PARTY-${customerPartyId}`);
+      expect(fifoOrder?.lines.length).toBe(1);
+      expect(fifoOrder?.lines[0]).toMatchObject({
+        sku: "TEST-FIFO-SKU",
+        unitOfMeasure: "UND",
+        quantity: 5,
+        unitPricePen: 100,
+        lineTotalPen: 500,
+      });
+      expect(fifoOrder?.lines[0]).not.toHaveProperty("unitCostSnapshotPen");
+      expect(fifoOrder?.lines[0]).not.toHaveProperty("unit_cost_snapshot_pen");
       expect(fifoCust?.openOrdersCount).toBe(1);
     } finally {
       await client.query("ROLLBACK");

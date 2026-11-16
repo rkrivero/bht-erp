@@ -228,9 +228,271 @@ describe("Order Lifecycle Service (Soles Discount Floor, Approval, Stock & 4-Res
       await expect(
         advanceWarehouseStatus(client, warehouseActor, contraOrder.orderId, "PICKING")
       ).rejects.toThrow(ValidationError);
+
+      // Streamlined 3-stage warehouse flow (REGISTERED -> READY -> DELIVERED) stamps actors cleanly
+      const fastOrder = await createOrder(client, partnerActor, {
+        customerNameRaw: "CLIENTE FLUJO 3 ETAPAS",
+        paymentMode: "CASH",
+        collectOnDelivery: true,
+        lines: [{ productId, quantity: 1 }],
+      });
+      await advanceWarehouseStatus(client, warehouseActor, fastOrder.orderId, "READY");
+      await advanceWarehouseStatus(client, warehouseActor, fastOrder.orderId, "DELIVERED");
+      const fastCheck = await client.query(
+        `SELECT operational_status::text AS status, picked_by_user_id, picked_at, delivered_by_user_id, delivered_at
+         FROM erp.sales_orders WHERE order_id = $1`,
+        [fastOrder.orderId]
+      );
+      expect(fastCheck.rows[0].status).toBe("DELIVERED");
+      expect(Number(fastCheck.rows[0].picked_by_user_id)).toBe(warehouseActor.userId);
+      expect(fastCheck.rows[0].picked_at).not.toBeNull();
+      expect(Number(fastCheck.rows[0].delivered_by_user_id)).toBe(warehouseActor.userId);
+      expect(fastCheck.rows[0].delivered_at).not.toBeNull();
     } finally {
       await client.query("ROLLBACK");
       client.release();
+    }
+  });
+
+  it("applies packFactorApplied to SALE_OUT base stock movements and validates packFactorApplied > 0", async () => {
+    const pool = getPool("dev");
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      const whRes = await client.query(
+        `SELECT warehouse_id FROM erp.warehouses WHERE code = 'MAIN' LIMIT 1`
+      );
+      const warehouseId = Number(whRes.rows[0].warehouse_id);
+
+      const prodRes = await client.query(
+        `INSERT INTO erp.products (sku, name, unit_of_measure, fulfillment_mode, list_sale_price_pen, min_sale_price_pen, ref_cost_pen)
+         VALUES ('TEST-PACK-FACTOR-01', 'MANGUERA ROLLO TEST PACK', 'MTR', 'STOCKED', 50, 40, 25)
+         RETURNING product_id`
+      );
+      const productId = Number(prodRes.rows[0].product_id);
+
+      await client.query(
+        `INSERT INTO erp.inventory_movements (warehouse_id, product_id, movement_date, movement_type, quantity_delta, unit_cost_pen, notes)
+         VALUES ($1, $2, NOW(), 'ADJUSTMENT', 20, 25, 'TEST_PACK_STOCK')`,
+        [warehouseId, productId]
+      );
+
+      // Reject packFactorApplied <= 0
+      await expect(
+        createOrder(client, sellerActor, {
+          customerNameRaw: "CLIENTE PACK INVALIDO",
+          paymentMode: "CASH",
+          lines: [{ productId, quantity: 2, packFactorApplied: 0 }],
+        })
+      ).rejects.toThrow(ValidationError);
+
+      // Quantity 2 with packFactorApplied 3 => 6 base units deducted via SALE_OUT
+      const ord = await createOrder(client, sellerActor, {
+        customerNameRaw: "CLIENTE PACK 3X",
+        paymentMode: "CASH",
+        lines: [{ productId, quantity: 2, packFactorApplied: 3 }],
+      });
+
+      const lineRes = await client.query(
+        `SELECT quantity, pack_factor_applied FROM erp.sales_order_lines WHERE order_id = $1`,
+        [ord.orderId]
+      );
+      expect(Number(lineRes.rows[0].quantity)).toBe(2);
+      expect(Number(lineRes.rows[0].pack_factor_applied)).toBe(3);
+
+      const movRes = await client.query(
+        `SELECT quantity_delta FROM erp.inventory_movements
+         WHERE product_id = $1 AND reference_table = 'erp.sales_orders' AND reference_id = $2`,
+        [productId, String(ord.orderId)]
+      );
+      expect(Number(movRes.rows[0].quantity_delta)).toBe(-6);
+
+      const stockRes = await client.query(
+        `SELECT stock_on_hand FROM erp.v_current_stock WHERE warehouse_id = $1 AND product_id = $2`,
+        [warehouseId, productId]
+      );
+      expect(Number(stockRes.rows[0].stock_on_hand)).toBe(14);
+    } finally {
+      await client.query("ROLLBACK");
+      client.release();
+    }
+  });
+
+  it("serializes concurrent ON_DEMAND purchase fulfillment via FOR UPDATE across parallel DB connections without double-fulfilling", async () => {
+    const { registerSupplierPurchase, createSupplier } = await import(
+      "../src/lib/services/purchases-and-suppliers"
+    );
+    const pool = getPool("dev");
+    const suffix = `${Date.now()}_${Math.floor(Math.random() * 10000)}`;
+    const uniqueSku = `TEST-CONC-${suffix}`;
+
+    let productId: number | null = null;
+    let supplierPartyId: number | null = null;
+    const orderIds: number[] = [];
+    const purchaseIds: number[] = [];
+
+    // Commit minimal isolated fixture so two concurrent connections can race on the exact same locked rows
+    const setupClient = await pool.connect();
+    let orderLineId = 0;
+    try {
+      await setupClient.query("BEGIN");
+      const prodRes = await setupClient.query(
+        `INSERT INTO erp.products (sku, name, unit_of_measure, fulfillment_mode, list_sale_price_pen, min_sale_price_pen, ref_cost_pen)
+         VALUES ($1, 'SKU CONCURRENCIA FOR UPDATE', 'NIU', 'ON_DEMAND', 120, 100, 70)
+         RETURNING product_id`,
+        [uniqueSku]
+      );
+      productId = Number(prodRes.rows[0].product_id);
+
+      const { supplier } = await createSupplier(setupClient, partnerActor, {
+        legalName: `PROVEEDOR CONC ${suffix}`,
+        docType: "NONE",
+      });
+      supplierPartyId = supplier.party_id;
+
+      const ord = await createOrder(setupClient, sellerActor, {
+        customerNameRaw: `CLIENTE CONC ${suffix}`,
+        paymentMode: "CREDIT",
+        creditDays: 7,
+        lines: [{ productId, quantity: 3 }],
+      });
+      orderIds.push(ord.orderId);
+
+      const olRes = await setupClient.query(
+        `SELECT order_line_id FROM erp.sales_order_lines WHERE order_id = $1`,
+        [ord.orderId]
+      );
+      orderLineId = Number(olRes.rows[0].order_line_id);
+      await setupClient.query("COMMIT");
+    } catch (err) {
+      await setupClient.query("ROLLBACK").catch(() => {});
+      throw err;
+    } finally {
+      setupClient.release();
+    }
+
+    try {
+      const runPurchaseRace = async (docNum: string) => {
+        const c = await pool.connect();
+        try {
+          await c.query("BEGIN");
+          const out = await registerSupplierPurchase(c, partnerActor, {
+            supplierPartyId: supplierPartyId!,
+            docType: "FACTURA",
+            docSeries: "F901",
+            docNumber: docNum,
+            paymentCondition: "CREDIT",
+            items: [{ productId: productId!, quantity: 4, unitCostPen: 75 }],
+            fulfillOrderLineIds: [orderLineId],
+          });
+          await c.query("COMMIT");
+          purchaseIds.push(out.purchaseId);
+          return out;
+        } catch (err) {
+          await c.query("ROLLBACK").catch(() => {});
+          throw err;
+        } finally {
+          c.release();
+        }
+      };
+
+      const results = await Promise.allSettled([
+        runPurchaseRace(`RACE1-${suffix}`),
+        runPurchaseRace(`RACE2-${suffix}`),
+      ]);
+
+      const fulfilledCount = results.filter((r) => r.status === "fulfilled").length;
+      const rejected = results.filter(
+        (r): r is PromiseRejectedResult => r.status === "rejected"
+      );
+      expect(fulfilledCount).toBe(1);
+      expect(rejected.length).toBe(1);
+      expect(rejected[0].reason).toBeInstanceOf(ValidationError);
+
+      // Verify stock_on_hand is exactly 4 - 3 = 1 (never 4 or 8)
+      const checkClient = await pool.connect();
+      try {
+        const stockRes = await checkClient.query(
+          `SELECT vcs.stock_on_hand
+           FROM erp.v_current_stock vcs
+           JOIN erp.warehouses w ON w.warehouse_id = vcs.warehouse_id AND w.code = 'MAIN'
+           WHERE vcs.product_id = $1`,
+          [productId]
+        );
+        expect(Number(stockRes.rows[0].stock_on_hand)).toBe(1);
+      } finally {
+        checkClient.release();
+      }
+    } finally {
+      // Complete deterministic cleanup of temporary concurrency test rows on dev
+      const cleanClient = await pool.connect();
+      try {
+        await cleanClient.query("BEGIN");
+        if (orderLineId > 0) {
+          await cleanClient.query(
+            `DELETE FROM erp.audit_flags WHERE entity_table = 'erp.sales_order_lines' AND entity_id = $1`,
+            [String(orderLineId)]
+          );
+        }
+        if (orderIds.length > 0) {
+          await cleanClient.query(
+            `DELETE FROM erp.audit_flags WHERE entity_table = 'erp.sales_orders' AND entity_id = ANY($1)`,
+            [orderIds.map(String)]
+          );
+        }
+        if (productId) {
+          await cleanClient.query(
+            `DELETE FROM erp.inventory_movements WHERE product_id = $1`,
+            [productId]
+          );
+        }
+        if (orderIds.length > 0) {
+          await cleanClient.query(
+            `DELETE FROM erp.sales_order_lines WHERE order_id = ANY($1)`,
+            [orderIds]
+          );
+          await cleanClient.query(
+            `DELETE FROM erp.sales_orders WHERE order_id = ANY($1)`,
+            [orderIds]
+          );
+        }
+        if (supplierPartyId) {
+          await cleanClient.query(
+            `DELETE FROM erp.ap_obligations WHERE supplier_party_id = $1`,
+            [supplierPartyId]
+          );
+        }
+        if (productId) {
+          await cleanClient.query(
+            `DELETE FROM erp.purchase_invoice_lines WHERE product_id = $1`,
+            [productId]
+          );
+        }
+        if (purchaseIds.length > 0) {
+          await cleanClient.query(
+            `DELETE FROM erp.purchase_invoices WHERE purchase_id = ANY($1)`,
+            [purchaseIds]
+          );
+        } else if (supplierPartyId) {
+          await cleanClient.query(
+            `DELETE FROM erp.purchase_invoices WHERE supplier_party_id = $1`,
+            [supplierPartyId]
+          );
+        }
+        if (supplierPartyId) {
+          await cleanClient.query(`DELETE FROM erp.parties WHERE party_id = $1`, [
+            supplierPartyId,
+          ]);
+        }
+        if (productId) {
+          await cleanClient.query(`DELETE FROM erp.products WHERE product_id = $1`, [
+            productId,
+          ]);
+        }
+        await cleanClient.query("COMMIT");
+      } finally {
+        cleanClient.release();
+      }
     }
   });
 });

@@ -1,7 +1,109 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, {
+  useCallback,
+  useDeferredValue,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useRouter } from "next/navigation";
+import {
+  AbonoModal,
+  type AbonoCashAccountOption,
+  CREDIT_DAY_CHIPS,
+  DebtorDetailModal,
+  type DebtOrderLineDetail,
+  PromiseFilterBar,
+  PromiseStatusPill,
+} from "@/components/shared/CollectionControls";
+import {
+  AppHeader,
+  BottomNav,
+  DesktopTabBar,
+  type NavTabItem,
+} from "@/components/ui/AppShell";
+import {
+  AlertTriangleIcon,
+  ChevronRightIcon,
+  ClockIcon,
+  CloseIcon,
+  MinusIcon,
+  PackageIcon,
+  PlusIcon,
+  ReceiptIcon,
+  SearchIcon,
+  ShoppingBagIcon,
+  TrashIcon,
+  WalletIcon,
+} from "@/components/ui/Icons";
+import {
+  Badge,
+  Button,
+  Card,
+  EmptyState,
+  FieldLabel,
+  INPUT_CLASS,
+  ModalSheet,
+  SegmentedControl,
+  ToastBanner,
+} from "@/components/ui/Primitives";
+import {
+  formatFulfillmentModeEs,
+  formatOperationalStatusEs,
+  formatPaymentModeEs,
+  formatUnitTitleEs,
+} from "@/lib/labels-es";
+import {
+  notifyLocalSync,
+  useLiveSync,
+  type SyncScope,
+} from "@/lib/realtime/useLiveSync";
+
+const SELLER_SYNC_SCOPES: SyncScope[] = [
+  "orders",
+  "inventory",
+  "collections",
+  "treasury",
+];
+const SELLER_DRAFT_STORAGE_KEY = "bht_vendedor_order_draft_v1";
+
+interface CustomerOption {
+  party_id: number;
+  name: string;
+  doc_number?: string | null;
+  phone?: string | null;
+  address?: string | null;
+}
+
+const CANCEL_DRAFT_REASONS = [
+  { code: "PRICE_TOO_HIGH", label: "Precio alto o competencia" },
+  { code: "NO_STOCK_OR_DELAY", label: "Sin stock o demora de entrega" },
+  { code: "NO_LIQUIDITY", label: "Sin liquidez / crédito no aprobado" },
+  { code: "CHANGED_MIND", label: "Cliente postergó o cambió de opinión" },
+  { code: "ORDER_ERROR", label: "Error al armar el pedido" },
+  { code: "OTHER", label: "Otro motivo" },
+] as const;
+
+function normalizeSearchText(value: string): string {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+}
+
+const FRACTIONAL_UOMS = new Set(["KGM", "MTR"]);
+
+function isFractionalUom(uom?: string | null): boolean {
+  return FRACTIONAL_UOMS.has((uom || "NIU").trim().toUpperCase());
+}
+
+function normalizeOrderQuantity(qty: number, fractional: boolean): number {
+  if (!Number.isFinite(qty) || qty <= 0) return 0;
+  return fractional ? Math.round(qty * 1000) / 1000 : Math.floor(qty);
+}
 
 interface CatalogItem {
   product_id: number;
@@ -17,6 +119,7 @@ interface CatalogItem {
 interface CartLine {
   product: CatalogItem;
   quantity: number;
+  quantityInput: string;
   unitDiscountPen: number;
 }
 
@@ -24,6 +127,7 @@ interface OrderDebtItem {
   orderId: number;
   orderCode: string;
   orderDate: string;
+  customerKey?: string;
   customerPartyId: number | null;
   customerName: string;
   paymentMode: string;
@@ -41,6 +145,8 @@ interface OrderDebtItem {
     | "NO_PROMISE_DATE";
   paymentCount: number;
   lastPaymentDate: string | null;
+  createdByName?: string | null;
+  lines?: DebtOrderLineDetail[];
 }
 
 interface CustomerDebtSummary {
@@ -57,182 +163,751 @@ interface CustomerDebtSummary {
   promiseStatus: string;
 }
 
-const CREDIT_DAY_CHIPS = [
-  { days: 1, label: "Mañana (+1d)" },
-  { days: 3, label: "En 3 días" },
-  { days: 7, label: "En 7 días (1 sem)" },
-  { days: 10, label: "En 10 días" },
-  { days: 15, label: "En 15 días (2 sem)" },
-];
+interface QuoteLineItem {
+  quote_line_id: number;
+  line_no: number;
+  product_id: number | null;
+  sku: string | null;
+  unit_of_measure: string;
+  raw_description: string;
+  quantity: number;
+  unit_price_pen: number;
+  line_total_pen: number;
+}
+
+interface QuoteItem {
+  quote_id: number;
+  quote_code: string;
+  issue_date: string;
+  customer_party_id: number | null;
+  customer_name: string;
+  currency: string;
+  tax_regime: string;
+  total_pen: number;
+  status: "OPEN" | "CONVERTED" | "EXPIRED" | "CANCELLED";
+  related_cpe: string | null;
+  seller_name: string | null;
+  notes: string | null;
+  converted_order_code: string | null;
+  lines: QuoteLineItem[];
+}
+
+type SellerTab = "nuevo" | "cotizaciones" | "deudores" | "pedidos" | "gastos";
 
 export default function VendedorPage() {
   const router = useRouter();
-  const [tab, setTab] = useState<"nuevo" | "pedidos" | "deudores" | "gastos">("nuevo");
+  const [tab, setTab] = useState<SellerTab>("nuevo");
+  const [quotes, setQuotes] = useState<QuoteItem[]>([]);
+  const [busyQuoteId, setBusyQuoteId] = useState<number | null>(null);
+  const [busyCreateQuote, setBusyCreateQuote] = useState(false);
+  const [currentUser, setCurrentUser] = useState<{
+    userId: number;
+    username: string;
+    fullName: string;
+    role: string;
+  } | null>(null);
   const [catalog, setCatalog] = useState<CatalogItem[]>([]);
+  const [customers, setCustomers] = useState<CustomerOption[]>([]);
+  const [sellerAccounts, setSellerAccounts] = useState<
+    AbonoCashAccountOption[]
+  >([]);
   const [orders, setOrders] = useState<Record<string, unknown>[]>([]);
   const [debtorsByOrder, setDebtorsByOrder] = useState<OrderDebtItem[]>([]);
-  const [debtorsByCustomer, setDebtorsByCustomer] = useState<CustomerDebtSummary[]>([]);
+  const [debtorsByCustomer, setDebtorsByCustomer] = useState<
+    CustomerDebtSummary[]
+  >([]);
+  const [initialLoading, setInitialLoading] = useState(true);
   const [searchProduct, setSearchProduct] = useState("");
+  const deferredSearchProduct = useDeferredValue(searchProduct);
+  const [showAllCatalog, setShowAllCatalog] = useState(false);
+
   const [customerNameRaw, setCustomerNameRaw] = useState("");
-  const [paymentMode, setPaymentMode] = useState<"CASH" | "CREDIT" | "YAPE_PLIN" | "TRANSFER">("CASH");
+  const [selectedCustomer, setSelectedCustomer] =
+    useState<CustomerOption | null>(null);
+  const deferredCustomerQuery = useDeferredValue(customerNameRaw);
+  const [customerDropdownOpen, setCustomerDropdownOpen] = useState(false);
+  const customerBoxRef = useRef<HTMLDivElement | null>(null);
+  const [expandedDiscountIds, setExpandedDiscountIds] = useState<
+    Record<number, boolean>
+  >({});
+  const [expandedOrderId, setExpandedOrderId] = useState<number | null>(null);
+  const [cancelDraftOpen, setCancelDraftOpen] = useState(false);
+  const [cancelReasonCode, setCancelReasonCode] =
+    useState<string>("CHANGED_MIND");
+  const [cancelCustomNote, setCancelCustomNote] = useState("");
+  const [busyCancelDraft, setBusyCancelDraft] = useState(false);
+  const [paymentMode, setPaymentMode] = useState<
+    "CASH" | "CREDIT" | "YAPE_PLIN" | "TRANSFER"
+  >("CASH");
   const [collectOnDelivery, setCollectOnDelivery] = useState<boolean>(true);
   const [creditDays, setCreditDays] = useState<number>(7);
   const [customPromiseDate, setCustomPromiseDate] = useState<string>("");
   const [initialPaidPen, setInitialPaidPen] = useState<string>("");
   const [notes, setNotes] = useState("");
   const [cart, setCart] = useState<CartLine[]>([]);
-  const [feedback, setFeedback] = useState<{ type: "ok" | "warn" | "err"; msg: string } | null>(null);
+  const [busyOrder, setBusyOrder] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
+  const [feedback, setFeedback] = useState<{
+    type: "ok" | "warn" | "err";
+    msg: string;
+  } | null>(null);
 
   // Debtors state
-  const [debtorView, setDebtorView] = useState<"orders" | "customers">("orders");
+  const [debtorView, setDebtorView] = useState<"orders" | "customers">(
+    "orders"
+  );
   const [promiseFilter, setPromiseFilter] = useState<string>("ALL");
-  const [selectedOrderForAbono, setSelectedOrderForAbono] = useState<OrderDebtItem | null>(null);
-  const [selectedCustomerForFifo, setSelectedCustomerForFifo] = useState<CustomerDebtSummary | null>(null);
+  const [debtorSearch, setDebtorSearch] = useState("");
+  const deferredDebtorSearch = useDeferredValue(debtorSearch);
+  const [selectedOrderForAbono, setSelectedOrderForAbono] =
+    useState<OrderDebtItem | null>(null);
+  const [selectedCustomerForFifo, setSelectedCustomerForFifo] =
+    useState<CustomerDebtSummary | null>(null);
+  const [debtDetailTarget, setDebtDetailTarget] = useState<
+    | {
+        mode: "customer";
+        customerKey: string;
+        customerName: string;
+        customerPartyId: number | null;
+      }
+    | { mode: "order"; orderId: number }
+    | null
+  >(null);
   const [abonoAmount, setAbonoAmount] = useState("");
-  const [abonoMode, setAbonoMode] = useState<"CASH" | "YAPE_PLIN" | "TRANSFER">("CASH");
+  const [abonoMode, setAbonoMode] = useState<"CASH" | "YAPE_PLIN" | "TRANSFER">(
+    "CASH"
+  );
   const [abonoNextDays, setAbonoNextDays] = useState<number>(7);
+  const [abonoAccountId, setAbonoAccountId] = useState<string>("");
+  const [busyAbono, setBusyAbono] = useState(false);
   const [timelineOrderId, setTimelineOrderId] = useState<number | null>(null);
-  const [timelineEntries, setTimelineEntries] = useState<Array<Record<string, unknown>>>([]);
+  const [timelineEntries, setTimelineEntries] = useState<
+    Array<Record<string, unknown>>
+  >([]);
+  const [timelineLoadingId, setTimelineLoadingId] = useState<number | null>(
+    null
+  );
 
-  // Route expenses state
+  // Expenses state
   const [expenseCategory, setExpenseCategory] = useState("COMBUSTIBLE");
   const [expenseAmount, setExpenseAmount] = useState("");
   const [expenseDesc, setExpenseDesc] = useState("");
+  const [busyExpense, setBusyExpense] = useState(false);
 
-  async function loadAll() {
-    const [ordRes, colRes] = await Promise.all([
-      fetch("/api/orders"),
-      fetch("/api/collections"),
-    ]);
-    if (ordRes.status === 401 || ordRes.status === 403) {
-      router.push("/login");
-      return;
-    }
-    const ordData = await ordRes.json();
-    const colData = await colRes.json();
-    setCatalog(ordData.catalog || []);
-    setOrders(ordData.orders || []);
-    setDebtorsByOrder(colData.byOrder || []);
-    setDebtorsByCustomer(colData.byCustomer || []);
-  }
+  const hasLoadedRef = useRef(false);
+  const draftHydratedRef = useRef(false);
 
   useEffect(() => {
-    loadAll();
+    try {
+      const raw = sessionStorage.getItem(SELLER_DRAFT_STORAGE_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed && typeof parsed === "object") {
+          if (typeof parsed.customerNameRaw === "string")
+            setCustomerNameRaw(parsed.customerNameRaw);
+          if (parsed.selectedCustomer)
+            setSelectedCustomer(parsed.selectedCustomer);
+          if (
+            parsed.paymentMode === "CASH" ||
+            parsed.paymentMode === "CREDIT" ||
+            parsed.paymentMode === "YAPE_PLIN" ||
+            parsed.paymentMode === "TRANSFER"
+          ) {
+            setPaymentMode(parsed.paymentMode);
+          }
+          if (typeof parsed.collectOnDelivery === "boolean")
+            setCollectOnDelivery(parsed.collectOnDelivery);
+          if (typeof parsed.creditDays === "number")
+            setCreditDays(parsed.creditDays);
+          if (typeof parsed.customPromiseDate === "string")
+            setCustomPromiseDate(parsed.customPromiseDate);
+          if (typeof parsed.initialPaidPen === "string")
+            setInitialPaidPen(parsed.initialPaidPen);
+          if (typeof parsed.notes === "string") setNotes(parsed.notes);
+          if (Array.isArray(parsed.cart)) setCart(parsed.cart);
+        }
+      }
+    } catch {
+      // ignore sessionStorage failure
+    } finally {
+      draftHydratedRef.current = true;
+    }
   }, []);
 
-  function addToCart(prod: CatalogItem) {
+  useEffect(() => {
+    if (!draftHydratedRef.current) return;
+    try {
+      if (cart.length === 0 && !customerNameRaw.trim() && !notes.trim()) {
+        sessionStorage.removeItem(SELLER_DRAFT_STORAGE_KEY);
+        return;
+      }
+      sessionStorage.setItem(
+        SELLER_DRAFT_STORAGE_KEY,
+        JSON.stringify({
+          customerNameRaw,
+          selectedCustomer,
+          paymentMode,
+          collectOnDelivery,
+          creditDays,
+          customPromiseDate,
+          initialPaidPen,
+          notes,
+          cart,
+        })
+      );
+    } catch {
+      // ignore sessionStorage failure
+    }
+  }, [
+    customerNameRaw,
+    selectedCustomer,
+    paymentMode,
+    collectOnDelivery,
+    creditDays,
+    customPromiseDate,
+    initialPaidPen,
+    notes,
+    cart,
+  ]);
+
+  const loadOrdersAndCatalog = useCallback(
+    async (opts?: { silent?: boolean }) => {
+      const silent = opts?.silent ?? hasLoadedRef.current;
+      try {
+        const [ordRes, quotesRes] = await Promise.all([
+          fetch("/api/orders", { cache: "no-store" }),
+          fetch("/api/quotes", { cache: "no-store" }).catch(() => null),
+        ]);
+        if (ordRes.status === 401 || ordRes.status === 403) {
+          router.push("/login");
+          return false;
+        }
+        const ordData = await ordRes.json();
+        if (!ordRes.ok) {
+          if (!silent) {
+            setFeedback({
+              type: "err",
+              msg: ordData.error || "No se pudo cargar pedidos y catálogo.",
+            });
+          }
+          return false;
+        }
+        if (ordData.currentUser) {
+          setCurrentUser(ordData.currentUser);
+        }
+        if (quotesRes && quotesRes.ok) {
+          const quotesJson = await quotesRes.json();
+          setQuotes(Array.isArray(quotesJson.quotes) ? quotesJson.quotes : []);
+        }
+        setCatalog(ordData.catalog || []);
+        setCustomers(Array.isArray(ordData.customers) ? ordData.customers : []);
+        setSellerAccounts(
+          Array.isArray(ordData.accounts) ? ordData.accounts : []
+        );
+        setOrders(ordData.orders || []);
+        return true;
+      } catch {
+        if (!silent) {
+          setFeedback({
+            type: "err",
+            msg: "Error de red cargando pedidos y catálogo.",
+          });
+        }
+        return false;
+      }
+    },
+    [router]
+  );
+
+  const loadCollections = useCallback(
+    async (opts?: { silent?: boolean }) => {
+      const silent = opts?.silent ?? hasLoadedRef.current;
+      try {
+        const colRes = await fetch("/api/collections", { cache: "no-store" });
+        if (colRes.status === 401 || colRes.status === 403) {
+          router.push("/login");
+          return false;
+        }
+        const colData = await colRes.json();
+        if (!colRes.ok) {
+          if (!silent) {
+            setFeedback({
+              type: "err",
+              msg: colData.error || "No se pudo cargar la cartera de cobros.",
+            });
+          }
+          return false;
+        }
+        setDebtorsByOrder(colData.byOrder || []);
+        setDebtorsByCustomer(colData.byCustomer || []);
+        return true;
+      } catch {
+        if (!silent) {
+          setFeedback({
+            type: "err",
+            msg: "Error de red cargando cartera de cobros.",
+          });
+        }
+        return false;
+      }
+    },
+    [router]
+  );
+
+  const loadAll = useCallback(
+    async (opts?: { silent?: boolean }) => {
+      const silent = opts?.silent ?? hasLoadedRef.current;
+      if (!silent) setInitialLoading(true);
+      try {
+        const [ordOk, colOk] = await Promise.all([
+          loadOrdersAndCatalog({ silent }),
+          loadCollections({ silent }),
+        ]);
+        if (ordOk && colOk) {
+          hasLoadedRef.current = true;
+        }
+      } finally {
+        if (!silent) setInitialLoading(false);
+      }
+    },
+    [loadCollections, loadOrdersAndCatalog]
+  );
+
+  useEffect(() => {
+    loadAll({ silent: false });
+  }, [loadAll]);
+
+  const handleRemoteChange = useCallback(
+    async (changedScopes: SyncScope[]) => {
+      const needsOrders =
+        changedScopes.includes("orders") || changedScopes.includes("inventory");
+      const needsCollections =
+        changedScopes.includes("collections") ||
+        changedScopes.includes("orders") ||
+        changedScopes.includes("treasury");
+
+      if (needsOrders && needsCollections) {
+        await loadAll({ silent: true });
+      } else if (needsOrders) {
+        await loadOrdersAndCatalog({ silent: true });
+      } else if (needsCollections) {
+        await loadCollections({ silent: true });
+      }
+    },
+    [loadAll, loadCollections, loadOrdersAndCatalog]
+  );
+
+  const handleSyncAuthError = useCallback(() => {
+    router.push("/login");
+  }, [router]);
+
+  const isAbonoModalOpen = Boolean(
+    selectedOrderForAbono || selectedCustomerForFifo
+  );
+
+  const { liveStatus, triggerSync } = useLiveSync({
+    scopes: SELLER_SYNC_SCOPES,
+    enabled: !loggingOut && !isAbonoModalOpen,
+    onRemoteChange: handleRemoteChange,
+    onAuthError: handleSyncAuthError,
+  });
+
+  const addToCart = useCallback((prod: CatalogItem) => {
+    const fractional = isFractionalUom(prod.unit_of_measure);
     setCart((prev) => {
-      const existing = prev.find((c) => c.product.product_id === prod.product_id);
+      const existing = prev.find(
+        (c) => c.product.product_id === prod.product_id
+      );
       if (existing) {
+        const nextQty = normalizeOrderQuantity(
+          Math.max(0, existing.quantity) + 1,
+          fractional
+        );
         return prev.map((c) =>
           c.product.product_id === prod.product_id
-            ? { ...c, quantity: c.quantity + 1 }
+            ? {
+                ...c,
+                quantity: nextQty,
+                quantityInput: String(nextQty),
+              }
             : c
         );
       }
-      return [...prev, { product: prod, quantity: 1, unitDiscountPen: 0 }];
+      return [
+        ...prev,
+        {
+          product: prod,
+          quantity: 1,
+          quantityInput: "1",
+          unitDiscountPen: 0,
+        },
+      ];
     });
+  }, []);
+
+  const isPartnerControlUser =
+    currentUser?.role === "PARTNER_ADMIN" ||
+    currentUser?.role === "PARTNER_MANAGER";
+
+  const cartQtyByProductId = useMemo(
+    () => new Map(cart.map((c) => [c.product.product_id, c.quantity])),
+    [cart]
+  );
+
+  const cartTotalPen = useMemo(
+    () =>
+      cart.reduce((sum, item) => {
+        const base = item.product.list_sale_price_pen ?? 0;
+        const qty = Number.isFinite(item.quantity)
+          ? Math.max(0, item.quantity)
+          : 0;
+        const disc = Number.isFinite(item.unitDiscountPen)
+          ? Math.max(0, item.unitDiscountPen)
+          : 0;
+        const finalUnit = Math.max(0, base - disc);
+        return sum + qty * finalUnit;
+      }, 0),
+    [cart]
+  );
+
+  const hasBelowMinFloor = useMemo(
+    () =>
+      cart.some((item) => {
+        const base = item.product.list_sale_price_pen ?? 0;
+        const min = item.product.min_sale_price_pen ?? base;
+        const disc = Number.isFinite(item.unitDiscountPen)
+          ? Math.max(0, item.unitDiscountPen)
+          : 0;
+        return base - disc < min - 0.001;
+      }),
+    [cart]
+  );
+
+  const requiresPartnerApproval = hasBelowMinFloor && !isPartnerControlUser;
+
+  const filteredCustomerSuggestions = useMemo(() => {
+    const q = normalizeSearchText(deferredCustomerQuery);
+    if (!q) return customers.slice(0, 8);
+    const tokens = q.split(/\s+/).filter(Boolean);
+    return customers
+      .filter((c) => {
+        const haystack = normalizeSearchText(
+          `${c.name} ${c.doc_number ?? ""}`
+        );
+        return tokens.every((tok) => haystack.includes(tok));
+      })
+      .slice(0, 8);
+  }, [customers, deferredCustomerQuery]);
+
+  useEffect(() => {
+    function handleOutsideClick(e: MouseEvent) {
+      if (
+        customerBoxRef.current &&
+        !customerBoxRef.current.contains(e.target as Node)
+      ) {
+        setCustomerDropdownOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleOutsideClick);
+    return () => document.removeEventListener("mousedown", handleOutsideClick);
+  }, []);
+
+  function handleSelectCustomer(c: CustomerOption) {
+    const prevAutoAddress = (selectedCustomer?.address ?? "").trim();
+    const nextAddress = (c.address ?? "").trim();
+    setSelectedCustomer(c);
+    setCustomerNameRaw(c.name);
+    setCustomerDropdownOpen(false);
+    if (!notes.trim() || (prevAutoAddress && notes.trim() === prevAutoAddress)) {
+      setNotes(nextAddress);
+    }
   }
 
-  const cartTotalPen = cart.reduce((sum, item) => {
-    const base = item.product.list_sale_price_pen ?? 0;
-    const finalUnit = Math.max(0, base - item.unitDiscountPen);
-    return sum + item.quantity * finalUnit;
-  }, 0);
+  function handleSelectPaymentMode(
+    mode: "CASH" | "YAPE_PLIN" | "TRANSFER" | "CREDIT"
+  ) {
+    setPaymentMode(mode);
+    if (mode === "YAPE_PLIN" || mode === "TRANSFER") {
+      setCollectOnDelivery(false);
+    } else if (mode === "CASH") {
+      setCollectOnDelivery(true);
+    }
+  }
 
-  const hasBelowMinFloor = cart.some((item) => {
-    const base = item.product.list_sale_price_pen ?? 0;
-    const min = item.product.min_sale_price_pen ?? base;
-    return base - item.unitDiscountPen < min - 0.001;
-  });
+  function resetOrderDraft() {
+    setCart([]);
+    setCustomerNameRaw("");
+    setSelectedCustomer(null);
+    setCustomerDropdownOpen(false);
+    setPaymentMode("CASH");
+    setCollectOnDelivery(true);
+    setCreditDays(7);
+    setCustomPromiseDate("");
+    setInitialPaidPen("");
+    setExpandedDiscountIds({});
+    setSearchProduct("");
+    setShowAllCatalog(false);
+    setNotes("");
+    try {
+      sessionStorage.removeItem(SELLER_DRAFT_STORAGE_KEY);
+    } catch {
+      // ignore sessionStorage failure
+    }
+  }
+
+  async function handleConfirmCancelDraft(e: React.FormEvent) {
+    e.preventDefault();
+    if (busyCancelDraft) return;
+    const chosen = CANCEL_DRAFT_REASONS.find(
+      (r) => r.code === cancelReasonCode
+    );
+    const reasonLabel = chosen?.label || "Otro motivo";
+    setBusyCancelDraft(true);
+    try {
+      const res = await fetch("/api/orders", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "log_cancelled_draft",
+          customerPartyId: selectedCustomer?.party_id ?? null,
+          customerName: customerNameRaw,
+          paymentMode,
+          estimatedTotalPen: Number(cartTotalPen.toFixed(2)),
+          itemCount: cart.length,
+          items: cart.map((c) => ({
+            productId: c.product.product_id,
+            sku: c.product.sku,
+            name: c.product.name,
+            quantity: c.quantity,
+            unitDiscountPen: c.unitDiscountPen,
+          })),
+          reasonCode: cancelReasonCode,
+          reasonLabel,
+          notes: cancelCustomNote.trim() || notes.trim() || null,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setFeedback({
+          type: "err",
+          msg: data.error || "No se pudo registrar el motivo de cancelación.",
+        });
+        return;
+      }
+      resetOrderDraft();
+      setCancelCustomNote("");
+      setCancelReasonCode("CHANGED_MIND");
+      setCancelDraftOpen(false);
+      setFeedback({
+        type: "warn",
+        msg: `Cancelación registrada (${reasonLabel}). Formulario limpiado.`,
+      });
+    } catch {
+      setFeedback({
+        type: "err",
+        msg: "Error de red registrando el motivo de cancelación.",
+      });
+    } finally {
+      setBusyCancelDraft(false);
+    }
+  }
 
   async function handleSubmitOrder(e: React.FormEvent) {
     e.preventDefault();
-    setFeedback(null);
-    const res = await fetch("/api/orders", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        action: "create",
-        customerNameRaw,
-        paymentMode,
-        collectOnDelivery: paymentMode !== "CREDIT" ? collectOnDelivery : undefined,
-        creditDays: paymentMode === "CREDIT" ? creditDays : undefined,
-        promisedPaymentDate:
-          paymentMode === "CREDIT" && customPromiseDate ? customPromiseDate : null,
-        initialPaidPen:
-          paymentMode === "CREDIT" && initialPaidPen
-            ? Number(initialPaidPen)
-            : undefined,
-        notes,
-        lines: cart.map((c) => ({
-          productId: c.product.product_id,
-          quantity: c.quantity,
-          unitDiscountPen: c.unitDiscountPen,
-        })),
-      }),
-    });
-    const data = await res.json();
-    if (!res.ok) {
-      setFeedback({ type: "err", msg: data.error || "Error al guardar pedido" });
+    if (busyOrder) return;
+    if (cart.length === 0) {
+      setFeedback({
+        type: "err",
+        msg: "Agrega al menos un producto al pedido.",
+      });
       return;
     }
-    setCart([]);
-    setCustomerNameRaw("");
-    setInitialPaidPen("");
-    setNotes("");
-    setFeedback({
-      type: data.requiresApproval ? "warn" : "ok",
-      msg: data.requiresApproval
-        ? `Pedido ${data.orderCode} guardado en PENDIENTE APROBACIÓN SOCIO (descuento bajo el precio mínimo).`
-        : `Pedido ${data.orderCode} registrado y enviado a Almacén.`,
+    const invalidQtyLine = cart.find((c) => {
+      const fractional = isFractionalUom(c.product.unit_of_measure);
+      if (!Number.isFinite(c.quantity) || c.quantity <= 0) return true;
+      if (!fractional && !Number.isInteger(c.quantity)) return true;
+      return false;
     });
-    await loadAll();
+    if (invalidQtyLine) {
+      const fractional = isFractionalUom(invalidQtyLine.product.unit_of_measure);
+      setFeedback({
+        type: "err",
+        msg: fractional
+          ? `Revisa la cantidad de "${invalidQtyLine.product.name}" (debe ser mayor a 0).`
+          : `Revisa la cantidad de "${invalidQtyLine.product.name}" (entero mínimo 1 para ${
+              invalidQtyLine.product.unit_of_measure || "NIU"
+            }).`,
+      });
+      return;
+    }
+
+    const parsedInitialPaid =
+      !requiresPartnerApproval &&
+      paymentMode === "CREDIT" &&
+      initialPaidPen.trim() !== ""
+        ? Number(initialPaidPen)
+        : 0;
+    if (
+      !Number.isFinite(parsedInitialPaid) ||
+      parsedInitialPaid < 0 ||
+      parsedInitialPaid > cartTotalPen + 0.05
+    ) {
+      setFeedback({
+        type: "err",
+        msg: "El adelanto inicial debe estar entre S/ 0.00 y el total del pedido.",
+      });
+      return;
+    }
+
+    setFeedback(null);
+    setBusyOrder(true);
+    try {
+      const res = await fetch("/api/orders", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "create",
+          customerPartyId: selectedCustomer ? selectedCustomer.party_id : null,
+          customerNameRaw,
+          paymentMode,
+          collectOnDelivery:
+            paymentMode !== "CREDIT"
+              ? requiresPartnerApproval
+                ? true
+                : collectOnDelivery
+              : undefined,
+          creditDays: paymentMode === "CREDIT" ? creditDays : undefined,
+          promisedPaymentDate:
+            paymentMode === "CREDIT" && customPromiseDate
+              ? customPromiseDate
+              : null,
+          initialPaidPen:
+            !requiresPartnerApproval &&
+            paymentMode === "CREDIT" &&
+            parsedInitialPaid > 0
+              ? parsedInitialPaid
+              : undefined,
+          notes,
+          lines: cart.map((c) => {
+            const fractional = isFractionalUom(c.product.unit_of_measure);
+            return {
+              productId: c.product.product_id,
+              quantity: normalizeOrderQuantity(c.quantity, fractional),
+              unitDiscountPen: Number.isFinite(c.unitDiscountPen)
+                ? Math.max(0, c.unitDiscountPen)
+                : 0,
+            };
+          }),
+        }),
+      });
+      if (res.status === 401 || res.status === 403) {
+        router.push("/login");
+        return;
+      }
+      const data = await res.json();
+      if (!res.ok) {
+        setFeedback({
+          type: "err",
+          msg: data.error || "Error al guardar pedido.",
+        });
+        return;
+      }
+      resetOrderDraft();
+      setFeedback({
+        type: data.requiresApproval ? "warn" : "ok",
+        msg: data.requiresApproval
+          ? `Pedido ${data.orderCode} guardado pendiente de aprobación de Socio o Gerencia (descuento bajo el precio mínimo).`
+          : `Pedido ${data.orderCode} registrado y enviado a Almacén.`,
+      });
+      notifyLocalSync(["orders", "inventory", "collections", "treasury", "partners"]);
+      await loadAll({ silent: true });
+    } catch {
+      setFeedback({
+        type: "err",
+        msg: "Error de conexión al registrar el pedido.",
+      });
+    } finally {
+      setBusyOrder(false);
+    }
   }
 
   async function handleSubmitAbono(e: React.FormEvent) {
     e.preventDefault();
-    if (!selectedOrderForAbono && !selectedCustomerForFifo) return;
-    setFeedback(null);
-    const payload = selectedCustomerForFifo
-      ? {
-          mode: "fifo_customer",
-          customerPartyId: selectedCustomerForFifo.customerPartyId,
-          totalAmountPen: Number(abonoAmount),
-          paymentMode: abonoMode,
-          nextCollectionDays: abonoNextDays,
-          notes: "Abono general FIFO en ruta",
-        }
-      : {
-          mode: "single_order",
-          orderId: selectedOrderForAbono!.orderId,
-          amountPen: Number(abonoAmount),
-          paymentMode: abonoMode,
-          nextCollectionDays: abonoNextDays,
-          notes: "Abono registrado en ruta",
-        };
-    const res = await fetch("/api/collections", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-    const data = await res.json();
-    if (!res.ok) {
-      setFeedback({ type: "err", msg: data.error || "Error al registrar abono" });
+    if (busyAbono || (!selectedOrderForAbono && !selectedCustomerForFifo))
       return;
+    setFeedback(null);
+    setBusyAbono(true);
+    try {
+      const activeBalanceDue = selectedCustomerForFifo
+        ? selectedCustomerForFifo.totalBalanceDuePen
+        : selectedOrderForAbono?.balanceDuePen ?? 0;
+      const parsedAbono = Number(abonoAmount);
+      const isFullSettlement =
+        Number.isFinite(parsedAbono) &&
+        parsedAbono >= activeBalanceDue - 0.05;
+      const selectedAccId = abonoAccountId ? Number(abonoAccountId) : undefined;
+      const payload = selectedCustomerForFifo
+        ? {
+            mode: "fifo_customer",
+            customerPartyId: selectedCustomerForFifo.customerPartyId,
+            totalAmountPen: parsedAbono,
+            paymentMode: abonoMode,
+            accountId: selectedAccId,
+            nextCollectionDays: isFullSettlement ? null : abonoNextDays,
+            notes: "Abono general a cuenta (deudas más antiguas)",
+          }
+        : {
+            mode: "single_order",
+            orderId: selectedOrderForAbono!.orderId,
+            amountPen: parsedAbono,
+            paymentMode: abonoMode,
+            accountId: selectedAccId,
+            nextCollectionDays: isFullSettlement ? null : abonoNextDays,
+            notes: "Abono registrado por Vendedor",
+          };
+      const res = await fetch("/api/collections", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (res.status === 401 || res.status === 403) {
+        router.push("/login");
+        return;
+      }
+      const data = await res.json();
+      if (!res.ok) {
+        setFeedback({
+          type: "err",
+          msg: data.error || "Error al registrar abono.",
+        });
+        return;
+      }
+      setSelectedOrderForAbono(null);
+      setSelectedCustomerForFifo(null);
+      setAbonoAmount("");
+      setAbonoAccountId("");
+      setFeedback({
+        type: "ok",
+        msg: selectedCustomerForFifo
+          ? `Abono general aplicado a ${
+              data.allocations?.length ?? 1
+            } pedido(s) más antiguos.`
+          : data.isSettled
+          ? "¡Pedido cancelado al 100%!"
+          : `Abono registrado. Nuevo saldo pendiente: S/ ${Number(
+              data.newBalanceDuePen
+            ).toFixed(2)}`,
+      });
+      notifyLocalSync(["collections", "orders", "treasury", "partners"]);
+      await loadAll({ silent: true });
+    } catch {
+      setFeedback({
+        type: "err",
+        msg: "Error de red al registrar el abono.",
+      });
+    } finally {
+      setBusyAbono(false);
     }
-    setSelectedOrderForAbono(null);
-    setSelectedCustomerForFifo(null);
-    setAbonoAmount("");
-    setFeedback({
-      type: "ok",
-      msg: selectedCustomerForFifo
-        ? `Abono general FIFO aplicado a ${data.allocations?.length ?? 1} pedido(s).`
-        : data.isSettled
-        ? "¡Pedido cancelado al 100%!"
-        : `Abono registrado. Nuevo saldo pendiente: S/ ${Number(data.newBalanceDuePen).toFixed(2)}`,
-    });
-    await loadAll();
   }
 
   async function handleOpenTimeline(orderId: number) {
@@ -240,838 +915,2152 @@ export default function VendedorPage() {
       setTimelineOrderId(null);
       return;
     }
-    const res = await fetch(`/api/collections?orderId=${orderId}`);
-    const data = await res.json();
-    setTimelineOrderId(orderId);
-    setTimelineEntries(data.timeline || []);
+    if (timelineLoadingId === orderId) return;
+    setTimelineLoadingId(orderId);
+    try {
+      const res = await fetch(`/api/collections?orderId=${orderId}`, {
+        cache: "no-store",
+      });
+      if (res.status === 401 || res.status === 403) {
+        router.push("/login");
+        return;
+      }
+      const data = await res.json();
+      if (!res.ok) {
+        setFeedback({
+          type: "err",
+          msg: data.error || "No se pudo cargar el historial de pagos.",
+        });
+        return;
+      }
+      setTimelineOrderId(orderId);
+      setTimelineEntries(data.timeline || []);
+    } catch {
+      setFeedback({
+        type: "err",
+        msg: "Error de red al consultar el historial de pagos.",
+      });
+    } finally {
+      setTimelineLoadingId(null);
+    }
   }
 
   async function handleSubmitExpense(e: React.FormEvent) {
     e.preventDefault();
+    if (busyExpense) return;
     setFeedback(null);
-    const res = await fetch("/api/treasury", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        amountPen: Number(expenseAmount),
-        expenseBucket: "ROUTE_OPEX",
-        expenseCategory,
-        description: expenseDesc,
-      }),
-    });
-    const data = await res.json();
-    if (!res.ok) {
-      setFeedback({ type: "err", msg: data.error || "Error al guardar gasto" });
-      return;
+    setBusyExpense(true);
+    try {
+      const res = await fetch("/api/treasury", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          amountPen: Number(expenseAmount),
+          expenseBucket: "ROUTE_OPEX",
+          expenseCategory,
+          description: expenseDesc,
+        }),
+      });
+      if (res.status === 401 || res.status === 403) {
+        router.push("/login");
+        return;
+      }
+      const data = await res.json();
+      if (!res.ok) {
+        setFeedback({
+          type: "err",
+          msg: data.error || "Error al guardar gasto.",
+        });
+        return;
+      }
+      setExpenseAmount("");
+      setExpenseDesc("");
+      setFeedback({ type: "ok", msg: "Gasto operativo registrado." });
+      notifyLocalSync(["treasury", "partners"]);
+    } catch {
+      setFeedback({
+        type: "err",
+        msg: "Error de conexión al guardar el gasto.",
+      });
+    } finally {
+      setBusyExpense(false);
     }
-    setExpenseAmount("");
-    setExpenseDesc("");
-    setFeedback({ type: "ok", msg: "Gasto operativo de ruta registrado." });
   }
 
-  const filteredCatalog = catalog
-    .filter(
-      (c) =>
-        c.name.toLowerCase().includes(searchProduct.toLowerCase()) ||
-        c.sku.toLowerCase().includes(searchProduct.toLowerCase())
-    )
-    .slice(0, 20);
+  const normalizedCatalog = useMemo(
+    () =>
+      catalog.map((item) => ({
+        item,
+        normName: normalizeSearchText(item.name),
+        normSku: normalizeSearchText(item.sku),
+        searchText: normalizeSearchText(`${item.name} ${item.sku}`),
+      })),
+    [catalog]
+  );
 
-  const filteredDebtOrders = debtorsByOrder.filter((o) => {
-    if (promiseFilter === "ALL") return true;
-    return o.promiseStatus === promiseFilter;
-  });
+  const filteredCatalog = useMemo(() => {
+    const query = normalizeSearchText(deferredSearchProduct);
+    if (!query) {
+      return [...catalog].sort((a, b) => {
+        const aInStock = a.stock_on_hand > 0 ? 0 : 1;
+        const bInStock = b.stock_on_hand > 0 ? 0 : 1;
+        if (aInStock !== bInStock) return aInStock - bInStock;
+        return a.name.localeCompare(b.name, "es");
+      });
+    }
+    const tokens = query.split(/\s+/).filter(Boolean);
+    const scored: Array<{ item: CatalogItem; score: number }> = [];
+    for (const entry of normalizedCatalog) {
+      if (!tokens.every((tok) => entry.searchText.includes(tok))) continue;
+      let score = 0;
+      if (entry.normSku === query) score += 100;
+      else if (entry.normSku.startsWith(query)) score += 60;
+      if (entry.normName.startsWith(query)) score += 50;
+      else if (entry.normName.includes(query)) score += 25;
+      if (entry.item.stock_on_hand > 0) score += 15;
+      scored.push({ item: entry.item, score });
+    }
+    scored.sort(
+      (a, b) =>
+        b.score - a.score || a.item.name.localeCompare(b.item.name, "es")
+    );
+    return scored.map((s) => s.item);
+  }, [catalog, deferredSearchProduct, normalizedCatalog]);
+
+  const visibleCatalog = useMemo(
+    () =>
+      showAllCatalog || filteredCatalog.length <= 24
+        ? filteredCatalog
+        : filteredCatalog.slice(0, 24),
+    [filteredCatalog, showAllCatalog]
+  );
+
+  const filteredDebtOrders = useMemo(() => {
+    const q = normalizeSearchText(deferredDebtorSearch);
+    const tokens = q.split(/\s+/).filter(Boolean);
+    return debtorsByOrder.filter((o) => {
+      if (promiseFilter !== "ALL" && o.promiseStatus !== promiseFilter) {
+        return false;
+      }
+      if (tokens.length === 0) return true;
+      const haystack = normalizeSearchText(`${o.customerName} ${o.orderCode}`);
+      return tokens.every((tok) => haystack.includes(tok));
+    });
+  }, [debtorsByOrder, promiseFilter, deferredDebtorSearch]);
+
+  const filteredDebtorsByCustomer = useMemo(() => {
+    const q = normalizeSearchText(deferredDebtorSearch);
+    const tokens = q.split(/\s+/).filter(Boolean);
+    if (tokens.length === 0) return debtorsByCustomer;
+    return debtorsByCustomer.filter((c) => {
+      const haystack = normalizeSearchText(c.customerName);
+      return tokens.every((tok) => haystack.includes(tok));
+    });
+  }, [debtorsByCustomer, deferredDebtorSearch]);
+
+  async function handleCreateQuoteFromCart() {
+    if (busyCreateQuote || busyOrder) return;
+    if (cart.length === 0) {
+      setFeedback({
+        type: "err",
+        msg: "Agrega al menos un producto antes de guardar la cotización.",
+      });
+      return;
+    }
+    if (!customerNameRaw.trim() && !selectedCustomer) {
+      setFeedback({
+        type: "err",
+        msg: "Ingresa o selecciona el nombre del cliente para cotizar.",
+      });
+      return;
+    }
+    setFeedback(null);
+    setBusyCreateQuote(true);
+    try {
+      const res = await fetch("/api/quotes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "create_quote",
+          customerPartyId: selectedCustomer ? selectedCustomer.party_id : null,
+          customerNameRaw: customerNameRaw.trim() || selectedCustomer?.name,
+          notes: notes.trim() || undefined,
+          lines: cart.map((c) => {
+            const base = c.product.list_sale_price_pen ?? 0;
+            const unitPricePen = Math.max(
+              0.01,
+              Number((base - Math.max(0, c.unitDiscountPen || 0)).toFixed(4))
+            );
+            const fractional = isFractionalUom(c.product.unit_of_measure);
+            return {
+              productId: c.product.product_id,
+              rawDescription: c.product.name,
+              quantity: normalizeOrderQuantity(c.quantity, fractional),
+              unitPricePen,
+            };
+          }),
+        }),
+      });
+      if (res.status === 401 || res.status === 403) {
+        router.push("/login");
+        return;
+      }
+      const data = await res.json();
+      if (!res.ok) {
+        setFeedback({
+          type: "err",
+          msg: data.error || "No se pudo guardar la cotización.",
+        });
+        return;
+      }
+      resetOrderDraft();
+      setFeedback({
+        type: "ok",
+        msg: `Cotización ${data.quoteCode} guardada por S/ ${Number(
+          data.totalPen ?? 0
+        ).toFixed(2)}.`,
+      });
+      setTab("cotizaciones");
+      notifyLocalSync(["orders", "partners"]);
+      await loadOrdersAndCatalog({ silent: true });
+    } catch {
+      setFeedback({
+        type: "err",
+        msg: "Error de conexión al guardar la cotización.",
+      });
+    } finally {
+      setBusyCreateQuote(false);
+    }
+  }
+
+  async function handleConvertQuote(
+    quoteId: number,
+    mode: "CASH" | "CREDIT"
+  ) {
+    if (busyQuoteId === quoteId) return;
+    setFeedback(null);
+    setBusyQuoteId(quoteId);
+    try {
+      const res = await fetch("/api/quotes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "convert_to_order",
+          quoteId,
+          paymentMode: mode,
+          collectOnDelivery: mode === "CASH",
+          creditDays: mode === "CREDIT" ? 7 : undefined,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setFeedback({
+          type: "err",
+          msg: data.error || "No se pudo convertir la cotización.",
+        });
+        return;
+      }
+      setFeedback({
+        type: data.order?.requiresApproval ? "warn" : "ok",
+        msg: data.order?.requiresApproval
+          ? `Cotización convertida a ${data.order.orderCode} (pendiente de aprobación de Socio).`
+          : `Cotización convertida en pedido ${data.order?.orderCode} y enviada a Almacén.`,
+      });
+      notifyLocalSync(["orders", "inventory", "collections", "treasury", "partners"]);
+      await loadAll({ silent: true });
+    } catch {
+      setFeedback({
+        type: "err",
+        msg: "Error de conexión al convertir la cotización.",
+      });
+    } finally {
+      setBusyQuoteId(null);
+    }
+  }
+
+  async function handleUpdateQuoteStatus(
+    quoteId: number,
+    nextStatus: "EXPIRED" | "CANCELLED"
+  ) {
+    if (busyQuoteId === quoteId) return;
+    setBusyQuoteId(quoteId);
+    try {
+      const res = await fetch("/api/quotes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "update_status",
+          quoteId,
+          nextStatus,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setFeedback({
+          type: "err",
+          msg: data.error || "No se pudo actualizar la cotización.",
+        });
+        return;
+      }
+      notifyLocalSync(["orders", "partners"]);
+      await loadOrdersAndCatalog({ silent: true });
+    } catch {
+      setFeedback({
+        type: "err",
+        msg: "Error de conexión al actualizar la cotización.",
+      });
+    } finally {
+      setBusyQuoteId(null);
+    }
+  }
+
+  const openQuotesCount = useMemo(
+    () => quotes.filter((q) => q.status === "OPEN").length,
+    [quotes]
+  );
+
+  const navItems: NavTabItem<SellerTab>[] = useMemo(
+    () => [
+      {
+        id: "nuevo",
+        label: "Pedido",
+        mobileLabel: "Pedido",
+        icon: <ShoppingBagIcon className="h-4 w-4" />,
+        badgeCount: cart.length > 0 ? cart.length : undefined,
+      },
+      {
+        id: "cotizaciones",
+        label: "Cotizaciones",
+        mobileLabel: "Cotizar",
+        icon: <ReceiptIcon className="h-4 w-4" />,
+        badgeCount: openQuotesCount > 0 ? openQuotesCount : undefined,
+      },
+      {
+        id: "deudores",
+        label: "Cobros",
+        mobileLabel: "Cobros",
+        icon: <WalletIcon className="h-4 w-4" />,
+        badgeCount:
+          debtorsByOrder.length > 0 ? debtorsByOrder.length : undefined,
+      },
+      {
+        id: "pedidos",
+        label: "Mis Pedidos",
+        mobileLabel: "Pedidos",
+        icon: <PackageIcon className="h-4 w-4" />,
+      },
+      {
+        id: "gastos",
+        label: "Gastos",
+        mobileLabel: "Gastos",
+        icon: <ClockIcon className="h-4 w-4" />,
+      },
+    ],
+    [cart.length, openQuotesCount, debtorsByOrder.length]
+  );
+
+  async function handleLogout() {
+    if (loggingOut) return;
+    setLoggingOut(true);
+    try {
+      await fetch("/api/auth", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "logout" }),
+      });
+    } finally {
+      router.push("/login");
+    }
+  }
+
+  const cleanSellerName =
+    currentUser?.fullName &&
+    !/vendedor\s+externo|socio\s+operativo|socio\s+gerente/i.test(
+      currentUser.fullName
+    )
+      ? currentUser.fullName
+      : currentUser?.username === "socio_admin"
+      ? "Renzo"
+      : null;
+  const sellerHeaderRoleLabel =
+    currentUser?.role === "PARTNER_ADMIN"
+      ? `${cleanSellerName || "Renzo"} · Ventas y Control`
+      : currentUser?.role === "PARTNER_MANAGER"
+      ? `${cleanSellerName || "Samuel"} · Gerencia`
+      : cleanSellerName
+      ? `${cleanSellerName} · Vendedor S/`
+      : "Vendedor · S/";
 
   return (
-    <div className="mx-auto min-h-screen max-w-2xl bg-slate-100 pb-24">
-      <header className="sticky top-0 z-10 flex items-center justify-between bg-blue-900 px-4 py-3 text-white shadow">
-        <div>
-          <span className="rounded bg-blue-700 px-2 py-0.5 text-[10px] font-bold">
-            VENDEDOR EXTERNO · PEN (S/)
-          </span>
-          <h1 className="text-lg font-extrabold">Ventas en Ruta y Cobranzas</h1>
-        </div>
-        <button
-          onClick={async () => {
-            await fetch("/api/auth", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ action: "logout" }),
-            });
-            router.push("/login");
-          }}
-          className="rounded-lg bg-blue-800 px-3 py-1.5 text-xs font-bold"
-        >
-          Salir
-        </button>
-      </header>
+    <div className="min-h-screen bg-[#FAF9F6] pb-40 md:pb-12">
+      <AppHeader
+        title="Ventas y Cobranzas"
+        roleLabel={sellerHeaderRoleLabel}
+        roleTone="horizon"
+        roleDotColor="bg-[#1E446B]"
+        syncStatus={liveStatus}
+        onSyncClick={() => void triggerSync({ force: true })}
+        maxWidth="6xl"
+        actions={
+          isPartnerControlUser ? (
+            <Button
+              variant="outline"
+              size="md"
+              onClick={() => router.push("/socios")}
+              className="min-h-[38px] sm:min-h-[40px] px-3.5 text-xs sm:text-sm"
+            >
+              Control Operativo
+            </Button>
+          ) : undefined
+        }
+        onLogout={handleLogout}
+      />
 
-      {feedback && (
-        <div
-          className={`m-3 rounded-xl p-3 text-sm font-bold ${
-            feedback.type === "ok"
-              ? "bg-emerald-100 text-emerald-900"
-              : feedback.type === "warn"
-              ? "bg-amber-100 text-amber-900"
-              : "bg-red-100 text-red-900"
-          }`}
-        >
-          {feedback.msg}
-        </div>
-      )}
+      <main
+        id="main-content"
+        tabIndex={-1}
+        className="mx-auto max-w-6xl space-y-4 px-3.5 pt-4 sm:px-5 outline-none"
+      >
+        <DesktopTabBar
+          items={navItems}
+          activeId={tab}
+          onChange={setTab}
+          className="hidden md:flex"
+        />
 
-      {tab === "nuevo" && (
-        <main className="space-y-4 p-3">
-          <form
-            onSubmit={handleSubmitOrder}
-            className="space-y-4 rounded-2xl bg-white p-4 shadow-sm"
-          >
-            <div>
-              <label className="block text-xs font-bold uppercase text-slate-500">
-                Cliente
-              </label>
-              <input
-                type="text"
-                required
-                value={customerNameRaw}
-                onChange={(e) => setCustomerNameRaw(e.target.value)}
-                placeholder="Nombre del cliente o ferretería..."
-                className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm font-semibold"
-              />
-            </div>
+        {feedback && (
+          <ToastBanner
+            type={feedback.type}
+            message={feedback.msg}
+            onDismiss={() => setFeedback(null)}
+          />
+        )}
 
-            <div>
-              <label className="block text-xs font-bold uppercase text-slate-500">
-                Condición de Pago
-              </label>
-              <div className="mt-1 grid grid-cols-2 gap-2 sm:grid-cols-4">
-                {(
-                  [
-                    ["CASH", "Contado Efectivo"],
-                    ["YAPE_PLIN", "Yape / Plin"],
-                    ["TRANSFER", "Transferencia"],
-                    ["CREDIT", "A Crédito"],
-                  ] as const
-                ).map(([mode, label]) => (
-                  <button
-                    key={mode}
-                    type="button"
-                    onClick={() => setPaymentMode(mode)}
-                    className={`rounded-xl border py-2.5 text-xs font-bold ${
-                      paymentMode === mode
-                        ? "border-blue-600 bg-blue-600 text-white"
-                        : "border-slate-200 bg-slate-50 text-slate-700"
-                    }`}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {paymentMode !== "CREDIT" && (
-              <div className="flex gap-2 rounded-xl border border-slate-200 bg-slate-50 p-2">
-                <button
-                  type="button"
-                  onClick={() => setCollectOnDelivery(true)}
-                  className={`flex-1 rounded-lg py-2 text-xs font-bold ${
-                    collectOnDelivery
-                      ? "bg-blue-600 text-white shadow"
-                      : "bg-white text-slate-700"
-                  }`}
-                >
-                  Cobrar Contra Entrega (en destino)
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setCollectOnDelivery(false)}
-                  className={`flex-1 rounded-lg py-2 text-xs font-bold ${
-                    !collectOnDelivery
-                      ? "bg-emerald-600 text-white shadow"
-                      : "bg-white text-slate-700"
-                  }`}
-                >
-                  Ya pagó ahora al registrar
-                </button>
-              </div>
-            )}
-
-            {paymentMode === "CREDIT" && (
-              <div className="space-y-3 rounded-xl border border-amber-200 bg-amber-50 p-3">
-                <div>
-                  <label className="block text-xs font-extrabold text-amber-900">
-                    ¿Cuándo dijo el cliente que volvamos a cobrar? (1 toque)
-                  </label>
-                  <div className="mt-1.5 flex flex-wrap gap-1.5">
-                    {CREDIT_DAY_CHIPS.map((chip) => (
-                      <button
-                        key={chip.days}
-                        type="button"
-                        onClick={() => {
-                          setCreditDays(chip.days);
-                          setCustomPromiseDate("");
-                        }}
-                        className={`rounded-lg px-3 py-2 text-xs font-bold ${
-                          creditDays === chip.days && !customPromiseDate
-                            ? "bg-amber-600 text-white shadow"
-                            : "bg-white text-amber-900 border border-amber-300"
-                        }`}
-                      >
-                        {chip.label}
-                      </button>
-                    ))}
-                  </div>
-                  <div className="mt-2 flex items-center gap-2">
-                    <span className="text-xs text-amber-900">O fecha exacta:</span>
+        {tab === "nuevo" && (
+          <section aria-label="Nuevo pedido">
+            <form
+              onSubmit={handleSubmitOrder}
+              className="grid grid-cols-1 gap-4 lg:grid-cols-12 lg:items-start lg:gap-5"
+            >
+              <div className="min-w-0 space-y-4 lg:col-span-7">
+              {/* Step 1: Client Identification */}
+              <Card className="space-y-3">
+                <div ref={customerBoxRef} className="relative">
+                  <FieldLabel htmlFor="seller-customer-name" required>
+                    1. Cliente o ferretería
+                  </FieldLabel>
+                  <div className="relative mt-1.5">
+                    <SearchIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#6D6A64]" />
                     <input
-                      type="date"
-                      value={customPromiseDate}
-                      onChange={(e) => setCustomPromiseDate(e.target.value)}
-                      className="rounded-lg border border-amber-300 bg-white px-2 py-1 text-xs font-bold"
+                      id="seller-customer-name"
+                      type="text"
+                      required
+                      autoComplete="off"
+                      role="combobox"
+                      aria-expanded={
+                        customerDropdownOpen &&
+                        filteredCustomerSuggestions.length > 0
+                      }
+                      aria-controls="seller-customer-listbox"
+                      value={customerNameRaw}
+                      onFocus={() => setCustomerDropdownOpen(true)}
+                      onChange={(e) => {
+                        const nextVal = e.target.value;
+                        setCustomerNameRaw(nextVal);
+                        if (
+                          selectedCustomer &&
+                          normalizeSearchText(nextVal) !==
+                            normalizeSearchText(selectedCustomer.name)
+                        ) {
+                          setSelectedCustomer(null);
+                        }
+                        setCustomerDropdownOpen(true);
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === "Escape") {
+                          setCustomerDropdownOpen(false);
+                        }
+                      }}
+                      placeholder="Buscar por cualquier palabra o escribir cliente nuevo..."
+                      className={`${INPUT_CLASS} pl-9 pr-9 font-medium`}
                     />
+                    {customerNameRaw && (
+                      <button
+                        type="button"
+                        data-compact="true"
+                        onClick={() => {
+                          setCustomerNameRaw("");
+                          setSelectedCustomer(null);
+                          setCustomerDropdownOpen(true);
+                        }}
+                        aria-label="Limpiar cliente"
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded-md p-1 text-[#6D6A64] hover:bg-[#F4F3EF] hover:text-[#18181B] cursor-pointer"
+                      >
+                        <CloseIcon className="h-3.5 w-3.5" />
+                      </button>
+                    )}
                   </div>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-amber-900">
-                    ¿Dejó adelanto inicial hoy? (Opcional, en S/)
-                  </label>
-                  <input
-                    type="number"
-                    step="0.50"
-                    min="0"
-                    value={initialPaidPen}
-                    onChange={(e) => setInitialPaidPen(e.target.value)}
-                    placeholder="Ej. 200.00 (dejar vacío si no dio adelanto)"
-                    className="mt-1 w-full rounded-xl border border-amber-300 bg-white px-3 py-2 text-sm font-bold"
-                  />
-                </div>
-              </div>
-            )}
-
-            <div>
-              <label className="block text-xs font-bold uppercase text-slate-500">
-                Buscar Producto para Agregar
-              </label>
-              <input
-                type="text"
-                value={searchProduct}
-                onChange={(e) => setSearchProduct(e.target.value)}
-                placeholder="Escribe nombre o SKU..."
-                className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"
-              />
-              <div className="mt-2 max-h-48 space-y-1.5 overflow-y-auto">
-                {filteredCatalog.map((prod) => (
-                  <div
-                    key={prod.product_id}
-                    className="flex items-center justify-between rounded-xl border border-slate-200 p-2.5"
-                  >
-                    <div>
-                      <p className="text-xs font-bold text-slate-900">{prod.name}</p>
-                      <p className="text-[11px] text-slate-500">
-                        Precio: S/ {Number(prod.list_sale_price_pen ?? 0).toFixed(2)} ·
-                        Mín: S/ {Number(prod.min_sale_price_pen ?? 0).toFixed(2)} · Stock:{" "}
-                        {prod.stock_on_hand} ({prod.fulfillment_mode})
-                      </p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => addToCart(prod)}
-                      className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-bold text-white"
-                    >
-                      + Agregar
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {cart.length > 0 && (
-              <div className="space-y-2 border-t border-slate-200 pt-3">
-                <h3 className="text-xs font-bold uppercase text-slate-500">
-                  Productos en el Pedido (Descuento en Soles por unidad)
-                </h3>
-                {cart.map((line, idx) => {
-                  const base = line.product.list_sale_price_pen ?? 0;
-                  const min = line.product.min_sale_price_pen ?? base;
-                  const finalUnit = Math.max(0, base - line.unitDiscountPen);
-                  const belowMin = finalUnit < min - 0.001;
-                  return (
-                    <div
-                      key={line.product.product_id}
-                      className={`rounded-xl border p-3 ${
-                        belowMin
-                          ? "border-amber-400 bg-amber-50"
-                          : "border-slate-200 bg-slate-50"
-                      }`}
-                    >
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs font-bold text-slate-900">
-                          {line.product.name}
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setCart((prev) => prev.filter((_, i) => i !== idx))
-                          }
-                          className="text-xs font-bold text-red-600"
-                        >
-                          Quitar
-                        </button>
-                      </div>
-                      <div className="mt-2 grid grid-cols-3 gap-2">
-                        <div>
-                          <label className="block text-[10px] font-bold text-slate-500">
-                            Cantidad
-                          </label>
-                          <input
-                            type="number"
-                            min={1}
-                            value={line.quantity}
-                            onChange={(e) => {
-                              const q = Number(e.target.value);
-                              setCart((prev) =>
-                                prev.map((c, i) =>
-                                  i === idx ? { ...c, quantity: q } : c
-                                )
-                              );
-                            }}
-                            className="w-full rounded-lg border bg-white px-2 py-1.5 text-sm font-bold"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-[10px] font-bold text-slate-500">
-                            Dscto S/ x Und
-                          </label>
-                          <div className="flex items-center gap-1">
+                  {selectedCustomer && (
+                    <p className="mt-1.5 text-[11px] font-medium text-[#15803D]">
+                      Cliente vinculado ({selectedCustomer.doc_number || "registrado"}
+                      {selectedCustomer.address
+                        ? ` · ${selectedCustomer.address}`
+                        : ""}
+                      )
+                    </p>
+                  )}
+                  {customerDropdownOpen &&
+                    filteredCustomerSuggestions.length > 0 && (
+                      <ul
+                        id="seller-customer-listbox"
+                        role="listbox"
+                        aria-label="Clientes sugeridos"
+                        className="absolute z-30 mt-1.5 max-h-56 w-full overflow-y-auto rounded-xl border border-[#D4E0EC] bg-white p-1 shadow-[0_12px_28px_rgba(15,41,66,0.12)]"
+                      >
+                        {filteredCustomerSuggestions.map((c) => (
+                          <li key={c.party_id} role="option" aria-selected={selectedCustomer?.party_id === c.party_id || customerNameRaw === c.name}>
                             <button
                               type="button"
-                              onClick={() =>
-                                setCart((prev) =>
-                                  prev.map((c, i) =>
-                                    i === idx
-                                      ? {
-                                          ...c,
-                                          unitDiscountPen: Math.max(
-                                            0,
-                                            c.unitDiscountPen - 1
-                                          ),
-                                        }
-                                      : c
-                                  )
-                                )
-                              }
-                              className="rounded bg-slate-200 px-2 py-1 text-xs font-bold"
-                            >
-                              -1
-                            </button>
-                            <input
-                              type="number"
-                              step="0.50"
-                              min={0}
-                              value={line.unitDiscountPen}
-                              onChange={(e) => {
-                                const d = Number(e.target.value);
-                                setCart((prev) =>
-                                  prev.map((c, i) =>
-                                    i === idx ? { ...c, unitDiscountPen: d } : c
-                                  )
-                                );
+                              onMouseDown={(e) => {
+                                e.preventDefault();
+                                handleSelectCustomer(c);
                               }}
-                              className="w-full rounded-lg border bg-white px-2 py-1.5 text-center text-sm font-bold"
-                            />
-                            <button
-                              type="button"
-                              onClick={() =>
-                                setCart((prev) =>
-                                  prev.map((c, i) =>
-                                    i === idx
-                                      ? {
-                                          ...c,
-                                          unitDiscountPen: c.unitDiscountPen + 1,
-                                        }
-                                      : c
-                                  )
-                                )
-                              }
-                              className="rounded bg-slate-200 px-2 py-1 text-xs font-bold"
+                              onClick={() => handleSelectCustomer(c)}
+                              className="flex min-h-[44px] w-full items-center justify-between gap-2 rounded-lg px-3.5 py-2.5 text-left text-sm transition hover:bg-[#F2F6FA] cursor-pointer"
                             >
-                              +1
+                              <span className="font-semibold text-[#18181B]">
+                                {c.name}
+                              </span>
+                              {c.doc_number && (
+                                <span className="flex-shrink-0 text-[11px] text-[#5C5A55] tabular-nums">
+                                  {c.doc_number}
+                                </span>
+                              )}
                             </button>
-                          </div>
-                        </div>
-                        <div className="text-right">
-                          <span className="block text-[10px] font-bold text-slate-500">
-                            Final x Und / Subtotal
-                          </span>
-                          <span className="text-xs font-extrabold text-slate-900">
-                            S/ {finalUnit.toFixed(2)}
-                          </span>
-                          <span className="block text-sm font-extrabold text-blue-700">
-                            S/ {(line.quantity * finalUnit).toFixed(2)}
-                          </span>
-                        </div>
-                      </div>
-                      {belowMin && (
-                        <p className="mt-1 text-[11px] font-bold text-amber-800">
-                          ⚠️ Precio menor al mínimo permitido (S/ {min.toFixed(2)}).
-                          Requerirá aprobación de Socio con 1 toque.
-                        </p>
-                      )}
-                    </div>
-                  );
-                })}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                </div>
+              </Card>
 
-                <div className="flex items-center justify-between rounded-xl bg-slate-900 p-3 text-white">
-                  <span className="text-sm font-bold">Total del Pedido</span>
-                  <span className="text-xl font-extrabold">
-                    S/ {cartTotalPen.toFixed(2)}
+              {/* Step 2: Product Search & Add */}
+              <Card className="space-y-3">
+                <div className="flex items-center justify-between gap-2">
+                  <FieldLabel htmlFor="seller-search-product">
+                    2. Buscar y agregar productos
+                  </FieldLabel>
+                  <span
+                    id="seller-catalog-count"
+                    className="text-[11px] text-[#5C5A55] tabular-nums"
+                  >
+                    {initialLoading
+                      ? "Cargando..."
+                      : searchProduct.trim()
+                      ? `Mostrando ${filteredCatalog.length} de ${catalog.length}`
+                      : `${catalog.length} disponibles`}
                   </span>
                 </div>
 
-                <input
-                  type="text"
-                  value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
-                  placeholder="Dirección de entrega o nota para almacén..."
-                  className="w-full rounded-xl border border-slate-300 px-3 py-2 text-xs"
-                />
+                <div className="relative">
+                  <span
+                    aria-hidden="true"
+                    className="pointer-events-none absolute inset-y-0 left-3.5 flex items-center text-[#6D6A64]"
+                  >
+                    <SearchIcon className="h-4 w-4" />
+                  </span>
+                  <input
+                    id="seller-search-product"
+                    type="search"
+                    value={searchProduct}
+                    onChange={(e) => setSearchProduct(e.target.value)}
+                    aria-describedby="seller-catalog-count"
+                    placeholder="Buscar producto por nombre o código..."
+                    className={`${INPUT_CLASS} pl-10 ${
+                      searchProduct ? "pr-10" : ""
+                    }`}
+                  />
+                  {searchProduct && (
+                    <button
+                      type="button"
+                      data-compact="true"
+                      onClick={() => setSearchProduct("")}
+                      aria-label="Limpiar búsqueda de productos"
+                      className="absolute inset-y-1 right-1.5 flex items-center justify-center rounded-lg px-2 text-[#5C5A55] hover:bg-[#F2F6FA] hover:text-[#0F2942] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0F2942]/40 cursor-pointer"
+                    >
+                      <CloseIcon className="h-4 w-4" />
+                    </button>
+                  )}
+                </div>
 
-                <button
-                  type="submit"
-                  className="w-full rounded-xl bg-emerald-600 py-4 text-base font-extrabold text-white shadow hover:bg-emerald-700"
+                <div className="space-y-2 lg:max-h-[32rem] lg:overflow-y-auto lg:pr-0.5">
+                  {initialLoading && catalog.length === 0 ? (
+                    <p className="py-6 text-center text-xs text-[#5C5A55]">
+                      Cargando catálogo de productos...
+                    </p>
+                  ) : filteredCatalog.length === 0 ? (
+                    <p className="py-6 text-center text-xs text-[#5C5A55]">
+                      No hay productos que coincidan con &ldquo;{searchProduct}
+                      &rdquo;.
+                    </p>
+                  ) : (
+                    <>
+                      {visibleCatalog.map((prod) => {
+                        const inCartQty =
+                          cartQtyByProductId.get(prod.product_id) ?? 0;
+                        return (
+                          <div
+                            key={prod.product_id}
+                            className="flex items-center justify-between gap-3 rounded-xl border border-[#E7E5E0] bg-[#FAF9F6]/60 p-3 transition hover:border-[#D4E0EC] hover:bg-white"
+                          >
+                            <div className="min-w-0">
+                              <p className="line-clamp-2 text-sm font-semibold text-[#18181B]">
+                                {prod.name}
+                              </p>
+                              <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-[#5C5A55] tabular-nums">
+                                <span className="font-semibold text-[#18181B]">
+                                  S/{" "}
+                                  {Number(prod.list_sale_price_pen ?? 0).toFixed(
+                                    2
+                                  )}{" "}
+                                  <span
+                                    title={formatUnitTitleEs(
+                                      prod.unit_of_measure || "NIU"
+                                    )}
+                                    className="text-[11px] font-normal text-[#6D6A64]"
+                                  >
+                                    / {prod.unit_of_measure || "NIU"}
+                                  </span>
+                                </span>
+                                <span>
+                                  · Mín: S/{" "}
+                                  {Number(prod.min_sale_price_pen ?? 0).toFixed(
+                                    2
+                                  )}
+                                </span>
+                                <span>
+                                  · Stock:{" "}
+                                  <strong>
+                                    {prod.stock_on_hand}{" "}
+                                    {prod.unit_of_measure || "NIU"}
+                                  </strong>
+                                </span>
+                                <Badge
+                                  tone={
+                                    prod.fulfillment_mode === "ON_DEMAND"
+                                      ? "warning"
+                                      : "neutral"
+                                  }
+                                >
+                                  {formatFulfillmentModeEs(prod.fulfillment_mode)}
+                                </Badge>
+                              </div>
+                            </div>
+                            <Button
+                              variant={inCartQty > 0 ? "primary" : "outline"}
+                              size="sm"
+                              onClick={() => addToCart(prod)}
+                              aria-label={`Agregar ${prod.name}${
+                                inCartQty > 0
+                                  ? `, ${inCartQty} en el pedido`
+                                  : ""
+                              }`}
+                              className="flex-shrink-0"
+                            >
+                              <PlusIcon className="h-3.5 w-3.5" />
+                              {inCartQty > 0 ? `(${inCartQty})` : "Agregar"}
+                            </Button>
+                          </div>
+                        );
+                      })}
+                      {filteredCatalog.length > 24 && (
+                        <div className="pt-1 text-center">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setShowAllCatalog((prev) => !prev)}
+                            className="w-full"
+                          >
+                            {showAllCatalog
+                              ? "Mostrar solo los primeros 24"
+                              : `Ver todos (${filteredCatalog.length} productos)`}
+                          </Button>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+              </Card>
+              </div>
+
+              {/* Step 3: Sticky Right Cart & Order Summary (Strategic Blue Horizon Focus Zone) */}
+              <div className="min-w-0 space-y-4 lg:col-span-5 lg:sticky lg:top-20">
+              {cart.length === 0 && (
+                <Card
+                  accent="horizon"
+                  className="hidden lg:flex lg:flex-col lg:items-center lg:justify-center lg:py-10 text-center"
                 >
-                  {hasBelowMinFloor
-                    ? "Enviar Pedido a Aprobación de Socio"
-                    : "Confirmar Pedido y Enviar a Almacén"}
-                </button>
+                  <div
+                    aria-hidden="true"
+                    className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#F2F6FA] text-[#0F2942]"
+                  >
+                    <ShoppingBagIcon className="h-5 w-5" />
+                  </div>
+                  <p className="mt-3 text-sm font-semibold text-[#18181B]">
+                    3. Resumen, pago y envío
+                  </p>
+                  <p className="mt-1 max-w-xs text-xs text-[#5C5A55]">
+                    Elige cliente y agrega productos a la izquierda; luego confirma aquí la forma de pago y el envío.
+                  </p>
+                </Card>
+              )}
+              {cart.length > 0 && (
+                <Card
+                  id="cart-checkout-card"
+                  accent="horizon"
+                  className="space-y-3.5 shadow-[0_4px_16px_rgba(15,41,66,0.05)]"
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#D4E0EC] pb-2.5">
+                    <h2 className="text-sm font-semibold text-[#0F2942]">
+                      Productos en el pedido ({cart.length})
+                    </h2>
+                  </div>
+
+                  <div className="space-y-2.5">
+                    {cart.map((line, idx) => {
+                      const base = line.product.list_sale_price_pen ?? 0;
+                      const min = line.product.min_sale_price_pen ?? base;
+                      const fractional = isFractionalUom(
+                        line.product.unit_of_measure
+                      );
+                      const safeQty = Number.isFinite(line.quantity)
+                        ? Math.max(0, line.quantity)
+                        : 0;
+                      const safeDisc = Number.isFinite(line.unitDiscountPen)
+                        ? Math.max(0, line.unitDiscountPen)
+                        : 0;
+                      const finalUnit = Math.max(0, base - safeDisc);
+                      const belowMin = finalUnit < min - 0.001;
+                      const discountOpen =
+                        Boolean(expandedDiscountIds[line.product.product_id]) ||
+                        safeDisc > 0;
+                      return (
+                        <div
+                          key={line.product.product_id}
+                          className={`space-y-3 rounded-xl border p-3.5 ${
+                            belowMin
+                              ? "border-[#F3D9B1] bg-[#FDF8F0]"
+                              : "border-[#D4E0EC] bg-[#F2F6FA]/55"
+                          }`}
+                        >
+                          <div className="flex flex-wrap items-start justify-between gap-2">
+                            <div className="min-w-0 flex-1">
+                              <p className="text-sm font-semibold text-[#18181B]">
+                                {line.product.name}
+                              </p>
+                              <p className="text-xs text-[#5C5A55] tabular-nums">
+                                Precio lista: S/ {base.toFixed(2)}{" "}
+                                <span
+                                  title={formatUnitTitleEs(
+                                    line.product.unit_of_measure || "NIU"
+                                  )}
+                                >
+                                  / {line.product.unit_of_measure || "NIU"}
+                                </span>{" "}
+                                · Mín: S/ {min.toFixed(2)}
+                              </p>
+                            </div>
+                            <div className="flex flex-shrink-0 items-center gap-1.5">
+                              <button
+                                type="button"
+                                aria-expanded={discountOpen}
+                                onClick={() =>
+                                  setExpandedDiscountIds((prev) => ({
+                                    ...prev,
+                                    [line.product.product_id]: !discountOpen,
+                                  }))
+                                }
+                                className={`inline-flex min-h-[40px] items-center rounded-lg border px-3 py-1.5 text-xs font-medium transition cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0F2942]/45 ${
+                                  discountOpen
+                                    ? "border-[#0F2942] bg-[#0F2942] text-white"
+                                    : "border-[#D4E0EC] bg-white text-[#1E446B] hover:bg-[#F2F6FA]"
+                                }`}
+                              >
+                                {safeDisc > 0
+                                  ? `Desc. S/ ${safeDisc.toFixed(2)}`
+                                  : discountOpen
+                                  ? "Ocultar desc."
+                                  : "Descuento"}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setExpandedDiscountIds((prev) => {
+                                    const next = { ...prev };
+                                    delete next[line.product.product_id];
+                                    return next;
+                                  });
+                                  setCart((prev) =>
+                                    prev.filter((_, i) => i !== idx)
+                                  );
+                                }}
+                                aria-label={`Quitar ${line.product.name} del pedido`}
+                                className="inline-flex min-h-[40px] items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-medium text-[#B91C1C] transition hover:bg-[#FEF2F2] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#B91C1C]/35 cursor-pointer"
+                              >
+                                <TrashIcon className="h-3.5 w-3.5" />
+                                Quitar
+                              </button>
+                            </div>
+                          </div>
+
+                          <div
+                            className={`grid grid-cols-1 gap-3 ${
+                              discountOpen
+                                ? "sm:grid-cols-2"
+                                : "max-w-full sm:max-w-[260px]"
+                            }`}
+                          >
+                            <div>
+                              <FieldLabel
+                                htmlFor={`cart-qty-${line.product.product_id}`}
+                              >
+                                Cantidad ({line.product.unit_of_measure || "NIU"})
+                              </FieldLabel>
+                              <div className="mt-1 flex items-center gap-1.5">
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  aria-label={`Reducir cantidad de ${line.product.name}`}
+                                  onClick={() =>
+                                    setCart((prev) =>
+                                      prev.map((c, i) => {
+                                        if (i !== idx) return c;
+                                        const cur = Number.isFinite(c.quantity)
+                                          ? Math.max(0, c.quantity)
+                                          : 1;
+                                        const nextQty = fractional
+                                          ? Math.max(
+                                              0.01,
+                                              normalizeOrderQuantity(
+                                                cur > 1
+                                                  ? cur - 1
+                                                  : cur > 0.5
+                                                  ? cur - 0.5
+                                                  : cur - 0.1,
+                                                true
+                                              ) || 0.01
+                                            )
+                                          : Math.max(1, Math.floor(cur) - 1);
+                                        return {
+                                          ...c,
+                                          quantity: nextQty,
+                                          quantityInput: String(nextQty),
+                                        };
+                                      })
+                                    )
+                                  }
+                                  className="px-2.5"
+                                >
+                                  <MinusIcon className="h-3.5 w-3.5" />
+                                </Button>
+                                <input
+                                  id={`cart-qty-${line.product.product_id}`}
+                                  type="number"
+                                  inputMode={fractional ? "decimal" : "numeric"}
+                                  min={fractional ? "0.01" : 1}
+                                  step={fractional ? "any" : 1}
+                                  value={line.quantityInput}
+                                  onChange={(e) => {
+                                    const raw = e.target.value.replace(",", ".");
+                                    if (raw.trim() === "") {
+                                      setCart((prev) =>
+                                        prev.map((c, i) =>
+                                          i === idx
+                                            ? {
+                                                ...c,
+                                                quantity: 0,
+                                                quantityInput: "",
+                                              }
+                                            : c
+                                        )
+                                      );
+                                      return;
+                                    }
+                                    const parsed = Number(raw);
+                                    if (!Number.isFinite(parsed) || parsed < 0)
+                                      return;
+                                    const nextQty = fractional
+                                      ? parsed
+                                      : Math.max(0, Math.floor(parsed));
+                                    setCart((prev) =>
+                                      prev.map((c, i) =>
+                                        i === idx
+                                          ? {
+                                              ...c,
+                                              quantity: nextQty,
+                                              quantityInput: fractional
+                                                ? raw
+                                                : String(nextQty || ""),
+                                            }
+                                          : c
+                                      )
+                                    );
+                                  }}
+                                  onBlur={() =>
+                                    setCart((prev) =>
+                                      prev.map((c, i) => {
+                                        if (i !== idx) return c;
+                                        const normalized = fractional
+                                          ? normalizeOrderQuantity(
+                                              c.quantity,
+                                              true
+                                            )
+                                          : Math.floor(c.quantity);
+                                        const valid =
+                                          Number.isFinite(normalized) &&
+                                          normalized > 0
+                                            ? fractional
+                                              ? normalized
+                                              : Math.max(1, normalized)
+                                            : 1;
+                                        return {
+                                          ...c,
+                                          quantity: valid,
+                                          quantityInput: String(valid),
+                                        };
+                                      })
+                                    )
+                                  }
+                                  className={`${INPUT_CLASS} min-w-0 flex-1 text-center font-semibold tabular-nums`}
+                                />
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  aria-label={`Aumentar cantidad de ${line.product.name}`}
+                                  onClick={() =>
+                                    setCart((prev) =>
+                                      prev.map((c, i) => {
+                                        if (i !== idx) return c;
+                                        const cur = Number.isFinite(c.quantity)
+                                          ? Math.max(0, c.quantity)
+                                          : 0;
+                                        const nextQty = fractional
+                                          ? normalizeOrderQuantity(
+                                              cur + 1,
+                                              true
+                                            ) || 1
+                                          : Math.max(1, Math.floor(cur) + 1);
+                                        return {
+                                          ...c,
+                                          quantity: nextQty,
+                                          quantityInput: String(nextQty),
+                                        };
+                                      })
+                                    )
+                                  }
+                                  className="px-2.5"
+                                >
+                                  <PlusIcon className="h-3.5 w-3.5" />
+                                </Button>
+                              </div>
+                            </div>
+
+                            {discountOpen && (
+                              <div>
+                                <FieldLabel
+                                  htmlFor={`cart-disc-${line.product.product_id}`}
+                                >
+                                  Descuento S/ /{" "}
+                                  <span
+                                    title={formatUnitTitleEs(
+                                      line.product.unit_of_measure || "NIU"
+                                    )}
+                                  >
+                                    {line.product.unit_of_measure || "NIU"}
+                                  </span>
+                                </FieldLabel>
+                                <div className="mt-1 flex items-center gap-1.5">
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    aria-label={`Reducir descuento en 1 sol para ${line.product.name}`}
+                                    onClick={() =>
+                                      setCart((prev) =>
+                                        prev.map((c, i) =>
+                                          i === idx
+                                            ? {
+                                                ...c,
+                                                unitDiscountPen: Math.max(
+                                                  0,
+                                                  (Number.isFinite(
+                                                    c.unitDiscountPen
+                                                  )
+                                                    ? c.unitDiscountPen
+                                                    : 0) - 1
+                                                ),
+                                              }
+                                            : c
+                                        )
+                                      )
+                                    }
+                                    className="px-2.5"
+                                  >
+                                    <MinusIcon className="h-3.5 w-3.5" />
+                                  </Button>
+                                  <input
+                                    id={`cart-disc-${line.product.product_id}`}
+                                    type="number"
+                                    step="0.01"
+                                    min={0}
+                                    value={
+                                      Number.isFinite(line.unitDiscountPen)
+                                        ? line.unitDiscountPen
+                                        : 0
+                                    }
+                                    onChange={(e) => {
+                                      const raw = e.target.value;
+                                      const parsed =
+                                        raw === "" ? 0 : Number(raw);
+                                      if (!Number.isFinite(parsed)) return;
+                                      setCart((prev) =>
+                                        prev.map((c, i) =>
+                                          i === idx
+                                            ? {
+                                                ...c,
+                                                unitDiscountPen: Math.max(
+                                                  0,
+                                                  parsed
+                                                ),
+                                              }
+                                            : c
+                                        )
+                                      );
+                                    }}
+                                    className={`${INPUT_CLASS} min-w-0 flex-1 text-center font-semibold tabular-nums`}
+                                  />
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    aria-label={`Aumentar descuento en 1 sol para ${line.product.name}`}
+                                    onClick={() =>
+                                      setCart((prev) =>
+                                        prev.map((c, i) =>
+                                          i === idx
+                                            ? {
+                                                ...c,
+                                                unitDiscountPen:
+                                                  (Number.isFinite(
+                                                    c.unitDiscountPen
+                                                  )
+                                                    ? c.unitDiscountPen
+                                                    : 0) + 1,
+                                              }
+                                            : c
+                                        )
+                                      )
+                                    }
+                                    className="px-2.5"
+                                  >
+                                    <PlusIcon className="h-3.5 w-3.5" />
+                                  </Button>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+
+                          <div className="flex flex-wrap items-center justify-between gap-2 border-t border-[#E7E5E0]/80 pt-2 text-xs tabular-nums">
+                            <span className="text-[#5C5A55]">
+                              Final /{" "}
+                              <span
+                                title={formatUnitTitleEs(
+                                  line.product.unit_of_measure || "NIU"
+                                )}
+                              >
+                                {line.product.unit_of_measure || "NIU"}
+                              </span>
+                              :{" "}
+                              <strong className="text-[#18181B]">
+                                S/ {finalUnit.toFixed(2)}
+                              </strong>
+                            </span>
+                            <span className="text-sm font-semibold text-[#18181B]">
+                              Subtotal: S/ {(safeQty * finalUnit).toFixed(2)}
+                            </span>
+                          </div>
+
+                          {belowMin && !isPartnerControlUser && (
+                            <p className="flex items-start gap-1.5 text-xs font-medium text-[#B45309]">
+                              <AlertTriangleIcon className="mt-0.5 h-3.5 w-3.5 flex-shrink-0" />
+                              <span>
+                                Precio menor al mínimo (S/ {min.toFixed(2)}).
+                                Requerirá aprobación de Socio o Gerencia.
+                              </span>
+                            </p>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  <div className="flex items-center justify-between rounded-xl bg-[#0F2942] px-4 py-3.5 text-white shadow-xs">
+                    <span className="text-sm font-medium text-[#D4E0EC]">
+                      Total del pedido
+                    </span>
+                    <span className="text-xl font-semibold tabular-nums">
+                      S/ {cartTotalPen.toFixed(2)}
+                    </span>
+                  </div>
+
+                  {/* Step 3b: Payment Condition decided once total is known */}
+                  <div className="space-y-3 rounded-xl border border-[#E7E5E0] bg-[#FAF9F6]/70 p-3.5">
+                    <div>
+                      <p
+                        id="seller-payment-mode-label"
+                        className="block text-xs font-medium text-[#5C5A55]"
+                      >
+                        3. Condición de pago
+                      </p>
+                      <div
+                        role="group"
+                        aria-labelledby="seller-payment-mode-label"
+                        className="mt-1.5 grid grid-cols-2 gap-1.5"
+                      >
+                        {(
+                          [
+                            ["CASH", "Efectivo"],
+                            ["YAPE_PLIN", "Yape / Plin"],
+                            ["TRANSFER", "Transferencia"],
+                            ["CREDIT", "A Crédito"],
+                          ] as const
+                        ).map(([mode, label]) => {
+                          const active = paymentMode === mode;
+                          return (
+                            <button
+                              key={mode}
+                              type="button"
+                              aria-pressed={active}
+                              onClick={() => handleSelectPaymentMode(mode)}
+                              className={`min-h-[40px] rounded-xl border px-3 py-2 text-xs font-semibold transition cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0F2942]/45 ${
+                                active
+                                  ? "border-[#0F2942] bg-[#0F2942] text-white shadow-xs"
+                                  : "border-[#E7E5E0] bg-white text-[#5C5A55] hover:border-[#D4E0EC] hover:bg-[#F2F6FA] hover:text-[#0F2942]"
+                              }`}
+                            >
+                              {label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {paymentMode !== "CREDIT" && (
+                      <SegmentedControl
+                        ariaLabel="Momento de cobro"
+                        value={collectOnDelivery ? "cod" : "now"}
+                        onChange={(v) => setCollectOnDelivery(v === "cod")}
+                        options={[
+                          { id: "cod", label: "Contra Entrega" },
+                          { id: "now", label: "Ya pagó hoy" },
+                        ]}
+                      />
+                    )}
+
+                    {paymentMode === "CREDIT" && (
+                      <div className="space-y-3 rounded-xl border border-[#F3D9B1] bg-[#FDF8F0] p-3">
+                        <div>
+                          <p
+                            id="seller-credit-days-label"
+                            className="block text-xs font-medium text-[#78350F]"
+                          >
+                            ¿Cuándo volvemos a cobrar?
+                          </p>
+                          <div
+                            role="group"
+                            aria-labelledby="seller-credit-days-label"
+                            className="mt-1.5 flex flex-wrap gap-1.5"
+                          >
+                            {CREDIT_DAY_CHIPS.map((chip) => {
+                              const active =
+                                creditDays === chip.days && !customPromiseDate;
+                              return (
+                                <button
+                                  key={chip.days}
+                                  type="button"
+                                  aria-pressed={active}
+                                  onClick={() => {
+                                    setCreditDays(chip.days);
+                                    setCustomPromiseDate("");
+                                  }}
+                                  className={`min-h-[34px] rounded-full border px-2.5 py-1 text-xs font-medium transition cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0F2942]/45 ${
+                                    active
+                                      ? "border-[#0F2942] bg-[#0F2942] text-white"
+                                      : "border-[#E7D3B1] bg-white text-[#78350F] hover:bg-[#FAF9F6]"
+                                  }`}
+                                >
+                                  {chip.label}
+                                </button>
+                              );
+                            })}
+                          </div>
+                          <div className="mt-2 flex flex-wrap items-center gap-2">
+                            <label
+                              htmlFor="seller-custom-date"
+                              className="text-xs font-medium text-[#78350F]"
+                            >
+                              O fecha:
+                            </label>
+                            <input
+                              id="seller-custom-date"
+                              type="date"
+                              value={customPromiseDate}
+                              onChange={(e) => setCustomPromiseDate(e.target.value)}
+                              className="min-h-[36px] rounded-lg border border-[#E7D3B1] bg-white px-2.5 py-1 text-xs font-medium text-[#18181B] focus:border-[#0F2942] focus:outline-none focus:ring-2 focus:ring-[#0F2942]/15"
+                            />
+                          </div>
+                        </div>
+
+                        <div>
+                          <FieldLabel
+                            htmlFor="seller-initial-paid"
+                            className="text-[#78350F]"
+                          >
+                            Adelanto inicial hoy (Opcional, S/)
+                          </FieldLabel>
+                          <input
+                            id="seller-initial-paid"
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            value={initialPaidPen}
+                            onChange={(e) => setInitialPaidPen(e.target.value)}
+                            placeholder="Ej. 200.00"
+                            className={`${INPUT_CLASS} mt-1 tabular-nums`}
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  <div>
+                    <FieldLabel htmlFor="seller-order-notes">
+                      Dirección o nota para almacén (opcional)
+                    </FieldLabel>
+                    <input
+                      id="seller-order-notes"
+                      type="text"
+                      value={notes}
+                      onChange={(e) => setNotes(e.target.value)}
+                      placeholder="Dirección de entrega o referencia..."
+                      className={`${INPUT_CLASS} mt-1.5`}
+                    />
+                  </div>
+
+                  <div className="flex flex-col gap-2 sm:flex-row">
+                    <Button
+                      type="submit"
+                      variant={requiresPartnerApproval ? "primary" : "success"}
+                      size="lg"
+                      disabled={busyOrder || busyCreateQuote}
+                      className="flex-1"
+                    >
+                      {busyOrder
+                        ? "Guardando pedido..."
+                        : requiresPartnerApproval
+                        ? "Enviar Pedido a Aprobación de Socio o Gerencia"
+                        : "Confirmar Pedido y Enviar a Almacén"}
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="lg"
+                      disabled={busyOrder || busyCreateQuote}
+                      onClick={handleCreateQuoteFromCart}
+                      className="sm:w-auto"
+                    >
+                      {busyCreateQuote ? "Cotizando..." : "Cotizar"}
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="lg"
+                      disabled={busyOrder || busyCancelDraft}
+                      onClick={() => setCancelDraftOpen(true)}
+                      className="border-[#E7E5E0] bg-[#FAF9F6] text-[#5C5A55] hover:border-[#E8C5C5] hover:bg-[#FEF2F2]/65 hover:text-[#991B1B] sm:w-auto"
+                    >
+                      Cancelado
+                    </Button>
+                  </div>
+                </Card>
+              )}
+
+              {cart.length === 0 &&
+                (customerNameRaw.trim().length > 0 || notes.trim().length > 0) && (
+                  <div className="flex justify-end">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={busyCancelDraft}
+                      onClick={() => setCancelDraftOpen(true)}
+                      className="border-[#E7E5E0] bg-[#FAF9F6] text-[#5C5A55] hover:border-[#E8C5C5] hover:bg-[#FEF2F2]/65 hover:text-[#991B1B]"
+                    >
+                      Cancelado
+                    </Button>
+                  </div>
+                )}
+            </div>
+            </form>
+          </section>
+        )}
+
+        {tab === "cotizaciones" && (
+          <section aria-label="Cotizaciones" className="space-y-3">
+            <Card padding="sm" className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <h2 className="text-sm sm:text-base font-semibold text-[#18181B]">
+                  Cotizaciones ({quotes.length})
+                </h2>
+                <p className="text-xs text-[#5C5A55]">
+                  Arma ítems en Pedido y usa “Cotizar”, o convierte una cotización abierta en pedido real.
+                </p>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setTab("nuevo")}
+              >
+                + Nueva Cotización
+              </Button>
+            </Card>
+            {quotes.length === 0 ? (
+              <EmptyState
+                icon={<ReceiptIcon className="h-5 w-5" />}
+                title="Sin cotizaciones registradas"
+                description="Arma un pedido y presiona Cotizar para guardar una propuesta."
+              />
+            ) : (
+              <div className="grid grid-cols-1 gap-3 lg:grid-cols-2 lg:items-start">
+                {quotes.map((q) => {
+                  const isBusy = busyQuoteId === q.quote_id;
+                  const tone =
+                    q.status === "CONVERTED"
+                      ? "success"
+                      : q.status === "OPEN"
+                      ? "brand"
+                      : "neutral";
+                  return (
+                    <Card key={q.quote_id} padding="md" className="space-y-2.5">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <span className="text-xs font-semibold text-[#1E446B] tabular-nums">
+                            {q.quote_code} · {q.issue_date}
+                          </span>
+                          <h3 className="text-sm sm:text-base font-semibold text-[#18181B]">
+                            {q.customer_name}
+                          </h3>
+                        </div>
+                        <Badge tone={tone}>
+                          {q.status === "OPEN"
+                            ? "Abierta"
+                            : q.status === "CONVERTED"
+                            ? `Pedido ${q.converted_order_code || q.related_cpe || ""}`.trim()
+                            : q.status === "EXPIRED"
+                            ? "Vencida"
+                            : "Anulada"}
+                        </Badge>
+                      </div>
+
+                      <div className="divide-y divide-[#E7E5E0] rounded-lg border border-[#E7E5E0] bg-[#FAF9F6] px-2.5 py-1 text-xs">
+                        {q.lines.map((ln) => (
+                          <div
+                            key={ln.quote_line_id}
+                            className="flex items-center justify-between gap-2 py-1.5"
+                          >
+                            <span className="min-w-0 truncate text-[#18181B]">
+                              {ln.quantity} {ln.unit_of_measure} × {ln.raw_description}
+                            </span>
+                            <span className="flex-shrink-0 font-semibold tabular-nums">
+                              S/ {Number(ln.line_total_pen).toFixed(2)}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+
+                      <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+                        <span className="font-semibold text-[#0F2942] tabular-nums">
+                          Total: S/ {Number(q.total_pen).toFixed(2)}
+                        </span>
+                        {q.status === "OPEN" && (
+                          <div className="flex flex-wrap gap-1.5">
+                            <Button
+                              type="button"
+                              variant="success"
+                              size="sm"
+                              data-compact="true"
+                              disabled={isBusy}
+                              onClick={() => handleConvertQuote(q.quote_id, "CASH")}
+                            >
+                              Convertir Contado
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="primary"
+                              size="sm"
+                              data-compact="true"
+                              disabled={isBusy}
+                              onClick={() => handleConvertQuote(q.quote_id, "CREDIT")}
+                            >
+                              A Crédito 7d
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              data-compact="true"
+                              disabled={isBusy}
+                              onClick={() =>
+                                handleUpdateQuoteStatus(q.quote_id, "CANCELLED")
+                              }
+                            >
+                              Anular
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+                    </Card>
+                  );
+                })}
               </div>
             )}
-          </form>
-        </main>
-      )}
+          </section>
+        )}
 
-      {tab === "deudores" && (
-        <main className="space-y-3 p-3">
-          <div className="rounded-2xl bg-white p-3 shadow-sm">
-            <div className="flex gap-2">
-              <button
-                onClick={() => setDebtorView("orders")}
-                className={`flex-1 rounded-xl py-2 text-xs font-bold ${
-                  debtorView === "orders"
-                    ? "bg-blue-600 text-white"
-                    : "bg-slate-100 text-slate-700"
-                }`}
-              >
-                Por Pedido ({debtorsByOrder.length})
-              </button>
-              <button
-                onClick={() => setDebtorView("customers")}
-                className={`flex-1 rounded-xl py-2 text-xs font-bold ${
-                  debtorView === "customers"
-                    ? "bg-blue-600 text-white"
-                    : "bg-slate-100 text-slate-700"
-                }`}
-              >
-                Por Cliente ({debtorsByCustomer.length})
-              </button>
-            </div>
+        {tab === "deudores" && (
+          <section aria-label="Cobros y deudores" className="space-y-3.5">
+            <Card padding="sm" className="space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-2.5">
+                <SegmentedControl
+                  ariaLabel="Agrupación de cobros"
+                  value={debtorView}
+                  onChange={setDebtorView}
+                  options={[
+                    {
+                      id: "orders",
+                      label: "Por Pedido",
+                      count: debtorsByOrder.length,
+                    },
+                    {
+                      id: "customers",
+                      label: "Por Cliente",
+                      count: debtorsByCustomer.length,
+                    },
+                  ]}
+                />
+                <div className="relative w-full sm:w-64">
+                  <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-[#6D6A64]">
+                    <SearchIcon className="h-3.5 w-3.5" />
+                  </span>
+                  <input
+                    type="text"
+                    value={debtorSearch}
+                    onChange={(e) => setDebtorSearch(e.target.value)}
+                    aria-label="Buscar cliente o pedido en cobros"
+                    placeholder="Buscar cliente o pedido..."
+                    className={`${INPUT_CLASS} py-1.5 pl-9 pr-8 text-xs`}
+                  />
+                  {debtorSearch && (
+                    <button
+                      type="button"
+                      data-compact="true"
+                      aria-label="Limpiar búsqueda de cobros"
+                      onClick={() => setDebtorSearch("")}
+                      className="absolute inset-y-0 right-2 flex items-center text-[#6D6A64] hover:text-[#18181B] cursor-pointer"
+                    >
+                      <CloseIcon className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                </div>
+              </div>
 
-            {debtorView === "orders" && (
-              <div className="mt-2 flex gap-1.5 overflow-x-auto pt-1">
-                {[
-                  { id: "ALL", label: "Todos" },
-                  { id: "DUE_TODAY_OR_TOMORROW", label: "🔥 Toca Cobrar Hoy/Mañana" },
-                  { id: "PROMISE_BROKEN", label: "🚨 Promesa Vencida" },
-                  { id: "ON_SCHEDULE", label: "📅 En Plazo" },
-                ].map((f) => (
-                  <button
-                    key={f.id}
-                    onClick={() => setPromiseFilter(f.id)}
-                    className={`flex-shrink-0 rounded-lg px-2.5 py-1.5 text-[11px] font-bold ${
-                      promiseFilter === f.id
-                        ? "bg-slate-900 text-white"
-                        : "bg-slate-100 text-slate-700"
-                    }`}
+              {debtorView === "orders" && (
+                <PromiseFilterBar
+                  value={promiseFilter}
+                  onChange={setPromiseFilter}
+                  totalCount={debtorsByOrder.length}
+                />
+              )}
+            </Card>
+
+            {debtorView === "orders" ? (
+              filteredDebtOrders.length === 0 ? (
+                <EmptyState
+                  icon={<WalletIcon className="h-5 w-5" />}
+                  title="Sin cobros pendientes en este filtro"
+                  description="Prueba seleccionando 'Todos' o cambia a la vista por cliente."
+                />
+              ) : (
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-2 md:items-start">
+                  {filteredDebtOrders.map((item) => {
+                    const lineCount = Array.isArray(item.lines)
+                      ? item.lines.length
+                      : 0;
+                    return (
+                      <Card key={item.orderId} padding="md" className="space-y-3">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setDebtDetailTarget({
+                              mode: "order",
+                              orderId: item.orderId,
+                            })
+                          }
+                          aria-label={`Ver detalle de productos del pedido ${item.orderCode} de ${item.customerName}`}
+                          className="w-full space-y-2.5 text-left rounded-xl transition hover:bg-[#F2F6FA]/45 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0F2942]/45 cursor-pointer"
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="min-w-0">
+                              <span className="text-xs font-semibold text-[#1E446B] tabular-nums">
+                                {item.orderCode} · {item.orderDate}
+                              </span>
+                              <h2 className="mt-0.5 text-sm sm:text-base font-semibold text-[#18181B]">
+                                {item.customerName}
+                              </h2>
+                            </div>
+                            <Badge
+                              tone={
+                                item.agingBucket === "RED_30_PLUS"
+                                  ? "danger"
+                                  : item.agingBucket === "AMBER_8_29"
+                                  ? "warning"
+                                  : "success"
+                              }
+                              className="tabular-nums"
+                            >
+                              Hace {item.daysOverdue} días
+                            </Badge>
+                          </div>
+
+                          <div className="grid grid-cols-3 gap-2 rounded-xl bg-[#F2F6FA]/70 p-2.5 text-xs tabular-nums">
+                            <div>
+                              <span className="block text-[11px] text-[#5C5A55]">
+                                Total
+                              </span>
+                              <span className="font-semibold text-[#18181B]">
+                                S/ {item.totalPen.toFixed(2)}
+                              </span>
+                            </div>
+                            <div>
+                              <span className="block text-[11px] text-[#5C5A55]">
+                                Abonado ({item.paymentCount})
+                              </span>
+                              <span className="font-semibold text-[#15803D]">
+                                S/ {item.paidPen.toFixed(2)}
+                              </span>
+                            </div>
+                            <div className="text-right">
+                              <span className="block text-[11px] text-[#5C5A55]">
+                                Saldo pendiente
+                              </span>
+                              <span className="text-sm font-semibold text-[#B91C1C]">
+                                S/ {item.balanceDuePen.toFixed(2)}
+                              </span>
+                            </div>
+                          </div>
+
+                          <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-[#5C5A55]">
+                            <span>
+                              Pactado:{" "}
+                              <strong className="text-[#18181B]">
+                                {item.promisedPaymentDate || "No pactada"}
+                              </strong>
+                            </span>
+                            <div className="flex items-center gap-2">
+                              <PromiseStatusPill status={item.promiseStatus} />
+                              <span className="inline-flex items-center gap-0.5 font-medium text-[#1E446B]">
+                                {lineCount > 0
+                                  ? `${lineCount} prod.`
+                                  : "Ver detalle"}
+                                <ChevronRightIcon className="h-3.5 w-3.5" />
+                              </span>
+                            </div>
+                          </div>
+                        </button>
+
+                      <div className="flex flex-wrap gap-2">
+                        <Button
+                          variant="primary"
+                          size="sm"
+                          aria-label={`Registrar abono para ${item.customerName}, pedido ${item.orderCode}`}
+                          onClick={() => {
+                            setSelectedCustomerForFifo(null);
+                            setSelectedOrderForAbono(item);
+                            setAbonoAmount(String(item.balanceDuePen));
+                            setAbonoAccountId("");
+                          }}
+                          className="flex-1"
+                        >
+                          <PlusIcon className="h-3.5 w-3.5" />
+                          Registrar Abono
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          aria-expanded={timelineOrderId === item.orderId}
+                          aria-label={`Ver historial de pagos del pedido ${item.orderCode}`}
+                          disabled={timelineLoadingId === item.orderId}
+                          onClick={() => handleOpenTimeline(item.orderId)}
+                        >
+                          <ClockIcon className="h-3.5 w-3.5" />
+                          {timelineLoadingId === item.orderId
+                            ? "Cargando..."
+                            : `Historial (${item.paymentCount})`}
+                        </Button>
+                      </div>
+
+                      {timelineOrderId === item.orderId && (
+                        <div className="rounded-xl border border-[#D4E0EC] bg-[#F2F6FA]/60 p-3 text-xs">
+                          <p className="mb-2 font-semibold text-[#0F2942]">
+                            Historial de pagos de este pedido
+                          </p>
+                          {timelineEntries.length === 0 ? (
+                            <p className="text-[#5C5A55]">
+                              Sin abonos previos.
+                            </p>
+                          ) : (
+                            <ul className="divide-y divide-[#D4E0EC]/70">
+                              {timelineEntries.map((t) => (
+                                <li
+                                  key={String(t.arPaymentId)}
+                                  className="flex items-center justify-between gap-2 py-1.5"
+                                >
+                                  <span className="text-[#5C5A55]">
+                                    {String(t.paymentDate)} ·{" "}
+                                    {formatPaymentModeEs(t.paymentMode)} (
+                                    {String(t.collectedByName || "Histórico")})
+                                  </span>
+                                  <strong className="font-semibold text-[#15803D] tabular-nums">
+                                    S/ {Number(t.amountPen).toFixed(2)}
+                                  </strong>
+                                </li>
+                              ))}
+                            </ul>
+                          )}
+                        </div>
+                      )}
+                    </Card>
+                    );
+                  })}
+                </div>
+              )
+            ) : filteredDebtorsByCustomer.length === 0 ? (
+              <EmptyState
+                icon={<WalletIcon className="h-5 w-5" />}
+                title={
+                  debtorSearch
+                    ? "No hay clientes que coincidan con tu búsqueda"
+                    : "Sin clientes con saldo pendiente"
+                }
+              />
+            ) : (
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-2 md:items-start">
+                {filteredDebtorsByCustomer.map((c) => (
+                  <Card
+                    key={c.customerKey}
+                    padding="md"
+                    className="space-y-2.5"
                   >
-                    {f.label}
-                  </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setDebtDetailTarget({
+                          mode: "customer",
+                          customerKey: c.customerKey,
+                          customerName: c.customerName,
+                          customerPartyId: c.customerPartyId,
+                        })
+                      }
+                      aria-label={`Ver pedidos y productos que debe ${c.customerName}`}
+                      className="w-full space-y-1.5 text-left rounded-xl transition hover:bg-[#F2F6FA]/45 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0F2942]/45 cursor-pointer"
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <h2 className="text-sm sm:text-base font-semibold text-[#18181B]">
+                          {c.customerName}
+                        </h2>
+                        <Badge tone="danger" className="tabular-nums">
+                          Debe S/ {c.totalBalanceDuePen.toFixed(2)}
+                        </Badge>
+                      </div>
+                      <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-[#5C5A55] tabular-nums">
+                        <span>
+                          {c.openOrdersCount} pedido(s) · Antigüedad máx:{" "}
+                          {c.maxDaysOverdue} días · Próxima visita:{" "}
+                          {c.earliestPromisedPaymentDate || "-"}
+                        </span>
+                        <span className="inline-flex items-center gap-0.5 font-medium text-[#1E446B]">
+                          Ver detalle
+                          <ChevronRightIcon className="h-3.5 w-3.5" />
+                        </span>
+                      </div>
+                    </button>
+                    {c.customerPartyId && (
+                      <Button
+                        variant="primary"
+                        size="sm"
+                        aria-label={`Abonar a cuenta de ${c.customerName}`}
+                        onClick={() => {
+                          setSelectedOrderForAbono(null);
+                          setSelectedCustomerForFifo(c);
+                          setAbonoAmount(String(c.totalBalanceDuePen));
+                          setAbonoAccountId("");
+                        }}
+                        className="w-full"
+                      >
+                        <PlusIcon className="h-3.5 w-3.5" />
+                        Abonar a Cuenta (deudas más antiguas)
+                      </Button>
+                    )}
+                  </Card>
                 ))}
               </div>
             )}
+          </section>
+        )}
+
+        {tab === "pedidos" && (
+          <section aria-label="Mis pedidos" className="space-y-3">
+            {orders.length === 0 ? (
+              <EmptyState
+                icon={<PackageIcon className="h-5 w-5" />}
+                title="Aún no hay pedidos registrados"
+              />
+            ) : (
+              <div className="grid grid-cols-1 gap-3 lg:grid-cols-2 lg:items-start">
+              {orders.map((o) => {
+                const orderId = Number(o.order_id);
+                const isExpanded = expandedOrderId === orderId;
+                const orderLines = Array.isArray(o.lines)
+                  ? (o.lines as Array<Record<string, unknown>>)
+                  : [];
+                return (
+                  <Card
+                    key={String(o.order_id)}
+                    padding="md"
+                    className="space-y-2.5"
+                  >
+                    <button
+                      type="button"
+                      aria-expanded={isExpanded}
+                      onClick={() =>
+                        setExpandedOrderId((prev) =>
+                          prev === orderId ? null : orderId
+                        )
+                      }
+                      className="w-full space-y-2 text-left cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0F2942]/45 rounded-lg"
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-xs font-semibold text-[#1E446B] tabular-nums">
+                          {String(o.order_code)} · {String(o.order_date)}
+                        </span>
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          {Boolean(o.trip_code) && (
+                            <Badge tone="brand">{String(o.trip_code)}</Badge>
+                          )}
+                          <Badge tone="neutral">
+                            {formatOperationalStatusEs(o.operational_status)}
+                          </Badge>
+                          <ChevronRightIcon
+                            className={`h-4 w-4 text-[#5C5A55] transition-transform ${
+                              isExpanded ? "rotate-90 text-[#0F2942]" : ""
+                            }`}
+                          />
+                        </div>
+                      </div>
+                      <h2 className="text-sm sm:text-base font-semibold text-[#18181B]">
+                        {String(o.customer_name)}
+                      </h2>
+                      <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-[#5C5A55] tabular-nums">
+                        <span>
+                          Total:{" "}
+                          <strong className="text-[#18181B]">
+                            S/ {Number(o.total_pen).toFixed(2)}
+                          </strong>
+                        </span>
+                        <span>
+                          Pagado:{" "}
+                          <strong className="text-[#15803D]">
+                            S/ {Number(o.paid_pen).toFixed(2)}
+                          </strong>
+                        </span>
+                        <span>
+                          Saldo:{" "}
+                          <strong
+                            className={
+                              Number(o.balance_due_pen) > 0.05
+                                ? "text-[#B91C1C]"
+                                : "text-[#15803D]"
+                            }
+                          >
+                            S/ {Number(o.balance_due_pen).toFixed(2)}
+                          </strong>
+                        </span>
+                      </div>
+                      <p className="rounded-lg bg-[#F2F6FA]/70 px-2.5 py-1.5 text-[11px] text-[#1E446B]">
+                        Tomó: {String(o.created_by_name || "-")} · Preparó:{" "}
+                        {String(o.picked_by_name || "Pendiente")} · Entregó:{" "}
+                        {String(o.delivered_by_name || "Pendiente")}
+                      </p>
+                    </button>
+
+                    {isExpanded && (
+                      <div className="space-y-2 border-t border-[#E7E5E0] pt-2.5 text-xs">
+                        <div className="flex items-center justify-between text-[11px] font-semibold uppercase tracking-wide text-[#5C5A55]">
+                          <span>
+                            Detalle comprado ({orderLines.length}{" "}
+                            {orderLines.length === 1 ? "ítem" : "ítems"})
+                          </span>
+                          <span>{formatPaymentModeEs(o.payment_mode)}</span>
+                        </div>
+                        {orderLines.length === 0 ? (
+                          <p className="text-[#5C5A55]">
+                            Sin líneas de producto registradas.
+                          </p>
+                        ) : (
+                          <div className="space-y-1.5">
+                            {orderLines.map((ln) => (
+                              <div
+                                key={String(ln.order_line_id)}
+                                className="flex items-start justify-between gap-2 rounded-lg border border-[#E7E5E0] bg-[#FAF9F6] px-2.5 py-2"
+                              >
+                                <div className="min-w-0 flex-1">
+                                  <p className="font-medium text-[#18181B]">
+                                    {String(ln.raw_description || ln.sku)}
+                                  </p>
+                                  <p className="text-[11px] text-[#5C5A55] tabular-nums">
+                                    {Number(ln.quantity)}{" "}
+                                    {String(ln.unit_of_measure || "NIU")} × S/{" "}
+                                    {Number(ln.unit_price_pen).toFixed(2)}
+                                    {Number(ln.unit_discount_pen || 0) > 0
+                                      ? ` (desc. S/ ${Number(
+                                          ln.unit_discount_pen
+                                        ).toFixed(2)}/u)`
+                                      : ""}{" "}
+                                    ·{" "}
+                                    {formatFulfillmentModeEs(
+                                      ln.fulfillment_mode
+                                    )}
+                                  </p>
+                                </div>
+                                <span className="flex-shrink-0 font-semibold text-[#18181B] tabular-nums">
+                                  S/ {Number(ln.line_total_pen).toFixed(2)}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        {o.notes ? (
+                          <p className="rounded-lg bg-[#FAF9F6] px-2.5 py-1.5 text-[11px] text-[#5C5A55]">
+                            Nota: {String(o.notes)}
+                          </p>
+                        ) : null}
+                      </div>
+                    )}
+                  </Card>
+                );
+              })}
+              </div>
+            )}
+          </section>
+        )}
+
+        {tab === "gastos" && (
+          <section aria-label="Registrar gasto operativo" className="mx-auto max-w-2xl">
+            <Card accent="horizon" padding="lg">
+              <form onSubmit={handleSubmitExpense} className="space-y-4">
+                <div className="flex items-center gap-2.5 border-b border-[#E7E5E0] pb-3">
+                  <div
+                    aria-hidden="true"
+                    className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#F2F6FA] text-[#0F2942]"
+                  >
+                    <ReceiptIcon className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <h2 className="text-base font-semibold text-[#18181B]">
+                      Registrar Gasto Operativo
+                    </h2>
+                    <p className="text-xs text-[#5C5A55]">
+                      Se imputa directamente a tu caja operativa en Soles.
+                    </p>
+                  </div>
+                </div>
+
+                <div>
+                  <FieldLabel htmlFor="expense-category">Categoría</FieldLabel>
+                  <select
+                    id="expense-category"
+                    value={expenseCategory}
+                    onChange={(e) => setExpenseCategory(e.target.value)}
+                    className={`${INPUT_CLASS} mt-1.5 font-medium`}
+                  >
+                    <option value="COMBUSTIBLE">Combustible / Gasolina</option>
+                    <option value="PEAJE">Peaje / Cochera</option>
+                    <option value="ALMUERZO_VIATICOS">
+                      Almuerzo / Viáticos
+                    </option>
+                    <option value="ESTIBADOR_APOYO">
+                      Estibador / Descarga
+                    </option>
+                  </select>
+                </div>
+
+                <div>
+                  <FieldLabel htmlFor="expense-amount" required>
+                    Monto en Soles (S/)
+                  </FieldLabel>
+                  <input
+                    id="expense-amount"
+                    type="number"
+                    step="0.01"
+                    min="0.10"
+                    required
+                    value={expenseAmount}
+                    onChange={(e) => setExpenseAmount(e.target.value)}
+                    placeholder="0.00"
+                    className={`${INPUT_CLASS} mt-1.5 font-semibold tabular-nums`}
+                  />
+                </div>
+
+                <div>
+                  <FieldLabel htmlFor="expense-desc" required>
+                    Detalle breve
+                  </FieldLabel>
+                  <input
+                    id="expense-desc"
+                    type="text"
+                    required
+                    value={expenseDesc}
+                    onChange={(e) => setExpenseDesc(e.target.value)}
+                    placeholder="Ej. Gasolina unidad placa X"
+                    className={`${INPUT_CLASS} mt-1.5`}
+                  />
+                </div>
+
+                <Button
+                  type="submit"
+                  variant="primary"
+                  size="lg"
+                  disabled={busyExpense}
+                  className="w-full"
+                >
+                  {busyExpense ? "Guardando..." : "Guardar Gasto"}
+                </Button>
+              </form>
+            </Card>
+          </section>
+        )}
+      </main>
+
+      <ModalSheet
+        open={cancelDraftOpen}
+        onClose={() => setCancelDraftOpen(false)}
+        title="¿Por qué se canceló este pedido?"
+        subtitle="Guardaremos el motivo para análisis comercial y limpiaremos el formulario."
+      >
+        <form onSubmit={handleConfirmCancelDraft} className="space-y-4">
+          <div className="space-y-2" role="radiogroup" aria-label="Motivo de cancelación">
+            {CANCEL_DRAFT_REASONS.map((r) => {
+              const selected = cancelReasonCode === r.code;
+              return (
+                <button
+                  key={r.code}
+                  type="button"
+                  role="radio"
+                  aria-checked={selected}
+                  onClick={() => setCancelReasonCode(r.code)}
+                  className={`flex min-h-[42px] w-full items-center justify-between rounded-xl border px-3.5 py-2.5 text-left text-xs font-medium transition cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0F2942]/45 ${
+                    selected
+                      ? "border-[#0F2942] bg-[#F2F6FA] text-[#0F2942] font-semibold"
+                      : "border-[#E7E5E0] bg-white text-[#18181B] hover:border-[#D4E0EC] hover:bg-[#FAF9F6]"
+                  }`}
+                >
+                  <span>{r.label}</span>
+                  <span
+                    aria-hidden="true"
+                    className={`h-3.5 w-3.5 rounded-full border ${
+                      selected
+                        ? "border-[#0F2942] bg-[#0F2942]"
+                        : "border-[#D5D2CA] bg-white"
+                    }`}
+                  />
+                </button>
+              );
+            })}
           </div>
 
-          {(selectedOrderForAbono || selectedCustomerForFifo) && (
-            <form
-              onSubmit={handleSubmitAbono}
-              className="rounded-2xl border-2 border-blue-600 bg-white p-4 shadow-lg space-y-3"
-            >
-              <div className="flex items-center justify-between">
-                <h3 className="text-sm font-extrabold text-slate-900">
-                  {selectedCustomerForFifo
-                    ? `Abono General FIFO · ${selectedCustomerForFifo.customerName}`
-                    : `Registrar Abono · ${selectedOrderForAbono!.customerName}`}
-                </h3>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSelectedOrderForAbono(null);
-                    setSelectedCustomerForFifo(null);
-                  }}
-                  className="text-xs font-bold text-slate-500"
-                >
-                  Cerrar
-                </button>
-              </div>
-              <p className="text-xs text-slate-600">
-                {selectedCustomerForFifo ? (
-                  <>
-                    Se repartirá desde el pedido más antiguo ({selectedCustomerForFifo.openOrdersCount} pedidos) ·{" "}
-                    <strong className="text-red-700">
-                      Deuda Total: S/ {selectedCustomerForFifo.totalBalanceDuePen.toFixed(2)}
-                    </strong>
-                  </>
-                ) : (
-                  <>
-                    Pedido {selectedOrderForAbono!.orderCode} · Total: S/{" "}
-                    {selectedOrderForAbono!.totalPen.toFixed(2)} · Ya abonó: S/{" "}
-                    {selectedOrderForAbono!.paidPen.toFixed(2)} ·{" "}
-                    <strong className="text-red-700">
-                      Saldo: S/ {selectedOrderForAbono!.balanceDuePen.toFixed(2)}
-                    </strong>
-                  </>
-                )}
-              </p>
-              <div className="flex gap-2">
-                <input
-                  type="number"
-                  step="0.50"
-                  required
-                  value={abonoAmount}
-                  onChange={(e) => setAbonoAmount(e.target.value)}
-                  placeholder="Monto que abona hoy (S/)"
-                  className="flex-1 rounded-xl border border-slate-300 px-3 py-2 text-sm font-bold"
-                />
-                <button
-                  type="button"
-                  onClick={() =>
-                    setAbonoAmount(
-                      String(
-                        selectedCustomerForFifo
-                          ? selectedCustomerForFifo.totalBalanceDuePen
-                          : selectedOrderForAbono!.balanceDuePen
-                      )
-                    )
-                  }
-                  className="rounded-xl bg-slate-200 px-3 py-2 text-xs font-bold"
-                >
-                  Todo / Saldo
-                </button>
-                <button
-                  type="button"
-                  onClick={() =>
-                    setAbonoAmount(
-                      String(
-                        Number(
-                          (
-                            (selectedCustomerForFifo
-                              ? selectedCustomerForFifo.totalBalanceDuePen
-                              : selectedOrderForAbono!.balanceDuePen) / 2
-                          ).toFixed(2)
-                        )
-                      )
-                    )
-                  }
-                  className="rounded-xl bg-slate-200 px-3 py-2 text-xs font-bold"
-                >
-                  La Mitad
-                </button>
-              </div>
-              <div className="grid grid-cols-3 gap-2">
-                {(["CASH", "YAPE_PLIN", "TRANSFER"] as const).map((m) => (
-                  <button
-                    key={m}
-                    type="button"
-                    onClick={() => setAbonoMode(m)}
-                    className={`rounded-lg py-2 text-xs font-bold ${
-                      abonoMode === m
-                        ? "bg-blue-600 text-white"
-                        : "bg-slate-100 text-slate-700"
-                    }`}
-                  >
-                    {m}
-                  </button>
-                ))}
-              </div>
-              <div>
-                <span className="block text-[11px] font-bold text-slate-600">
-                  Si aún queda saldo, ¿cuándo volver por el resto? (1 toque):
-                </span>
-                <div className="mt-1 flex flex-wrap gap-1.5">
-                  {CREDIT_DAY_CHIPS.map((c) => (
-                    <button
-                      key={c.days}
-                      type="button"
-                      onClick={() => setAbonoNextDays(c.days)}
-                      className={`rounded-lg px-2.5 py-1 text-[11px] font-bold ${
-                        abonoNextDays === c.days
-                          ? "bg-amber-600 text-white"
-                          : "bg-slate-100 text-slate-700"
-                      }`}
-                    >
-                      {c.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <button
-                type="submit"
-                className="w-full rounded-xl bg-emerald-600 py-3 text-sm font-extrabold text-white"
-              >
-                Guardar Abono
-              </button>
-            </form>
-          )}
-
-          {debtorView === "orders" ? (
-            <div className="space-y-2.5">
-              {filteredDebtOrders.map((item) => (
-                <div
-                  key={item.orderId}
-                  className="rounded-2xl border border-slate-200 bg-white p-3.5 shadow-sm"
-                >
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <span className="text-xs font-bold text-slate-500">
-                        {item.orderCode} · Venta: {item.orderDate}
-                      </span>
-                      <h3 className="text-sm font-extrabold text-slate-900">
-                        {item.customerName}
-                      </h3>
-                    </div>
-                    <span
-                      className={`rounded-full px-2.5 py-1 text-[11px] font-extrabold ${
-                        item.agingBucket === "RED_30_PLUS"
-                          ? "bg-red-100 text-red-800"
-                          : item.agingBucket === "AMBER_8_29"
-                          ? "bg-amber-100 text-amber-900"
-                          : "bg-emerald-100 text-emerald-800"
-                      }`}
-                    >
-                      Hace {item.daysOverdue} días
-                    </span>
-                  </div>
-
-                  <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-xs">
-                    <span>Total: S/ {item.totalPen.toFixed(2)}</span>
-                    <span className="text-emerald-700 font-semibold">
-                      Abonado: S/ {item.paidPen.toFixed(2)} ({item.paymentCount} abonos)
-                    </span>
-                    <span className="text-sm font-extrabold text-red-700">
-                      Falta: S/ {item.balanceDuePen.toFixed(2)}
-                    </span>
-                  </div>
-
-                  <div className="mt-1.5 flex items-center justify-between text-[11px] text-slate-600">
-                    <span>
-                      📅 Fecha pactada cobro:{" "}
-                      <strong>{item.promisedPaymentDate || "No pactada"}</strong>
-                    </span>
-                    <span className="font-bold">
-                      {item.promiseStatus === "PROMISE_BROKEN"
-                        ? "🚨 Promesa vencida"
-                        : item.promiseStatus === "DUE_TODAY_OR_TOMORROW"
-                        ? "🔥 Cobrar Hoy/Mañana"
-                        : "📅 En plazo"}
-                    </span>
-                  </div>
-
-                  <div className="mt-3 flex gap-2">
-                    <button
-                      onClick={() => {
-                        setSelectedOrderForAbono(item);
-                        setAbonoAmount(String(item.balanceDuePen));
-                      }}
-                      className="flex-1 rounded-xl bg-blue-600 py-2 text-xs font-extrabold text-white"
-                    >
-                      + Registrar Abono
-                    </button>
-                    <button
-                      onClick={() => handleOpenTimeline(item.orderId)}
-                      className="rounded-xl bg-slate-100 px-3 py-2 text-xs font-bold text-slate-700"
-                    >
-                      Ver Fechas de Abono ({item.paymentCount})
-                    </button>
-                  </div>
-
-                  {timelineOrderId === item.orderId && (
-                    <div className="mt-2 rounded-xl bg-slate-50 p-2.5 text-xs">
-                      <p className="font-bold text-slate-700 mb-1">
-                        Historial de pagos de este pedido:
-                      </p>
-                      {timelineEntries.length === 0 ? (
-                        <p className="text-slate-500">Sin abonos previos.</p>
-                      ) : (
-                        <ul className="space-y-1">
-                          {timelineEntries.map((t) => (
-                            <li
-                              key={String(t.arPaymentId)}
-                              className="flex justify-between border-b border-slate-200 pb-1"
-                            >
-                              <span>
-                                {String(t.paymentDate)} · {String(t.paymentMode)} (
-                                {String(t.collectedByName || "Histórico")})
-                              </span>
-                              <strong className="text-emerald-700">
-                                S/ {Number(t.amountPen).toFixed(2)}
-                              </strong>
-                            </li>
-                          ))}
-                        </ul>
-                      )}
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="space-y-2.5">
-              {debtorsByCustomer.map((c) => (
-                <div
-                  key={c.customerKey}
-                  className="rounded-2xl border border-slate-200 bg-white p-3.5 shadow-sm"
-                >
-                  <div className="flex items-center justify-between">
-                    <h3 className="text-sm font-extrabold text-slate-900">
-                      {c.customerName}
-                    </h3>
-                    <span className="rounded-full bg-red-100 px-2.5 py-1 text-xs font-extrabold text-red-800">
-                      Debe S/ {c.totalBalanceDuePen.toFixed(2)}
-                    </span>
-                  </div>
-                  <p className="mt-1 text-xs text-slate-600">
-                    {c.openOrdersCount} pedido(s) pendientes · Más antiguo: hace{" "}
-                    {c.maxDaysOverdue} días · Próxima visita:{" "}
-                    {c.earliestPromisedPaymentDate || "-"}
-                  </p>
-                  {c.customerPartyId && (
-                    <button
-                      onClick={() => {
-                        setSelectedOrderForAbono(null);
-                        setSelectedCustomerForFifo(c);
-                        setAbonoAmount(String(c.totalBalanceDuePen));
-                      }}
-                      className="mt-2 w-full rounded-xl bg-blue-600 py-2 text-xs font-extrabold text-white"
-                    >
-                      + Abono General a Cuenta del Cliente (FIFO)
-                    </button>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-        </main>
-      )}
-
-      {tab === "pedidos" && (
-        <main className="space-y-2.5 p-3">
-          {orders.map((o) => (
-            <div
-              key={String(o.order_id)}
-              className="rounded-2xl border border-slate-200 bg-white p-3.5 shadow-sm"
-            >
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-blue-700">
-                  {String(o.order_code)} · {String(o.order_date)}
-                </span>
-                <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-bold">
-                  {String(o.operational_status)}
-                </span>
-              </div>
-              <h3 className="mt-1 text-sm font-extrabold text-slate-900">
-                {String(o.customer_name)}
-              </h3>
-              <p className="text-xs text-slate-600">
-                Total: S/ {Number(o.total_pen).toFixed(2)} · Pagado: S/{" "}
-                {Number(o.paid_pen).toFixed(2)} · Saldo: S/{" "}
-                {Number(o.balance_due_pen).toFixed(2)}
-              </p>
-              <p className="mt-1 text-[11px] text-slate-500">
-                Tomó: {String(o.created_by_name || "-")} · Alistó:{" "}
-                {String(o.picked_by_name || "Pendiente")} · Repartió:{" "}
-                {String(o.delivered_by_name || "Pendiente")}
-              </p>
-            </div>
-          ))}
-        </main>
-      )}
-
-      {tab === "gastos" && (
-        <main className="p-3">
-          <form
-            onSubmit={handleSubmitExpense}
-            className="space-y-3 rounded-2xl bg-white p-4 shadow-sm"
-          >
-            <h2 className="text-base font-extrabold text-slate-900">
-              Registrar Gasto Operativo de Ruta
-            </h2>
-            <select
-              value={expenseCategory}
-              onChange={(e) => setExpenseCategory(e.target.value)}
-              className="w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm font-bold"
-            >
-              <option value="COMBUSTIBLE">Combustible / Gasolina</option>
-              <option value="PEAJE">Peaje / Cochera</option>
-              <option value="ALMUERZO_VIATICOS">Almuerzo / Viáticos Ruta</option>
-              <option value="ESTIBADOR_APOYO">Estibador / Descarga</option>
-            </select>
+          <div>
+            <FieldLabel htmlFor="cancel-draft-note">
+              Detalle adicional (opcional)
+            </FieldLabel>
             <input
-              type="number"
-              step="0.50"
-              required
-              value={expenseAmount}
-              onChange={(e) => setExpenseAmount(e.target.value)}
-              placeholder="Monto en Soles (S/)"
-              className="w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm font-bold"
-            />
-            <input
+              id="cancel-draft-note"
               type="text"
-              required
-              value={expenseDesc}
-              onChange={(e) => setExpenseDesc(e.target.value)}
-              placeholder="Detalle breve (ej. Gasolina movilidad placa X)"
-              className="w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm"
+              value={cancelCustomNote}
+              onChange={(e) => setCancelCustomNote(e.target.value)}
+              placeholder="Ej. Competencia ofreció menor precio en tubo..."
+              className={`${INPUT_CLASS} mt-1.5`}
             />
-            <button
-              type="submit"
-              className="w-full rounded-xl bg-blue-600 py-3.5 text-sm font-extrabold text-white"
+          </div>
+
+          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setCancelDraftOpen(false)}
+              disabled={busyCancelDraft}
             >
-              Guardar Gasto de Ruta
-            </button>
-          </form>
-        </main>
+              Seguir editando
+            </Button>
+            <Button type="submit" variant="primary" disabled={busyCancelDraft}>
+              {busyCancelDraft
+                ? "Registrando..."
+                : "Registrar cancelación y limpiar"}
+            </Button>
+          </div>
+        </form>
+      </ModalSheet>
+
+      <DebtorDetailModal
+        open={Boolean(debtDetailTarget)}
+        onClose={() => setDebtDetailTarget(null)}
+        mode={debtDetailTarget?.mode ?? "order"}
+        customerName={debtDetailTarget?.mode === "customer" ? debtDetailTarget.customerName : ""}
+        orders={
+          !debtDetailTarget
+            ? []
+            : debtDetailTarget.mode === "order"
+            ? debtorsByOrder.filter((o) => o.orderId === debtDetailTarget.orderId)
+            : debtorsByOrder.filter((o) => {
+                const oKey =
+                  o.customerKey ||
+                  (o.customerPartyId !== null
+                    ? `PARTY-${o.customerPartyId}`
+                    : `RAW-${o.customerName.toUpperCase()}`);
+                return oKey === debtDetailTarget.customerKey;
+              })
+        }
+        canUseCustomerFifo={Boolean(
+          debtDetailTarget?.mode === "customer" && debtDetailTarget.customerPartyId
+        )}
+        onSelectOrderAbono={(order) => {
+          setDebtDetailTarget(null);
+          setSelectedCustomerForFifo(null);
+          setSelectedOrderForAbono(order as OrderDebtItem);
+          setAbonoAmount(String(order.balanceDuePen));
+          setAbonoAccountId("");
+        }}
+        onSelectCustomerAbono={() => {
+          if (debtDetailTarget?.mode !== "customer") return;
+          const matchedCustomer = debtorsByCustomer.find(
+            (c) => c.customerKey === debtDetailTarget.customerKey
+          );
+          if (!matchedCustomer) return;
+          setDebtDetailTarget(null);
+          setSelectedOrderForAbono(null);
+          setSelectedCustomerForFifo(matchedCustomer);
+          setAbonoAmount(String(matchedCustomer.totalBalanceDuePen));
+          setAbonoAccountId("");
+        }}
+      />
+
+      <AbonoModal
+        open={Boolean(selectedOrderForAbono || selectedCustomerForFifo)}
+        onClose={() => {
+          setSelectedOrderForAbono(null);
+          setSelectedCustomerForFifo(null);
+          setAbonoAccountId("");
+        }}
+        title={
+          selectedCustomerForFifo
+            ? `Abono General · ${selectedCustomerForFifo.customerName}`
+            : `Registrar Abono · ${selectedOrderForAbono?.customerName ?? ""}`
+        }
+        summaryContent={
+          selectedCustomerForFifo ? (
+            <>
+              Se repartirá desde el pedido más antiguo (
+              {selectedCustomerForFifo.openOrdersCount} pedidos) ·{" "}
+              <strong className="text-[#B91C1C] tabular-nums">
+                Deuda Total: S/{" "}
+                {selectedCustomerForFifo.totalBalanceDuePen.toFixed(2)}
+              </strong>
+            </>
+          ) : selectedOrderForAbono ? (
+            <>
+              Pedido {selectedOrderForAbono.orderCode} · Total: S/{" "}
+              {selectedOrderForAbono.totalPen.toFixed(2)} · Abonado: S/{" "}
+              {selectedOrderForAbono.paidPen.toFixed(2)} ·{" "}
+              <strong className="text-[#B91C1C] tabular-nums">
+                Saldo: S/ {selectedOrderForAbono.balanceDuePen.toFixed(2)}
+              </strong>
+            </>
+          ) : null
+        }
+        balanceDuePen={
+          selectedCustomerForFifo
+            ? selectedCustomerForFifo.totalBalanceDuePen
+            : selectedOrderForAbono?.balanceDuePen ?? 0
+        }
+        amount={abonoAmount}
+        onAmountChange={setAbonoAmount}
+        paymentMode={abonoMode}
+        onPaymentModeChange={setAbonoMode}
+        nextDays={abonoNextDays}
+        onNextDaysChange={setAbonoNextDays}
+        accounts={sellerAccounts}
+        accountId={abonoAccountId}
+        onAccountIdChange={setAbonoAccountId}
+        onSubmit={handleSubmitAbono}
+        busy={busyAbono}
+      />
+
+      {tab === "nuevo" && cart.length > 0 && (
+        <div
+          aria-label="Resumen móvil del pedido"
+          className="fixed inset-x-0 bottom-[calc(4rem+env(safe-area-inset-bottom,0px))] z-30 border-t border-[#D4E0EC] bg-white/95 px-3.5 py-2 backdrop-blur-md md:hidden"
+        >
+          <div className="mx-auto flex max-w-2xl items-center justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-[11px] font-medium text-[#5C5A55]">
+                {cart.length} {cart.length === 1 ? "producto" : "productos"} en pedido
+              </p>
+              <p className="text-base font-semibold text-[#0F2942] tabular-nums">
+                Total: S/ {cartTotalPen.toFixed(2)}
+              </p>
+            </div>
+            <Button
+              type="button"
+              variant="primary"
+              size="sm"
+              onClick={() => {
+                document
+                  .getElementById("cart-checkout-card")
+                  ?.scrollIntoView({ behavior: "smooth", block: "start" });
+              }}
+            >
+              Ver carrito ({cart.length})
+            </Button>
+          </div>
+        </div>
       )}
 
-      <nav className="fixed bottom-0 left-0 right-0 z-20 mx-auto flex max-w-2xl border-t border-slate-200 bg-white">
-        {[
-          { id: "nuevo", label: "1. Nuevo Pedido" },
-          { id: "deudores", label: "2. Cobros / Deudores" },
-          { id: "pedidos", label: "3. Mis Pedidos" },
-          { id: "gastos", label: "4. Gastos Ruta" },
-        ].map((item) => (
-          <button
-            key={item.id}
-            onClick={() => setTab(item.id as typeof tab)}
-            className={`flex-1 py-3.5 text-xs font-extrabold ${
-              tab === item.id
-                ? "border-t-2 border-blue-600 text-blue-600"
-                : "text-slate-500"
-            }`}
-          >
-            {item.label}
-          </button>
-        ))}
-      </nav>
+      <BottomNav
+        items={navItems}
+        activeId={tab}
+        onChange={setTab}
+        maxWidth="2xl"
+        className="md:hidden"
+      />
     </div>
   );
 }

@@ -1,6 +1,18 @@
 import { describe, expect, it } from "vitest";
 import { projectOrderForRole, projectProductForRole } from "../src/lib/rbac";
 import { signSessionToken, verifySessionToken } from "../src/lib/auth";
+import { shouldDestroyClientOnError } from "../src/lib/db";
+import {
+  formatAuditFlagCodeEs,
+  formatAuditFlagStatusEs,
+  formatEntityTableEs,
+  formatExpenseCategoryEs,
+  formatOperationalStatusEs,
+  formatQuoteStatusEs,
+  formatRouteTripStatusEs,
+} from "../src/lib/labels-es";
+import { OUTFLOW_CATEGORIES_BY_BUCKET } from "../src/lib/treasury-constants";
+import { AuthorizationError, ValidationError } from "../src/lib/types";
 
 describe("RBAC Financial Isolation & Session Signing", () => {
   const sampleProduct = {
@@ -35,6 +47,7 @@ describe("RBAC Financial Isolation & Session Signing", () => {
         line_no: 1,
         sku: "CARPET VERDEX2MT",
         raw_description: "ALFOMBRA LLANA VERDE X 2MT",
+        unit_of_measure: "MTR",
         quantity: 10,
         base_unit_price_pen: 70,
         unit_discount_pen: 0,
@@ -65,6 +78,7 @@ describe("RBAC Financial Isolation & Session Signing", () => {
     expect(whLine).not.toHaveProperty("line_total_pen");
     expect(whLine).not.toHaveProperty("unit_cost_snapshot_pen");
     expect(whLine.quantity).toBe(10);
+    expect(whLine.unit_of_measure).toBe("MTR");
   });
 
   it("strips cost and margin fields from EXTERNAL_SELLER while keeping prices and min floor", () => {
@@ -79,6 +93,7 @@ describe("RBAC Financial Isolation & Session Signing", () => {
     expect(sellerOrder.promised_payment_date).toBe("2026-11-24");
     const sellerLine = (sellerOrder.lines as Record<string, unknown>[])[0];
     expect(sellerLine.unit_price_pen).toBe(70);
+    expect(sellerLine.unit_of_measure).toBe("MTR");
     expect(sellerLine).not.toHaveProperty("unit_cost_snapshot_pen");
     expect(sellerLine).not.toHaveProperty("line_margin_pen");
   });
@@ -86,6 +101,7 @@ describe("RBAC Financial Isolation & Session Signing", () => {
   it("includes cost and computed real margin for PARTNER_ADMIN and PARTNER_MANAGER", () => {
     const partnerOrder = projectOrderForRole(sampleOrder, "PARTNER_ADMIN");
     const partnerLine = (partnerOrder.lines as Record<string, unknown>[])[0];
+    expect(partnerLine.unit_of_measure).toBe("MTR");
     expect(partnerLine.unit_cost_snapshot_pen).toBe(63.31);
     expect(partnerLine.line_margin_pen).toBeCloseTo(66.9, 2);
   });
@@ -100,5 +116,59 @@ describe("RBAC Financial Isolation & Session Signing", () => {
     });
     expect(verifySessionToken(token)?.role).toBe("PARTNER_ADMIN");
     expect(verifySessionToken(token + "tampered")).toBeNull();
+  });
+
+  it("maps operational, trip, quote, audit-flag, entity, and treasury labels cleanly to Spanish", () => {
+    expect(formatOperationalStatusEs("IN_ROUTE")).toBe("En Ruta");
+    expect(formatOperationalStatusEs("READY")).toBe("Pedido listo");
+    expect(formatRouteTripStatusEs("OPEN")).toBe("En Ruta");
+    expect(formatRouteTripStatusEs("CLOSED")).toBe("Cerrada");
+    expect(formatRouteTripStatusEs("RECONCILED")).toBe("Conciliada");
+    expect(formatQuoteStatusEs("OPEN")).toBe("Abierta");
+    expect(formatQuoteStatusEs("CONVERTED")).toBe("Convertida");
+    expect(formatQuoteStatusEs("EXPIRED")).toBe("Vencida");
+    expect(formatQuoteStatusEs("CANCELLED")).toBe("Anulada");
+    expect(formatAuditFlagStatusEs("OPEN")).toBe("Abierta");
+    expect(formatAuditFlagStatusEs("ACKNOWLEDGED")).toBe("En Revisión");
+    expect(formatAuditFlagStatusEs("RESOLVED")).toBe("Resuelta");
+    expect(formatAuditFlagCodeEs("EXEL_QTY_PRICE_SWAPPED_CORRECTED")).toBe(
+      "Corrección de columnas invertidas en ruta"
+    );
+    expect(formatEntityTableEs("erp.sales_orders")).toBe("Pedido");
+
+    for (const options of Object.values(OUTFLOW_CATEGORIES_BY_BUCKET)) {
+      for (const opt of options) {
+        const mapped = formatExpenseCategoryEs(opt.value);
+        expect(mapped).toBeTruthy();
+        expect(mapped).not.toContain("_");
+        expect(mapped).not.toBe(opt.value);
+      }
+    }
+    expect(formatExpenseCategoryEs("PAGO_CXP")).toBe("Pago a Proveedor (CxP)");
+    expect(formatExpenseCategoryEs("FLETE_MERCADERIA")).toBe("Flete de Mercadería");
+    expect(formatExpenseCategoryEs("ESTACIONAMIENTO")).toBe("Estacionamiento / Cochera");
+    expect(formatExpenseCategoryEs("GASTO_RUTA")).toBe("Gasto General de Ruta");
+    expect(formatExpenseCategoryEs("RETIRO")).toBe("Retiro de Socio");
+    expect(formatExpenseCategoryEs("LEGAL_NOTARIA")).toBe("Notaría / Trámite Legal");
+    expect(formatExpenseCategoryEs("OTRO_NO_OPERATIVO")).toBe("Otro Egreso No Operativo");
+    expect(formatExpenseCategoryEs("MERCADERIA")).toBe("Compra de Mercadería");
+  });
+
+  it("only destroys pooled DB clients on connection/shutdown errors, never on domain errors", () => {
+    expect(shouldDestroyClientOnError(new ValidationError("Cantidad inválida"))).toBe(false);
+    expect(shouldDestroyClientOnError(new AuthorizationError("Sin permiso"))).toBe(false);
+    expect(shouldDestroyClientOnError(Object.assign(new Error("duplicate"), { code: "23505" }))).toBe(
+      false
+    );
+    expect(shouldDestroyClientOnError(Object.assign(new Error("conn lost"), { code: "08006" }))).toBe(
+      true
+    );
+    expect(shouldDestroyClientOnError(Object.assign(new Error("admin shutdown"), { code: "57P01" }))).toBe(
+      true
+    );
+    expect(
+      shouldDestroyClientOnError(Object.assign(new Error("socket reset"), { code: "ECONNRESET" }))
+    ).toBe(true);
+    expect(shouldDestroyClientOnError(new Error("Connection terminated unexpectedly"))).toBe(true);
   });
 });

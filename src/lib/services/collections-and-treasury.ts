@@ -1,17 +1,39 @@
 import type { PoolClient } from "pg";
 import { assertRole, isPartnerRole } from "../rbac";
+import {
+  isCategoryAllowedForBucket,
+  type OutflowBucket,
+} from "../treasury-constants";
 import { getLimaDateString } from "./orders";
 import {
   AuthorizationError,
   ValidationError,
   type FulfillmentMode,
+  type LineFulfillmentStatus,
   type SessionUser,
 } from "../types";
+
+export interface OrderDebtLineItem {
+  orderLineId: number;
+  lineNo: number;
+  productId: number;
+  sku: string;
+  rawDescription: string;
+  unitOfMeasure: string;
+  quantity: number;
+  baseUnitPricePen: number;
+  unitDiscountPen: number;
+  unitPricePen: number;
+  lineTotalPen: number;
+  fulfillmentMode: FulfillmentMode;
+  fulfillmentStatus: LineFulfillmentStatus;
+}
 
 export interface OrderDebtItem {
   orderId: number;
   orderCode: string;
   orderDate: string;
+  customerKey: string;
   customerPartyId: number | null;
   customerName: string;
   paymentMode: string;
@@ -30,6 +52,7 @@ export interface OrderDebtItem {
   paymentCount: number;
   lastPaymentDate: string | null;
   createdByName: string | null;
+  lines: OrderDebtLineItem[];
 }
 
 export interface CustomerDebtSummary {
@@ -65,19 +88,64 @@ async function resolveCashAccountId(
   client: PoolClient,
   actor: SessionUser,
   explicitAccountId?: number
-): Promise<number> {
-  if (explicitAccountId) return explicitAccountId;
-  if (actor.defaultCashAccountId) return actor.defaultCashAccountId;
-  const res = await client.query(
-    `SELECT account_id FROM erp.cash_accounts WHERE code = 'CAJA_RUTA' LIMIT 1`
+): Promise<{ accountId: number; name: string; accountType: string }> {
+  const targetId = explicitAccountId || actor.defaultCashAccountId || null;
+  if (targetId) {
+    const res = await client.query<{
+      account_id: number;
+      name: string;
+      account_type: string;
+      is_active: boolean;
+    }>(
+      `SELECT account_id, name, account_type, is_active
+       FROM erp.cash_accounts
+       WHERE account_id = $1
+       LIMIT 1`,
+      [targetId]
+    );
+    if (res.rowCount === 0 || !res.rows[0].is_active) {
+      throw new ValidationError("Cuenta de caja inválida o inactiva");
+    }
+    const row = res.rows[0];
+    if (
+      actor.role === "EXTERNAL_SELLER" &&
+      row.account_type === "PARTNER_CUSTODY"
+    ) {
+      throw new AuthorizationError(
+        "El Vendedor Externo no puede operar sobre cuentas de custodia de socio"
+      );
+    }
+    return {
+      accountId: Number(row.account_id),
+      name: String(row.name),
+      accountType: String(row.account_type),
+    };
+  }
+  const res = await client.query<{
+    account_id: number;
+    name: string;
+    account_type: string;
+  }>(
+    `SELECT account_id, name, account_type
+     FROM erp.cash_accounts
+     WHERE code = 'CAJA_RUTA' AND is_active = TRUE
+     LIMIT 1`
   );
-  return Number(res.rows[0].account_id);
+  if (res.rowCount === 0) {
+    throw new ValidationError("Cuenta de caja por defecto no encontrada");
+  }
+  return {
+    accountId: Number(res.rows[0].account_id),
+    name: String(res.rows[0].name),
+    accountType: String(res.rows[0].account_type),
+  };
 }
 
 function computeNextPromisedDate(
-  nextCollectionDays?: number,
+  nextCollectionDays?: number | null,
   nextPromisedPaymentDate?: string | null
 ): string | null {
+  if (nextCollectionDays === null) return null;
   if (nextPromisedPaymentDate) return nextPromisedPaymentDate;
   if (nextCollectionDays && nextCollectionDays > 0) {
     return getLimaDateString(nextCollectionDays);
@@ -94,7 +162,7 @@ export async function registerOrderPayment(
     paymentMode: "CASH" | "YAPE_PLIN" | "TRANSFER";
     accountId?: number;
     notes?: string;
-    nextCollectionDays?: number;
+    nextCollectionDays?: number | null;
     nextPromisedPaymentDate?: string | null;
   }
 ): Promise<{
@@ -138,7 +206,7 @@ export async function registerOrderPayment(
     throw new ValidationError("El abono supera el saldo pendiente del pedido");
   }
 
-  const accountId = await resolveCashAccountId(client, actor, input.accountId);
+  const { accountId } = await resolveCashAccountId(client, actor, input.accountId);
 
   const ledgerRes = await client.query(
     `INSERT INTO erp.cash_ledger (
@@ -146,7 +214,7 @@ export async function registerOrderPayment(
        expense_category, is_internal_transfer, reference_table, reference_id,
        description, source_origin
      ) VALUES (
-       CURRENT_DATE, $1, $2, 'IN', $3,
+       (NOW() AT TIME ZONE 'America/Lima')::date, $1, $2, 'IN', $3,
        'COBRANZA_VENTA', FALSE, 'erp.sales_orders', $4,
        $5, 'ERP_APP'
      ) RETURNING ledger_id`,
@@ -164,7 +232,7 @@ export async function registerOrderPayment(
        order_id, payment_date, amount_pen, payment_mode,
        account_id, reference_doc, collected_by_user_id,
        source_origin, notes
-     ) VALUES ($1, CURRENT_DATE, $2, $3, $4, $5, $6, 'ERP_APP', $7)
+     ) VALUES ($1, (NOW() AT TIME ZONE 'America/Lima')::date, $2, $3, $4, $5, $6, 'ERP_APP', $7)
      RETURNING ar_payment_id`,
     [
       input.orderId,
@@ -177,18 +245,35 @@ export async function registerOrderPayment(
     ]
   );
 
-  const nextPromised = computeNextPromisedDate(
-    input.nextCollectionDays,
-    input.nextPromisedPaymentDate
+  const updatedAfterPayRes = await client.query(
+    `SELECT is_settled FROM erp.sales_orders WHERE order_id = $1`,
+    [input.orderId]
   );
-  if (nextPromised) {
-    await client.query(
-      `UPDATE erp.sales_orders
-       SET promised_payment_date = $1,
-           due_date = $1
-       WHERE order_id = $2`,
-      [nextPromised, input.orderId]
+  const nowSettled = Boolean(updatedAfterPayRes.rows[0]?.is_settled);
+
+  if (nowSettled || input.nextCollectionDays === null) {
+    if (nowSettled) {
+      await client.query(
+        `UPDATE erp.sales_orders
+         SET promised_payment_date = NULL
+         WHERE order_id = $1`,
+        [input.orderId]
+      );
+    }
+  } else {
+    const nextPromised = computeNextPromisedDate(
+      input.nextCollectionDays,
+      input.nextPromisedPaymentDate
     );
+    if (nextPromised) {
+      await client.query(
+        `UPDATE erp.sales_orders
+         SET promised_payment_date = $1,
+             due_date = $1
+         WHERE order_id = $2`,
+        [nextPromised, input.orderId]
+      );
+    }
   }
 
   const updatedOrderRes = await client.query(
@@ -217,7 +302,7 @@ export async function registerCustomerFifoPayment(
     paymentMode: "CASH" | "YAPE_PLIN" | "TRANSFER";
     accountId?: number;
     notes?: string;
-    nextCollectionDays?: number;
+    nextCollectionDays?: number | null;
     nextPromisedPaymentDate?: string | null;
   }
 ): Promise<Array<{ orderId: number; orderCode: string; appliedPen: number }>> {
@@ -254,31 +339,35 @@ export async function registerCustomerFifoPayment(
     );
   }
 
-  let remaining = totalAmount;
+  let remaining = Number(totalAmount.toFixed(2));
   const allocations: Array<{
     orderId: number;
     orderCode: string;
     appliedPen: number;
   }> = [];
 
-  for (const row of openOrdersRes.rows) {
+  for (let i = 0; i < openOrdersRes.rows.length; i++) {
     if (remaining <= 0.001) break;
+    const row = openOrdersRes.rows[i];
+    const isLastOpenOrder = i === openOrdersRes.rows.length - 1;
     const orderBalance = Number(row.balance_due_pen);
-    const appliedPen = Number(Math.min(remaining, orderBalance).toFixed(2));
+    const maxApplicable = isLastOpenOrder
+      ? Number((orderBalance + 0.05).toFixed(2))
+      : orderBalance;
+    const appliedPen = Number(Math.min(remaining, maxApplicable).toFixed(2));
     if (appliedPen <= 0) continue;
 
+    const settlesOrder = appliedPen >= orderBalance - 0.05;
     await registerOrderPayment(client, actor, {
       orderId: Number(row.order_id),
       amountPen: appliedPen,
       paymentMode: input.paymentMode,
       accountId: input.accountId,
       notes: input.notes ?? "Abono general FIFO por cliente",
-      nextCollectionDays:
-        appliedPen < orderBalance - 0.05 ? input.nextCollectionDays : undefined,
-      nextPromisedPaymentDate:
-        appliedPen < orderBalance - 0.05
-          ? input.nextPromisedPaymentDate
-          : undefined,
+      nextCollectionDays: settlesOrder ? null : input.nextCollectionDays,
+      nextPromisedPaymentDate: settlesOrder
+        ? null
+        : input.nextPromisedPaymentDate,
     });
 
     allocations.push({
@@ -333,33 +422,88 @@ export async function listDebtors(
        order_id ASC`
   );
 
-  const byOrder: OrderDebtItem[] = res.rows.map((r) => ({
-    orderId: Number(r.order_id),
-    orderCode: String(r.order_code),
-    orderDate: String(r.order_date),
-    customerPartyId:
-      r.customer_party_id !== null ? Number(r.customer_party_id) : null,
-    customerName: String(r.customer_name),
-    paymentMode: String(r.payment_mode),
-    operationalStatus: String(r.operational_status),
-    totalPen: Number(r.total_pen),
-    paidPen: Number(r.paid_pen),
-    balanceDuePen: Number(r.balance_due_pen),
-    daysOverdue: Number(r.days_overdue),
-    agingBucket: r.aging_bucket,
-    promisedPaymentDate: r.promised_payment_date ?? null,
-    promiseStatus: r.promise_status,
-    paymentCount: Number(r.payment_count),
-    lastPaymentDate: r.last_payment_date ?? null,
-    createdByName: r.created_by_name ?? null,
-  }));
+  const orderIds = res.rows.map((r) => Number(r.order_id));
+  const linesByOrder = new Map<number, OrderDebtLineItem[]>();
+  if (orderIds.length > 0) {
+    // Load line-item product breakdown without cost/margin so EXTERNAL_SELLER stays RBAC-isolated.
+    const linesRes = await client.query(
+      `SELECT
+         sol.order_id,
+         sol.order_line_id,
+         sol.line_no,
+         sol.product_id,
+         p.sku,
+         sol.raw_description,
+         p.unit_of_measure,
+         sol.quantity,
+         COALESCE(sol.base_unit_price_pen, sol.unit_price_pen) AS base_unit_price_pen,
+         COALESCE(sol.unit_discount_pen, 0) AS unit_discount_pen,
+         sol.unit_price_pen,
+         sol.line_total_pen,
+         p.fulfillment_mode::text AS fulfillment_mode,
+         sol.fulfillment_status::text AS fulfillment_status
+       FROM erp.sales_order_lines sol
+       JOIN erp.products p ON p.product_id = sol.product_id
+       WHERE sol.order_id = ANY($1::bigint[])
+       ORDER BY sol.order_id ASC, sol.line_no ASC`,
+      [orderIds]
+    );
+    for (const row of linesRes.rows) {
+      const oid = Number(row.order_id);
+      if (!linesByOrder.has(oid)) linesByOrder.set(oid, []);
+      linesByOrder.get(oid)!.push({
+        orderLineId: Number(row.order_line_id),
+        lineNo: Number(row.line_no),
+        productId: Number(row.product_id),
+        sku: String(row.sku),
+        rawDescription: String(row.raw_description),
+        unitOfMeasure: String(row.unit_of_measure || "NIU"),
+        quantity: Number(row.quantity),
+        baseUnitPricePen: Number(row.base_unit_price_pen),
+        unitDiscountPen: Number(row.unit_discount_pen),
+        unitPricePen: Number(row.unit_price_pen),
+        lineTotalPen: Number(row.line_total_pen),
+        fulfillmentMode: row.fulfillment_mode,
+        fulfillmentStatus: row.fulfillment_status,
+      });
+    }
+  }
+
+  const byOrder: OrderDebtItem[] = res.rows.map((r) => {
+    const orderId = Number(r.order_id);
+    const customerPartyId =
+      r.customer_party_id !== null ? Number(r.customer_party_id) : null;
+    const customerName = String(r.customer_name);
+    const customerKey =
+      customerPartyId !== null
+        ? `PARTY-${customerPartyId}`
+        : `RAW-${customerName.toUpperCase()}`;
+    return {
+      orderId,
+      orderCode: String(r.order_code),
+      orderDate: String(r.order_date),
+      customerKey,
+      customerPartyId,
+      customerName,
+      paymentMode: String(r.payment_mode),
+      operationalStatus: String(r.operational_status),
+      totalPen: Number(r.total_pen),
+      paidPen: Number(r.paid_pen),
+      balanceDuePen: Number(r.balance_due_pen),
+      daysOverdue: Number(r.days_overdue),
+      agingBucket: r.aging_bucket,
+      promisedPaymentDate: r.promised_payment_date ?? null,
+      promiseStatus: r.promise_status,
+      paymentCount: Number(r.payment_count),
+      lastPaymentDate: r.last_payment_date ?? null,
+      createdByName: r.created_by_name ?? null,
+      lines: linesByOrder.get(orderId) ?? [],
+    };
+  });
 
   const customerMap = new Map<string, CustomerDebtSummary>();
   for (const item of byOrder) {
-    const key =
-      item.customerPartyId !== null
-        ? `PARTY-${item.customerPartyId}`
-        : `RAW-${item.customerName.toUpperCase()}`;
+    const key = item.customerKey;
 
     if (!customerMap.has(key)) {
       customerMap.set(key, {
@@ -452,46 +596,128 @@ export async function registerCashOutflow(
   actor: SessionUser,
   input: {
     amountPen: number;
-    expenseBucket: "ROUTE_OPEX" | "MERCHANDISE_PAYMENT" | "NON_OPEX_OR_CAPEX";
+    expenseBucket?: OutflowBucket | null;
     expenseCategory: string;
     description: string;
     accountId?: number;
+    toAccountId?: number;
     isInternalTransfer?: boolean;
   }
-): Promise<{ ledgerId: number }> {
+): Promise<{ ledgerId: number; transferInLedgerId?: number }> {
   assertRole(actor, ["PARTNER_ADMIN", "PARTNER_MANAGER", "EXTERNAL_SELLER"]);
 
-  if (actor.role === "EXTERNAL_SELLER" && input.expenseBucket !== "ROUTE_OPEX") {
-    throw new AuthorizationError(
-      "El Vendedor Externo solo puede registrar gastos operativos de ruta (ROUTE_OPEX)"
-    );
+  const isTransfer = Boolean(input.isInternalTransfer);
+  if (actor.role === "EXTERNAL_SELLER") {
+    if (isTransfer) {
+      throw new AuthorizationError(
+        "El Vendedor Externo no puede registrar traslados internos entre cuentas"
+      );
+    }
+    if (input.expenseBucket !== "ROUTE_OPEX") {
+      throw new AuthorizationError(
+        "El Vendedor Externo solo puede registrar gastos operativos de ruta (ROUTE_OPEX)"
+      );
+    }
   }
 
   const amountPen = Number(input.amountPen);
-  if (!amountPen || amountPen <= 0) {
+  if (!Number.isFinite(amountPen) || amountPen <= 0) {
     throw new ValidationError("El monto del egreso debe ser mayor a S/ 0.00");
   }
   if (!input.description?.trim()) {
-    throw new ValidationError("La descripción del gasto es obligatoria");
+    throw new ValidationError("La descripción del movimiento es obligatoria");
   }
 
-  const accountId = await resolveCashAccountId(client, actor, input.accountId);
+  const fromAcc = await resolveCashAccountId(client, actor, input.accountId);
+
+  if (isTransfer) {
+    if (!input.toAccountId) {
+      throw new ValidationError(
+        "Selecciona una cuenta destino para el traslado interno"
+      );
+    }
+    const toAcc = await resolveCashAccountId(client, actor, input.toAccountId);
+    if (toAcc.accountId === fromAcc.accountId) {
+      throw new ValidationError(
+        "La cuenta destino debe ser distinta a la cuenta origen"
+      );
+    }
+    const descBase = input.description.trim();
+    const outRes = await client.query<{ ledger_id: string }>(
+      `INSERT INTO erp.cash_ledger (
+         tx_date, account_id, direction, amount_pen,
+         expense_bucket, expense_category, is_internal_transfer,
+         reference_table, reference_id,
+         description, source_origin
+       ) VALUES (
+         (NOW() AT TIME ZONE 'America/Lima')::date, $1, 'OUT', $2,
+         NULL, 'TRASLADO_INTERNO', TRUE,
+         'erp.cash_accounts', $3,
+         $4, 'ERP_APP'
+       ) RETURNING ledger_id`,
+      [
+        fromAcc.accountId,
+        amountPen,
+        String(toAcc.accountId),
+        `Traslado a ${toAcc.name}: ${descBase}`,
+      ]
+    );
+    const outLedgerId = Number(outRes.rows[0].ledger_id);
+    const inRes = await client.query<{ ledger_id: string }>(
+      `INSERT INTO erp.cash_ledger (
+         tx_date, account_id, direction, amount_pen,
+         expense_bucket, expense_category, is_internal_transfer,
+         reference_table, reference_id,
+         description, source_origin
+       ) VALUES (
+         (NOW() AT TIME ZONE 'America/Lima')::date, $1, 'IN', $2,
+         NULL, 'TRASLADO_INTERNO', TRUE,
+         'erp.cash_ledger', $3,
+         $4, 'ERP_APP'
+       ) RETURNING ledger_id`,
+      [
+        toAcc.accountId,
+        amountPen,
+        String(outLedgerId),
+        `Ingreso por traslado desde ${fromAcc.name}: ${descBase}`,
+      ]
+    );
+    return {
+      ledgerId: outLedgerId,
+      transferInLedgerId: Number(inRes.rows[0].ledger_id),
+    };
+  }
+
+  const bucket = input.expenseBucket || "ROUTE_OPEX";
+  if (
+    bucket !== "ROUTE_OPEX" &&
+    bucket !== "MERCHANDISE_PAYMENT" &&
+    bucket !== "NON_OPEX_OR_CAPEX"
+  ) {
+    throw new ValidationError("Tipo de salida inválido");
+  }
+  const normalizedCategory = input.expenseCategory.trim().toUpperCase();
+  if (!normalizedCategory || !isCategoryAllowedForBucket(bucket, normalizedCategory)) {
+    throw new ValidationError(
+      `La categoría '${normalizedCategory || "(vacía)"}' no corresponde al tipo de salida ${bucket}`
+    );
+  }
+
   const res = await client.query(
     `INSERT INTO erp.cash_ledger (
        tx_date, account_id, direction, amount_pen,
        expense_bucket, expense_category, is_internal_transfer,
        description, source_origin
      ) VALUES (
-       CURRENT_DATE, $1, 'OUT', $2,
-       $3, $4, $5,
-       $6, 'ERP_APP'
+       (NOW() AT TIME ZONE 'America/Lima')::date, $1, 'OUT', $2,
+       $3, $4, FALSE,
+       $5, 'ERP_APP'
      ) RETURNING ledger_id`,
     [
-      accountId,
+      fromAcc.accountId,
       amountPen,
-      input.expenseBucket,
-      input.expenseCategory.trim().toUpperCase(),
-      Boolean(input.isInternalTransfer),
+      bucket,
+      normalizedCategory,
       input.description.trim(),
     ]
   );
@@ -509,32 +735,27 @@ export async function resetHistoricalNegativeStock(
     );
   }
 
-  const negRes = await client.query(
-    `SELECT warehouse_id, product_id, sku, stock_on_hand
+  const insertRes = await client.query(
+    `INSERT INTO erp.inventory_movements (
+       warehouse_id, product_id, movement_date, movement_type,
+       quantity_delta, source_origin, notes
+     )
+     SELECT
+       warehouse_id,
+       product_id,
+       NOW(),
+       'ADJUSTMENT',
+       ABS(stock_on_hand),
+       'ERP_APP',
+       'RESET_HISTORICAL_DEFICIT by ' || $1 || ' (' || sku || ')'
      FROM erp.v_current_stock
-     WHERE stock_on_hand < -0.0001
-     ORDER BY product_id ASC`
+     WHERE warehouse_code = 'MAIN'
+       AND stock_on_hand < -0.0001
+     ORDER BY product_id ASC`,
+    [actor.username]
   );
 
-  let count = 0;
-  for (const row of negRes.rows) {
-    const deficit = Math.abs(Number(row.stock_on_hand));
-    await client.query(
-      `INSERT INTO erp.inventory_movements (
-         warehouse_id, product_id, movement_date, movement_type,
-         quantity_delta, source_origin, notes
-       ) VALUES ($1, $2, NOW(), 'ADJUSTMENT', $3, 'ERP_APP', $4)`,
-      [
-        Number(row.warehouse_id),
-        Number(row.product_id),
-        deficit,
-        `RESET_HISTORICAL_DEFICIT by ${actor.username} (${row.sku})`,
-      ]
-    );
-    count += 1;
-  }
-
-  return { adjustedSkuCount: count };
+  return { adjustedSkuCount: insertRes.rowCount ?? 0 };
 }
 
 export async function updateProductStockAndPricing(

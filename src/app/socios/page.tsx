@@ -1,1090 +1,3043 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, {
+  useCallback,
+  useDeferredValue,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import { useRouter } from "next/navigation";
+import CajaProveedoresTab from "@/components/socios/CajaProveedoresTab";
+import KpisBiTab from "@/components/socios/KpisBiTab";
+import {
+  type ApObligationItem,
+  type AppUserItem,
+  type AuditFlagCounts,
+  type AuditFlagItem,
+  type BiSummary,
+  type CashAccountItem,
+  type CashLedgerEntry,
+  type CurrentUserInfo,
+  type KpiQ1Summary,
+  type PartnerCatalogItem,
+  type PendingOnDemandItem,
+  type RecentPurchaseItem,
+  type SupplierItem,
+  formatPen,
+} from "@/components/socios/types";
+import {
+  AbonoModal,
+  DebtorDetailModal,
+  type DebtOrderDetail,
+  PromiseFilterBar,
+  PromiseStatusPill,
+} from "@/components/shared/CollectionControls";
+import {
+  AppHeader,
+  BottomNav,
+  DesktopTabBar,
+  type NavTabItem,
+} from "@/components/ui/AppShell";
+import {
+  ActivityIcon,
+  AlertTriangleIcon,
+  BarChartIcon,
+  BuildingIcon,
+  CheckIcon,
+  ChevronRightIcon,
+  CloseIcon,
+  EditIcon,
+  PackageIcon,
+  PlusIcon,
+  SearchIcon,
+  ShoppingBagIcon,
+  WalletIcon,
+} from "@/components/ui/Icons";
+import {
+  Badge,
+  Button,
+  Card,
+  EmptyState,
+  FieldLabel,
+  INPUT_CLASS,
+  ModalSheet,
+  SegmentedControl,
+  ToastBanner,
+} from "@/components/ui/Primitives";
+import {
+  formatFulfillmentModeEs,
+  formatOperationalStatusEs,
+  formatPromiseStatusEs,
+  formatQuoteStatusEs,
+  formatRoleEs,
+  formatRouteTripStatusEs,
+  formatUnitTitleEs,
+} from "@/lib/labels-es";
+import { notifyLocalSync, type SyncScope, useLiveSync } from "@/lib/realtime/useLiveSync";
 
-interface PartnerCatalogItem {
-  product_id: number;
-  sku: string;
-  name: string;
-  unit_of_measure: string;
-  fulfillment_mode: "STOCKED" | "ON_DEMAND";
-  stock_on_hand: number;
-  list_sale_price_pen: number | null;
-  min_sale_price_pen: number | null;
-  ref_cost_pen: number | null;
+type PartnerTab = "control" | "deudores" | "stock" | "caja" | "kpis";
+type MonitorStatusFilter = "ALL" | "PENDING" | "PROCESS" | "DELIVERED" | "CANCELLED";
+
+const VALID_PARTNER_TABS: PartnerTab[] = [
+  "control",
+  "deudores",
+  "stock",
+  "caja",
+  "kpis",
+];
+
+const SOCIOS_SYNC_SCOPES: SyncScope[] = [
+  "orders",
+  "inventory",
+  "collections",
+  "treasury",
+  "purchases",
+  "partners",
+];
+
+function getMarginTone(
+  marginPen: number,
+  totalPen: number
+): "danger" | "warning" | "success" {
+  if (marginPen <= 0) return "danger";
+  const pct = totalPen > 0 ? (marginPen / totalPen) * 100 : 0;
+  if (pct < 20) return "warning";
+  return "success";
 }
 
-const CREDIT_DAY_CHIPS = [
-  { days: 1, label: "Mañana (+1d)" },
-  { days: 3, label: "En 3 días" },
-  { days: 7, label: "En 7 días (1 sem)" },
-  { days: 10, label: "En 10 días" },
-  { days: 15, label: "En 15 días (2 sem)" },
-];
+function getMarginTextClass(marginPen: number, totalPen: number): string {
+  const tone = getMarginTone(marginPen, totalPen);
+  if (tone === "danger") return "text-[#B91C1C]";
+  if (tone === "warning") return "text-[#B45309]";
+  return "text-[#15803D]";
+}
+
+function formatActorName(rawName: unknown, fallback: string): string {
+  const name = String(rawName ?? "").trim();
+  if (!name) return fallback;
+  if (/\bsocio\b/i.test(name) && /admin/i.test(name)) return "Ventas y Control";
+  if (/\bsocio\b/i.test(name) && /gerente/i.test(name)) return "Gerencia";
+  if (/vendedor/i.test(name) && /externo|ruta/i.test(name)) return "Vendedor";
+  if (/^encargado de almac[eé]n$/i.test(name)) return "Almacén";
+  if (/^(chofer|movilidad) y reparto$/i.test(name)) return "Almacén y Reparto";
+  return name;
+}
+
+function operationalStatusTone(
+  status: unknown
+): "neutral" | "brand" | "success" | "warning" | "danger" {
+  const s = String(status ?? "");
+  if (s === "DELIVERED") return "success";
+  if (s === "READY" || s === "IN_ROUTE") return "brand";
+  if (s === "PENDING_PARTNER_APPROVAL" || s === "REGISTERED" || s === "PICKING") {
+    return "warning";
+  }
+  if (s === "CANCELLED") return "danger";
+  return "neutral";
+}
+
+function formatTraceabilitySummary(o: Record<string, unknown>): string {
+  const creator = formatActorName(o.created_by_name, "Histórico");
+  const picker = formatActorName(o.picked_by_name, "");
+  const driver = formatActorName(o.delivered_by_name, "");
+  const steps = [`Tomó: ${creator}`];
+  if (picker && picker !== "-") steps.push(`Preparó: ${picker}`);
+  if (driver && driver !== "-") steps.push(`Entregó: ${driver}`);
+  return steps.join(" · ");
+}
 
 export default function SociosPage() {
   const router = useRouter();
-  const [tab, setTab] = useState<
-    "control" | "deudores" | "stock" | "caja" | "kpis"
-  >("control");
+  const [tab, setTab] = useState<PartnerTab>("control");
+  const [loading, setLoading] = useState(true);
   const [orders, setOrders] = useState<Array<Record<string, unknown>>>([]);
+  const [ordersPagination, setOrdersPagination] = useState<{
+    limit: number;
+    offset: number;
+    totalCount: number;
+    hasMore: boolean;
+  } | null>(null);
+  const [loadingMoreOrders, setLoadingMoreOrders] = useState(false);
+  const [routeTrips, setRouteTrips] = useState<Array<Record<string, unknown>>>([]);
+  const [partnerQuotes, setPartnerQuotes] = useState<Array<Record<string, unknown>>>([]);
+  const [busyTripId, setBusyTripId] = useState<number | null>(null);
+  const [tripDeclaredNetById, setTripDeclaredNetById] = useState<
+    Record<number, string>
+  >({});
+  const [busyQuoteId, setBusyQuoteId] = useState<number | null>(null);
   const [catalog, setCatalog] = useState<PartnerCatalogItem[]>([]);
-  const [debtorsByOrder, setDebtorsByOrder] = useState<Array<Record<string, unknown>>>([]);
+  const [debtorsByOrder, setDebtorsByOrder] = useState<
+    Array<Record<string, unknown>>
+  >([]);
   const [debtorsByCustomer, setDebtorsByCustomer] = useState<
     Array<Record<string, unknown>>
   >([]);
   const [partnerData, setPartnerData] = useState<Record<string, unknown> | null>(
     null
   );
-  const [treasuryData, setTreasuryData] = useState<Record<string, unknown> | null>(
+  const [treasuryData, setTreasuryData] = useState<Record<
+    string,
+    unknown
+  > | null>(null);
+  const [purchasesData, setPurchasesData] = useState<Record<
+    string,
+    unknown
+  > | null>(null);
+  const [orderAccounts, setOrderAccounts] = useState<CashAccountItem[]>([]);
+  const [feedback, setFeedback] = useState<{
+    msg: string;
+    isError?: boolean;
+  } | null>(null);
+
+  const [preselectedPurchaseTarget, setPreselectedPurchaseTarget] = useState<{
+    productId: number;
+    quantity?: number;
+    orderLineId?: number;
+  } | null>(null);
+  const [selectedMonitorOrder, setSelectedMonitorOrder] = useState<Record<
+    string,
+    unknown
+  > | null>(null);
+
+  // Action busy locks (anti-double-tap)
+  const [busyApproveOrderId, setBusyApproveOrderId] = useState<number | null>(
     null
   );
-  const [feedback, setFeedback] = useState<string | null>(null);
+  const [confirmCancelOrder, setConfirmCancelOrder] = useState<Record<
+    string,
+    unknown
+  > | null>(null);
+  const [cancelOrderReason, setCancelOrderReason] = useState("");
+  const [busyCancelOrderId, setBusyCancelOrderId] = useState<number | null>(
+    null
+  );
+  const [busyResetStock, setBusyResetStock] = useState(false);
+  const [busyLogout, setBusyLogout] = useState(false);
+  const [subTabEditing, setSubTabEditing] = useState(false);
 
   // Stock & Pricing edit state
   const [searchSku, setSearchSku] = useState("");
-  const [editingProd, setEditingProd] = useState<PartnerCatalogItem | null>(null);
+  const deferredSearchSku = useDeferredValue(searchSku);
+  const [showAllCatalog, setShowAllCatalog] = useState(false);
+  const [showAllMonitor, setShowAllMonitor] = useState(false);
+  const [monitorSearch, setMonitorSearch] = useState("");
+  const deferredMonitorSearch = useDeferredValue(monitorSearch);
+  const [monitorStatusFilter, setMonitorStatusFilter] =
+    useState<MonitorStatusFilter>("ALL");
+  const [editingProd, setEditingProd] = useState<PartnerCatalogItem | null>(
+    null
+  );
   const [editStock, setEditStock] = useState("");
   const [editCost, setEditCost] = useState("");
   const [editPrice, setEditPrice] = useState("");
   const [editMinPrice, setEditMinPrice] = useState("");
   const [editMode, setEditMode] = useState<"STOCKED" | "ON_DEMAND">("STOCKED");
+  const [busySaveProduct, setBusySaveProduct] = useState(false);
 
-  // Abono state
+  // Abono & Debtors state
   const [promiseFilter, setPromiseFilter] = useState("ALL");
+  const [debtorSearch, setDebtorSearch] = useState("");
+  const deferredDebtorSearch = useDeferredValue(debtorSearch);
   const [abonoOrder, setAbonoOrder] = useState<Record<string, unknown> | null>(
     null
   );
-  const [fifoCustomer, setFifoCustomer] = useState<Record<string, unknown> | null>(
-    null
-  );
+  const [fifoCustomer, setFifoCustomer] = useState<Record<
+    string,
+    unknown
+  > | null>(null);
+  const [debtDetailTarget, setDebtDetailTarget] = useState<
+    | {
+        mode: "customer";
+        customerKey: string;
+        customerName: string;
+        customerPartyId: number | null;
+      }
+    | { mode: "order"; orderId: number }
+    | null
+  >(null);
   const [abonoAmount, setAbonoAmount] = useState("");
   const [abonoMode, setAbonoMode] = useState<"CASH" | "YAPE_PLIN" | "TRANSFER">(
     "CASH"
   );
   const [abonoNextDays, setAbonoNextDays] = useState<number>(7);
+  const [abonoAccountId, setAbonoAccountId] = useState<string>("");
+  const [busyAbono, setBusyAbono] = useState(false);
+  const [confirmResetNegativeOpen, setConfirmResetNegativeOpen] =
+    useState(false);
 
-  // Outflow state
-  const [outflowBucket, setOutflowBucket] = useState<
-    "ROUTE_OPEX" | "MERCHANDISE_PAYMENT" | "NON_OPEX_OR_CAPEX"
-  >("ROUTE_OPEX");
-  const [outflowCategory, setOutflowCategory] = useState("COMBUSTIBLE");
-  const [outflowAmount, setOutflowAmount] = useState("");
-  const [outflowDesc, setOutflowDesc] = useState("");
+  const showFeedback = useCallback((msg: string, isError = false) => {
+    setFeedback({ msg, isError });
+  }, []);
 
-  async function loadDashboard() {
-    const [ordRes, colRes, partRes, trRes] = await Promise.all([
-      fetch("/api/orders"),
-      fetch("/api/collections"),
-      fetch("/api/partners"),
-      fetch("/api/treasury"),
-    ]);
-    if (ordRes.status === 401 || partRes.status === 403) {
-      router.push("/login");
-      return;
+  const refreshDashboard = useCallback(
+    async (changedScopes?: SyncScope[], options?: { throwOnError?: boolean }) => {
+      const scopeSet =
+        changedScopes && changedScopes.length > 0
+          ? new Set<SyncScope>(changedScopes)
+          : null;
+
+      const needOrders =
+        !scopeSet || scopeSet.has("orders") || scopeSet.has("inventory");
+      const needCollections =
+        !scopeSet || scopeSet.has("collections") || scopeSet.has("orders");
+      const needTreasury =
+        !scopeSet ||
+        scopeSet.has("treasury") ||
+        scopeSet.has("collections") ||
+        scopeSet.has("purchases");
+      const needPurchases =
+        !scopeSet ||
+        scopeSet.has("purchases") ||
+        scopeSet.has("inventory") ||
+        scopeSet.has("orders");
+      const needPartners =
+        !scopeSet ||
+        scopeSet.has("partners") ||
+        scopeSet.has("orders") ||
+        scopeSet.has("collections") ||
+        scopeSet.has("treasury") ||
+        scopeSet.has("purchases") ||
+        scopeSet.has("inventory");
+
+      if (
+        !needOrders &&
+        !needCollections &&
+        !needTreasury &&
+        !needPurchases &&
+        !needPartners
+      ) {
+        return;
+      }
+
+      try {
+        const noStoreInit: RequestInit = { cache: "no-store" };
+        const [ordRes, colRes, partRes, trRes, purRes, tripsRes, quotesRes] =
+          await Promise.all([
+            needOrders ? fetch("/api/orders", noStoreInit) : Promise.resolve(null),
+            needCollections
+              ? fetch("/api/collections", noStoreInit)
+              : Promise.resolve(null),
+            needPartners
+              ? fetch("/api/partners", noStoreInit)
+              : Promise.resolve(null),
+            needTreasury
+              ? fetch("/api/treasury", noStoreInit)
+              : Promise.resolve(null),
+            needPurchases
+              ? fetch("/api/purchases", noStoreInit)
+              : Promise.resolve(null),
+            needOrders || needPartners
+              ? fetch("/api/trips", noStoreInit).catch(() => null)
+              : Promise.resolve(null),
+            needOrders || needPartners
+              ? fetch("/api/quotes", noStoreInit).catch(() => null)
+              : Promise.resolve(null),
+          ]);
+
+        const responses = [ordRes, colRes, partRes, trRes, purRes].filter(
+          (r): r is Response => r !== null
+        );
+
+        if (responses.some((r) => r.status === 401 || r.status === 403)) {
+          router.push("/login");
+          return;
+        }
+
+        if (options?.throwOnError && responses.some((r) => !r.ok)) {
+          throw new Error("Sync fetch returned non-OK status");
+        }
+
+        const [ordJson, colJson, partJson, trJson, purJson, tripsJson, quotesJson] =
+          await Promise.all([
+            ordRes && ordRes.ok ? ordRes.json() : Promise.resolve(null),
+            colRes && colRes.ok ? colRes.json() : Promise.resolve(null),
+            partRes && partRes.ok ? partRes.json() : Promise.resolve(null),
+            trRes && trRes.ok ? trRes.json() : Promise.resolve(null),
+            purRes && purRes.ok ? purRes.json() : Promise.resolve(null),
+            tripsRes && tripsRes.ok ? tripsRes.json() : Promise.resolve(null),
+            quotesRes && quotesRes.ok ? quotesRes.json() : Promise.resolve(null),
+          ]);
+
+        if (ordJson) {
+          setOrders(ordJson.orders || []);
+          setOrdersPagination(ordJson.pagination || null);
+          setCatalog(ordJson.catalog || []);
+          setOrderAccounts(ordJson.accounts || []);
+        }
+        if (tripsJson && Array.isArray(tripsJson.trips)) {
+          setRouteTrips(tripsJson.trips);
+        }
+        if (quotesJson && Array.isArray(quotesJson.quotes)) {
+          setPartnerQuotes(quotesJson.quotes);
+        }
+        if (colJson) {
+          setDebtorsByOrder(colJson.byOrder || []);
+          setDebtorsByCustomer(colJson.byCustomer || []);
+        }
+        if (partJson) {
+          setPartnerData(partJson);
+        }
+        if (trJson) {
+          setTreasuryData(trJson);
+        }
+        if (purJson) {
+          setPurchasesData(purJson);
+        }
+
+        if (!scopeSet && responses.some((r) => !r.ok)) {
+          showFeedback(
+            "Algunos módulos no pudieron actualizarse por completo.",
+            true
+          );
+        }
+      } catch (err) {
+        if (options?.throwOnError) {
+          throw err;
+        }
+        if (!scopeSet) {
+          showFeedback("Error de red cargando el panel operativo.", true);
+        }
+      } finally {
+        setLoading(false);
+      }
+    },
+    [router, showFeedback]
+  );
+
+  const loadDashboard = useCallback(async () => {
+    await refreshDashboard();
+  }, [refreshDashboard]);
+
+  async function handleLoadMoreOrders() {
+    if (loadingMoreOrders || !ordersPagination?.hasMore) return;
+    setLoadingMoreOrders(true);
+    try {
+      const res = await fetch(
+        `/api/orders?limit=${ordersPagination.limit}&offset=${orders.length}`,
+        { cache: "no-store" }
+      );
+      if (res.status === 401 || res.status === 403) {
+        router.push("/login");
+        return;
+      }
+      const data = await res.json();
+      if (!res.ok) {
+        showFeedback(data.error || "No se pudieron cargar más pedidos.", true);
+        return;
+      }
+      const nextRows: Array<Record<string, unknown>> = data.orders || [];
+      setOrders((prev) => {
+        const seen = new Set(prev.map((o) => Number(o.order_id)));
+        const merged = [...prev];
+        for (const r of nextRows) {
+          if (!seen.has(Number(r.order_id))) merged.push(r);
+        }
+        return merged;
+      });
+      setOrdersPagination(data.pagination || null);
+    } catch {
+      showFeedback("Error de red cargando más pedidos.", true);
+    } finally {
+      setLoadingMoreOrders(false);
     }
-    const [ordJson, colJson, partJson, trJson] = await Promise.all([
-      ordRes.json(),
-      colRes.json(),
-      partRes.json(),
-      trRes.json(),
-    ]);
-    setOrders(ordJson.orders || []);
-    setCatalog(ordJson.catalog || []);
-    setDebtorsByOrder(colJson.byOrder || []);
-    setDebtorsByCustomer(colJson.byCustomer || []);
-    setPartnerData(partJson);
-    setTreasuryData(trJson);
+  }
+
+  async function handlePartnerTripAction(
+    tripId: number,
+    nextStatus: "CLOSED" | "RECONCILED"
+  ) {
+    if (busyTripId === tripId) return;
+    setBusyTripId(tripId);
+    try {
+      const rawNet = tripDeclaredNetById[tripId];
+      const declaredNetCashPen =
+        nextStatus === "RECONCILED" && rawNet !== undefined && rawNet.trim() !== ""
+          ? Number(rawNet)
+          : undefined;
+      const res = await fetch("/api/trips", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "close_trip",
+          tripId,
+          nextStatus,
+          declaredNetCashPen,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        showFeedback(data.error || "No se pudo actualizar la ruta.", true);
+        return;
+      }
+      showFeedback(
+        nextStatus === "RECONCILED"
+          ? "Ruta conciliada correctamente."
+          : "Ruta cerrada correctamente."
+      );
+      notifyLocalSync(["orders", "partners"]);
+      await refreshDashboard(["orders", "partners"]);
+    } catch {
+      showFeedback("Error de red al actualizar ruta.", true);
+    } finally {
+      setBusyTripId(null);
+    }
+  }
+
+  async function handlePartnerConvertQuote(
+    quoteId: number,
+    paymentMode: "CASH" | "CREDIT"
+  ) {
+    if (busyQuoteId === quoteId) return;
+    setBusyQuoteId(quoteId);
+    try {
+      const res = await fetch("/api/quotes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "convert_to_order",
+          quoteId,
+          paymentMode,
+          collectOnDelivery: paymentMode === "CASH",
+          creditDays: paymentMode === "CREDIT" ? 7 : undefined,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        showFeedback(data.error || "No se pudo convertir la cotización.", true);
+        return;
+      }
+      showFeedback(
+        `Cotización convertida en pedido ${data.order?.orderCode || ""} correctamente.`
+      );
+      notifyLocalSync(["orders", "inventory", "collections", "treasury", "partners"]);
+      await refreshDashboard(["orders", "inventory", "collections", "partners"]);
+    } catch {
+      showFeedback("Error de red al convertir cotización.", true);
+    } finally {
+      setBusyQuoteId(null);
+    }
+  }
+
+  async function handlePartnerCancelQuote(quoteId: number) {
+    if (busyQuoteId === quoteId) return;
+    setBusyQuoteId(quoteId);
+    try {
+      const res = await fetch("/api/quotes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "update_status",
+          quoteId,
+          nextStatus: "CANCELLED",
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        showFeedback(data.error || "No se pudo anular la cotización.", true);
+        return;
+      }
+      showFeedback("Cotización anulada correctamente.");
+      notifyLocalSync(["orders", "partners"]);
+      await refreshDashboard(["orders", "partners"]);
+    } catch {
+      showFeedback("Error de red al anular cotización.", true);
+    } finally {
+      setBusyQuoteId(null);
+    }
   }
 
   useEffect(() => {
-    loadDashboard();
+    void loadDashboard();
+  }, [loadDashboard]);
+
+  useEffect(() => {
+    const syncFromUrl = () => {
+      const raw = new URLSearchParams(window.location.search).get("tab");
+      if (raw && VALID_PARTNER_TABS.includes(raw as PartnerTab)) {
+        setTab(raw as PartnerTab);
+      }
+    };
+    syncFromUrl();
+    window.addEventListener("popstate", syncFromUrl);
+    return () => window.removeEventListener("popstate", syncFromUrl);
+  }, []);
+
+  const isEditingOrModalOpen = Boolean(
+    editingProd ||
+      abonoOrder ||
+      fifoCustomer ||
+      confirmResetNegativeOpen ||
+      confirmCancelOrder ||
+      subTabEditing
+  );
+
+  const handleRemoteChange = useCallback(
+    async (changedScopes: SyncScope[]) => {
+      await refreshDashboard(changedScopes, { throwOnError: true });
+    },
+    [refreshDashboard]
+  );
+
+  const handleSyncAuthError = useCallback(() => {
+    router.push("/login");
+  }, [router]);
+
+  const { liveStatus, triggerSync } = useLiveSync({
+    onRemoteChange: handleRemoteChange,
+    scopes: SOCIOS_SYNC_SCOPES,
+    enabled: !isEditingOrModalOpen,
+    onAuthError: handleSyncAuthError,
+  });
+
+  const handleTabChange = useCallback((nextTab: PartnerTab) => {
+    setSubTabEditing(false);
+    setTab(nextTab);
+    if (typeof window !== "undefined") {
+      const url = new URL(window.location.href);
+      url.searchParams.set("tab", nextTab);
+      window.history.replaceState(null, "", url.pathname + url.search);
+    }
   }, []);
 
   async function handleApproveDiscount(orderId: number) {
+    if (busyApproveOrderId !== null) return;
     setFeedback(null);
-    const res = await fetch("/api/orders", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "approve", orderId }),
-    });
-    const data = await res.json();
-    if (res.ok) {
-      setFeedback(`Pedido #${orderId} aprobado y enviado a Almacén.`);
-      await loadDashboard();
-    } else {
-      setFeedback(data.error || "Error al aprobar");
+    setBusyApproveOrderId(orderId);
+    try {
+      const res = await fetch("/api/orders", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "approve", orderId }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        showFeedback(`Pedido #${orderId} aprobado y enviado a Almacén.`);
+        notifyLocalSync(["orders", "inventory", "collections", "purchases", "partners"]);
+        await refreshDashboard(["orders", "collections", "purchases", "partners"]);
+      } else {
+        showFeedback(data.error || "Error al aprobar", true);
+      }
+    } catch {
+      showFeedback("Error de red al aprobar el pedido.", true);
+    } finally {
+      setBusyApproveOrderId(null);
     }
   }
 
-  async function handleResetNegativeStock() {
+  async function handleConfirmCancelOrder(e: React.FormEvent) {
+    e.preventDefault();
+    if (!confirmCancelOrder || busyCancelOrderId !== null) return;
+    const orderId = Number(confirmCancelOrder.order_id);
+    const orderCode = String(confirmCancelOrder.order_code ?? `#${orderId}`);
     setFeedback(null);
-    const res = await fetch("/api/partners", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "reset_negative_stock" }),
-    });
-    const data = await res.json();
-    if (res.ok) {
-      setFeedback(
-        `¡Listo! Se pusieron en 0 exactamente ${data.adjustedSkuCount} SKUs con saldo negativo histórico.`
-      );
-      await loadDashboard();
-    } else {
-      setFeedback(data.error || "Error al poner en 0 saldos negativos");
+    setBusyCancelOrderId(orderId);
+    try {
+      const res = await fetch("/api/orders", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "cancel",
+          orderId,
+          reason: cancelOrderReason.trim() || "Anulado desde panel de control",
+        }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setConfirmCancelOrder(null);
+        setCancelOrderReason("");
+        if (
+          selectedMonitorOrder &&
+          Number(selectedMonitorOrder.order_id) === orderId
+        ) {
+          setSelectedMonitorOrder(null);
+        }
+        showFeedback(`Pedido ${orderCode} anulado correctamente.`);
+        notifyLocalSync(["orders", "inventory", "collections", "treasury", "purchases", "partners"]);
+        await refreshDashboard(["orders", "collections", "treasury", "purchases", "partners"]);
+      } else {
+        showFeedback(data.error || "No se pudo anular el pedido.", true);
+      }
+    } catch {
+      showFeedback("Error de red al anular el pedido.", true);
+    } finally {
+      setBusyCancelOrderId(null);
     }
   }
+
+  const openAbonoForOrderRecord = useCallback((o: Record<string, unknown>) => {
+    const totalPen = Number(o.total_pen ?? 0);
+    const balanceDuePen = Math.max(0, Number(o.balance_due_pen ?? 0));
+    const paidPen = Number(o.paid_pen ?? Math.max(0, totalPen - balanceDuePen));
+    setFifoCustomer(null);
+    setAbonoOrder({
+      orderId: Number(o.order_id),
+      orderCode: String(o.order_code ?? ""),
+      customerName: String(o.customer_name ?? ""),
+      totalPen,
+      paidPen,
+      balanceDuePen,
+    });
+    setAbonoAmount(balanceDuePen.toFixed(2));
+    setAbonoAccountId("");
+  }, []);
+
+  async function handleResetNegativeStock() {
+    if (busyResetStock) return;
+    setFeedback(null);
+    setBusyResetStock(true);
+    try {
+      const res = await fetch("/api/partners", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "reset_negative_stock" }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setConfirmResetNegativeOpen(false);
+        showFeedback(
+          `¡Listo! Se pusieron en 0 exactamente ${data.adjustedSkuCount} productos con saldo negativo histórico.`
+        );
+        notifyLocalSync(["inventory", "partners"]);
+        await refreshDashboard(["inventory", "partners"]);
+      } else {
+        showFeedback(
+          data.error || "Error al poner en 0 saldos negativos",
+          true
+        );
+      }
+    } catch {
+      showFeedback("Error de red regularizando saldos negativos.", true);
+    } finally {
+      setBusyResetStock(false);
+    }
+  }
+
+  const openEditProduct = useCallback((p: PartnerCatalogItem) => {
+    setEditingProd(p);
+    setEditStock(String(p.stock_on_hand));
+    setEditCost(p.ref_cost_pen !== null ? String(p.ref_cost_pen) : "");
+    setEditPrice(String(p.list_sale_price_pen ?? ""));
+    setEditMinPrice(String(p.min_sale_price_pen ?? ""));
+    setEditMode(p.fulfillment_mode);
+  }, []);
 
   async function handleSaveProduct(e: React.FormEvent) {
     e.preventDefault();
-    if (!editingProd) return;
-    const res = await fetch("/api/partners", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        action: "update_product",
-        productId: editingProd.product_id,
-        physicalStock: editStock,
-        refCostPen: editCost,
-        listSalePricePen: editPrice,
-        minSalePricePen: editMinPrice,
-        fulfillmentMode: editMode,
-      }),
-    });
-    if (res.ok) {
-      setFeedback(`Producto ${editingProd.sku} actualizado.`);
-      setEditingProd(null);
-      await loadDashboard();
+    if (!editingProd || busySaveProduct) return;
+    setFeedback(null);
+    setBusySaveProduct(true);
+    try {
+      const res = await fetch("/api/partners", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "update_product",
+          productId: editingProd.product_id,
+          physicalStock: editStock,
+          refCostPen: editCost,
+          listSalePricePen: editPrice,
+          minSalePricePen: editMinPrice,
+          fulfillmentMode: editMode,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        showFeedback(`Producto ${editingProd.sku} actualizado.`);
+        setEditingProd(null);
+        notifyLocalSync(["inventory", "partners"]);
+        await refreshDashboard(["inventory", "partners"]);
+      } else {
+        showFeedback(data.error || "Error al actualizar producto", true);
+      }
+    } catch {
+      showFeedback("Error de red al guardar el producto.", true);
+    } finally {
+      setBusySaveProduct(false);
     }
   }
 
   async function handleSaveAbono(e: React.FormEvent) {
     e.preventDefault();
-    if (!abonoOrder && !fifoCustomer) return;
-    const payload = fifoCustomer
-      ? {
-          mode: "fifo_customer",
-          customerPartyId: Number(fifoCustomer.customerPartyId),
-          totalAmountPen: Number(abonoAmount),
-          paymentMode: abonoMode,
-          nextCollectionDays: abonoNextDays,
-          notes: "Abono general FIFO registrado por Socio",
-        }
-      : {
-          mode: "single_order",
-          orderId: Number(abonoOrder!.orderId),
-          amountPen: Number(abonoAmount),
-          paymentMode: abonoMode,
-          nextCollectionDays: abonoNextDays,
-          notes: "Cobro registrado por Socio",
-        };
-    const res = await fetch("/api/collections", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-    if (res.ok) {
-      setFeedback("Abono registrado correctamente.");
-      setAbonoOrder(null);
-      setFifoCustomer(null);
-      setAbonoAmount("");
-      await loadDashboard();
+    if ((!abonoOrder && !fifoCustomer) || busyAbono) return;
+    setFeedback(null);
+    setBusyAbono(true);
+    try {
+      const activeBalanceDue = fifoCustomer
+        ? Number(fifoCustomer.totalBalanceDuePen ?? 0)
+        : Number(abonoOrder?.balanceDuePen ?? 0);
+      const parsedAbono = Number(abonoAmount);
+      const isFullSettlement =
+        Number.isFinite(parsedAbono) &&
+        activeBalanceDue > 0 &&
+        parsedAbono >= activeBalanceDue - 0.05;
+      const selectedAccId = abonoAccountId ? Number(abonoAccountId) : undefined;
+      const payload = fifoCustomer
+        ? {
+            mode: "fifo_customer",
+            customerPartyId: Number(fifoCustomer.customerPartyId),
+            totalAmountPen: parsedAbono,
+            paymentMode: abonoMode,
+            accountId: selectedAccId,
+            nextCollectionDays: isFullSettlement ? null : abonoNextDays,
+            notes:
+              "Abono general a cuenta registrado por Socio o Gerencia (deudas más antiguas)",
+          }
+        : {
+            mode: "single_order",
+            orderId: Number(abonoOrder!.orderId),
+            amountPen: parsedAbono,
+            paymentMode: abonoMode,
+            accountId: selectedAccId,
+            nextCollectionDays: isFullSettlement ? null : abonoNextDays,
+            notes: "Cobro registrado por Socio o Gerencia",
+          };
+      const res = await fetch("/api/collections", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        showFeedback("Abono registrado correctamente.");
+        setAbonoOrder(null);
+        setFifoCustomer(null);
+        setAbonoAmount("");
+        setAbonoAccountId("");
+        notifyLocalSync(["collections", "orders", "treasury", "partners"]);
+        await refreshDashboard(["collections", "orders", "treasury", "partners"]);
+      } else {
+        showFeedback(data.error || "Error al registrar abono", true);
+      }
+    } catch {
+      showFeedback("Error de red al registrar abono.", true);
+    } finally {
+      setBusyAbono(false);
     }
   }
 
-  async function handleSaveOutflow(e: React.FormEvent) {
-    e.preventDefault();
-    const res = await fetch("/api/treasury", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        amountPen: Number(outflowAmount),
-        expenseBucket: outflowBucket,
-        expenseCategory: outflowCategory,
-        description: outflowDesc,
-      }),
-    });
-    if (res.ok) {
-      setFeedback("Egreso registrado en Caja.");
-      setOutflowAmount("");
-      setOutflowDesc("");
-      await loadDashboard();
-    }
-  }
-
-  const pendingApprovals = orders.filter(
-    (o) => o.operational_status === "PENDING_PARTNER_APPROVAL"
+  const handleGoToPurchaseProduct = useCallback(
+    (
+      target:
+        | number
+        | { productId: number; quantity?: number; orderLineId?: number }
+    ) => {
+      const normalized =
+        typeof target === "number" ? { productId: target } : target;
+      setPreselectedPurchaseTarget(normalized);
+      setSubTabEditing(false);
+      handleTabChange("caja");
+    },
+    [handleTabChange]
   );
+
+  const handleGoToEditProduct = useCallback(
+    (sku: string) => {
+      setSearchSku(sku);
+      const found = catalog.find(
+        (p) => p.sku.toLowerCase() === sku.toLowerCase()
+      );
+      if (found) {
+        openEditProduct(found);
+        return;
+      }
+      handleTabChange("stock");
+    },
+    [catalog, openEditProduct, handleTabChange]
+  );
+
+  const pendingApprovals = useMemo(
+    () =>
+      orders.filter(
+        (o) => o.operational_status === "PENDING_PARTNER_APPROVAL"
+      ),
+    [orders]
+  );
+
+  const monitorFilteredOrders = useMemo(() => {
+    const q = deferredMonitorSearch.trim().toLowerCase();
+    return orders.filter((o) => {
+      const status = String(o.operational_status ?? "").toUpperCase();
+      if (
+        monitorStatusFilter === "PENDING" &&
+        status !== "PENDING_PARTNER_APPROVAL"
+      ) {
+        return false;
+      }
+      if (
+        monitorStatusFilter === "PROCESS" &&
+        !["PICKING", "READY", "IN_ROUTE", "APPROVED_FOR_WAREHOUSE"].includes(
+          status
+        )
+      ) {
+        return false;
+      }
+      if (monitorStatusFilter === "DELIVERED" && status !== "DELIVERED") {
+        return false;
+      }
+      if (monitorStatusFilter === "CANCELLED" && status !== "CANCELLED") {
+        return false;
+      }
+      if (!q) return true;
+      return (
+        String(o.order_code ?? "").toLowerCase().includes(q) ||
+        String(o.customer_name ?? "").toLowerCase().includes(q) ||
+        String(o.created_by_name ?? "").toLowerCase().includes(q)
+      );
+    });
+  }, [orders, deferredMonitorSearch, monitorStatusFilter]);
+
+  const recentMonitorOrders = useMemo(() => {
+    const hasFilter =
+      monitorStatusFilter !== "ALL" || deferredMonitorSearch.trim().length > 0;
+    return hasFilter
+      ? monitorFilteredOrders
+      : monitorFilteredOrders.slice(0, 35);
+  }, [monitorFilteredOrders, monitorStatusFilter, deferredMonitorSearch]);
+
   const pendingOnDemand =
-    (partnerData?.pendingOnDemand as Array<Record<string, unknown>>) || [];
-  const kpiQ1 = (partnerData?.kpiQ1 as Record<string, unknown>) || null;
+    ((purchasesData?.pendingOnDemand ??
+      partnerData?.pendingOnDemand) as PendingOnDemandItem[]) || [];
+  const kpiQ1 = (partnerData?.kpiQ1 as KpiQ1Summary) || null;
   const kpiQ2TopSkus =
     (partnerData?.kpiQ2TopSkus as Array<Record<string, unknown>>) || [];
   const qualityGaps =
     (partnerData?.qualityGaps as Array<Record<string, unknown>>) || [];
   const negStockCount = Number(partnerData?.negativeStockSkuCount ?? 0);
+  const currentUser =
+    (partnerData?.currentUser as CurrentUserInfo | null) || null;
+  const biSummary = (partnerData?.biSummary as BiSummary | null) || null;
+  const appUsers = (partnerData?.users as AppUserItem[]) || [];
+
+  const accounts: CashAccountItem[] =
+    (purchasesData?.accounts as CashAccountItem[]) ||
+    (treasuryData?.accounts as CashAccountItem[]) ||
+    orderAccounts;
+  const ledger: CashLedgerEntry[] =
+    (treasuryData?.ledger as CashLedgerEntry[]) || [];
+  const apObligations: ApObligationItem[] =
+    (purchasesData?.apObligations as ApObligationItem[]) ||
+    (treasuryData?.apObligations as ApObligationItem[]) ||
+    [];
+  const suppliers: SupplierItem[] =
+    (purchasesData?.suppliers as SupplierItem[]) ||
+    (treasuryData?.suppliers as SupplierItem[]) ||
+    [];
+  const recentPurchases: RecentPurchaseItem[] =
+    (purchasesData?.recentPurchases as RecentPurchaseItem[]) || [];
+
+  const openApCount = useMemo(
+    () =>
+      apObligations.filter(
+        (ap) => ap.status === "OPEN" || ap.status === "PARTIAL"
+      ).length,
+    [apObligations]
+  );
+
+  const openDebtorsCount = Number(
+    partnerData?.openDebtorsCount ??
+      kpiQ1?.open_debtors_count ??
+      debtorsByOrder.length
+  );
+
+  const filteredCatalog = useMemo(() => {
+    const q = deferredSearchSku.trim().toLowerCase();
+    if (!q) return catalog;
+    return catalog.filter(
+      (p) =>
+        p.name.toLowerCase().includes(q) || p.sku.toLowerCase().includes(q)
+    );
+  }, [catalog, deferredSearchSku]);
+
+  const visibleCatalog = useMemo(
+    () => (showAllCatalog ? filteredCatalog : filteredCatalog.slice(0, 40)),
+    [filteredCatalog, showAllCatalog]
+  );
+
+  const filteredDebtorsByCustomer = useMemo(() => {
+    const q = deferredDebtorSearch.trim().toLowerCase();
+    if (!q) return debtorsByCustomer;
+    return debtorsByCustomer.filter((c) =>
+      String(c.customerName ?? "").toLowerCase().includes(q)
+    );
+  }, [debtorsByCustomer, deferredDebtorSearch]);
+
+  const filteredDebtorsByOrder = useMemo(() => {
+    const q = deferredDebtorSearch.trim().toLowerCase();
+    return debtorsByOrder.filter((o) => {
+      if (promiseFilter !== "ALL" && o.promiseStatus !== promiseFilter) {
+        return false;
+      }
+      if (!q) return true;
+      return (
+        String(o.customerName ?? "").toLowerCase().includes(q) ||
+        String(o.orderCode ?? "").toLowerCase().includes(q)
+      );
+    });
+  }, [debtorsByOrder, promiseFilter, deferredDebtorSearch]);
+
+  const headerRoleBadge = useMemo(() => {
+    if (!currentUser) return "Control Operativo";
+    const operationalArea =
+      currentUser.role === "PARTNER_MANAGER"
+        ? "Gerencia"
+        : currentUser.role === "PARTNER_ADMIN"
+        ? "Ventas y Control"
+        : formatRoleEs(currentUser.role);
+    const cleanName = formatActorName(currentUser.fullName, "");
+    if (
+      cleanName &&
+      cleanName.toLowerCase() !== operationalArea.toLowerCase() &&
+      cleanName !== "Asistente" &&
+      cleanName !== "Gerente" &&
+      cleanName !== "Gerencia" &&
+      cleanName !== "Ventas y Control"
+    ) {
+      return `${cleanName} · ${operationalArea}`;
+    }
+    return operationalArea;
+  }, [currentUser]);
+
+  const navItems: NavTabItem<PartnerTab>[] = useMemo(
+    () => [
+      {
+        id: "control",
+        label: "Control en Vivo",
+        mobileLabel: "Control",
+        icon: <ActivityIcon className="h-4 w-4" />,
+        badgeCount: pendingApprovals.length,
+      },
+      {
+        id: "deudores",
+        label: "Deudores y Cobros",
+        mobileLabel: "Cobros",
+        icon: <WalletIcon className="h-4 w-4" />,
+        badgeCount: debtorsByOrder.length,
+      },
+      {
+        id: "stock",
+        label: "Inventario y Precios",
+        mobileLabel: "Stock",
+        icon: <PackageIcon className="h-4 w-4" />,
+        badgeCount: negStockCount,
+      },
+      {
+        id: "caja",
+        label: "Caja y Proveedores",
+        mobileLabel: "Caja",
+        icon: <BuildingIcon className="h-4 w-4" />,
+        badgeCount: openApCount,
+      },
+      {
+        id: "kpis",
+        label: "Indicadores y Reportes",
+        mobileLabel: "BI",
+        icon: <BarChartIcon className="h-4 w-4" />,
+      },
+    ],
+    [
+      pendingApprovals.length,
+      debtorsByOrder.length,
+      negStockCount,
+      openApCount,
+    ]
+  );
+
+  // Live margin preview when editing product
+  const previewCost = Number(editCost);
+  const previewPrice = Number(editPrice);
+  const previewMin = Number(editMinPrice);
+  const hasPreviewCost = editCost.trim() !== "" && Number.isFinite(previewCost);
 
   return (
-    <div className="min-h-screen bg-slate-100 pb-24">
-      <header className="sticky top-0 z-20 flex flex-wrap items-center justify-between gap-2 bg-slate-950 px-4 py-3 text-white shadow">
-        <div>
-          <span className="rounded bg-emerald-500 px-2 py-0.5 text-[10px] font-extrabold text-slate-950">
-            TORRE DE CONTROL SOCIOS · ACCESO TOTAL (MÓVIL + PC)
-          </span>
-          <h1 className="text-lg font-extrabold">
-            Blue Horizon Trade — Gestión en Vivo e Insights
-          </h1>
-        </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => router.push("/vendedor")}
-            className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-bold"
-          >
-            + Tomar Pedido Rápido
-          </button>
-          <button
-            onClick={() => router.push("/almacen")}
-            className="rounded-lg bg-amber-500 px-3 py-1.5 text-xs font-bold text-slate-950"
-          >
-            Vista Almacén
-          </button>
-          <button
-            onClick={async () => {
-              await fetch("/api/auth", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ action: "logout" }),
-              });
-              router.push("/login");
-            }}
-            className="rounded-lg bg-slate-800 px-3 py-1.5 text-xs font-bold"
-          >
-            Salir
-          </button>
-        </div>
-      </header>
-
-      <div className="mx-auto max-w-7xl px-3 pt-3">
-        <div className="flex gap-1.5 overflow-x-auto rounded-2xl bg-white p-2 shadow-sm">
-          {[
-            {
-              id: "control",
-              label: `1. Control en Vivo (${pendingApprovals.length} por aprobar)`,
-            },
-            {
-              id: "deudores",
-              label: `2. Deudores y Cobros (${debtorsByOrder.length})`,
-            },
-            {
-              id: "stock",
-              label: `3. Stock y Precios Día 1 (${negStockCount} neg)`,
-            },
-            { id: "caja", label: "4. Caja, Compras y Proveedores" },
-            { id: "kpis", label: "5. KPIs e Insights (PC)" },
-          ].map((t) => (
-            <button
-              key={t.id}
-              onClick={() => setTab(t.id as typeof tab)}
-              className={`flex-shrink-0 rounded-xl px-3.5 py-2.5 text-xs font-extrabold transition ${
-                tab === t.id
-                  ? "bg-slate-900 text-white shadow"
-                  : "bg-slate-100 text-slate-700"
-              }`}
+    <div className="min-h-screen bg-[#FAF9F6] pb-24 md:pb-12">
+      <AppHeader
+        title="Control Operativo"
+        roleLabel={headerRoleBadge}
+        roleTone="horizon"
+        roleDotColor="bg-[#1E446B]"
+        syncStatus={liveStatus}
+        onSyncClick={() => void triggerSync({ force: true })}
+        maxWidth="7xl"
+        actions={
+          <div className="hidden sm:inline-flex items-center gap-2">
+            <Button
+              variant="primary"
+              size="md"
+              onClick={() => router.push("/vendedor")}
+              className="min-h-[38px] sm:min-h-[40px] px-4 text-xs sm:text-sm shadow-[0_2px_8px_rgba(15,41,66,0.16)]"
             >
-              {t.label}
-            </button>
-          ))}
-        </div>
+              <PlusIcon className="h-4 w-4" />
+              <span>Tomar Pedido</span>
+            </Button>
+            <Button
+              variant="outline"
+              size="md"
+              onClick={() => router.push("/almacen")}
+              className="min-h-[38px] sm:min-h-[40px] px-3.5 text-xs sm:text-sm"
+            >
+              Almacén
+            </Button>
+          </div>
+        }
+        onLogout={async () => {
+          if (busyLogout) return;
+          setBusyLogout(true);
+          try {
+            await fetch("/api/auth", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ action: "logout" }),
+            });
+          } finally {
+            setBusyLogout(false);
+            router.push("/login");
+          }
+        }}
+      />
 
-        {feedback && (
-          <div className="mt-3 rounded-xl bg-emerald-100 p-3 text-sm font-bold text-emerald-950">
-            {feedback}
+      <main
+        id="main-content"
+        tabIndex={-1}
+        className="mx-auto max-w-7xl px-3.5 pt-4 sm:px-5 space-y-4 focus:outline-none"
+      >
+        {tab !== "control" && (
+          <div className="grid grid-cols-[2fr_1fr] gap-2 sm:hidden">
+            <Button
+              variant="primary"
+              size="md"
+              onClick={() => router.push("/vendedor")}
+              className="w-full shadow-[0_2px_8px_rgba(15,41,66,0.16)]"
+            >
+              <ShoppingBagIcon className="h-4 w-4" />
+              <span>Tomar Pedido</span>
+            </Button>
+            <Button
+              variant="outline"
+              size="md"
+              onClick={() => router.push("/almacen")}
+              className="w-full"
+            >
+              <span>Almacén</span>
+            </Button>
           </div>
         )}
 
+        <DesktopTabBar
+          items={navItems}
+          activeId={tab}
+          onChange={handleTabChange}
+          className="hidden md:flex"
+        />
+
+        {feedback && (
+          <ToastBanner
+            type={feedback.isError ? "err" : "ok"}
+            message={feedback.msg}
+            onDismiss={() => setFeedback(null)}
+          />
+        )}
+
+        {loading && !partnerData && (
+          <Card className="p-10 text-center text-sm font-medium text-[#5C5A55]">
+            Cargando datos en vivo desde Neon PostgreSQL...
+          </Card>
+        )}
+
         {tab === "control" && (
-          <div className="mt-4 space-y-6">
-            {/* 1-Tap Discount Approval Queue */}
-            <section className="rounded-2xl border border-amber-300 bg-amber-50 p-4 shadow-sm">
-              <h2 className="text-base font-extrabold text-amber-950">
-                Bandeja de Aprobación de Descuentos bajo el Precio Mínimo (
-                {pendingApprovals.length})
-              </h2>
-              {pendingApprovals.length === 0 ? (
-                <p className="mt-1 text-xs text-amber-800">
-                  No hay pedidos retenidos por descuento en este momento.
-                </p>
-              ) : (
-                <div className="mt-3 grid gap-3 md:grid-cols-2">
-                  {pendingApprovals.map((o) => (
-                    <div
-                      key={String(o.order_id)}
-                      className="rounded-xl bg-white p-3.5 shadow-sm"
-                    >
-                      <div className="flex justify-between">
-                        <span className="text-xs font-bold text-amber-800">
-                          {String(o.order_code)} · Vendedor:{" "}
-                          {String(o.created_by_name || "-")}
-                        </span>
-                        <span className="text-xs font-extrabold text-emerald-700">
-                          Margen Real: S/ {Number(o.order_margin_pen ?? 0).toFixed(2)}
-                        </span>
-                      </div>
-                      <h3 className="mt-1 text-sm font-extrabold">
-                        {String(o.customer_name)} — Total S/{" "}
-                        {Number(o.total_pen).toFixed(2)}
-                      </h3>
-                      <div className="mt-2 flex gap-2">
-                        <button
-                          onClick={() => handleApproveDiscount(Number(o.order_id))}
-                          className="flex-1 rounded-xl bg-emerald-600 py-2.5 text-xs font-extrabold text-white"
-                        >
-                          ✓ Aprobar con 1 Toque y Enviar a Almacén
-                        </button>
-                      </div>
-                    </div>
-                  ))}
+          <div className="space-y-5">
+            {/* Primary Order Intake Action Hub */}
+            <Card
+              accent="horizon"
+              padding="md"
+              className="border-[#D4E0EC] bg-gradient-to-r from-[#F2F6FA] via-white to-[#FAF9F6]"
+            >
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex items-start gap-3">
+                  <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-[#0F2942] text-white shadow-[0_2px_6px_rgba(15,41,66,0.18)]">
+                    <ShoppingBagIcon className="h-5 w-5" />
+                  </div>
+                  <div className="min-w-0">
+                    <h2 className="text-sm sm:text-base font-semibold text-[#0F2942]">
+                      Toma Rápida de Pedidos y Ventas
+                    </h2>
+                    <p className="mt-0.5 text-xs text-[#5C5A55]">
+                      Registra pedidos nuevos, busca clientes y cobra en ruta directamente.
+                    </p>
+                  </div>
                 </div>
-              )}
-            </section>
+                <div className="flex items-center gap-2 sm:flex-shrink-0">
+                  <Button
+                    variant="primary"
+                    size="md"
+                    onClick={() => router.push("/vendedor")}
+                    className="flex-1 sm:flex-initial min-h-[44px] px-5 shadow-[0_2px_10px_rgba(15,41,66,0.18)]"
+                  >
+                    <PlusIcon className="h-4 w-4" />
+                    <span>Tomar Nuevo Pedido</span>
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="md"
+                    onClick={() => router.push("/almacen")}
+                    className="sm:hidden min-h-[44px]"
+                  >
+                    Almacén
+                  </Button>
+                </div>
+              </div>
+            </Card>
+
+            {/* Executive Quick Glance Strip ordered by operational priority */}
+            <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+              <button
+                type="button"
+                onClick={() => handleTabChange("control")}
+                aria-label={`Ver pedidos pendientes de aprobación (${pendingApprovals.length})`}
+                className="group rounded-2xl border border-[#E7E5E0] bg-white p-4 text-left shadow-[0_1px_2px_rgba(15,41,66,0.03)] transition hover:border-[#1E446B]/45 hover:shadow-[0_2px_8px_rgba(15,41,66,0.06)] cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0F2942]"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-xs font-medium text-[#4A4843]">
+                    Pend. Aprobación
+                  </span>
+                  <span className="text-xs text-[#6D6A64] transition group-hover:translate-x-0.5 group-hover:text-[#0F2942]" aria-hidden="true">→</span>
+                </div>
+                <p className="mt-2 text-2xl font-semibold tracking-tight text-[#0F2942] tabular-nums">
+                  {pendingApprovals.length}
+                </p>
+              </button>
+              <button
+                type="button"
+                onClick={() => handleTabChange("deudores")}
+                aria-label={`Ir a pedidos por cobrar (${debtorsByOrder.length})`}
+                className="group rounded-2xl border border-[#E7E5E0] bg-white p-4 text-left shadow-[0_1px_2px_rgba(15,41,66,0.03)] transition hover:border-[#1E446B]/45 hover:shadow-[0_2px_8px_rgba(15,41,66,0.06)] cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0F2942]"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-xs font-medium text-[#4A4843]">
+                    Pedidos por cobrar
+                  </span>
+                  <span className="text-xs text-[#6D6A64] transition group-hover:translate-x-0.5 group-hover:text-[#0F2942]" aria-hidden="true">→</span>
+                </div>
+                <p className="mt-2 text-2xl font-semibold tracking-tight text-[#B91C1C] tabular-nums">
+                  {debtorsByOrder.length}
+                </p>
+              </button>
+              <button
+                type="button"
+                onClick={() => handleTabChange("caja")}
+                aria-label={`Ir a compras bajo pedido pendientes (${pendingOnDemand.length})`}
+                className="group rounded-2xl border border-[#E7E5E0] bg-white p-4 text-left shadow-[0_1px_2px_rgba(15,41,66,0.03)] transition hover:border-[#1E446B]/45 hover:shadow-[0_2px_8px_rgba(15,41,66,0.06)] cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0F2942]"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-xs font-medium text-[#4A4843]">
+                    Bajo pedido pendientes
+                  </span>
+                  <span className="text-xs text-[#6D6A64] transition group-hover:translate-x-0.5 group-hover:text-[#0F2942]" aria-hidden="true">→</span>
+                </div>
+                <p className="mt-2 text-2xl font-semibold tracking-tight text-[#1E446B] tabular-nums">
+                  {pendingOnDemand.length}
+                </p>
+              </button>
+              <button
+                type="button"
+                onClick={() => handleTabChange("stock")}
+                aria-label={`Ir a regularizar saldos negativos (${negStockCount})`}
+                className="group rounded-2xl border border-[#E7E5E0] bg-white p-4 text-left shadow-[0_1px_2px_rgba(15,41,66,0.03)] transition hover:border-[#1E446B]/45 hover:shadow-[0_2px_8px_rgba(15,41,66,0.06)] cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0F2942]"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-xs font-medium text-[#4A4843]">
+                    Saldos negativos Día 1
+                  </span>
+                  <span className="text-xs text-[#6D6A64] transition group-hover:translate-x-0.5 group-hover:text-[#0F2942]" aria-hidden="true">→</span>
+                </div>
+                <p className="mt-2 text-2xl font-semibold tracking-tight text-[#B45309] tabular-nums">
+                  {negStockCount}
+                </p>
+              </button>
+            </div>
+
+            {/* 1-Tap Discount Approval Queue — calm slim banner when 0 pending */}
+            {pendingApprovals.length === 0 ? (
+              <div className="flex items-center justify-between gap-2 rounded-2xl border border-[#E7E5E0] bg-white/80 px-4 py-2.5 text-xs text-[#5C5A55]">
+                <span className="flex items-center gap-2">
+                  <CheckIcon className="h-3.5 w-3.5 text-[#15803D]" />
+                  No hay pedidos retenidos por descuento en este momento.
+                </span>
+                <Badge tone="neutral">0 pendientes</Badge>
+              </div>
+            ) : (
+              <Card tone="warning" padding="md" className="space-y-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <AlertTriangleIcon className="h-4 w-4 text-[#B45309]" />
+                    <h2 className="text-sm sm:text-base font-semibold text-[#18181B]">
+                      Aprobación de Descuentos bajo el Precio Mínimo
+                    </h2>
+                  </div>
+                  <Badge tone="warning">
+                    {pendingApprovals.length} pendiente(s)
+                  </Badge>
+                </div>
+                <div className="grid gap-3 md:grid-cols-2">
+                  {pendingApprovals.map((o) => {
+                    const orderId = Number(o.order_id);
+                    const isBusyThis = busyApproveOrderId === orderId;
+                    const marginVal = Number(o.order_margin_pen ?? 0);
+                    const totalVal = Number(o.total_pen ?? 0);
+                    const marginPct =
+                      totalVal > 0 ? (marginVal / totalVal) * 100 : 0;
+                    const lines = Array.isArray(o.lines)
+                      ? (o.lines as Array<Record<string, unknown>>)
+                      : [];
+                    const discountedLines = lines.filter(
+                      (ln) =>
+                        Number(ln.unit_discount_pen ?? 0) > 0 ||
+                        Number(ln.is_below_min_floor ?? 0) > 0
+                    );
+                    const displayLines =
+                      discountedLines.length > 0 ? discountedLines : lines;
+                    return (
+                      <div
+                        key={String(o.order_id)}
+                        className="rounded-xl border border-[#E7E5E0] bg-white p-3.5 shadow-xs space-y-2.5"
+                      >
+                        <div className="flex flex-wrap items-center justify-between gap-1.5">
+                          <span className="text-xs font-medium text-[#5C5A55]">
+                            {String(o.order_code)} · Vendedor:{" "}
+                            <strong className="text-[#18181B]">
+                              {formatActorName(o.created_by_name, "-")}
+                            </strong>
+                          </span>
+                          <Badge
+                            tone={getMarginTone(marginVal, totalVal)}
+                            className="tabular-nums"
+                          >
+                            Margen: {formatPen(marginVal)} ({marginPct.toFixed(1)}%)
+                          </Badge>
+                        </div>
+                        <h3 className="text-sm font-semibold text-[#18181B] tabular-nums">
+                          {String(o.customer_name)} — {formatPen(o.total_pen)}
+                        </h3>
+                        {displayLines.length > 0 && (
+                          <div className="space-y-1 rounded-lg bg-[#FAF9F6] px-2.5 py-2 text-[11px] text-[#5C5A55]">
+                            {displayLines.slice(0, 4).map((ln, idx) => (
+                              <div
+                                key={String(ln.order_line_id ?? idx)}
+                                className="flex flex-wrap items-center justify-between gap-2 tabular-nums"
+                              >
+                                <span className="min-w-0 flex-1 truncate font-medium text-[#18181B]">
+                                  {String(ln.raw_description || ln.sku)}
+                                </span>
+                                <span>
+                                  {Number(ln.quantity)}{" "}
+                                  {String(ln.unit_of_measure || "NIU")} ×{" "}
+                                  {formatPen(ln.unit_price_pen)}
+                                  {Number(ln.unit_discount_pen || 0) > 0
+                                    ? ` (-${formatPen(ln.unit_discount_pen)})`
+                                    : ""}
+                                </span>
+                              </div>
+                            ))}
+                            {displayLines.length > 4 && (
+                              <p className="text-[11px] font-medium text-[#6D6A64]">
+                                +{displayLines.length - 4} línea(s) adicional(es)
+                              </p>
+                            )}
+                          </div>
+                        )}
+                        <div className="flex flex-wrap gap-2">
+                          <Button
+                            variant="success"
+                            size="sm"
+                            disabled={
+                              busyApproveOrderId !== null ||
+                              busyCancelOrderId !== null
+                            }
+                            aria-label={`Aprobar pedido ${String(o.order_code)} de ${String(o.customer_name)} y enviar a Almacén`}
+                            onClick={() => handleApproveDiscount(orderId)}
+                            className="flex-1"
+                          >
+                            <CheckIcon className="h-3.5 w-3.5" />
+                            {isBusyThis
+                              ? "Aprobando..."
+                              : "Aprobar con 1 Toque y Enviar a Almacén"}
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            disabled={
+                              busyApproveOrderId !== null ||
+                              busyCancelOrderId !== null
+                            }
+                            onClick={() => {
+                              setCancelOrderReason("");
+                              setConfirmCancelOrder(o);
+                            }}
+                            className="border-[#FECACA] text-[#B91C1C] hover:bg-[#FEF2F2]"
+                          >
+                            Anular
+                          </Button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </Card>
+            )}
 
             {/* ON_DEMAND Pending Supplier Purchases */}
             {pendingOnDemand.length > 0 && (
-              <section className="rounded-2xl border border-blue-200 bg-blue-50 p-4 shadow-sm">
-                <h2 className="text-base font-extrabold text-blue-950">
-                  Pedidos ON_DEMAND Pendientes de Compra/Recojo de Proveedor (
-                  {pendingOnDemand.length})
-                </h2>
-                <div className="mt-2 grid gap-2 md:grid-cols-2">
+              <Card tone="horizon" accent="horizon" padding="md" className="space-y-3">
+                <div className="flex items-center justify-between gap-2">
+                  <h2 className="text-sm sm:text-base font-semibold text-[#0F2942]">
+                    Pedidos Bajo Pedido Pendientes de Compra (
+                    {pendingOnDemand.length})
+                  </h2>
+                </div>
+                <div className="grid gap-2.5 md:grid-cols-2">
                   {pendingOnDemand.map((od) => (
                     <div
-                      key={String(od.order_line_id)}
-                      className="rounded-xl bg-white p-3 text-xs shadow-sm"
+                      key={od.order_line_id}
+                      className="flex items-center justify-between gap-3 rounded-xl border border-[#D4E0EC] bg-white p-3 text-xs"
                     >
-                      <p className="font-extrabold text-slate-900">
-                        {String(od.sku)} — {String(od.product_name)} (x{" "}
-                        {Number(od.quantity)})
-                      </p>
-                      <p className="text-slate-600">
-                        Pedido: {String(od.order_code)} · Cliente:{" "}
-                        {String(od.customer_name_raw)} · Venta: S/{" "}
-                        {Number(od.line_total_pen).toFixed(2)}
-                      </p>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate font-semibold text-[#18181B]">
+                          {od.sku} — {od.product_name} (×{Number(od.quantity)}{" "}
+                          {od.unit_of_measure || "NIU"})
+                        </p>
+                        <p className="mt-0.5 truncate text-[#5C5A55] tabular-nums">
+                          {od.order_code} ·{" "}
+                          {od.customer_name || od.customer_name_raw || "-"} ·{" "}
+                          {formatPen(od.line_total_pen)}
+                        </p>
+                      </div>
+                      <Button
+                        variant="primary"
+                        size="sm"
+                        aria-label={`Comprar ${od.sku} (${od.product_name})`}
+                        onClick={() =>
+                          handleGoToPurchaseProduct({
+                            productId: Number(od.product_id),
+                            quantity: Number(od.quantity || 1),
+                            orderLineId: Number(od.order_line_id),
+                          })
+                        }
+                        className="flex-shrink-0"
+                      >
+                        <PlusIcon className="h-3.5 w-3.5" />
+                        Comprar
+                      </Button>
                     </div>
                   ))}
                 </div>
-              </section>
+              </Card>
             )}
 
             {/* Live 4-Responsible Order Monitor */}
-            <section className="rounded-2xl bg-white p-4 shadow-sm">
-              <h2 className="text-base font-extrabold text-slate-900">
-                Monitor en Tiempo Real — Trazabilidad de 4 Responsables y Márgenes
-              </h2>
-              <div className="mt-3 overflow-x-auto">
+            <Card padding="md" className="space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <h2
+                    id="monitor-table-heading"
+                    className="text-sm sm:text-base font-semibold text-[#18181B]"
+                  >
+                    Monitor en Tiempo Real
+                  </h2>
+                  <p className="text-xs text-[#5C5A55]">
+                    {showAllMonitor || recentMonitorOrders.length <= 15
+                      ? `Mostrando ${recentMonitorOrders.length} pedidos`
+                      : `Mostrando 15 de ${recentMonitorOrders.length} pedidos`}{" "}
+                    · Toca una fila para ver detalle, abonar o anular.
+                  </p>
+                </div>
+                {recentMonitorOrders.length > 15 && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowAllMonitor((prev) => !prev)}
+                  >
+                    {showAllMonitor
+                      ? "Ver últimos 15"
+                      : `Ver todos (${recentMonitorOrders.length})`}
+                  </Button>
+                )}
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="relative min-w-[200px] flex-1">
+                  <span className="pointer-events-none absolute inset-y-0 left-3.5 flex items-center text-[#6D6A64]">
+                    <SearchIcon className="h-4 w-4" />
+                  </span>
+                  <input
+                    type="text"
+                    value={monitorSearch}
+                    onChange={(e) => setMonitorSearch(e.target.value)}
+                    aria-label="Buscar en monitor de pedidos"
+                    placeholder="Buscar por pedido, cliente o vendedor..."
+                    className={`${INPUT_CLASS} py-2 pl-10 pr-8 text-xs`}
+                  />
+                  {monitorSearch && (
+                    <button
+                      type="button"
+                      data-compact="true"
+                      aria-label="Limpiar búsqueda de monitor"
+                      onClick={() => setMonitorSearch("")}
+                      className="absolute inset-y-0 right-2.5 flex items-center text-[#6D6A64] hover:text-[#18181B] cursor-pointer"
+                    >
+                      <CloseIcon className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                </div>
+                <SegmentedControl<MonitorStatusFilter>
+                  ariaLabel="Filtrar estado en monitor"
+                  value={monitorStatusFilter}
+                  onChange={setMonitorStatusFilter}
+                  options={[
+                    { id: "ALL", label: "Todos" },
+                    { id: "PENDING", label: "Por aprobar" },
+                    { id: "PROCESS", label: "En proceso" },
+                    { id: "DELIVERED", label: "Entregados" },
+                    { id: "CANCELLED", label: "Anulados" },
+                  ]}
+                />
+              </div>
+
+              {/* Mobile card view */}
+              <div className="space-y-2.5 md:hidden">
+                {(showAllMonitor
+                  ? recentMonitorOrders
+                  : recentMonitorOrders.slice(0, 15)
+                ).map((o) => {
+                  const marginVal = Number(o.order_margin_pen ?? 0);
+                  const totalVal = Number(o.total_pen ?? 0);
+                  const debtVal = Number(o.balance_due_pen ?? 0);
+                  const statusStr = String(o.operational_status ?? "");
+                  const canAbonar =
+                    debtVal > 0.05 &&
+                    statusStr !== "CANCELLED" &&
+                    statusStr !== "PENDING_PARTNER_APPROVAL";
+                  const canCancel = statusStr !== "CANCELLED";
+                  return (
+                    <div
+                      key={String(o.order_id)}
+                      className="rounded-xl border border-[#E7E5E0] bg-[#FAF9F6] p-3.5 space-y-2.5 text-xs"
+                    >
+                      <button
+                        type="button"
+                        onClick={() => setSelectedMonitorOrder(o)}
+                        aria-label={`Ver detalle del pedido ${String(o.order_code)} de ${String(o.customer_name)}`}
+                        className="w-full text-left space-y-2 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0F2942]/45 cursor-pointer"
+                      >
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <span className="font-semibold text-[#1E446B] tabular-nums">
+                            {String(o.order_code)} · {String(o.order_date)}
+                          </span>
+                          <Badge tone={operationalStatusTone(o.operational_status)}>
+                            {formatOperationalStatusEs(o.operational_status)}
+                          </Badge>
+                        </div>
+                        <p className="text-sm font-semibold text-[#18181B]">
+                          {String(o.customer_name)}
+                        </p>
+                        <p className="text-[11px] text-[#5C5A55]">
+                          <span className="text-[#6D6A64]">Equipo:</span>{" "}
+                          <span className="font-medium text-[#18181B]">
+                            {formatTraceabilitySummary(o)}
+                          </span>
+                        </p>
+                        <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-t border-[#E7E5E0] pt-2 tabular-nums">
+                          <span>
+                            Venta:{" "}
+                            <strong className="text-[#18181B]">
+                              {formatPen(totalVal)}
+                            </strong>
+                          </span>
+                          <span
+                            className={`font-semibold ${getMarginTextClass(
+                              marginVal,
+                              totalVal
+                            )}`}
+                          >
+                            Margen: {formatPen(marginVal)}
+                          </span>
+                          <span
+                            className={
+                              debtVal > 0.05
+                                ? "font-semibold text-[#B91C1C]"
+                                : "font-medium text-[#15803D]"
+                            }
+                          >
+                            {debtVal > 0.05
+                              ? `Debe: ${formatPen(debtVal)}`
+                              : "Al día"}
+                          </span>
+                        </div>
+                        <p className="text-[11px] font-medium text-[#1E446B]">
+                          Toca para ver productos comprados (
+                          {Array.isArray(o.lines) ? o.lines.length : 0})
+                        </p>
+                      </button>
+                      {(canAbonar || canCancel) && (
+                        <div className="flex flex-wrap gap-2 border-t border-[#E7E5E0]/80 pt-2">
+                          {canAbonar && (
+                            <Button
+                              variant="primary"
+                              size="sm"
+                              onClick={() => openAbonoForOrderRecord(o)}
+                              className="flex-1"
+                            >
+                              Abonar
+                            </Button>
+                          )}
+                          {canCancel && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                setCancelOrderReason("");
+                                setConfirmCancelOrder(o);
+                              }}
+                              className="border-[#FECACA] text-[#B91C1C] hover:bg-[#FEF2F2]"
+                            >
+                              Anular
+                            </Button>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Desktop table view */}
+              <div
+                tabIndex={0}
+                role="region"
+                aria-labelledby="monitor-table-heading"
+                className="table-wrapper hidden md:block"
+              >
                 <table className="w-full text-left text-xs">
-                  <thead className="border-b border-slate-200 bg-slate-50 text-[11px] font-extrabold uppercase text-slate-600">
+                  <thead className="border-b border-[#E7E5E0] bg-[#FAF9F6] text-[11px] font-semibold uppercase tracking-wide text-[#5C5A55]">
                     <tr>
-                      <th className="p-2.5">Pedido / Fecha</th>
-                      <th className="p-2.5">Cliente</th>
-                      <th className="p-2.5">Estado Operativo</th>
-                      <th className="p-2.5">1. Tomó Pedido</th>
-                      <th className="p-2.5">2. Alistó Almacén</th>
-                      <th className="p-2.5">3. Repartió Ruta</th>
-                      <th className="p-2.5 text-right">Venta Total</th>
-                      <th className="p-2.5 text-right">Margen Real</th>
-                      <th className="p-2.5 text-right">Saldo Debe</th>
+                      <th scope="col" className="whitespace-nowrap p-3">
+                        Pedido / Fecha
+                      </th>
+                      <th scope="col" className="whitespace-nowrap p-3">
+                        Cliente
+                      </th>
+                      <th scope="col" className="whitespace-nowrap p-3">
+                        Estado
+                      </th>
+                      <th scope="col" className="whitespace-nowrap p-3">
+                        Responsables
+                      </th>
+                      <th
+                        scope="col"
+                        className="whitespace-nowrap p-3 text-right"
+                      >
+                        Venta
+                      </th>
+                      <th
+                        scope="col"
+                        className="whitespace-nowrap p-3 text-right"
+                      >
+                        Margen Real
+                      </th>
+                      <th
+                        scope="col"
+                        className="whitespace-nowrap p-3 text-right"
+                      >
+                        Saldo Debe
+                      </th>
+                      <th
+                        scope="col"
+                        className="whitespace-nowrap p-3 text-right"
+                      >
+                        Acciones
+                      </th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {orders.slice(0, 35).map((o) => (
-                      <tr key={String(o.order_id)} className="hover:bg-slate-50">
-                        <td className="p-2.5 font-bold text-blue-700">
-                          {String(o.order_code)}
-                          <span className="block text-[10px] text-slate-500">
-                            {String(o.order_date)}
-                          </span>
-                        </td>
-                        <td className="p-2.5 font-bold text-slate-900">
-                          {String(o.customer_name)}
-                        </td>
-                        <td className="p-2.5">
-                          <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-bold">
-                            {String(o.operational_status)}
-                          </span>
-                        </td>
-                        <td className="p-2.5">{String(o.created_by_name || "Histórico")}</td>
-                        <td className="p-2.5">{String(o.picked_by_name || "-")}</td>
-                        <td className="p-2.5">{String(o.delivered_by_name || "-")}</td>
-                        <td className="p-2.5 text-right font-bold">
-                          S/ {Number(o.total_pen).toFixed(2)}
-                        </td>
-                        <td className="p-2.5 text-right font-extrabold text-emerald-700">
-                          S/ {Number(o.order_margin_pen ?? 0).toFixed(2)}
-                        </td>
-                        <td className="p-2.5 text-right font-extrabold text-red-700">
-                          S/ {Number(o.balance_due_pen).toFixed(2)}
-                        </td>
-                      </tr>
-                    ))}
+                  <tbody className="divide-y divide-[#E7E5E0]">
+                    {(showAllMonitor
+                      ? recentMonitorOrders
+                      : recentMonitorOrders.slice(0, 15)
+                    ).map((o) => {
+                      const marginVal = Number(o.order_margin_pen ?? 0);
+                      const totalVal = Number(o.total_pen ?? 0);
+                      const debtVal = Number(o.balance_due_pen ?? 0);
+                      const statusStr = String(o.operational_status ?? "");
+                      const canAbonar =
+                        debtVal > 0.05 &&
+                        statusStr !== "CANCELLED" &&
+                        statusStr !== "PENDING_PARTNER_APPROVAL";
+                      const canCancel = statusStr !== "CANCELLED";
+                      return (
+                        <tr
+                          key={String(o.order_id)}
+                          onClick={() => setSelectedMonitorOrder(o)}
+                          tabIndex={0}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" || e.key === " ") {
+                              e.preventDefault();
+                              setSelectedMonitorOrder(o);
+                            }
+                          }}
+                          aria-label={`Ver detalle del pedido ${String(o.order_code)}`}
+                          className="cursor-pointer transition hover:bg-[#F2F6FA]/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#0F2942]/45"
+                        >
+                          <td className="whitespace-nowrap p-3 font-semibold text-[#1E446B] tabular-nums">
+                            {String(o.order_code)}
+                            <span className="block text-[11px] font-normal text-[#6D6A64]">
+                              {String(o.order_date)}
+                            </span>
+                          </td>
+                          <td className="min-w-[160px] p-3 font-medium text-[#18181B]">
+                            {String(o.customer_name)}
+                          </td>
+                          <td className="whitespace-nowrap p-3">
+                            <Badge tone={operationalStatusTone(o.operational_status)}>
+                              {formatOperationalStatusEs(o.operational_status)}
+                            </Badge>
+                          </td>
+                          <td className="min-w-[200px] p-3 text-[#5C5A55]">
+                            {formatTraceabilitySummary(o)}
+                          </td>
+                          <td className="whitespace-nowrap p-3 text-right font-semibold text-[#18181B] tabular-nums">
+                            {formatPen(totalVal)}
+                          </td>
+                          <td
+                            className={`whitespace-nowrap p-3 text-right font-semibold tabular-nums ${getMarginTextClass(
+                              marginVal,
+                              totalVal
+                            )}`}
+                          >
+                            {formatPen(marginVal)}
+                          </td>
+                          <td
+                            className={`whitespace-nowrap p-3 text-right tabular-nums ${
+                              debtVal > 0.05
+                                ? "font-semibold text-[#B91C1C]"
+                                : "font-medium text-[#15803D]"
+                            }`}
+                          >
+                            {formatPen(debtVal)}
+                          </td>
+                          <td
+                            className="whitespace-nowrap p-3 text-right"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <div className="inline-flex items-center justify-end gap-1.5">
+                              {canAbonar && (
+                                <Button
+                                  variant="primary"
+                                  size="sm"
+                                  data-compact="true"
+                                  onClick={() => openAbonoForOrderRecord(o)}
+                                >
+                                  Abonar
+                                </Button>
+                              )}
+                              {canCancel && (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  data-compact="true"
+                                  onClick={() => {
+                                    setCancelOrderReason("");
+                                    setConfirmCancelOrder(o);
+                                  }}
+                                  className="border-[#FECACA] text-[#B91C1C] hover:bg-[#FEF2F2]"
+                                >
+                                  Anular
+                                </Button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
-            </section>
+              {ordersPagination?.hasMore && (
+                <div className="flex flex-wrap items-center justify-between gap-2 border-t border-[#E7E5E0] pt-3 text-xs text-[#5C5A55]">
+                  <span>
+                    Mostrando {orders.length} de {ordersPagination.totalCount} pedidos
+                  </span>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={loadingMoreOrders}
+                    onClick={handleLoadMoreOrders}
+                  >
+                    {loadingMoreOrders
+                      ? "Cargando..."
+                      : "Cargar más pedidos"}
+                  </Button>
+                </div>
+              )}
+            </Card>
+
+            {/* Route Trips & Quotes Operational Panels */}
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+              <Card padding="md" className="space-y-3">
+                <div className="flex items-center justify-between gap-2">
+                  <div>
+                    <h2 className="text-sm sm:text-base font-semibold text-[#18181B]">
+                      Rutas y Despachos ({routeTrips.length})
+                    </h2>
+                    <p className="text-xs text-[#5C5A55]">
+                      Seguimiento de rutas abiertas, cierre y conciliación.
+                    </p>
+                  </div>
+                </div>
+                {routeTrips.length === 0 ? (
+                  <EmptyState title="Sin rutas registradas" />
+                ) : (
+                  <div className="space-y-2.5">
+                    {routeTrips.slice(0, 8).map((tr) => {
+                      const tId = Number(tr.trip_id);
+                      const status = String(tr.status);
+                      const isBusy = busyTripId === tId;
+                      return (
+                        <div
+                          key={tId}
+                          className="rounded-xl border border-[#E7E5E0] bg-[#FAF9F6] p-3 text-xs space-y-2"
+                        >
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <div>
+                              <span className="font-semibold text-[#0F2942] tabular-nums">
+                                {String(tr.trip_code)} · {String(tr.trip_date)}
+                              </span>
+                              <p className="text-[#5C5A55]">
+                                {String(tr.zone_name || "Ruta")} ·{" "}
+                                {String(tr.driver_name || "Reparto")} ·{" "}
+                                {Number(tr.order_count ?? 0)} pedido(s) (
+                                {Number(tr.in_route_count ?? 0)} en ruta /{" "}
+                                {Number(tr.delivered_count ?? 0)} entregados)
+                              </p>
+                            </div>
+                            <Badge
+                              tone={
+                                status === "RECONCILED"
+                                  ? "success"
+                                  : status === "CLOSED"
+                                  ? "brand"
+                                  : "warning"
+                              }
+                            >
+                              {formatRouteTripStatusEs(status)}
+                            </Badge>
+                          </div>
+                          {status !== "RECONCILED" && (
+                            <div className="flex flex-wrap items-center gap-2">
+                              <input
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                placeholder="Neto caja S/ (opc.)"
+                                aria-label={`Neto declarado ruta ${String(tr.trip_code)}`}
+                                value={tripDeclaredNetById[tId] ?? ""}
+                                onChange={(e) =>
+                                  setTripDeclaredNetById((prev) => ({
+                                    ...prev,
+                                    [tId]: e.target.value,
+                                  }))
+                                }
+                                className={`${INPUT_CLASS} w-36 py-1.5 text-xs tabular-nums`}
+                              />
+                              {status === "OPEN" && (
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="sm"
+                                  data-compact="true"
+                                  disabled={isBusy}
+                                  onClick={() =>
+                                    handlePartnerTripAction(tId, "CLOSED")
+                                  }
+                                >
+                                  Cerrar
+                                </Button>
+                              )}
+                              <Button
+                                type="button"
+                                variant="success"
+                                size="sm"
+                                data-compact="true"
+                                disabled={isBusy}
+                                onClick={() =>
+                                  handlePartnerTripAction(tId, "RECONCILED")
+                                }
+                              >
+                                Conciliar
+                              </Button>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </Card>
+
+              <Card padding="md" className="space-y-3">
+                <div className="flex items-center justify-between gap-2">
+                  <div>
+                    <h2 className="text-sm sm:text-base font-semibold text-[#18181B]">
+                      Cotizaciones Comerciales ({partnerQuotes.length})
+                    </h2>
+                    <p className="text-xs text-[#5C5A55]">
+                      Convierte cotizaciones abiertas en pedido real con descuento de stock.
+                    </p>
+                  </div>
+                </div>
+                {partnerQuotes.length === 0 ? (
+                  <EmptyState title="Sin cotizaciones recientes" />
+                ) : (
+                  <div className="space-y-2.5">
+                    {partnerQuotes.slice(0, 8).map((q) => {
+                      const qId = Number(q.quote_id);
+                      const status = String(q.status);
+                      const isBusy = busyQuoteId === qId;
+                      return (
+                        <div
+                          key={qId}
+                          className="rounded-xl border border-[#E7E5E0] bg-[#FAF9F6] p-3 text-xs space-y-2"
+                        >
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <div className="min-w-0">
+                              <span className="font-semibold text-[#1E446B] tabular-nums">
+                                {String(q.quote_code)} · {String(q.issue_date)}
+                              </span>
+                              <p className="truncate font-semibold text-[#18181B]">
+                                {String(q.customer_name)}
+                              </p>
+                              <p className="text-[#5C5A55] tabular-nums">
+                                Total: {formatPen(q.total_pen)} ·{" "}
+                                {Array.isArray(q.lines) ? q.lines.length : 0} ítem(s)
+                              </p>
+                            </div>
+                            <Badge
+                              tone={
+                                status === "CONVERTED"
+                                  ? "success"
+                                  : status === "OPEN"
+                                  ? "brand"
+                                  : "neutral"
+                              }
+                            >
+                              {status === "CONVERTED"
+                                ? `Pedido ${String(q.converted_order_code || q.related_cpe || "")}`.trim()
+                                : formatQuoteStatusEs(status)}
+                            </Badge>
+                          </div>
+                          {status === "OPEN" && (
+                            <div className="flex flex-wrap gap-1.5">
+                              <Button
+                                type="button"
+                                variant="success"
+                                size="sm"
+                                data-compact="true"
+                                disabled={isBusy}
+                                onClick={() =>
+                                  handlePartnerConvertQuote(qId, "CASH")
+                                }
+                              >
+                                Convertir Contado
+                              </Button>
+                              <Button
+                                type="button"
+                                variant="primary"
+                                size="sm"
+                                data-compact="true"
+                                disabled={isBusy}
+                                onClick={() =>
+                                  handlePartnerConvertQuote(qId, "CREDIT")
+                                }
+                              >
+                                A Crédito
+                              </Button>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                data-compact="true"
+                                disabled={isBusy}
+                                onClick={() => handlePartnerCancelQuote(qId)}
+                              >
+                                Anular
+                              </Button>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </Card>
+            </div>
           </div>
         )}
 
         {tab === "deudores" && (
-          <div className="mt-4 space-y-4">
-            <div className="flex flex-wrap gap-2 rounded-2xl bg-white p-3 shadow-sm">
-              {[
-                { id: "ALL", label: `Todos los Pedidos (${debtorsByOrder.length})` },
-                {
-                  id: "DUE_TODAY_OR_TOMORROW",
-                  label: "🔥 Toca Cobrar Hoy / Mañana",
-                },
-                { id: "PROMISE_BROKEN", label: "🚨 Promesa Vencida" },
-                { id: "ON_SCHEDULE", label: "📅 En Plazo" },
-              ].map((f) => (
-                <button
-                  key={f.id}
-                  onClick={() => setPromiseFilter(f.id)}
-                  className={`rounded-xl px-3 py-2 text-xs font-extrabold ${
-                    promiseFilter === f.id
-                      ? "bg-slate-900 text-white"
-                      : "bg-slate-100 text-slate-700"
-                  }`}
-                >
-                  {f.label}
-                </button>
-              ))}
-            </div>
-
-            {(abonoOrder || fifoCustomer) && (
-              <form
-                onSubmit={handleSaveAbono}
-                className="rounded-2xl border-2 border-blue-600 bg-white p-4 shadow-lg space-y-3"
-              >
-                <div className="flex justify-between">
-                  <h3 className="text-sm font-extrabold">
-                    {fifoCustomer
-                      ? `Abono General FIFO · ${String(fifoCustomer.customerName)}`
-                      : `Registrar Abono · ${String(abonoOrder!.customerName)} (Pedido ${String(abonoOrder!.orderCode)})`}
-                  </h3>
+          <div className="space-y-4">
+            <Card padding="sm" className="space-y-2.5">
+              <div className="relative">
+                <span className="pointer-events-none absolute inset-y-0 left-3.5 flex items-center text-[#6D6A64]">
+                  <SearchIcon className="h-4 w-4" />
+                </span>
+                <input
+                  type="text"
+                  value={debtorSearch}
+                  onChange={(e) => setDebtorSearch(e.target.value)}
+                  aria-label="Buscar cliente o código de pedido en deudores"
+                  placeholder="Buscar cliente o pedido pendiente..."
+                  className={`${INPUT_CLASS} py-2 pl-10 pr-8 text-xs sm:text-sm`}
+                />
+                {debtorSearch && (
                   <button
                     type="button"
-                    onClick={() => {
-                      setAbonoOrder(null);
-                      setFifoCustomer(null);
-                    }}
-                    className="text-xs font-bold text-slate-500"
+                    data-compact="true"
+                    aria-label="Limpiar búsqueda de deudores"
+                    onClick={() => setDebtorSearch("")}
+                    className="absolute inset-y-0 right-2.5 flex items-center text-[#6D6A64] hover:text-[#18181B] cursor-pointer"
                   >
-                    Cerrar
+                    <CloseIcon className="h-4 w-4" />
                   </button>
-                </div>
-                <div className="flex gap-2">
-                  <input
-                    type="number"
-                    step="0.50"
-                    required
-                    value={abonoAmount}
-                    onChange={(e) => setAbonoAmount(e.target.value)}
-                    placeholder="Monto en Soles (S/)"
-                    className="flex-1 rounded-xl border px-3 py-2 text-sm font-bold"
-                  />
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setAbonoAmount(
-                        String(
-                          fifoCustomer
-                            ? fifoCustomer.totalBalanceDuePen
-                            : abonoOrder!.balanceDuePen
-                        )
-                      )
-                    }
-                    className="rounded-xl bg-slate-200 px-3 py-2 text-xs font-bold"
-                  >
-                    Todo (S/{" "}
-                    {Number(
-                      fifoCustomer
-                        ? fifoCustomer.totalBalanceDuePen
-                        : abonoOrder!.balanceDuePen
-                    ).toFixed(2)}
-                    )
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setAbonoAmount(
-                        String(
-                          Number(
-                            (
-                              Number(
-                                fifoCustomer
-                                  ? fifoCustomer.totalBalanceDuePen
-                                  : abonoOrder!.balanceDuePen
-                              ) / 2
-                            ).toFixed(2)
-                          )
-                        )
-                      )
-                    }
-                    className="rounded-xl bg-slate-200 px-3 py-2 text-xs font-bold"
-                  >
-                    La Mitad
-                  </button>
-                </div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-xs font-bold text-slate-600">
-                    Re-agendar saldo:
-                  </span>
-                  {CREDIT_DAY_CHIPS.map((c) => (
-                    <button
-                      key={c.days}
-                      type="button"
-                      onClick={() => setAbonoNextDays(c.days)}
-                      className={`rounded-lg px-2.5 py-1 text-xs font-bold ${
-                        abonoNextDays === c.days
-                          ? "bg-amber-600 text-white"
-                          : "bg-slate-100 text-slate-700"
-                      }`}
-                    >
-                      {c.label}
-                    </button>
-                  ))}
-                </div>
-                <button
-                  type="submit"
-                  className="w-full rounded-xl bg-emerald-600 py-3 text-sm font-extrabold text-white"
-                >
-                  Confirmar Abono
-                </button>
-              </form>
-            )}
+                )}
+              </div>
+              <PromiseFilterBar
+                value={promiseFilter}
+                onChange={setPromiseFilter}
+                totalCount={debtorsByOrder.length}
+              />
+            </Card>
 
             <div className="grid gap-4 lg:grid-cols-2">
-              <div className="rounded-2xl bg-white p-4 shadow-sm">
-                <h3 className="text-sm font-extrabold text-slate-900">
-                  Ranking de Clientes Deudores ({debtorsByCustomer.length})
-                </h3>
-                <div className="mt-3 space-y-2">
-                  {debtorsByCustomer.map((c) => (
-                    <div
-                      key={String(c.customerKey)}
-                      className="flex items-center justify-between rounded-xl border border-slate-200 p-3"
-                    >
-                      <div>
-                        <p className="text-xs font-extrabold text-slate-900">
-                          {String(c.customerName)}
-                        </p>
-                        <p className="text-[11px] text-slate-500">
-                          {Number(c.openOrdersCount)} pedido(s) · Antigüedad máx:{" "}
-                          {Number(c.maxDaysOverdue)} días · Próxima fecha:{" "}
-                          {String(c.earliestPromisedPaymentDate || "-")}
-                        </p>
-                      </div>
-                      <div className="flex flex-col items-end gap-1">
-                        <span className="rounded-full bg-red-100 px-3 py-1 text-xs font-extrabold text-red-800">
-                          S/ {Number(c.totalBalanceDuePen).toFixed(2)}
-                        </span>
-                        {Boolean(c.customerPartyId) && (
-                          <button
-                            onClick={() => {
-                              setAbonoOrder(null);
-                              setFifoCustomer(c);
-                              setAbonoAmount(String(c.totalBalanceDuePen));
-                            }}
-                            className="rounded-lg bg-blue-600 px-2.5 py-1 text-[11px] font-extrabold text-white"
-                          >
-                            + Abono FIFO
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div className="rounded-2xl bg-white p-4 shadow-sm">
-                <h3 className="text-sm font-extrabold text-slate-900">
-                  Pedidos Pendientes de Cobro y Fechas Pactadas
-                </h3>
-                <div className="mt-3 space-y-2">
-                  {debtorsByOrder
-                    .filter(
-                      (o) =>
-                        promiseFilter === "ALL" ||
-                        o.promiseStatus === promiseFilter
-                    )
-                    .map((o) => (
+              <Card padding="md" className="space-y-3">
+                <h2 className="text-sm sm:text-base font-semibold text-[#18181B]">
+                  Ranking de Clientes Deudores ({filteredDebtorsByCustomer.length}
+                  )
+                </h2>
+                {filteredDebtorsByCustomer.length === 0 ? (
+                  <EmptyState title="No hay clientes deudores con este filtro" />
+                ) : (
+                  <div className="space-y-2.5">
+                    {filteredDebtorsByCustomer.map((c) => (
                       <div
-                        key={String(o.orderId)}
-                        className="rounded-xl border border-slate-200 p-3"
+                        key={String(c.customerKey)}
+                        className="flex min-h-[88px] items-center justify-between gap-3 rounded-xl border border-[#E7E5E0] bg-[#FAF9F6]/60 p-3.5"
                       >
-                        <div className="flex justify-between">
-                          <span className="text-xs font-bold text-slate-700">
-                            {String(o.orderCode)} · {String(o.customerName)}
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setDebtDetailTarget({
+                              mode: "customer",
+                              customerKey: String(c.customerKey),
+                              customerName: String(c.customerName),
+                              customerPartyId:
+                                c.customerPartyId !== null &&
+                                c.customerPartyId !== undefined
+                                  ? Number(c.customerPartyId)
+                                  : null,
+                            })
+                          }
+                          aria-label={`Ver pedidos y productos que debe ${String(c.customerName)}`}
+                          className="min-w-0 flex-1 rounded-lg px-1 py-0.5 text-left transition hover:bg-[#F2F6FA]/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0F2942]/45 cursor-pointer"
+                        >
+                          <p className="truncate text-sm font-semibold text-[#18181B]">
+                            {String(c.customerName)}
+                          </p>
+                          <p className="mt-0.5 text-xs text-[#5C5A55] tabular-nums">
+                            {Number(c.openOrdersCount)} pedido(s) · Antigüedad:{" "}
+                            {Number(c.maxDaysOverdue)} días · Próx. visita:{" "}
+                            {String(c.earliestPromisedPaymentDate || "-")}
+                          </p>
+                          <span className="mt-1 inline-flex items-center gap-0.5 text-[11px] font-medium text-[#1E446B]">
+                            Ver detalle y productos
+                            <ChevronRightIcon className="h-3 w-3" />
                           </span>
-                          <span className="rounded bg-red-100 px-2 py-0.5 text-[11px] font-extrabold text-red-800">
-                            Hace {Number(o.daysOverdue)} días
-                          </span>
-                        </div>
-                        <p className="mt-1 text-xs text-slate-600">
-                          Total: S/ {Number(o.totalPen).toFixed(2)} · Abonado: S/{" "}
-                          {Number(o.paidPen).toFixed(2)} ·{" "}
-                          <strong className="text-red-700">
-                            Falta: S/ {Number(o.balanceDuePen).toFixed(2)}
-                          </strong>
-                        </p>
-                        <div className="mt-2 flex items-center justify-between">
-                          <span className="text-[11px] font-semibold text-slate-600">
-                            Pactado: {String(o.promisedPaymentDate || "-")} (
-                            {String(o.promiseStatus)})
-                          </span>
-                          <button
-                            onClick={() => {
-                              setAbonoOrder(o);
-                              setAbonoAmount(String(o.balanceDuePen));
-                            }}
-                            className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-extrabold text-white"
-                          >
-                            + Abonar
-                          </button>
+                        </button>
+                        <div className="flex flex-shrink-0 flex-col items-end gap-1.5">
+                          <Badge tone="danger" className="tabular-nums">
+                            {formatPen(c.totalBalanceDuePen)}
+                          </Badge>
+                          {Boolean(c.customerPartyId) && (
+                            <Button
+                              variant="primary"
+                              size="sm"
+                              aria-label={`Abonar cuenta de ${String(c.customerName)}`}
+                              onClick={() => {
+                                setAbonoOrder(null);
+                                setFifoCustomer(c);
+                                setAbonoAmount(String(c.totalBalanceDuePen));
+                                setAbonoAccountId("");
+                              }}
+                            >
+                              <PlusIcon className="h-3 w-3" />
+                              Abonar Cuenta
+                            </Button>
+                          )}
                         </div>
                       </div>
                     ))}
-                </div>
-              </div>
+                  </div>
+                )}
+              </Card>
+
+              <Card padding="md" className="space-y-3">
+                <h2 className="text-sm sm:text-base font-semibold text-[#18181B]">
+                  Pedidos Pendientes de Cobro y Fechas Pactadas (
+                  {filteredDebtorsByOrder.length})
+                </h2>
+                {filteredDebtorsByOrder.length === 0 ? (
+                  <EmptyState title="No hay pedidos pendientes con este filtro" />
+                ) : (
+                  <div className="space-y-2.5">
+                    {filteredDebtorsByOrder.map((o) => {
+                      const lineCount = Array.isArray(o.lines)
+                        ? o.lines.length
+                        : 0;
+                      return (
+                        <div
+                          key={String(o.orderId)}
+                          className="rounded-xl border border-[#E7E5E0] bg-[#FAF9F6]/60 p-3 space-y-2"
+                        >
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setDebtDetailTarget({
+                                mode: "order",
+                                orderId: Number(o.orderId),
+                              })
+                            }
+                            aria-label={`Ver productos del pedido pendiente ${String(o.orderCode)} de ${String(o.customerName)}`}
+                            className="w-full space-y-2 rounded-lg text-left transition hover:bg-[#F2F6FA]/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0F2942]/45 cursor-pointer"
+                          >
+                            <div className="flex flex-wrap items-center justify-between gap-1.5">
+                              <span className="text-xs font-semibold text-[#18181B]">
+                                {String(o.orderCode)} · {String(o.customerName)}
+                              </span>
+                              <Badge tone="danger" className="tabular-nums">
+                                Hace {Number(o.daysOverdue)} días
+                              </Badge>
+                            </div>
+                            <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-[#5C5A55] tabular-nums">
+                              <span>Total: {formatPen(o.totalPen)}</span>
+                              <span>Abonado: {formatPen(o.paidPen)}</span>
+                              <strong className="text-[#B91C1C]">
+                                Falta: {formatPen(o.balanceDuePen)}
+                              </strong>
+                              <span className="ml-auto inline-flex items-center gap-0.5 font-medium text-[#1E446B]">
+                                {lineCount > 0
+                                  ? `${lineCount} prod.`
+                                  : "Ver detalle"}
+                                <ChevronRightIcon className="h-3.5 w-3.5" />
+                              </span>
+                            </div>
+                          </button>
+                          <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
+                            <div className="flex flex-wrap items-center gap-2 text-xs text-[#5C5A55]">
+                              <span>
+                                Pactado: {String(o.promisedPaymentDate || "-")}
+                              </span>
+                              <PromiseStatusPill
+                                status={String(o.promiseStatus ?? "")}
+                              />
+                              <span className="sr-only">
+                                {formatPromiseStatusEs(o.promiseStatus)}
+                              </span>
+                            </div>
+                            <Button
+                              variant="primary"
+                              size="sm"
+                              aria-label={`Registrar abono para pedido ${String(o.orderCode)}`}
+                              onClick={() => {
+                                setFifoCustomer(null);
+                                setAbonoOrder(o);
+                                setAbonoAmount(String(o.balanceDuePen));
+                                setAbonoAccountId("");
+                              }}
+                            >
+                              <PlusIcon className="h-3.5 w-3.5" />
+                              Abonar
+                            </Button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </Card>
             </div>
           </div>
         )}
 
         {tab === "stock" && (
-          <div className="mt-4 space-y-4">
-            <section className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-300 bg-amber-50 p-4 shadow-sm">
+          <div className="space-y-4">
+            <Card
+              tone={negStockCount > 0 ? "warning" : "default"}
+              padding="md"
+              className="flex flex-wrap items-center justify-between gap-3"
+            >
               <div>
-                <h2 className="text-base font-extrabold text-amber-950">
+                <h2 className="text-sm sm:text-base font-semibold text-[#18181B]">
                   Puesta a Punto de Inventario (Día 1)
                 </h2>
-                <p className="text-xs text-amber-900">
-                  Existen actualmente <strong>{negStockCount} SKUs</strong> con
-                  saldo negativo histórico por ventas sin compra previa registrada.
+                <p className="mt-0.5 text-xs text-[#5C5A55]">
+                  Existen actualmente{" "}
+                  <strong className="text-[#18181B]">
+                    {negStockCount} productos
+                  </strong>{" "}
+                  con saldo negativo histórico por ventas sin compra previa
+                  registrada.
                 </p>
               </div>
-              <button
-                onClick={handleResetNegativeStock}
-                className="rounded-xl bg-amber-600 px-4 py-3 text-xs font-extrabold text-white shadow hover:bg-amber-700"
+              <Button
+                variant="primary"
+                size="md"
+                disabled={busyResetStock || negStockCount === 0}
+                onClick={() => setConfirmResetNegativeOpen(true)}
               >
-                Poner en 0 los {negStockCount} Saldos Negativos Históricos
-              </button>
-            </section>
+                {busyResetStock
+                  ? "Regularizando..."
+                  : `Poner en 0 los ${negStockCount} saldos negativos`}
+              </Button>
+            </Card>
 
-            {editingProd && (
-              <form
-                onSubmit={handleSaveProduct}
-                className="rounded-2xl border-2 border-blue-600 bg-white p-4 shadow-lg space-y-3"
-              >
-                <div className="flex justify-between">
-                  <h3 className="text-sm font-extrabold">
-                    Editar Producto: {editingProd.sku} — {editingProd.name}
-                  </h3>
-                  <button
-                    type="button"
-                    onClick={() => setEditingProd(null)}
-                    className="text-xs font-bold text-slate-500"
-                  >
-                    Cerrar
-                  </button>
-                </div>
-                <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
-                  <div>
-                    <label className="block text-[10px] font-bold uppercase text-slate-500">
-                      Stock Físico Real
-                    </label>
-                    <input
-                      type="number"
-                      step="1"
-                      value={editStock}
-                      onChange={(e) => setEditStock(e.target.value)}
-                      className="mt-1 w-full rounded-lg border px-2.5 py-2 text-sm font-bold"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-bold uppercase text-slate-500">
-                      Costo Real (S/)
-                    </label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={editCost}
-                      onChange={(e) => setEditCost(e.target.value)}
-                      className="mt-1 w-full rounded-lg border px-2.5 py-2 text-sm font-bold"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-bold uppercase text-slate-500">
-                      Precio Normal (S/)
-                    </label>
-                    <input
-                      type="number"
-                      step="0.50"
-                      value={editPrice}
-                      onChange={(e) => setEditPrice(e.target.value)}
-                      className="mt-1 w-full rounded-lg border px-2.5 py-2 text-sm font-bold"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-bold uppercase text-slate-500">
-                      Precio Mínimo (S/)
-                    </label>
-                    <input
-                      type="number"
-                      step="0.50"
-                      value={editMinPrice}
-                      onChange={(e) => setEditMinPrice(e.target.value)}
-                      className="mt-1 w-full rounded-lg border px-2.5 py-2 text-sm font-bold"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-bold uppercase text-slate-500">
-                      Modalidad
-                    </label>
-                    <select
-                      value={editMode}
-                      onChange={(e) =>
-                        setEditMode(e.target.value as "STOCKED" | "ON_DEMAND")
-                      }
-                      className="mt-1 w-full rounded-lg border px-2.5 py-2 text-sm font-bold"
+            <Card padding="md" className="space-y-3.5">
+              <div className="flex flex-wrap items-center justify-between gap-2.5">
+                <div className="relative w-full sm:w-auto sm:min-w-[220px] sm:flex-1">
+                  <span className="pointer-events-none absolute inset-y-0 left-3.5 flex items-center text-[#6D6A64]">
+                    <SearchIcon className="h-4 w-4" />
+                  </span>
+                  <input
+                    type="text"
+                    value={searchSku}
+                    onChange={(e) => {
+                      setSearchSku(e.target.value);
+                      setShowAllCatalog(false);
+                    }}
+                    aria-label="Buscar producto en inventario"
+                    placeholder="Buscar producto por nombre o código..."
+                    className={`${INPUT_CLASS} pl-10 pr-8`}
+                  />
+                  {searchSku && (
+                    <button
+                      type="button"
+                      data-compact="true"
+                      aria-label="Limpiar búsqueda de producto"
+                      onClick={() => {
+                        setSearchSku("");
+                        setShowAllCatalog(false);
+                      }}
+                      className="absolute inset-y-0 right-2.5 flex items-center text-[#6D6A64] hover:text-[#18181B] cursor-pointer"
                     >
-                      <option value="STOCKED">STOCKED (Con Stock)</option>
-                      <option value="ON_DEMAND">ON_DEMAND (Bajo Pedido)</option>
-                    </select>
-                  </div>
+                      <CloseIcon className="h-4 w-4" />
+                    </button>
+                  )}
                 </div>
-                <button
-                  type="submit"
-                  className="w-full rounded-xl bg-blue-600 py-2.5 text-xs font-extrabold text-white"
-                >
-                  Guardar Cambios en Catálogo e Inventario
-                </button>
-              </form>
-            )}
-
-            <section className="rounded-2xl bg-white p-4 shadow-sm">
-              <input
-                type="text"
-                value={searchSku}
-                onChange={(e) => setSearchSku(e.target.value)}
-                placeholder="Buscar producto por nombre o SKU para editar costo, precio mínimo o stock..."
-                className="w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm"
-              />
-              <div className="mt-3 overflow-x-auto">
-                <table className="w-full text-left text-xs">
-                  <thead className="border-b bg-slate-50 text-[11px] font-extrabold uppercase text-slate-600">
-                    <tr>
-                      <th className="p-2">SKU / Producto</th>
-                      <th className="p-2">Modo</th>
-                      <th className="p-2 text-right">Stock Actual</th>
-                      <th className="p-2 text-right">Costo Real (S/)</th>
-                      <th className="p-2 text-right">Precio Normal (S/)</th>
-                      <th className="p-2 text-right">Precio Mínimo (S/)</th>
-                      <th className="p-2 text-right">Acción</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {catalog
-                      .filter(
-                        (p) =>
-                          p.name.toLowerCase().includes(searchSku.toLowerCase()) ||
-                          p.sku.toLowerCase().includes(searchSku.toLowerCase())
-                      )
-                      .slice(0, 40)
-                      .map((p) => (
-                        <tr key={p.product_id}>
-                          <td className="p-2 font-bold">
-                            {p.name}
-                            <span className="block text-[10px] text-slate-500">
-                              {p.sku}
-                            </span>
-                          </td>
-                          <td className="p-2">{p.fulfillment_mode}</td>
-                          <td
-                            className={`p-2 text-right font-extrabold ${
-                              p.stock_on_hand < 0
-                                ? "text-red-600"
-                                : "text-slate-900"
-                            }`}
-                          >
-                            {p.stock_on_hand}
-                          </td>
-                          <td className="p-2 text-right">
-                            {p.ref_cost_pen !== null
-                              ? `S/ ${p.ref_cost_pen.toFixed(2)}`
-                              : "SIN COSTO"}
-                          </td>
-                          <td className="p-2 text-right font-bold">
-                            S/ {Number(p.list_sale_price_pen ?? 0).toFixed(2)}
-                          </td>
-                          <td className="p-2 text-right font-bold text-blue-700">
-                            S/ {Number(p.min_sale_price_pen ?? 0).toFixed(2)}
-                          </td>
-                          <td className="p-2 text-right">
-                            <button
-                              onClick={() => {
-                                setEditingProd(p);
-                                setEditStock(String(p.stock_on_hand));
-                                setEditCost(
-                                  p.ref_cost_pen !== null
-                                    ? String(p.ref_cost_pen)
-                                    : ""
-                                );
-                                setEditPrice(String(p.list_sale_price_pen ?? ""));
-                                setEditMinPrice(String(p.min_sale_price_pen ?? ""));
-                                setEditMode(p.fulfillment_mode);
-                              }}
-                              className="rounded-lg bg-slate-900 px-2.5 py-1 text-xs font-bold text-white"
-                            >
-                              Editar
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
-                  </tbody>
-                </table>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-medium text-[#5C5A55] tabular-nums">
+                    Mostrando {visibleCatalog.length} de {filteredCatalog.length}{" "}
+                    productos
+                  </span>
+                  {filteredCatalog.length > 40 && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setShowAllCatalog((prev) => !prev)}
+                    >
+                      {showAllCatalog
+                        ? "Ver 40"
+                        : `Ver todos (${filteredCatalog.length})`}
+                    </Button>
+                  )}
+                </div>
               </div>
-            </section>
+
+              {visibleCatalog.length === 0 ? (
+                <EmptyState title="No se encontraron productos para esta búsqueda" />
+              ) : (
+                <>
+                  {/* Mobile catalog cards */}
+                  <div className="space-y-2.5 md:hidden">
+                    {visibleCatalog.map((p) => (
+                      <div
+                        key={p.product_id}
+                        className="rounded-xl border border-[#E7E5E0] bg-[#FAF9F6] p-3 space-y-2 text-xs"
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0 flex-1">
+                            <p className="text-sm font-semibold text-[#18181B]">
+                              {p.name}
+                            </p>
+                            <p className="text-[11px] text-[#6D6A64]">
+                              {p.sku}
+                            </p>
+                          </div>
+                          <Badge
+                            tone={
+                              p.fulfillment_mode === "ON_DEMAND"
+                                ? "warning"
+                                : "neutral"
+                            }
+                          >
+                            {formatFulfillmentModeEs(p.fulfillment_mode)}
+                          </Badge>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2 border-t border-[#E7E5E0]/80 pt-2 tabular-nums">
+                          <div>
+                            <span className="block text-[11px] text-[#5C5A55]">
+                              Stock actual
+                            </span>
+                            <span
+                              className={`font-semibold ${
+                                p.stock_on_hand < 0
+                                  ? "text-[#B91C1C]"
+                                  : "text-[#18181B]"
+                              }`}
+                            >
+                              {p.stock_on_hand}{" "}
+                              <span
+                                title={formatUnitTitleEs(p.unit_of_measure)}
+                                className="text-[11px] font-medium text-[#6D6A64]"
+                              >
+                                {p.unit_of_measure}
+                              </span>
+                            </span>
+                          </div>
+                          <div>
+                            <span className="block text-[11px] text-[#5C5A55]">
+                              Costo real
+                            </span>
+                            <span className="font-semibold text-[#18181B]">
+                              {p.ref_cost_pen !== null
+                                ? formatPen(p.ref_cost_pen)
+                                : "Sin costo"}
+                            </span>
+                          </div>
+                          <div>
+                            <span className="block text-[11px] text-[#5C5A55]">
+                              Precio normal
+                            </span>
+                            <span className="font-semibold text-[#18181B]">
+                              {formatPen(p.list_sale_price_pen ?? 0)} /{" "}
+                              {p.unit_of_measure}
+                            </span>
+                          </div>
+                          <div>
+                            <span className="block text-[11px] text-[#5C5A55]">
+                              Precio mínimo
+                            </span>
+                            <span className="font-semibold text-[#1E446B]">
+                              {formatPen(p.min_sale_price_pen ?? 0)} /{" "}
+                              {p.unit_of_measure}
+                            </span>
+                          </div>
+                        </div>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          aria-label={`Editar precio o stock de ${p.sku} (${p.name})`}
+                          onClick={() => openEditProduct(p)}
+                          className="w-full"
+                        >
+                          <EditIcon className="h-3.5 w-3.5" />
+                          Editar precio / stock
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Desktop catalog table */}
+                  <div
+                    tabIndex={0}
+                    role="region"
+                    aria-label="Inventario y precios de catálogo"
+                    className="table-wrapper hidden md:block"
+                  >
+                    <table className="w-full text-left text-xs">
+                      <thead className="border-b border-[#E7E5E0] bg-[#FAF9F6] text-[11px] font-semibold uppercase tracking-wide text-[#5C5A55]">
+                        <tr>
+                          <th scope="col" className="whitespace-nowrap p-2.5">
+                            Código / Producto
+                          </th>
+                          <th scope="col" className="whitespace-nowrap p-2.5">
+                            Modalidad
+                          </th>
+                          <th
+                            scope="col"
+                            className="whitespace-nowrap p-2.5 text-right"
+                          >
+                            Inventario
+                          </th>
+                          <th
+                            scope="col"
+                            className="whitespace-nowrap p-2.5 text-right"
+                          >
+                            Costo Real
+                          </th>
+                          <th
+                            scope="col"
+                            className="whitespace-nowrap p-2.5 text-right"
+                          >
+                            Precio Normal
+                          </th>
+                          <th
+                            scope="col"
+                            className="whitespace-nowrap p-2.5 text-right"
+                          >
+                            Precio Mínimo
+                          </th>
+                          <th
+                            scope="col"
+                            className="whitespace-nowrap p-2.5 text-right"
+                          >
+                            Acción
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-[#E7E5E0]">
+                        {visibleCatalog.map((p) => (
+                          <tr
+                            key={p.product_id}
+                            className="transition hover:bg-[#FAF9F6]"
+                          >
+                            <td className="min-w-[180px] p-2.5 font-medium text-[#18181B]">
+                              {p.name}
+                              <span className="block text-[11px] font-normal text-[#6D6A64]">
+                                {p.sku}
+                              </span>
+                            </td>
+                            <td className="whitespace-nowrap p-2.5">
+                              <Badge
+                                tone={
+                                  p.fulfillment_mode === "ON_DEMAND"
+                                    ? "warning"
+                                    : "neutral"
+                                }
+                              >
+                                {formatFulfillmentModeEs(p.fulfillment_mode)}
+                              </Badge>
+                            </td>
+                            <td
+                              className={`whitespace-nowrap p-2.5 text-right font-semibold tabular-nums ${
+                                p.stock_on_hand < 0
+                                  ? "text-[#B91C1C]"
+                                  : "text-[#18181B]"
+                              }`}
+                            >
+                              {p.stock_on_hand}{" "}
+                              <span
+                                title={formatUnitTitleEs(p.unit_of_measure)}
+                                className="text-[11px] font-normal text-[#6D6A64]"
+                              >
+                                {p.unit_of_measure}
+                              </span>
+                            </td>
+                            <td className="whitespace-nowrap p-2.5 text-right text-[#5C5A55] tabular-nums">
+                              {p.ref_cost_pen !== null
+                                ? formatPen(p.ref_cost_pen)
+                                : "Sin costo"}
+                            </td>
+                            <td className="p-2.5 text-right font-semibold text-[#18181B] tabular-nums">
+                              {formatPen(p.list_sale_price_pen ?? 0)} /{" "}
+                              {p.unit_of_measure}
+                            </td>
+                            <td className="p-2.5 text-right font-semibold text-[#1E446B] tabular-nums">
+                              {formatPen(p.min_sale_price_pen ?? 0)} /{" "}
+                              {p.unit_of_measure}
+                            </td>
+                            <td className="p-2.5 text-right">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                aria-label={`Editar ${p.sku} (${p.name})`}
+                                onClick={() => openEditProduct(p)}
+                              >
+                                <EditIcon className="h-3.5 w-3.5" />
+                                Editar
+                              </Button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </>
+              )}
+            </Card>
           </div>
         )}
 
         {tab === "caja" && (
-          <div className="mt-4 grid gap-4 lg:grid-cols-2">
-            <form
-              onSubmit={handleSaveOutflow}
-              className="space-y-3 rounded-2xl bg-white p-4 shadow-sm"
-            >
-              <h2 className="text-base font-extrabold text-slate-900">
-                Registrar Salida de Caja / Pago a Proveedor / Retiro
-              </h2>
-              <select
-                value={outflowBucket}
-                onChange={(e) =>
-                  setOutflowBucket(e.target.value as typeof outflowBucket)
-                }
-                className="w-full rounded-xl border px-3 py-2.5 text-sm font-bold"
-              >
-                <option value="ROUTE_OPEX">Gasto Operativo de Ruta (ROUTE_OPEX)</option>
-                <option value="MERCHANDISE_PAYMENT">
-                  Pago de Mercadería / Proveedor (MERCHANDISE_PAYMENT)
-                </option>
-                <option value="NON_OPEX_OR_CAPEX">
-                  Retiro Socio / Gasto No Operativo (NON_OPEX_OR_CAPEX)
-                </option>
-              </select>
-              <input
-                type="text"
-                required
-                value={outflowCategory}
-                onChange={(e) => setOutflowCategory(e.target.value)}
-                placeholder="Categoría (ej. PAGO_PROVEEDOR, COMBUSTIBLE, RETIRO_SOCIO)"
-                className="w-full rounded-xl border px-3 py-2 text-sm font-bold"
-              />
-              <input
-                type="number"
-                step="0.50"
-                required
-                value={outflowAmount}
-                onChange={(e) => setOutflowAmount(e.target.value)}
-                placeholder="Monto en Soles (S/)"
-                className="w-full rounded-xl border px-3 py-2 text-sm font-bold"
-              />
-              <input
-                type="text"
-                required
-                value={outflowDesc}
-                onChange={(e) => setOutflowDesc(e.target.value)}
-                placeholder="Descripción detallada"
-                className="w-full rounded-xl border px-3 py-2 text-sm"
-              />
-              <button
-                type="submit"
-                className="w-full rounded-xl bg-blue-600 py-3 text-sm font-extrabold text-white"
-              >
-                Guardar Movimiento de Caja
-              </button>
-            </form>
-
-            <div className="rounded-2xl bg-white p-4 shadow-sm">
-              <h2 className="text-base font-extrabold text-slate-900">
-                Cuentas por Pagar a Proveedores (Qingdao / AP)
-              </h2>
-              <div className="mt-2 max-h-80 space-y-2 overflow-y-auto">
-                {(
-                  (treasuryData?.apObligations as Array<Record<string, unknown>>) ||
-                  []
-                ).map((ap) => (
-                  <div
-                    key={String(ap.obligation_id)}
-                    className="flex items-center justify-between rounded-xl border p-2.5 text-xs"
-                  >
-                    <div>
-                      <p className="font-bold text-slate-900">
-                        {String(ap.doc_ref)} · {String(ap.issue_date)}
-                      </p>
-                      <p className="text-slate-500">
-                        Total: S/ {Number(ap.principal_pen).toFixed(2)} · Pagado: S/{" "}
-                        {Number(ap.paid_pen).toFixed(2)}
-                      </p>
-                    </div>
-                    <span className="font-extrabold text-red-700">
-                      Saldo: S/ {Number(ap.balance_pen).toFixed(2)}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
+          <CajaProveedoresTab
+            catalog={catalog}
+            accounts={accounts}
+            ledger={ledger}
+            apObligations={apObligations}
+            suppliers={suppliers}
+            recentPurchases={recentPurchases}
+            pendingOnDemand={pendingOnDemand}
+            preselectedTarget={preselectedPurchaseTarget}
+            onClearPreselectedTarget={() =>
+              setPreselectedPurchaseTarget(null)
+            }
+            onRefresh={loadDashboard}
+            onFeedback={showFeedback}
+            onEditingChange={setSubTabEditing}
+          />
         )}
 
         {tab === "kpis" && kpiQ1 && (
-          <div className="mt-4 space-y-6">
-            <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-              <div className="rounded-2xl bg-white p-4 shadow-sm">
-                <span className="text-xs font-bold uppercase text-slate-500">
-                  Ventas Totales ({String(kpiQ1.period_start)} a{" "}
-                  {String(kpiQ1.period_end)})
-                </span>
-                <p className="mt-1 text-2xl font-extrabold text-slate-900">
-                  S/ {Number(kpiQ1.total_sales_pen).toLocaleString("es-PE")}
-                </p>
-                <span className="text-xs text-emerald-700 font-bold">
-                  Cobrado: S/{" "}
-                  {Number(kpiQ1.collected_sales_pen).toLocaleString("es-PE")}
-                </span>
-              </div>
-              <div className="rounded-2xl bg-white p-4 shadow-sm">
-                <span className="text-xs font-bold uppercase text-slate-500">
-                  Cuentas por Cobrar (AR Pendiente)
-                </span>
-                <p className="mt-1 text-2xl font-extrabold text-red-600">
-                  S/ {Number(kpiQ1.accounts_receivable_pen).toLocaleString("es-PE")}
-                </p>
-                <span className="text-xs text-slate-600">
-                  12 pedidos históricos vencidos + cartera activa
-                </span>
-              </div>
-              <div className="rounded-2xl bg-white p-4 shadow-sm">
-                <span className="text-xs font-bold uppercase text-slate-500">
-                  Ratio Drenaje No-OpEx vs Reinversión
-                </span>
-                <p className="mt-1 text-2xl font-extrabold text-amber-600">
-                  {Number(kpiQ1.non_opex_vs_reinvestment_ratio_pct).toFixed(2)}%
-                </p>
-                <span className="text-xs font-bold text-red-700">
-                  {String(kpiQ1.reinvestment_health_flag)} (Meta &lt; 30%)
-                </span>
-              </div>
-              <div className="rounded-2xl bg-white p-4 shadow-sm">
-                <span className="text-xs font-bold uppercase text-slate-500">
-                  Brecha Arqueo Efectivo Ruta
-                </span>
-                <p className="mt-1 text-2xl font-extrabold text-slate-900">
-                  S/ {Number(kpiQ1.reconciliation_gap_pen).toFixed(2)} (
-                  {Number(kpiQ1.reconciliation_gap_pct).toFixed(2)}%)
-                </p>
-                <span className="text-xs text-emerald-700 font-bold">
-                  {String(kpiQ1.reconciliation_health_flag)}
-                </span>
-              </div>
-            </section>
-
-            <section className="rounded-2xl bg-white p-4 shadow-sm">
-              <h2 className="text-base font-extrabold text-slate-900">
-                Top SKUs por Ingresos y Margen Bruto Real (P2)
-              </h2>
-              <div className="mt-3 overflow-x-auto">
-                <table className="w-full text-left text-xs">
-                  <thead className="border-b bg-slate-50 text-[11px] font-extrabold uppercase text-slate-600">
-                    <tr>
-                      <th className="p-2">SKU / Producto</th>
-                      <th className="p-2 text-right">Unid. Vendidas</th>
-                      <th className="p-2 text-right">Ingresos (S/)</th>
-                      <th className="p-2 text-right">Costo COGS (S/)</th>
-                      <th className="p-2 text-right">Margen Bruto (S/)</th>
-                      <th className="p-2 text-right">Margen %</th>
-                      <th className="p-2">Estado</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {kpiQ2TopSkus.map((sku) => (
-                      <tr key={String(sku.sku)}>
-                        <td className="p-2 font-bold">
-                          {String(sku.product_name)}
-                          <span className="block text-[10px] text-slate-500">
-                            {String(sku.sku)}
-                          </span>
-                        </td>
-                        <td className="p-2 text-right">
-                          {Number(sku.total_units_sold)}
-                        </td>
-                        <td className="p-2 text-right font-bold">
-                          S/ {Number(sku.total_revenue_pen).toFixed(2)}
-                        </td>
-                        <td className="p-2 text-right">
-                          {sku.total_cogs_pen !== null
-                            ? `S/ ${Number(sku.total_cogs_pen).toFixed(2)}`
-                            : "-"}
-                        </td>
-                        <td className="p-2 text-right font-extrabold text-emerald-700">
-                          {sku.gross_margin_pen !== null
-                            ? `S/ ${Number(sku.gross_margin_pen).toFixed(2)}`
-                            : "-"}
-                        </td>
-                        <td className="p-2 text-right font-bold">
-                          {sku.gross_margin_pct !== null
-                            ? `${Number(sku.gross_margin_pct).toFixed(1)}%`
-                            : "-"}
-                        </td>
-                        <td className="p-2">
-                          <span className="rounded bg-slate-100 px-2 py-0.5 text-[10px] font-bold">
-                            {String(sku.margin_health_status)}
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </section>
-
-            <section className="rounded-2xl bg-white p-4 shadow-sm">
-              <h2 className="text-base font-extrabold text-slate-900">
-                 Estado de Calidad de Datos e Integridad Operativa
-              </h2>
-              <div className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                {qualityGaps.map((g) => (
-                  <div
-                    key={String(g.metric_code)}
-                    className="rounded-xl border border-slate-200 p-3 text-xs"
-                  >
-                    <span className="font-bold text-slate-500">
-                      {String(g.metric_code)}
-                    </span>
-                    <p className="mt-0.5 font-extrabold text-slate-900">
-                      {String(g.metric_label)}: {Number(g.gap_count)} casos (S/{" "}
-                      {Number(g.impacted_amount_pen).toFixed(2)})
-                    </p>
-                    <p className="mt-1 text-[11px] text-slate-600">
-                      {String(g.recommended_action)}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            </section>
-          </div>
+          <KpisBiTab
+            currentUser={currentUser}
+            kpiQ1={kpiQ1}
+            openDebtorsCount={openDebtorsCount}
+            kpiQ2TopSkus={kpiQ2TopSkus}
+            qualityGaps={qualityGaps}
+            auditFlags={
+              Array.isArray(partnerData?.auditFlags)
+                ? (partnerData.auditFlags as AuditFlagItem[])
+                : undefined
+            }
+            auditFlagCounts={
+              partnerData?.auditFlagCounts as AuditFlagCounts | undefined
+            }
+            biSummary={biSummary}
+            users={appUsers}
+            onGoToPurchaseProduct={handleGoToPurchaseProduct}
+            onGoToEditProduct={handleGoToEditProduct}
+            onRefresh={loadDashboard}
+            onFeedback={showFeedback}
+            onEditingChange={setSubTabEditing}
+          />
         )}
-      </div>
+      </main>
+
+      {/* Product Edit Modal / Bottom Sheet */}
+      <ModalSheet
+        open={Boolean(editingProd)}
+        onClose={() => setEditingProd(null)}
+        title={
+          editingProd ? `Editar producto · ${editingProd.sku}` : "Editar producto"
+        }
+        subtitle={editingProd?.name}
+        maxWidth="2xl"
+      >
+        {editingProd && (
+          <form onSubmit={handleSaveProduct} className="space-y-4">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div>
+                <FieldLabel htmlFor="edit-prod-stock">
+                  Inventario físico real ({editingProd.unit_of_measure})
+                </FieldLabel>
+                <input
+                  id="edit-prod-stock"
+                  type="number"
+                  step="0.01"
+                  value={editStock}
+                  onChange={(e) => setEditStock(e.target.value)}
+                  className={`${INPUT_CLASS} mt-1.5 font-semibold tabular-nums`}
+                />
+              </div>
+              <div>
+                <FieldLabel htmlFor="edit-prod-cost">Costo real (S/)</FieldLabel>
+                <input
+                  id="edit-prod-cost"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={editCost}
+                  onChange={(e) => setEditCost(e.target.value)}
+                  placeholder="Sin costo"
+                  className={`${INPUT_CLASS} mt-1.5 font-semibold tabular-nums`}
+                />
+              </div>
+              <div>
+                <FieldLabel htmlFor="edit-prod-price">
+                  Precio normal (S/)
+                </FieldLabel>
+                <input
+                  id="edit-prod-price"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={editPrice}
+                  onChange={(e) => setEditPrice(e.target.value)}
+                  className={`${INPUT_CLASS} mt-1.5 font-semibold tabular-nums`}
+                />
+              </div>
+              <div>
+                <FieldLabel htmlFor="edit-prod-min">
+                  Precio mínimo (S/)
+                </FieldLabel>
+                <input
+                  id="edit-prod-min"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={editMinPrice}
+                  onChange={(e) => setEditMinPrice(e.target.value)}
+                  className={`${INPUT_CLASS} mt-1.5 font-semibold tabular-nums`}
+                />
+              </div>
+              <div className="sm:col-span-2">
+                <FieldLabel htmlFor="edit-prod-mode">Modalidad</FieldLabel>
+                <select
+                  id="edit-prod-mode"
+                  value={editMode}
+                  onChange={(e) =>
+                    setEditMode(e.target.value as "STOCKED" | "ON_DEMAND")
+                  }
+                  className={`${INPUT_CLASS} mt-1.5 font-medium`}
+                >
+                  <option value="STOCKED">Con Inventario Propio</option>
+                  <option value="ON_DEMAND">Bajo Pedido (Sin Almacén)</option>
+                </select>
+              </div>
+            </div>
+
+            {hasPreviewCost &&
+              Number.isFinite(previewPrice) &&
+              previewPrice > 0 && (
+                <div className="grid grid-cols-2 gap-2.5 rounded-xl border border-[#E7E5E0] bg-[#FAF9F6] p-3 text-xs tabular-nums">
+                  <div>
+                    <span className="block text-[#5C5A55]">
+                      Margen al precio normal
+                    </span>
+                    <strong className="text-[#15803D]">
+                      {formatPen(previewPrice - previewCost)} (
+                      {(
+                        ((previewPrice - previewCost) / previewPrice) *
+                        100
+                      ).toFixed(1)}
+                      %)
+                    </strong>
+                  </div>
+                  <div>
+                    <span className="block text-[#5C5A55]">
+                      Margen al precio mínimo
+                    </span>
+                    <strong
+                      className={
+                        previewMin - previewCost <= 0
+                          ? "text-[#B91C1C]"
+                          : "text-[#18181B]"
+                      }
+                    >
+                      {Number.isFinite(previewMin) && previewMin > 0
+                        ? `${formatPen(previewMin - previewCost)} (${(
+                            ((previewMin - previewCost) / previewMin) *
+                            100
+                          ).toFixed(1)}%)`
+                        : "-"}
+                    </strong>
+                  </div>
+                </div>
+              )}
+
+            <div className="flex gap-2 pt-1">
+              <Button
+                variant="outline"
+                onClick={() => setEditingProd(null)}
+                className="flex-1"
+              >
+                Cancelar
+              </Button>
+              <Button
+                type="submit"
+                variant="primary"
+                disabled={busySaveProduct}
+                className="flex-[2]"
+              >
+                {busySaveProduct ? "Guardando..." : "Guardar Cambios"}
+              </Button>
+            </div>
+          </form>
+        )}
+      </ModalSheet>
+
+      {/* Shared Abono Modal */}
+      <ModalSheet
+        open={Boolean(selectedMonitorOrder)}
+        onClose={() => setSelectedMonitorOrder(null)}
+        title={
+          selectedMonitorOrder
+            ? `Detalle ${String(selectedMonitorOrder.order_code)} · ${String(
+                selectedMonitorOrder.customer_name
+              )}`
+            : "Detalle del pedido"
+        }
+        subtitle={
+          selectedMonitorOrder
+            ? `${String(selectedMonitorOrder.order_date)} · Estado: ${formatOperationalStatusEs(
+                selectedMonitorOrder.operational_status
+              )}`
+            : undefined
+        }
+        maxWidth="lg"
+      >
+      {selectedMonitorOrder && (() => {
+        const marginVal = Number(selectedMonitorOrder.order_margin_pen ?? 0);
+        const totalVal = Number(selectedMonitorOrder.total_pen ?? 0);
+        const debtVal = Number(selectedMonitorOrder.balance_due_pen ?? 0);
+        const statusStr = String(selectedMonitorOrder.operational_status ?? "");
+        const canAbonar =
+          debtVal > 0.05 &&
+          statusStr !== "CANCELLED" &&
+          statusStr !== "PENDING_PARTNER_APPROVAL";
+        const canCancel = statusStr !== "CANCELLED";
+        return (
+          <div className="space-y-3 text-xs">
+            <div className="grid grid-cols-1 gap-2 rounded-xl border border-[#D4E0EC] bg-[#F2F6FA]/70 p-3 sm:grid-cols-3 tabular-nums">
+              <div>
+                <span className="block text-[11px] text-[#5C5A55]">Venta</span>
+                <strong className="text-sm text-[#18181B]">
+                  {formatPen(totalVal)}
+                </strong>
+              </div>
+              <div>
+                <span className="block text-[11px] text-[#5C5A55]">Margen</span>
+                <strong
+                  className={`text-sm ${getMarginTextClass(marginVal, totalVal)}`}
+                >
+                  {formatPen(marginVal)}
+                </strong>
+              </div>
+              <div>
+                <span className="block text-[11px] text-[#5C5A55]">Saldo</span>
+                <strong
+                  className={`text-sm ${
+                    debtVal > 0.05 ? "text-[#B91C1C]" : "text-[#15803D]"
+                  }`}
+                >
+                  {formatPen(debtVal)}
+                </strong>
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <p className="font-semibold text-[#0F2942]">
+                Productos comprados (
+                {Array.isArray(selectedMonitorOrder.lines)
+                  ? selectedMonitorOrder.lines.length
+                  : 0}
+                )
+              </p>
+              <div className="space-y-1.5">
+                {Array.isArray(selectedMonitorOrder.lines) &&
+                selectedMonitorOrder.lines.length > 0 ? (
+                  (
+                    selectedMonitorOrder.lines as Array<Record<string, unknown>>
+                  ).map((ln) => (
+                    <div
+                      key={String(ln.order_line_id)}
+                      className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-[#E7E5E0] bg-[#FAF9F6] px-3 py-2"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <p className="font-medium text-[#18181B]">
+                          {String(ln.raw_description || ln.sku)}
+                        </p>
+                        <p className="text-[11px] text-[#5C5A55] tabular-nums">
+                          {Number(ln.quantity)}{" "}
+                          <span title={formatUnitTitleEs(ln.unit_of_measure)}>
+                            {String(ln.unit_of_measure || "NIU")}
+                          </span>{" "}
+                          × {formatPen(ln.unit_price_pen)}
+                          {Number(ln.unit_discount_pen || 0) > 0
+                            ? ` (desc. ${formatPen(ln.unit_discount_pen)}/u)`
+                            : ""}{" "}
+                          · {formatFulfillmentModeEs(ln.fulfillment_mode)}
+                        </p>
+                      </div>
+                      <div className="text-right tabular-nums">
+                        <span className="block font-semibold text-[#18181B]">
+                          {formatPen(ln.line_total_pen)}
+                        </span>
+                        {ln.line_margin_pen !== null &&
+                          ln.line_margin_pen !== undefined && (
+                            <span
+                              className={`block text-[11px] font-medium ${
+                                Number(ln.line_margin_pen) <= 0
+                                  ? "text-[#B91C1C]"
+                                  : "text-[#15803D]"
+                              }`}
+                            >
+                              {Number(ln.line_margin_pen) >= 0 ? "+" : ""}
+                              {formatPen(ln.line_margin_pen)}
+                            </span>
+                          )}
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-[#5C5A55]">Sin líneas registradas.</p>
+                )}
+              </div>
+            </div>
+
+            {selectedMonitorOrder.notes ? (
+              <p className="rounded-lg border border-[#E7E5E0] bg-white px-3 py-2 text-[#5C5A55]">
+                Nota: {String(selectedMonitorOrder.notes)}
+              </p>
+            ) : null}
+
+            {(canAbonar || canCancel) && (
+              <div className="flex flex-col-reverse gap-2 border-t border-[#E7E5E0] pt-3 sm:flex-row sm:justify-end">
+                {canCancel && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => {
+                      const target = selectedMonitorOrder;
+                      setSelectedMonitorOrder(null);
+                      setCancelOrderReason("");
+                      setConfirmCancelOrder(target);
+                    }}
+                    className="border-[#FECACA] text-[#B91C1C] hover:bg-[#FEF2F2]"
+                  >
+                    Anular Pedido
+                  </Button>
+                )}
+                {canAbonar && (
+                  <Button
+                    type="button"
+                    variant="primary"
+                    onClick={() => {
+                      const target = selectedMonitorOrder;
+                      setSelectedMonitorOrder(null);
+                      openAbonoForOrderRecord(target);
+                    }}
+                  >
+                    Registrar Abono ({formatPen(debtVal)})
+                  </Button>
+                )}
+              </div>
+            )}
+          </div>
+        );
+      })()}
+      </ModalSheet>
+
+      <DebtorDetailModal
+        open={Boolean(debtDetailTarget)}
+        onClose={() => setDebtDetailTarget(null)}
+        mode={debtDetailTarget?.mode ?? "order"}
+        customerName={
+          debtDetailTarget?.mode === "customer"
+            ? debtDetailTarget.customerName
+            : ""
+        }
+        orders={
+          !debtDetailTarget
+            ? []
+            : ((debtDetailTarget.mode === "order"
+                ? debtorsByOrder.filter(
+                    (o) => Number(o.orderId) === debtDetailTarget.orderId
+                  )
+                : debtorsByOrder.filter((o) => {
+                    const oKey =
+                      o.customerKey ||
+                      (o.customerPartyId !== null &&
+                      o.customerPartyId !== undefined
+                        ? `PARTY-${Number(o.customerPartyId)}`
+                        : `RAW-${String(o.customerName || "").toUpperCase()}`);
+                    return oKey === debtDetailTarget.customerKey;
+                  })) as unknown as DebtOrderDetail[])
+        }
+        canUseCustomerFifo={Boolean(
+          debtDetailTarget?.mode === "customer" &&
+            debtDetailTarget.customerPartyId
+        )}
+        onSelectOrderAbono={(order) => {
+          setDebtDetailTarget(null);
+          setFifoCustomer(null);
+          setAbonoOrder(order as unknown as Record<string, unknown>);
+          setAbonoAmount(String(order.balanceDuePen));
+          setAbonoAccountId("");
+        }}
+        onSelectCustomerAbono={() => {
+          if (debtDetailTarget?.mode !== "customer") return;
+          const matched = debtorsByCustomer.find(
+            (c) => String(c.customerKey) === debtDetailTarget.customerKey
+          );
+          if (!matched) return;
+          setDebtDetailTarget(null);
+          setAbonoOrder(null);
+          setFifoCustomer(matched);
+          setAbonoAmount(String(matched.totalBalanceDuePen));
+          setAbonoAccountId("");
+        }}
+      />
+
+      <ModalSheet
+        open={confirmResetNegativeOpen}
+        onClose={() => {
+          if (!busyResetStock) setConfirmResetNegativeOpen(false);
+        }}
+        title="Confirmar regularización de stock negativo"
+        subtitle="Esta acción genera un ajuste contable (INV_ADJUSTMENT) en kardex."
+      >
+        <div className="space-y-4 text-xs sm:text-sm text-[#5C5A55]">
+          <p>
+            Se pondrán exactamente en <strong>0</strong> los saldos de{" "}
+            <strong className="text-[#18181B]">
+              {negStockCount} producto(s)
+            </strong>{" "}
+            que tienen inventario negativo histórico en Almacén Principal.
+          </p>
+          <p className="rounded-xl border border-[#F3D9B1] bg-[#FDF8F0] px-3 py-2.5 text-xs text-[#92400E]">
+            Usa esto únicamente después de verificar que esos productos realmente están agotados y no falta registrar una compra previa.
+          </p>
+          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            <Button
+              type="button"
+              variant="outline"
+              disabled={busyResetStock}
+              onClick={() => setConfirmResetNegativeOpen(false)}
+            >
+              Cancelar
+            </Button>
+            <Button
+              type="button"
+              variant="primary"
+              disabled={busyResetStock || negStockCount === 0}
+              onClick={handleResetNegativeStock}
+            >
+              {busyResetStock
+                ? "Regularizando..."
+                : `Sí, poner ${negStockCount} en 0`}
+            </Button>
+          </div>
+        </div>
+      </ModalSheet>
+
+      <ModalSheet
+        open={Boolean(confirmCancelOrder)}
+        onClose={() => {
+          if (busyCancelOrderId === null) {
+            setConfirmCancelOrder(null);
+            setCancelOrderReason("");
+          }
+        }}
+        title={
+          confirmCancelOrder
+            ? `Anular pedido ${String(confirmCancelOrder.order_code ?? "")}`
+            : "Anular pedido"
+        }
+        subtitle={
+          confirmCancelOrder
+            ? `${String(confirmCancelOrder.customer_name ?? "")} · ${formatPen(
+                confirmCancelOrder.total_pen
+              )}`
+            : undefined
+        }
+      >
+        {confirmCancelOrder && (
+          <form onSubmit={handleConfirmCancelOrder} className="space-y-4">
+            <p className="rounded-xl border border-[#FECACA] bg-[#FEF2F2] px-3 py-2.5 text-xs text-[#991B1B]">
+              Esta acción anulará el pedido, revertirá sus movimientos pendientes
+              de inventario / cobros asociados y cerrará alertas pendientes.
+            </p>
+            <div>
+              <FieldLabel htmlFor="cancel-order-reason">
+                Motivo de anulación (opcional)
+              </FieldLabel>
+              <input
+                id="cancel-order-reason"
+                type="text"
+                value={cancelOrderReason}
+                onChange={(e) => setCancelOrderReason(e.target.value)}
+                placeholder="Ej. Cliente desistió / error de registro"
+                className={`${INPUT_CLASS} mt-1.5`}
+              />
+            </div>
+            <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <Button
+                type="button"
+                variant="outline"
+                disabled={busyCancelOrderId !== null}
+                onClick={() => {
+                  setConfirmCancelOrder(null);
+                  setCancelOrderReason("");
+                }}
+              >
+                Volver
+              </Button>
+              <Button
+                type="submit"
+                variant="danger"
+                disabled={busyCancelOrderId !== null}
+              >
+                {busyCancelOrderId !== null ? "Anulando..." : "Confirmar anulación"}
+              </Button>
+            </div>
+          </form>
+        )}
+      </ModalSheet>
+
+      <AbonoModal
+        open={Boolean(abonoOrder || fifoCustomer)}
+        onClose={() => {
+          setAbonoOrder(null);
+          setFifoCustomer(null);
+          setAbonoAccountId("");
+        }}
+        title={
+          fifoCustomer
+            ? `Abono General · ${String(fifoCustomer.customerName)}`
+            : `Registrar Abono · ${String(abonoOrder?.customerName ?? "")}`
+        }
+        summaryContent={
+          fifoCustomer ? (
+            <>
+              Se repartirá desde el pedido más antiguo (
+              {Number(fifoCustomer.openOrdersCount)} pedidos) ·{" "}
+              <strong className="text-[#B91C1C] tabular-nums">
+                Deuda Total: {formatPen(fifoCustomer.totalBalanceDuePen)}
+              </strong>
+            </>
+          ) : abonoOrder ? (
+            <>
+              Pedido {String(abonoOrder.orderCode)} · Total:{" "}
+              {formatPen(abonoOrder.totalPen)} · Abonado:{" "}
+              {formatPen(abonoOrder.paidPen)} ·{" "}
+              <strong className="text-[#B91C1C] tabular-nums">
+                Saldo: {formatPen(abonoOrder.balanceDuePen)}
+              </strong>
+            </>
+          ) : null
+        }
+        balanceDuePen={
+          fifoCustomer
+            ? Number(fifoCustomer.totalBalanceDuePen ?? 0)
+            : Number(abonoOrder?.balanceDuePen ?? 0)
+        }
+        amount={abonoAmount}
+        onAmountChange={setAbonoAmount}
+        paymentMode={abonoMode}
+        onPaymentModeChange={setAbonoMode}
+        nextDays={abonoNextDays}
+        onNextDaysChange={setAbonoNextDays}
+        accounts={accounts}
+        accountId={abonoAccountId}
+        onAccountIdChange={setAbonoAccountId}
+        onSubmit={handleSaveAbono}
+        submitLabel="Confirmar Abono"
+        busy={busyAbono}
+      />
+
+      <BottomNav
+        items={navItems}
+        activeId={tab}
+        onChange={handleTabChange}
+        maxWidth="full"
+        className="md:hidden"
+      />
     </div>
   );
 }

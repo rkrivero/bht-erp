@@ -1,7 +1,147 @@
 @import "tailwindcss";
 
-body {
-  background-color: #f8fafc;
-  color: #0f172a;
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+:root {
+  --target-size: 24px;
+  --bg-canvas: #faf9f6;
+  --bg-surface: #ffffff;
+  --bg-subtle: #f4f3ef;
+  --border-hairline: #e7e5e0;
+  --border-strong: #d5d2ca;
+  --ink-primary: #18181b;
+  --ink-secondary: #5c5a55;
+  --ink-muted: #6d6a64;
+
+  /* Blue Horizon brand tokens — calm, sober accents */
+  --horizon-ink: #0f2942;
+  --horizon-mid: #1e446b;
+  --horizon-hover: #183b5e;
+  --horizon-accent: #5b89b5;
+  --horizon-mist: #f2f6fa;
+  --horizon-pill: #edf3f8;
+  --horizon-tint: #e7eff7;
+  --horizon-border: #d4e0ec;
+}
+
+@media (pointer: coarse) {
+  :root {
+    --target-size: 44px;
+  }
+}
+
+@layer base {
+  html {
+    color-scheme: light;
+    -webkit-tap-highlight-color: transparent;
+    scroll-behavior: smooth;
+    overflow-x: clip;
+  }
+
+  body {
+    background-color: var(--bg-canvas);
+    color: var(--ink-primary);
+    font-family:
+      -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", "Segoe UI",
+      Roboto, sans-serif;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+    overflow-x: clip;
+    overflow-wrap: anywhere;
+  }
+
+  ::selection {
+    background-color: var(--horizon-tint);
+    color: var(--horizon-ink);
+  }
+
+  :where(
+    a,
+    button,
+    summary,
+    input,
+    select,
+    textarea,
+    [tabindex]:not([tabindex="-1"])
+  ):focus-visible {
+    outline: 2px solid var(--horizon-ink);
+    outline-offset: 2px;
+  }
+
+  h1,
+  h2,
+  h3 {
+    text-wrap: balance;
+    letter-spacing: -0.02em;
+  }
+
+  p,
+  li {
+    text-wrap: pretty;
+  }
+
+  @media (pointer: coarse) {
+    :where(
+      button:not([data-compact="true"]),
+      select,
+      input:not([type="checkbox"], [type="radio"]),
+      [role="button"],
+      [role="radio"],
+      nav a
+    ) {
+      min-block-size: var(--target-size);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    html {
+      scroll-behavior: auto;
+    }
+
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}
+
+@layer components {
+  .tabular-nums {
+    font-variant-numeric: tabular-nums;
+  }
+
+  .table-wrapper {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    overflow: auto;
+    max-inline-size: 100%;
+    container-type: inline-size;
+  }
+
+  .table-wrapper table {
+    border-collapse: separate;
+    border-spacing: 0;
+  }
+
+  .table-wrapper thead {
+    position: sticky;
+    inset-block-start: 0;
+    z-index: 1;
+  }
+}
+
+.bottom-bar {
+  padding-bottom: max(0.5rem, env(safe-area-inset-bottom, 0px));
+  padding-left: max(0.5rem, env(safe-area-inset-left, 0px));
+  padding-right: max(0.5rem, env(safe-area-inset-right, 0px));
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
 }
