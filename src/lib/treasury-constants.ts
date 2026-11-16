@@ -17,6 +17,8 @@ export const OUTFLOW_CATEGORIES_BY_BUCKET: Record<
     { value: "PEAJE", label: "Peaje" },
     { value: "ESTACIONAMIENTO", label: "Estacionamiento / Cochera" },
     { value: "VIATICOS", label: "Viáticos / Alimentación de Ruta" },
+    { value: "HOSPEDAJE", label: "Hospedaje" },
+    { value: "ESTIBADOR_APOYO", label: "Estibador / Descarga" },
     { value: "COURIER_ENVIO", label: "Courier / Envío / Encomienda" },
     { value: "MANTENIMIENTO_RUTA", label: "Mantenimiento / Lavado" },
     { value: "EMPAQUE_INSUMOS", label: "Empaques / Insumos" },

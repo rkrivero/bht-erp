@@ -8,7 +8,6 @@ import React, {
   useState,
 } from "react";
 import {
-  AlertTriangleIcon,
   ChevronRightIcon,
   CloseIcon,
   PlusIcon,
@@ -350,6 +349,7 @@ export default function CajaProveedoresTab({
   const [outflowCategory, setOutflowCategory] = useState<string>(
     OUTFLOW_CATEGORIES_BY_BUCKET.ROUTE_OPEX[0].value
   );
+  const [outflowDate, setOutflowDate] = useState(getTodayLimaIso());
   const [outflowAmount, setOutflowAmount] = useState("");
   const [outflowAccountId, setOutflowAccountId] = useState<string>("");
   const [outflowToAccountId, setOutflowToAccountId] = useState<string>("");
@@ -885,6 +885,7 @@ export default function CajaProveedoresTab({
                 amountPen: Number(outflowAmount),
                 expenseBucket: outflowBucket,
                 expenseCategory: outflowCategory,
+                txDate: outflowBucket === "ROUTE_OPEX" ? outflowDate : undefined,
                 accountId: outflowAccountId ? Number(outflowAccountId) : undefined,
                 description: outflowDesc,
               }
@@ -1664,7 +1665,11 @@ export default function CajaProveedoresTab({
         <Card padding="md">
           <form onSubmit={handleSaveOutflow} className="space-y-3.5">
             <h3 className="text-sm sm:text-base font-semibold text-[#18181B]">
-              Registrar Egreso / Traslado / Gasto de Caja
+              {outflowIsTransfer
+                ? "Registrar Traslado entre Cuentas"
+                : outflowBucket === "ROUTE_OPEX"
+                  ? "Registrar Gasto Diario"
+                  : "Registrar Egreso No Operativo"}
             </h3>
 
             <label className="flex cursor-pointer items-center gap-2.5 rounded-xl border border-[#D4E0EC] bg-[#F2F6FA]/70 px-3 py-2 text-xs font-medium text-[#0F2942]">
@@ -1775,25 +1780,31 @@ export default function CajaProveedoresTab({
                     className={`${INPUT_CLASS} mt-1.5 font-medium`}
                   >
                     <option value="ROUTE_OPEX">Gasto Operativo de Ruta</option>
-                    <option value="MERCHANDISE_PAYMENT">
-                      Pago de Mercadería / Proveedor
-                    </option>
                     <option value="NON_OPEX_OR_CAPEX">
                       Retiro (Socio / Gerencia) / No Operativo
                     </option>
                   </select>
                 </div>
 
-                {outflowBucket === "MERCHANDISE_PAYMENT" && openDocsCount > 0 && (
-                  <div className="flex items-start gap-2 rounded-xl border border-[#F3D9B1] bg-[#FDF8F0] px-3 py-2.5 text-xs text-[#92400E]">
-                    <AlertTriangleIcon className="mt-0.5 h-4 w-4 flex-shrink-0 text-[#B45309]" />
-                    <span>
-                      Tienes <strong>{openDocsCount}</strong> cuenta(s) por pagar
-                      abiertas ({formatPen(totalOpenApPen)}). Si estás pagando una
-                      factura registrada, usa el botón{" "}
-                      <strong>&ldquo;Pagar / Amortizar&rdquo;</strong> arriba para
-                      rebajar la CxP y no duplicar egresos.
-                    </span>
+                {outflowBucket === "ROUTE_OPEX" && (
+                  <div>
+                    <FieldLabel htmlFor="outflow-date" required>
+                      Fecha del gasto diario
+                    </FieldLabel>
+                    <input
+                      id="outflow-date"
+                      type="date"
+                      required
+                      value={outflowDate}
+                      onChange={(e) => {
+                        setOutflowDate(e.target.value);
+                        setConfirmOutflow(false);
+                      }}
+                      className={`${INPUT_CLASS} mt-1.5 font-medium`}
+                    />
+                    <p className="mt-1 text-[11px] text-[#6D6A64]">
+                      Puedes elegir una fecha anterior para registrar un gasto olvidado.
+                    </p>
                   </div>
                 )}
 

@@ -81,6 +81,7 @@ const EXPENSE_CATEGORY_ES: Record<string, string> = {
   FLETE_MERCADERIA: "Flete de Mercadería",
   FOOD_LODGING: "Hospedaje y Alimentación",
   GASTO_RUTA: "Gasto General de Ruta",
+  HOSPEDAJE: "Hospedaje",
   INTERNAL_TRANSFER: "Traslado Interno",
   LEGAL_NOTARIA: "Notaría / Trámite Legal",
   MANTENIMIENTO_RUTA: "Mantenimiento de Ruta",

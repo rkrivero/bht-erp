@@ -56,6 +56,7 @@ import {
   formatPaymentModeEs,
   formatUnitTitleEs,
 } from "@/lib/labels-es";
+import { OUTFLOW_CATEGORIES_BY_BUCKET } from "@/lib/treasury-constants";
 import {
   notifyLocalSync,
   useLiveSync,
@@ -3181,7 +3182,7 @@ export default function VendedorPage() {
         )}
 
         {tab === "gastos" && (
-          <section aria-label="Registrar gasto operativo" className="mx-auto max-w-2xl">
+          <section aria-label="Registrar gasto diario" className="mx-auto max-w-2xl">
             <Card accent="horizon" padding="lg">
               <form onSubmit={handleSubmitExpense} className="space-y-4">
                 <div className="flex items-center gap-2.5 border-b border-[#E7E5E0] pb-3">
@@ -3193,11 +3194,11 @@ export default function VendedorPage() {
                   </div>
                   <div>
                     <h2 className="text-base font-semibold text-[#18181B]">
-                      Registrar Gasto Operativo
+                      Registrar Gasto Diario
                     </h2>
                     <p className="text-xs text-[#5C5A55]">
-                      Se imputa directamente a tu caja operativa en Soles. Puedes
-                      registrar gastos olvidados de fechas anteriores.
+                      Registra combustible, peajes y otros gastos diarios de ruta. Puedes
+                      elegir una fecha anterior si olvidaste registrarlo.
                     </p>
                   </div>
                 </div>
@@ -3224,10 +3225,11 @@ export default function VendedorPage() {
                     onChange={(e) => setExpenseCategory(e.target.value)}
                     className={`${INPUT_CLASS} mt-1.5 font-medium`}
                   >
-                    <option value="COMBUSTIBLE">Combustible / Gasolina</option>
-                    <option value="PEAJE">Peaje / Cochera</option>
-                    <option value="ALMUERZO_VIATICOS">Almuerzo / Viáticos</option>
-                    <option value="ESTIBADOR_APOYO">Estibador / Descarga</option>
+                    {OUTFLOW_CATEGORIES_BY_BUCKET.ROUTE_OPEX.map((category) => (
+                      <option key={category.value} value={category.value}>
+                        {category.label}
+                      </option>
+                    ))}
                   </select>
                 </div>
 
@@ -3270,7 +3272,7 @@ export default function VendedorPage() {
                   disabled={busyExpense}
                   className="w-full"
                 >
-                  {busyExpense ? "Guardando..." : "Guardar Gasto"}
+                  {busyExpense ? "Guardando..." : "Guardar Gasto Diario"}
                 </Button>
               </form>
             </Card>
