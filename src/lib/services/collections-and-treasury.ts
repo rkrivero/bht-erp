@@ -13,6 +13,8 @@ import {
   type SessionUser,
 } from "../types";
 
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
 export interface OrderDebtLineItem {
   orderLineId: number;
   lineNo: number;
@@ -598,6 +600,7 @@ export async function registerCashOutflow(
     amountPen: number;
     expenseBucket?: OutflowBucket | null;
     expenseCategory: string;
+    txDate?: string;
     description: string;
     accountId?: number;
     toAccountId?: number;
@@ -627,6 +630,10 @@ export async function registerCashOutflow(
   if (!input.description?.trim()) {
     throw new ValidationError("La descripción del movimiento es obligatoria");
   }
+  const txDate = input.txDate?.trim() || getLimaDateString(0);
+  if (!DATE_RE.test(txDate)) {
+    throw new ValidationError("La fecha del gasto debe tener formato YYYY-MM-DD");
+  }
 
   const fromAcc = await resolveCashAccountId(client, actor, input.accountId);
 
@@ -650,12 +657,13 @@ export async function registerCashOutflow(
          reference_table, reference_id,
          description, source_origin
        ) VALUES (
-         (NOW() AT TIME ZONE 'America/Lima')::date, $1, 'OUT', $2,
+         $1::date, $2, 'OUT', $3,
          NULL, 'TRASLADO_INTERNO', TRUE,
-         'erp.cash_accounts', $3,
-         $4, 'ERP_APP'
+         'erp.cash_accounts', $4,
+         $5, 'ERP_APP'
        ) RETURNING ledger_id`,
       [
+        txDate,
         fromAcc.accountId,
         amountPen,
         String(toAcc.accountId),
@@ -670,12 +678,13 @@ export async function registerCashOutflow(
          reference_table, reference_id,
          description, source_origin
        ) VALUES (
-         (NOW() AT TIME ZONE 'America/Lima')::date, $1, 'IN', $2,
+         $1::date, $2, 'IN', $3,
          NULL, 'TRASLADO_INTERNO', TRUE,
-         'erp.cash_ledger', $3,
-         $4, 'ERP_APP'
+         'erp.cash_ledger', $4,
+         $5, 'ERP_APP'
        ) RETURNING ledger_id`,
       [
+        txDate,
         toAcc.accountId,
         amountPen,
         String(outLedgerId),
@@ -709,11 +718,12 @@ export async function registerCashOutflow(
        expense_bucket, expense_category, is_internal_transfer,
        description, source_origin
      ) VALUES (
-       (NOW() AT TIME ZONE 'America/Lima')::date, $1, 'OUT', $2,
-       $3, $4, FALSE,
-       $5, 'ERP_APP'
+       $1::date, $2, 'OUT', $3,
+       $4, $5, FALSE,
+       $6, 'ERP_APP'
      ) RETURNING ledger_id`,
     [
+      txDate,
       fromAcc.accountId,
       amountPen,
       bucket,

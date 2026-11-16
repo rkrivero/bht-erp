@@ -182,6 +182,7 @@ export async function POST(req: NextRequest) {
               ? null
               : body.expenseBucket || "ROUTE_OPEX",
             expenseCategory: String(body.expenseCategory || "GASTO_RUTA"),
+            txDate: body.txDate ? String(body.txDate) : undefined,
             description: String(body.description || ""),
             accountId: body.accountId ? Number(body.accountId) : undefined,
             toAccountId: body.toAccountId ? Number(body.toAccountId) : undefined,

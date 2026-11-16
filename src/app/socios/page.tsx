@@ -82,11 +82,12 @@ import {
   useLiveSync,
 } from "@/lib/realtime/useLiveSync";
 
-type PartnerTab = "control" | "deudores" | "stock" | "caja" | "kpis";
-type MonitorStatusFilter = "ALL" | "PENDING" | "PROCESS" | "DELIVERED" | "CANCELLED";
+type PartnerTab = "control" | "pedidos" | "deudores" | "stock" | "caja" | "kpis";
+type MonitorStatusFilter = "ALL" | "PENDING" | "DELIVERED" | "CANCELLED";
 
 const VALID_PARTNER_TABS: PartnerTab[] = [
   "control",
+  "pedidos",
   "deudores",
   "stock",
   "caja",
@@ -200,6 +201,10 @@ export default function SociosPage() {
     orderLineId?: number;
   } | null>(null);
   const [selectedMonitorOrder, setSelectedMonitorOrder] = useState<Record<
+    string,
+    unknown
+  > | null>(null);
+  const [selectedPartnerQuote, setSelectedPartnerQuote] = useState<Record<
     string,
     unknown
   > | null>(null);
@@ -851,12 +856,6 @@ export default function SociosPage() {
       if (monitorStatusFilter === "PENDING" && status !== "PENDING_PARTNER_APPROVAL") {
         return false;
       }
-      if (
-        monitorStatusFilter === "PROCESS" &&
-        !["PICKING", "READY", "IN_ROUTE", "APPROVED_FOR_WAREHOUSE"].includes(status)
-      ) {
-        return false;
-      }
       if (monitorStatusFilter === "DELIVERED" && status !== "DELIVERED") {
         return false;
       }
@@ -1043,6 +1042,13 @@ export default function SociosPage() {
         badgeCount: pendingApprovals.length,
       },
       {
+        id: "pedidos",
+        label: "Pedidos y Ventas",
+        mobileLabel: "Pedidos",
+        icon: <ShoppingBagIcon className="h-4 w-4" />,
+        badgeCount: ordersPagination?.totalCount,
+      },
+      {
         id: "deudores",
         label: "Deudores y Cobros",
         mobileLabel: "Cobros",
@@ -1070,7 +1076,13 @@ export default function SociosPage() {
         icon: <BarChartIcon className="h-4 w-4" />,
       },
     ],
-    [pendingApprovals.length, debtorsByOrder.length, negStockCount, openApCount]
+    [
+      pendingApprovals.length,
+      ordersPagination?.totalCount,
+      debtorsByOrder.length,
+      negStockCount,
+      openApCount,
+    ]
   );
 
   // Live margin preview when editing product
@@ -1535,8 +1547,7 @@ export default function SociosPage() {
                   onChange={setMonitorStatusFilter}
                   options={[
                     { id: "ALL", label: "Todos" },
-                    { id: "PENDING", label: "Por aprobar" },
-                    { id: "PROCESS", label: "En proceso" },
+                    { id: "PENDING", label: "Pendientes" },
                     { id: "DELIVERED", label: "Entregados" },
                     { id: "CANCELLED", label: "Anulados" },
                   ]}
@@ -1833,7 +1844,7 @@ export default function SociosPage() {
                       Rutas y Despachos ({routeTrips.length})
                     </h2>
                     <p className="text-xs text-[#5C5A55]">
-                      Seguimiento de rutas abiertas, cierre y conciliación.
+                      Cierra la ruta y compara lo cobrado en el día con los pedidos registrados.
                     </p>
                   </div>
                 </div>
@@ -1862,6 +1873,12 @@ export default function SociosPage() {
                                 {Number(tr.in_route_count ?? 0)} en ruta /{" "}
                                 {Number(tr.delivered_count ?? 0)} entregados)
                               </p>
+                              <p className="mt-1 text-[#5C5A55] tabular-nums">
+                                Ventas registradas:{" "}
+                                <strong className="text-[#18181B]">
+                                  {formatPen(tr.computed_sales_pen)}
+                                </strong>
+                              </p>
                             </div>
                             <Badge
                               tone={
@@ -1877,21 +1894,24 @@ export default function SociosPage() {
                           </div>
                           {status !== "RECONCILED" && (
                             <div className="flex flex-wrap items-center gap-2">
-                              <input
-                                type="number"
-                                step="0.01"
-                                min="0"
-                                placeholder="Neto caja S/ (opc.)"
-                                aria-label={`Neto declarado ruta ${String(tr.trip_code)}`}
-                                value={tripDeclaredNetById[tId] ?? ""}
-                                onChange={(e) =>
-                                  setTripDeclaredNetById((prev) => ({
-                                    ...prev,
-                                    [tId]: e.target.value,
-                                  }))
-                                }
-                                className={`${INPUT_CLASS} w-36 py-1.5 text-xs tabular-nums`}
-                              />
+                              <label className="flex flex-col gap-1 text-[11px] font-medium text-[#5C5A55]">
+                                Cobrado del día (S/)
+                                <input
+                                  type="number"
+                                  step="0.01"
+                                  min="0"
+                                  placeholder="Total cobrado"
+                                  aria-label={`Cobrado del día de la ruta ${String(tr.trip_code)}`}
+                                  value={tripDeclaredNetById[tId] ?? ""}
+                                  onChange={(e) =>
+                                    setTripDeclaredNetById((prev) => ({
+                                      ...prev,
+                                      [tId]: e.target.value,
+                                    }))
+                                  }
+                                  className={`${INPUT_CLASS} w-40 py-1.5 text-xs tabular-nums`}
+                                />
+                              </label>
                               {status === "OPEN" && (
                                 <Button
                                   type="button"
@@ -1918,6 +1938,14 @@ export default function SociosPage() {
                               </Button>
                             </div>
                           )}
+                          {status !== "RECONCILED" && (
+                            <p className="text-[11px] text-[#6D6A64]">
+                              Ingresa lo cobrado por las ventas de ese día. Los gastos
+                              de ruta se registran aparte, incluso retroactivamente; no
+                              se descuentan aquí. El monto es opcional si solo necesitas
+                              marcar la ruta como revisada.
+                            </p>
+                          )}
                         </div>
                       );
                     })}
@@ -1929,11 +1957,11 @@ export default function SociosPage() {
                 <div className="flex items-center justify-between gap-2">
                   <div>
                     <h2 className="text-sm sm:text-base font-semibold text-[#18181B]">
-                      Cotizaciones Comerciales ({partnerQuotes.length})
+                      Ventas y Cotizaciones Comerciales ({partnerQuotes.length})
                     </h2>
                     <p className="text-xs text-[#5C5A55]">
-                      Convierte cotizaciones abiertas en pedido real con descuento de
-                      stock.
+                      Revisa el detalle de cualquier venta; las abiertas también pueden
+                      convertirse en pedido.
                     </p>
                   </div>
                 </div>
@@ -1977,6 +2005,16 @@ export default function SociosPage() {
                                 : formatQuoteStatusEs(status)}
                             </Badge>
                           </div>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            data-compact="true"
+                            onClick={() => setSelectedPartnerQuote(q)}
+                            className="w-full"
+                          >
+                            Ver detalle
+                          </Button>
                           {status === "OPEN" && (
                             <div className="flex flex-wrap gap-1.5">
                               <Button
@@ -2018,6 +2056,102 @@ export default function SociosPage() {
                 )}
               </Card>
             </div>
+          </div>
+        )}
+
+        {tab === "pedidos" && (
+          <div className="space-y-4">
+            <Card padding="md" className="space-y-3">
+              <div>
+                <h2 className="text-sm sm:text-base font-semibold text-[#18181B]">
+                  Todos los Pedidos y Ventas
+                </h2>
+                <p className="text-xs text-[#5C5A55]">
+                  Consulta el historial completo, filtra por estado y abre cualquier
+                  pedido para revisar sus productos y trazabilidad.
+                </p>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="relative min-w-[200px] flex-1">
+                  <span className="pointer-events-none absolute inset-y-0 left-3.5 flex items-center text-[#6D6A64]">
+                    <SearchIcon className="h-4 w-4" />
+                  </span>
+                  <input
+                    type="text"
+                    value={monitorSearch}
+                    onChange={(e) => setMonitorSearch(e.target.value)}
+                    aria-label="Buscar pedidos y ventas"
+                    placeholder="Buscar por pedido, cliente o vendedor..."
+                    className={`${INPUT_CLASS} py-2 pl-10 pr-8 text-xs`}
+                  />
+                </div>
+                <SegmentedControl<MonitorStatusFilter>
+                  ariaLabel="Filtrar pedidos y ventas por estado"
+                  value={monitorStatusFilter}
+                  onChange={setMonitorStatusFilter}
+                  options={[
+                    { id: "ALL", label: "Todos" },
+                    { id: "PENDING", label: "Pendientes" },
+                    { id: "DELIVERED", label: "Entregados" },
+                    { id: "CANCELLED", label: "Anulados" },
+                  ]}
+                />
+              </div>
+
+              {monitorFilteredOrders.length === 0 ? (
+                <EmptyState title="No hay pedidos que coincidan con el filtro" />
+              ) : (
+                <div className="space-y-2">
+                  {monitorFilteredOrders.map((order) => (
+                    <button
+                      key={String(order.order_id)}
+                      type="button"
+                      onClick={() => setSelectedMonitorOrder(order)}
+                      className="flex w-full flex-col gap-2 rounded-xl border border-[#E7E5E0] bg-white p-3 text-left transition hover:border-[#D4E0EC] hover:bg-[#F2F6FA]/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0F2942]"
+                    >
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <span className="font-semibold text-[#1E446B] tabular-nums">
+                          {String(order.order_code)} · {String(order.order_date)}
+                        </span>
+                        <Badge tone={operationalStatusTone(order.operational_status)}>
+                          {formatOperationalStatusEs(order.operational_status)}
+                        </Badge>
+                      </div>
+                      <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+                        <span className="font-medium text-[#18181B]">
+                          {String(order.customer_name)}
+                        </span>
+                        <span className="font-semibold text-[#18181B] tabular-nums">
+                          {formatPen(order.total_pen)}
+                        </span>
+                      </div>
+                      <span className="text-[11px] text-[#5C5A55]">
+                        Vendedor: {formatActorName(order.created_by_name, "-")} ·{" "}
+                        {Array.isArray(order.lines) ? order.lines.length : 0} producto(s)
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {ordersPagination?.hasMore && (
+                <div className="flex flex-wrap items-center justify-between gap-2 border-t border-[#E7E5E0] pt-3 text-xs text-[#5C5A55]">
+                  <span>
+                    Mostrando {orders.length} de {ordersPagination.totalCount} pedidos
+                  </span>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={loadingMoreOrders}
+                    onClick={handleLoadMoreOrders}
+                  >
+                    {loadingMoreOrders ? "Cargando..." : "Cargar más pedidos"}
+                  </Button>
+                </div>
+              )}
+            </Card>
           </div>
         )}
 
@@ -2740,6 +2874,100 @@ export default function SociosPage() {
               </Button>
             </div>
           </form>
+        )}
+      </ModalSheet>
+
+      <ModalSheet
+        open={Boolean(selectedPartnerQuote)}
+        onClose={() => setSelectedPartnerQuote(null)}
+        title={
+          selectedPartnerQuote
+            ? `Detalle de venta ${String(selectedPartnerQuote.quote_code)}`
+            : "Detalle de venta"
+        }
+        subtitle={
+          selectedPartnerQuote
+            ? `${String(selectedPartnerQuote.issue_date)} · ${String(
+                selectedPartnerQuote.customer_name
+              )}`
+            : undefined
+        }
+        maxWidth="lg"
+      >
+        {selectedPartnerQuote && (
+          <div className="space-y-3 text-xs">
+            <div className="grid grid-cols-1 gap-2 rounded-xl border border-[#D4E0EC] bg-[#F2F6FA]/70 p-3 sm:grid-cols-3">
+              <div>
+                <span className="block text-[11px] text-[#5C5A55]">Estado</span>
+                <strong className="text-sm text-[#18181B]">
+                  {formatQuoteStatusEs(selectedPartnerQuote.status)}
+                </strong>
+              </div>
+              <div>
+                <span className="block text-[11px] text-[#5C5A55]">Vendedor</span>
+                <strong className="text-sm text-[#18181B]">
+                  {String(selectedPartnerQuote.seller_name || "-")}
+                </strong>
+              </div>
+              <div>
+                <span className="block text-[11px] text-[#5C5A55]">Total</span>
+                <strong className="text-sm text-[#18181B] tabular-nums">
+                  {formatPen(selectedPartnerQuote.total_pen)}
+                </strong>
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <p className="font-semibold text-[#0F2942]">
+                Productos (
+                {Array.isArray(selectedPartnerQuote.lines)
+                  ? selectedPartnerQuote.lines.length
+                  : 0}
+                )
+              </p>
+              {Array.isArray(selectedPartnerQuote.lines) &&
+              selectedPartnerQuote.lines.length > 0 ? (
+                (
+                  selectedPartnerQuote.lines as Array<Record<string, unknown>>
+                ).map((line, index) => (
+                  <div
+                    key={String(line.quote_line_id ?? index)}
+                    className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-[#E7E5E0] bg-[#FAF9F6] px-3 py-2"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <p className="font-medium text-[#18181B]">
+                        {String(line.raw_description || line.sku || "Producto")}
+                      </p>
+                      <p className="text-[11px] text-[#5C5A55] tabular-nums">
+                        {Number(line.quantity)}{" "}
+                        {String(line.unit_of_measure || "NIU")} ×{" "}
+                        {formatPen(line.unit_price_pen)}
+                      </p>
+                    </div>
+                    <strong className="tabular-nums text-[#18181B]">
+                      {formatPen(line.line_total_pen)}
+                    </strong>
+                  </div>
+                ))
+              ) : (
+                <p className="text-[#5C5A55]">Sin líneas registradas.</p>
+              )}
+            </div>
+
+            {selectedPartnerQuote.converted_order_code ? (
+              <p className="rounded-lg border border-[#D4E0EC] bg-[#F2F6FA]/70 px-3 py-2 text-[#5C5A55]">
+                Pedido generado:{" "}
+                <strong className="text-[#0F2942]">
+                  {String(selectedPartnerQuote.converted_order_code)}
+                </strong>
+              </p>
+            ) : null}
+            {selectedPartnerQuote.notes ? (
+              <p className="rounded-lg border border-[#E7E5E0] bg-white px-3 py-2 text-[#5C5A55]">
+                Nota: {String(selectedPartnerQuote.notes)}
+              </p>
+            ) : null}
+          </div>
         )}
       </ModalSheet>
 

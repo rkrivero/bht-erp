@@ -317,6 +317,14 @@ export default function VendedorPage() {
 
   // Expenses state
   const [expenseCategory, setExpenseCategory] = useState("COMBUSTIBLE");
+  const [expenseDate, setExpenseDate] = useState(() =>
+    new Intl.DateTimeFormat("en-CA", {
+      timeZone: "America/Lima",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).format(new Date())
+  );
   const [expenseAmount, setExpenseAmount] = useState("");
   const [expenseDesc, setExpenseDesc] = useState("");
   const [busyExpense, setBusyExpense] = useState(false);
@@ -1162,6 +1170,7 @@ export default function VendedorPage() {
           amountPen: Number(expenseAmount),
           expenseBucket: "ROUTE_OPEX",
           expenseCategory,
+          txDate: expenseDate,
           description: expenseDesc,
         },
       });
@@ -3175,9 +3184,24 @@ export default function VendedorPage() {
                       Registrar Gasto Operativo
                     </h2>
                     <p className="text-xs text-[#5C5A55]">
-                      Se imputa directamente a tu caja operativa en Soles.
+                      Se imputa directamente a tu caja operativa en Soles. Puedes
+                      registrar gastos olvidados de fechas anteriores.
                     </p>
                   </div>
+                </div>
+
+                <div>
+                  <FieldLabel htmlFor="expense-date" required>
+                    Fecha del gasto
+                  </FieldLabel>
+                  <input
+                    id="expense-date"
+                    type="date"
+                    required
+                    value={expenseDate}
+                    onChange={(e) => setExpenseDate(e.target.value)}
+                    className={`${INPUT_CLASS} mt-1.5 font-medium`}
+                  />
                 </div>
 
                 <div>
