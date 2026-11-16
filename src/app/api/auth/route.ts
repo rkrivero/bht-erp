@@ -5,12 +5,17 @@ import {
   authenticateUser,
   checkAuthRateLimit,
   clearAuthFailures,
+  computeSessionVersion,
+  hashPassword,
   recordAuthFailure,
   signSessionToken,
+  validatePersonalPassword,
+  verifyPassword,
   verifyActiveSessionUser,
   verifySessionToken,
 } from "@/lib/auth";
-import { withClient } from "@/lib/db";
+import { withClient, withTransaction } from "@/lib/db";
+import { resolveHttpError, ValidationError } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
@@ -30,19 +35,12 @@ function extractClientIp(req: NextRequest): string {
 export async function GET(req: NextRequest) {
   const token = req.cookies.get(SESSION_COOKIE_NAME)?.value;
   const parsedSession = verifySessionToken(token);
-  const { session, users } = await withClient(async (client) => {
-    const activeSession = parsedSession
+  const session = await withClient(async (client) => {
+    return parsedSession
       ? await verifyActiveSessionUser(client, parsedSession)
       : null;
-    const res = await client.query(
-      `SELECT user_id, username, full_name, role::text AS role
-       FROM erp.app_users
-       WHERE is_active = TRUE
-       ORDER BY user_id ASC`
-    );
-    return { session: activeSession, users: res.rows };
   });
-  return NextResponse.json({ session, users }, { headers: NO_STORE_HEADERS });
+  return NextResponse.json({ session }, { headers: NO_STORE_HEADERS });
 }
 
 export async function POST(req: NextRequest) {
@@ -57,6 +55,75 @@ export async function POST(req: NextRequest) {
         secure: isProd,
         path: "/",
         maxAge: 0,
+      });
+      return res;
+    }
+
+    if (body.action === "change_password") {
+      const parsedSession = verifySessionToken(
+        req.cookies.get(SESSION_COOKIE_NAME)?.value
+      );
+      if (!parsedSession) {
+        return NextResponse.json(
+          { error: "Sesión inválida o expirada" },
+          { status: 401, headers: NO_STORE_HEADERS }
+        );
+      }
+      const currentPassword = String(body.currentPassword || "");
+      const newPassword = String(body.newPassword || "");
+      const confirmation = String(body.confirmPassword || "");
+      const policyError = validatePersonalPassword(newPassword);
+      if (policyError) throw new ValidationError(policyError);
+      if (newPassword !== confirmation) {
+        throw new ValidationError("La confirmación de contraseña no coincide");
+      }
+      if (newPassword === currentPassword) {
+        throw new ValidationError(
+          "La nueva contraseña debe ser distinta de la temporal"
+        );
+      }
+
+      const user = await withTransaction(async (client) => {
+        const active = await verifyActiveSessionUser(client, parsedSession);
+        if (!active) return null;
+        const credentialRes = await client.query<{ password_hash: string }>(
+          `SELECT COALESCE(password_hash, pin_hash) AS password_hash
+           FROM erp.app_users
+           WHERE user_id = $1 AND is_active = TRUE
+           FOR UPDATE`,
+          [active.userId]
+        );
+        const currentHash = credentialRes.rows[0]?.password_hash;
+        if (!currentHash || !verifyPassword(currentPassword, currentHash)) {
+          throw new ValidationError("La contraseña actual no es correcta");
+        }
+        const passwordHash = hashPassword(newPassword);
+        await client.query(
+          `UPDATE erp.app_users
+           SET password_hash = $1, pin_hash = $1, must_change_password = FALSE
+           WHERE user_id = $2`,
+          [passwordHash, active.userId]
+        );
+        return {
+          ...active,
+          mustChangePassword: false,
+          sessionVersion: computeSessionVersion(passwordHash, active.role),
+        };
+      });
+      if (!user) {
+        return NextResponse.json(
+          { error: "Sesión inválida o usuario inactivo" },
+          { status: 401, headers: NO_STORE_HEADERS }
+        );
+      }
+      const token = signSessionToken(user);
+      const res = NextResponse.json({ user }, { headers: NO_STORE_HEADERS });
+      res.cookies.set(SESSION_COOKIE_NAME, token, {
+        httpOnly: true,
+        sameSite: "lax",
+        secure: isProd,
+        path: "/",
+        maxAge: SESSION_TTL_SECONDS,
       });
       return res;
     }
@@ -105,9 +172,10 @@ export async function POST(req: NextRequest) {
     });
     return res;
   } catch (err) {
+    const resolved = resolveHttpError(err, "Error de autenticación");
     return NextResponse.json(
-      { error: err instanceof Error ? err.message : "Error de autenticación" },
-      { status: 500, headers: NO_STORE_HEADERS }
+      { error: resolved.error },
+      { status: resolved.status, headers: NO_STORE_HEADERS }
     );
   }
 }

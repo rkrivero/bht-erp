@@ -74,7 +74,11 @@ import {
   formatRouteTripStatusEs,
   formatUnitTitleEs,
 } from "@/lib/labels-es";
-import { notifyLocalSync, type SyncScope, useLiveSync } from "@/lib/realtime/useLiveSync";
+import {
+  notifyLocalSync,
+  type SyncScope,
+  useLiveSync,
+} from "@/lib/realtime/useLiveSync";
 
 type PartnerTab = "control" | "deudores" | "stock" | "caja" | "kpis";
 type MonitorStatusFilter = "ALL" | "PENDING" | "PROCESS" | "DELIVERED" | "CANCELLED";
@@ -160,30 +164,28 @@ export default function SociosPage() {
   } | null>(null);
   const [loadingMoreOrders, setLoadingMoreOrders] = useState(false);
   const [routeTrips, setRouteTrips] = useState<Array<Record<string, unknown>>>([]);
-  const [partnerQuotes, setPartnerQuotes] = useState<Array<Record<string, unknown>>>([]);
+  const [partnerQuotes, setPartnerQuotes] = useState<Array<Record<string, unknown>>>(
+    []
+  );
   const [busyTripId, setBusyTripId] = useState<number | null>(null);
   const [tripDeclaredNetById, setTripDeclaredNetById] = useState<
     Record<number, string>
   >({});
   const [busyQuoteId, setBusyQuoteId] = useState<number | null>(null);
   const [catalog, setCatalog] = useState<PartnerCatalogItem[]>([]);
-  const [debtorsByOrder, setDebtorsByOrder] = useState<
-    Array<Record<string, unknown>>
-  >([]);
+  const [debtorsByOrder, setDebtorsByOrder] = useState<Array<Record<string, unknown>>>(
+    []
+  );
   const [debtorsByCustomer, setDebtorsByCustomer] = useState<
     Array<Record<string, unknown>>
   >([]);
-  const [partnerData, setPartnerData] = useState<Record<string, unknown> | null>(
+  const [partnerData, setPartnerData] = useState<Record<string, unknown> | null>(null);
+  const [treasuryData, setTreasuryData] = useState<Record<string, unknown> | null>(
     null
   );
-  const [treasuryData, setTreasuryData] = useState<Record<
-    string,
-    unknown
-  > | null>(null);
-  const [purchasesData, setPurchasesData] = useState<Record<
-    string,
-    unknown
-  > | null>(null);
+  const [purchasesData, setPurchasesData] = useState<Record<string, unknown> | null>(
+    null
+  );
   const [orderAccounts, setOrderAccounts] = useState<CashAccountItem[]>([]);
   const [feedback, setFeedback] = useState<{
     msg: string;
@@ -201,17 +203,13 @@ export default function SociosPage() {
   > | null>(null);
 
   // Action busy locks (anti-double-tap)
-  const [busyApproveOrderId, setBusyApproveOrderId] = useState<number | null>(
-    null
-  );
+  const [busyApproveOrderId, setBusyApproveOrderId] = useState<number | null>(null);
   const [confirmCancelOrder, setConfirmCancelOrder] = useState<Record<
     string,
     unknown
   > | null>(null);
   const [cancelOrderReason, setCancelOrderReason] = useState("");
-  const [busyCancelOrderId, setBusyCancelOrderId] = useState<number | null>(
-    null
-  );
+  const [busyCancelOrderId, setBusyCancelOrderId] = useState<number | null>(null);
   const [busyResetStock, setBusyResetStock] = useState(false);
   const [busyLogout, setBusyLogout] = useState(false);
   const [subTabEditing, setSubTabEditing] = useState(false);
@@ -225,9 +223,7 @@ export default function SociosPage() {
   const deferredMonitorSearch = useDeferredValue(monitorSearch);
   const [monitorStatusFilter, setMonitorStatusFilter] =
     useState<MonitorStatusFilter>("ALL");
-  const [editingProd, setEditingProd] = useState<PartnerCatalogItem | null>(
-    null
-  );
+  const [editingProd, setEditingProd] = useState<PartnerCatalogItem | null>(null);
   const [editStock, setEditStock] = useState("");
   const [editCost, setEditCost] = useState("");
   const [editPrice, setEditPrice] = useState("");
@@ -239,13 +235,10 @@ export default function SociosPage() {
   const [promiseFilter, setPromiseFilter] = useState("ALL");
   const [debtorSearch, setDebtorSearch] = useState("");
   const deferredDebtorSearch = useDeferredValue(debtorSearch);
-  const [abonoOrder, setAbonoOrder] = useState<Record<string, unknown> | null>(
+  const [abonoOrder, setAbonoOrder] = useState<Record<string, unknown> | null>(null);
+  const [fifoCustomer, setFifoCustomer] = useState<Record<string, unknown> | null>(
     null
   );
-  const [fifoCustomer, setFifoCustomer] = useState<Record<
-    string,
-    unknown
-  > | null>(null);
   const [debtDetailTarget, setDebtDetailTarget] = useState<
     | {
         mode: "customer";
@@ -257,14 +250,11 @@ export default function SociosPage() {
     | null
   >(null);
   const [abonoAmount, setAbonoAmount] = useState("");
-  const [abonoMode, setAbonoMode] = useState<"CASH" | "YAPE_PLIN" | "TRANSFER">(
-    "CASH"
-  );
+  const [abonoMode, setAbonoMode] = useState<"CASH" | "YAPE_PLIN" | "TRANSFER">("CASH");
   const [abonoNextDays, setAbonoNextDays] = useState<number>(7);
   const [abonoAccountId, setAbonoAccountId] = useState<string>("");
   const [busyAbono, setBusyAbono] = useState(false);
-  const [confirmResetNegativeOpen, setConfirmResetNegativeOpen] =
-    useState(false);
+  const [confirmResetNegativeOpen, setConfirmResetNegativeOpen] = useState(false);
 
   const showFeedback = useCallback((msg: string, isError = false) => {
     setFeedback({ msg, isError });
@@ -318,12 +308,8 @@ export default function SociosPage() {
             needCollections
               ? fetch("/api/collections", noStoreInit)
               : Promise.resolve(null),
-            needPartners
-              ? fetch("/api/partners", noStoreInit)
-              : Promise.resolve(null),
-            needTreasury
-              ? fetch("/api/treasury", noStoreInit)
-              : Promise.resolve(null),
+            needPartners ? fetch("/api/partners", noStoreInit) : Promise.resolve(null),
+            needTreasury ? fetch("/api/treasury", noStoreInit) : Promise.resolve(null),
             needPurchases
               ? fetch("/api/purchases", noStoreInit)
               : Promise.resolve(null),
@@ -386,10 +372,7 @@ export default function SociosPage() {
         }
 
         if (!scopeSet && responses.some((r) => !r.ok)) {
-          showFeedback(
-            "Algunos módulos no pudieron actualizarse por completo.",
-            true
-          );
+          showFeedback("Algunos módulos no pudieron actualizarse por completo.", true);
         }
       } catch (err) {
         if (options?.throwOnError) {
@@ -565,11 +548,11 @@ export default function SociosPage() {
 
   const isEditingOrModalOpen = Boolean(
     editingProd ||
-      abonoOrder ||
-      fifoCustomer ||
-      confirmResetNegativeOpen ||
-      confirmCancelOrder ||
-      subTabEditing
+    abonoOrder ||
+    fifoCustomer ||
+    confirmResetNegativeOpen ||
+    confirmCancelOrder ||
+    subTabEditing
   );
 
   const handleRemoteChange = useCallback(
@@ -613,7 +596,13 @@ export default function SociosPage() {
       const data = await res.json();
       if (res.ok) {
         showFeedback(`Pedido #${orderId} aprobado y enviado a Almacén.`);
-        notifyLocalSync(["orders", "inventory", "collections", "purchases", "partners"]);
+        notifyLocalSync([
+          "orders",
+          "inventory",
+          "collections",
+          "purchases",
+          "partners",
+        ]);
         await refreshDashboard(["orders", "collections", "purchases", "partners"]);
       } else {
         showFeedback(data.error || "Error al aprobar", true);
@@ -646,15 +635,25 @@ export default function SociosPage() {
       if (res.ok) {
         setConfirmCancelOrder(null);
         setCancelOrderReason("");
-        if (
-          selectedMonitorOrder &&
-          Number(selectedMonitorOrder.order_id) === orderId
-        ) {
+        if (selectedMonitorOrder && Number(selectedMonitorOrder.order_id) === orderId) {
           setSelectedMonitorOrder(null);
         }
         showFeedback(`Pedido ${orderCode} anulado correctamente.`);
-        notifyLocalSync(["orders", "inventory", "collections", "treasury", "purchases", "partners"]);
-        await refreshDashboard(["orders", "collections", "treasury", "purchases", "partners"]);
+        notifyLocalSync([
+          "orders",
+          "inventory",
+          "collections",
+          "treasury",
+          "purchases",
+          "partners",
+        ]);
+        await refreshDashboard([
+          "orders",
+          "collections",
+          "treasury",
+          "purchases",
+          "partners",
+        ]);
       } else {
         showFeedback(data.error || "No se pudo anular el pedido.", true);
       }
@@ -701,10 +700,7 @@ export default function SociosPage() {
         notifyLocalSync(["inventory", "partners"]);
         await refreshDashboard(["inventory", "partners"]);
       } else {
-        showFeedback(
-          data.error || "Error al poner en 0 saldos negativos",
-          true
-        );
+        showFeedback(data.error || "Error al poner en 0 saldos negativos", true);
       }
     } catch {
       showFeedback("Error de red regularizando saldos negativos.", true);
@@ -818,12 +814,9 @@ export default function SociosPage() {
 
   const handleGoToPurchaseProduct = useCallback(
     (
-      target:
-        | number
-        | { productId: number; quantity?: number; orderLineId?: number }
+      target: number | { productId: number; quantity?: number; orderLineId?: number }
     ) => {
-      const normalized =
-        typeof target === "number" ? { productId: target } : target;
+      const normalized = typeof target === "number" ? { productId: target } : target;
       setPreselectedPurchaseTarget(normalized);
       setSubTabEditing(false);
       handleTabChange("caja");
@@ -834,9 +827,7 @@ export default function SociosPage() {
   const handleGoToEditProduct = useCallback(
     (sku: string) => {
       setSearchSku(sku);
-      const found = catalog.find(
-        (p) => p.sku.toLowerCase() === sku.toLowerCase()
-      );
+      const found = catalog.find((p) => p.sku.toLowerCase() === sku.toLowerCase());
       if (found) {
         openEditProduct(found);
         return;
@@ -847,10 +838,7 @@ export default function SociosPage() {
   );
 
   const pendingApprovals = useMemo(
-    () =>
-      orders.filter(
-        (o) => o.operational_status === "PENDING_PARTNER_APPROVAL"
-      ),
+    () => orders.filter((o) => o.operational_status === "PENDING_PARTNER_APPROVAL"),
     [orders]
   );
 
@@ -858,17 +846,12 @@ export default function SociosPage() {
     const q = deferredMonitorSearch.trim().toLowerCase();
     return orders.filter((o) => {
       const status = String(o.operational_status ?? "").toUpperCase();
-      if (
-        monitorStatusFilter === "PENDING" &&
-        status !== "PENDING_PARTNER_APPROVAL"
-      ) {
+      if (monitorStatusFilter === "PENDING" && status !== "PENDING_PARTNER_APPROVAL") {
         return false;
       }
       if (
         monitorStatusFilter === "PROCESS" &&
-        !["PICKING", "READY", "IN_ROUTE", "APPROVED_FOR_WAREHOUSE"].includes(
-          status
-        )
+        !["PICKING", "READY", "IN_ROUTE", "APPROVED_FOR_WAREHOUSE"].includes(status)
       ) {
         return false;
       }
@@ -880,9 +863,15 @@ export default function SociosPage() {
       }
       if (!q) return true;
       return (
-        String(o.order_code ?? "").toLowerCase().includes(q) ||
-        String(o.customer_name ?? "").toLowerCase().includes(q) ||
-        String(o.created_by_name ?? "").toLowerCase().includes(q)
+        String(o.order_code ?? "")
+          .toLowerCase()
+          .includes(q) ||
+        String(o.customer_name ?? "")
+          .toLowerCase()
+          .includes(q) ||
+        String(o.created_by_name ?? "")
+          .toLowerCase()
+          .includes(q)
       );
     });
   }, [orders, deferredMonitorSearch, monitorStatusFilter]);
@@ -890,9 +879,7 @@ export default function SociosPage() {
   const recentMonitorOrders = useMemo(() => {
     const hasFilter =
       monitorStatusFilter !== "ALL" || deferredMonitorSearch.trim().length > 0;
-    return hasFilter
-      ? monitorFilteredOrders
-      : monitorFilteredOrders.slice(0, 35);
+    return hasFilter ? monitorFilteredOrders : monitorFilteredOrders.slice(0, 35);
   }, [monitorFilteredOrders, monitorStatusFilter, deferredMonitorSearch]);
 
   const pendingOnDemand =
@@ -904,8 +891,7 @@ export default function SociosPage() {
   const qualityGaps =
     (partnerData?.qualityGaps as Array<Record<string, unknown>>) || [];
   const negStockCount = Number(partnerData?.negativeStockSkuCount ?? 0);
-  const currentUser =
-    (partnerData?.currentUser as CurrentUserInfo | null) || null;
+  const currentUser = (partnerData?.currentUser as CurrentUserInfo | null) || null;
   const biSummary = (partnerData?.biSummary as BiSummary | null) || null;
   const appUsers = (partnerData?.users as AppUserItem[]) || [];
 
@@ -913,12 +899,14 @@ export default function SociosPage() {
     (purchasesData?.accounts as CashAccountItem[]) ||
     (treasuryData?.accounts as CashAccountItem[]) ||
     orderAccounts;
-  const ledger: CashLedgerEntry[] =
-    (treasuryData?.ledger as CashLedgerEntry[]) || [];
-  const apObligations: ApObligationItem[] =
-    (purchasesData?.apObligations as ApObligationItem[]) ||
-    (treasuryData?.apObligations as ApObligationItem[]) ||
-    [];
+  const ledger: CashLedgerEntry[] = (treasuryData?.ledger as CashLedgerEntry[]) || [];
+  const apObligations = useMemo<ApObligationItem[]>(
+    () =>
+      (purchasesData?.apObligations as ApObligationItem[]) ||
+      (treasuryData?.apObligations as ApObligationItem[]) ||
+      [],
+    [purchasesData?.apObligations, treasuryData?.apObligations]
+  );
   const suppliers: SupplierItem[] =
     (purchasesData?.suppliers as SupplierItem[]) ||
     (treasuryData?.suppliers as SupplierItem[]) ||
@@ -928,26 +916,39 @@ export default function SociosPage() {
 
   const openApCount = useMemo(
     () =>
-      apObligations.filter(
-        (ap) => ap.status === "OPEN" || ap.status === "PARTIAL"
-      ).length,
+      apObligations.filter((ap) => ap.status === "OPEN" || ap.status === "PARTIAL")
+        .length,
     [apObligations]
   );
 
   const openDebtorsCount = Number(
-    partnerData?.openDebtorsCount ??
-      kpiQ1?.open_debtors_count ??
-      debtorsByOrder.length
+    partnerData?.openDebtorsCount ?? kpiQ1?.open_debtors_count ?? debtorsByOrder.length
   );
 
   const filteredCatalog = useMemo(() => {
     const q = deferredSearchSku.trim().toLowerCase();
     if (!q) return catalog;
     return catalog.filter(
-      (p) =>
-        p.name.toLowerCase().includes(q) || p.sku.toLowerCase().includes(q)
+      (p) => p.name.toLowerCase().includes(q) || p.sku.toLowerCase().includes(q)
     );
   }, [catalog, deferredSearchSku]);
+
+  const inventorySummary = useMemo(() => {
+    const lowStock = catalog.filter(
+      (product) =>
+        product.fulfillment_mode === "STOCKED" &&
+        product.stock_on_hand >= 0 &&
+        product.stock_on_hand <= 5
+    ).length;
+    const noCost = catalog.filter((product) => product.ref_cost_pen === null).length;
+    const marginRisk = catalog.filter(
+      (product) =>
+        product.ref_cost_pen !== null &&
+        product.min_sale_price_pen !== null &&
+        product.min_sale_price_pen <= product.ref_cost_pen
+    ).length;
+    return { lowStock, noCost, marginRisk };
+  }, [catalog]);
 
   const visibleCatalog = useMemo(
     () => (showAllCatalog ? filteredCatalog : filteredCatalog.slice(0, 40)),
@@ -958,7 +959,9 @@ export default function SociosPage() {
     const q = deferredDebtorSearch.trim().toLowerCase();
     if (!q) return debtorsByCustomer;
     return debtorsByCustomer.filter((c) =>
-      String(c.customerName ?? "").toLowerCase().includes(q)
+      String(c.customerName ?? "")
+        .toLowerCase()
+        .includes(q)
     );
   }, [debtorsByCustomer, deferredDebtorSearch]);
 
@@ -970,11 +973,39 @@ export default function SociosPage() {
       }
       if (!q) return true;
       return (
-        String(o.customerName ?? "").toLowerCase().includes(q) ||
-        String(o.orderCode ?? "").toLowerCase().includes(q)
+        String(o.customerName ?? "")
+          .toLowerCase()
+          .includes(q) ||
+        String(o.orderCode ?? "")
+          .toLowerCase()
+          .includes(q)
       );
     });
   }, [debtorsByOrder, promiseFilter, deferredDebtorSearch]);
+
+  const collectionSummary = useMemo(() => {
+    const total = debtorsByOrder.reduce(
+      (sum, order) => sum + Number(order.balanceDuePen || 0),
+      0
+    );
+    const dueSoon = debtorsByOrder
+      .filter((order) => order.promiseStatus === "DUE_TODAY_OR_TOMORROW")
+      .reduce((sum, order) => sum + Number(order.balanceDuePen || 0), 0);
+    const overdue = debtorsByOrder
+      .filter((order) => order.promiseStatus === "PROMISE_BROKEN")
+      .reduce((sum, order) => sum + Number(order.balanceDuePen || 0), 0);
+    return { total, dueSoon, overdue };
+  }, [debtorsByOrder]);
+
+  const prioritizedDebtorsByOrder = useMemo(() => {
+    const priority = (status: string) =>
+      status === "PROMISE_BROKEN" ? 0 : status === "DUE_TODAY_OR_TOMORROW" ? 1 : 2;
+    return [...filteredDebtorsByOrder].sort(
+      (a, b) =>
+        priority(String(a.promiseStatus)) - priority(String(b.promiseStatus)) ||
+        Number(b.balanceDuePen) - Number(a.balanceDuePen)
+    );
+  }, [filteredDebtorsByOrder]);
 
   const headerRoleBadge = useMemo(() => {
     if (!currentUser) return "Control Operativo";
@@ -982,8 +1013,8 @@ export default function SociosPage() {
       currentUser.role === "PARTNER_MANAGER"
         ? "Gerencia"
         : currentUser.role === "PARTNER_ADMIN"
-        ? "Ventas y Control"
-        : formatRoleEs(currentUser.role);
+          ? "Ventas y Control"
+          : formatRoleEs(currentUser.role);
     const cleanName = formatActorName(currentUser.fullName, "");
     if (
       cleanName &&
@@ -1035,12 +1066,7 @@ export default function SociosPage() {
         icon: <BarChartIcon className="h-4 w-4" />,
       },
     ],
-    [
-      pendingApprovals.length,
-      debtorsByOrder.length,
-      negStockCount,
-      openApCount,
-    ]
+    [pendingApprovals.length, debtorsByOrder.length, negStockCount, openApCount]
   );
 
   // Live margin preview when editing product
@@ -1162,7 +1188,8 @@ export default function SociosPage() {
                       Toma Rápida de Pedidos y Ventas
                     </h2>
                     <p className="mt-0.5 text-xs text-[#5C5A55]">
-                      Registra pedidos nuevos, busca clientes y cobra en ruta directamente.
+                      Registra pedidos nuevos, busca clientes y cobra en ruta
+                      directamente.
                     </p>
                   </div>
                 </div>
@@ -1200,7 +1227,12 @@ export default function SociosPage() {
                   <span className="text-xs font-medium text-[#4A4843]">
                     Pend. Aprobación
                   </span>
-                  <span className="text-xs text-[#6D6A64] transition group-hover:translate-x-0.5 group-hover:text-[#0F2942]" aria-hidden="true">→</span>
+                  <span
+                    className="text-xs text-[#6D6A64] transition group-hover:translate-x-0.5 group-hover:text-[#0F2942]"
+                    aria-hidden="true"
+                  >
+                    →
+                  </span>
                 </div>
                 <p className="mt-2 text-2xl font-semibold tracking-tight text-[#0F2942] tabular-nums">
                   {pendingApprovals.length}
@@ -1216,7 +1248,12 @@ export default function SociosPage() {
                   <span className="text-xs font-medium text-[#4A4843]">
                     Pedidos por cobrar
                   </span>
-                  <span className="text-xs text-[#6D6A64] transition group-hover:translate-x-0.5 group-hover:text-[#0F2942]" aria-hidden="true">→</span>
+                  <span
+                    className="text-xs text-[#6D6A64] transition group-hover:translate-x-0.5 group-hover:text-[#0F2942]"
+                    aria-hidden="true"
+                  >
+                    →
+                  </span>
                 </div>
                 <p className="mt-2 text-2xl font-semibold tracking-tight text-[#B91C1C] tabular-nums">
                   {debtorsByOrder.length}
@@ -1232,7 +1269,12 @@ export default function SociosPage() {
                   <span className="text-xs font-medium text-[#4A4843]">
                     Bajo pedido pendientes
                   </span>
-                  <span className="text-xs text-[#6D6A64] transition group-hover:translate-x-0.5 group-hover:text-[#0F2942]" aria-hidden="true">→</span>
+                  <span
+                    className="text-xs text-[#6D6A64] transition group-hover:translate-x-0.5 group-hover:text-[#0F2942]"
+                    aria-hidden="true"
+                  >
+                    →
+                  </span>
                 </div>
                 <p className="mt-2 text-2xl font-semibold tracking-tight text-[#1E446B] tabular-nums">
                   {pendingOnDemand.length}
@@ -1241,14 +1283,19 @@ export default function SociosPage() {
               <button
                 type="button"
                 onClick={() => handleTabChange("stock")}
-                aria-label={`Ir a regularizar saldos negativos (${negStockCount})`}
+                aria-label={`Ver administración de saldos históricos negativos (${negStockCount})`}
                 className="group rounded-2xl border border-[#E7E5E0] bg-white p-4 text-left shadow-[0_1px_2px_rgba(15,41,66,0.03)] transition hover:border-[#1E446B]/45 hover:shadow-[0_2px_8px_rgba(15,41,66,0.06)] cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0F2942]"
               >
                 <div className="flex items-center justify-between gap-2">
                   <span className="text-xs font-medium text-[#4A4843]">
                     Saldos negativos Día 1
                   </span>
-                  <span className="text-xs text-[#6D6A64] transition group-hover:translate-x-0.5 group-hover:text-[#0F2942]" aria-hidden="true">→</span>
+                  <span
+                    className="text-xs text-[#6D6A64] transition group-hover:translate-x-0.5 group-hover:text-[#0F2942]"
+                    aria-hidden="true"
+                  >
+                    →
+                  </span>
                 </div>
                 <p className="mt-2 text-2xl font-semibold tracking-tight text-[#B45309] tabular-nums">
                   {negStockCount}
@@ -1274,9 +1321,7 @@ export default function SociosPage() {
                       Aprobación de Descuentos bajo el Precio Mínimo
                     </h2>
                   </div>
-                  <Badge tone="warning">
-                    {pendingApprovals.length} pendiente(s)
-                  </Badge>
+                  <Badge tone="warning">{pendingApprovals.length} pendiente(s)</Badge>
                 </div>
                 <div className="grid gap-3 md:grid-cols-2">
                   {pendingApprovals.map((o) => {
@@ -1284,8 +1329,7 @@ export default function SociosPage() {
                     const isBusyThis = busyApproveOrderId === orderId;
                     const marginVal = Number(o.order_margin_pen ?? 0);
                     const totalVal = Number(o.total_pen ?? 0);
-                    const marginPct =
-                      totalVal > 0 ? (marginVal / totalVal) * 100 : 0;
+                    const marginPct = totalVal > 0 ? (marginVal / totalVal) * 100 : 0;
                     const lines = Array.isArray(o.lines)
                       ? (o.lines as Array<Record<string, unknown>>)
                       : [];
@@ -1350,8 +1394,7 @@ export default function SociosPage() {
                             variant="success"
                             size="sm"
                             disabled={
-                              busyApproveOrderId !== null ||
-                              busyCancelOrderId !== null
+                              busyApproveOrderId !== null || busyCancelOrderId !== null
                             }
                             aria-label={`Aprobar pedido ${String(o.order_code)} de ${String(o.customer_name)} y enviar a Almacén`}
                             onClick={() => handleApproveDiscount(orderId)}
@@ -1366,8 +1409,7 @@ export default function SociosPage() {
                             variant="outline"
                             size="sm"
                             disabled={
-                              busyApproveOrderId !== null ||
-                              busyCancelOrderId !== null
+                              busyApproveOrderId !== null || busyCancelOrderId !== null
                             }
                             onClick={() => {
                               setCancelOrderReason("");
@@ -1390,8 +1432,7 @@ export default function SociosPage() {
               <Card tone="horizon" accent="horizon" padding="md" className="space-y-3">
                 <div className="flex items-center justify-between gap-2">
                   <h2 className="text-sm sm:text-base font-semibold text-[#0F2942]">
-                    Pedidos Bajo Pedido Pendientes de Compra (
-                    {pendingOnDemand.length})
+                    Pedidos Bajo Pedido Pendientes de Compra ({pendingOnDemand.length})
                   </h2>
                 </div>
                 <div className="grid gap-2.5 md:grid-cols-2">
@@ -1512,11 +1553,18 @@ export default function SociosPage() {
                   const totalVal = Number(o.total_pen ?? 0);
                   const debtVal = Number(o.balance_due_pen ?? 0);
                   const statusStr = String(o.operational_status ?? "");
+                  const wasModified =
+                    Array.isArray(o.audit_history) &&
+                    o.audit_history.some(
+                      (entry) =>
+                        String((entry as Record<string, unknown>).action) === "EDIT"
+                    );
                   const canAbonar =
                     debtVal > 0.05 &&
                     statusStr !== "CANCELLED" &&
                     statusStr !== "PENDING_PARTNER_APPROVAL";
-                  const canCancel = statusStr !== "CANCELLED";
+                  const canCancel =
+                    statusStr !== "CANCELLED" && statusStr !== "DELIVERED";
                   return (
                     <div
                       key={String(o.order_id)}
@@ -1532,9 +1580,12 @@ export default function SociosPage() {
                           <span className="font-semibold text-[#1E446B] tabular-nums">
                             {String(o.order_code)} · {String(o.order_date)}
                           </span>
-                          <Badge tone={operationalStatusTone(o.operational_status)}>
-                            {formatOperationalStatusEs(o.operational_status)}
-                          </Badge>
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            {wasModified && <Badge tone="warning">Modificado</Badge>}
+                            <Badge tone={operationalStatusTone(o.operational_status)}>
+                              {formatOperationalStatusEs(o.operational_status)}
+                            </Badge>
+                          </div>
                         </div>
                         <p className="text-sm font-semibold text-[#18181B]">
                           {String(o.customer_name)}
@@ -1567,9 +1618,7 @@ export default function SociosPage() {
                                 : "font-medium text-[#15803D]"
                             }
                           >
-                            {debtVal > 0.05
-                              ? `Debe: ${formatPen(debtVal)}`
-                              : "Al día"}
+                            {debtVal > 0.05 ? `Debe: ${formatPen(debtVal)}` : "Al día"}
                           </span>
                         </div>
                         <p className="text-[11px] font-medium text-[#1E446B]">
@@ -1631,28 +1680,16 @@ export default function SociosPage() {
                       <th scope="col" className="whitespace-nowrap p-3">
                         Responsables
                       </th>
-                      <th
-                        scope="col"
-                        className="whitespace-nowrap p-3 text-right"
-                      >
+                      <th scope="col" className="whitespace-nowrap p-3 text-right">
                         Venta
                       </th>
-                      <th
-                        scope="col"
-                        className="whitespace-nowrap p-3 text-right"
-                      >
+                      <th scope="col" className="whitespace-nowrap p-3 text-right">
                         Margen Real
                       </th>
-                      <th
-                        scope="col"
-                        className="whitespace-nowrap p-3 text-right"
-                      >
+                      <th scope="col" className="whitespace-nowrap p-3 text-right">
                         Saldo Debe
                       </th>
-                      <th
-                        scope="col"
-                        className="whitespace-nowrap p-3 text-right"
-                      >
+                      <th scope="col" className="whitespace-nowrap p-3 text-right">
                         Acciones
                       </th>
                     </tr>
@@ -1666,11 +1703,18 @@ export default function SociosPage() {
                       const totalVal = Number(o.total_pen ?? 0);
                       const debtVal = Number(o.balance_due_pen ?? 0);
                       const statusStr = String(o.operational_status ?? "");
+                      const wasModified =
+                        Array.isArray(o.audit_history) &&
+                        o.audit_history.some(
+                          (entry) =>
+                            String((entry as Record<string, unknown>).action) === "EDIT"
+                        );
                       const canAbonar =
                         debtVal > 0.05 &&
                         statusStr !== "CANCELLED" &&
                         statusStr !== "PENDING_PARTNER_APPROVAL";
-                      const canCancel = statusStr !== "CANCELLED";
+                      const canCancel =
+                        statusStr !== "CANCELLED" && statusStr !== "DELIVERED";
                       return (
                         <tr
                           key={String(o.order_id)}
@@ -1695,9 +1739,12 @@ export default function SociosPage() {
                             {String(o.customer_name)}
                           </td>
                           <td className="whitespace-nowrap p-3">
-                            <Badge tone={operationalStatusTone(o.operational_status)}>
-                              {formatOperationalStatusEs(o.operational_status)}
-                            </Badge>
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              <Badge tone={operationalStatusTone(o.operational_status)}>
+                                {formatOperationalStatusEs(o.operational_status)}
+                              </Badge>
+                              {wasModified && <Badge tone="warning">Modificado</Badge>}
+                            </div>
                           </td>
                           <td className="min-w-[200px] p-3 text-[#5C5A55]">
                             {formatTraceabilitySummary(o)}
@@ -1771,9 +1818,7 @@ export default function SociosPage() {
                     disabled={loadingMoreOrders}
                     onClick={handleLoadMoreOrders}
                   >
-                    {loadingMoreOrders
-                      ? "Cargando..."
-                      : "Cargar más pedidos"}
+                    {loadingMoreOrders ? "Cargando..." : "Cargar más pedidos"}
                   </Button>
                 </div>
               )}
@@ -1823,8 +1868,8 @@ export default function SociosPage() {
                                 status === "RECONCILED"
                                   ? "success"
                                   : status === "CLOSED"
-                                  ? "brand"
-                                  : "warning"
+                                    ? "brand"
+                                    : "warning"
                               }
                             >
                               {formatRouteTripStatusEs(status)}
@@ -1854,9 +1899,7 @@ export default function SociosPage() {
                                   size="sm"
                                   data-compact="true"
                                   disabled={isBusy}
-                                  onClick={() =>
-                                    handlePartnerTripAction(tId, "CLOSED")
-                                  }
+                                  onClick={() => handlePartnerTripAction(tId, "CLOSED")}
                                 >
                                   Cerrar
                                 </Button>
@@ -1889,7 +1932,8 @@ export default function SociosPage() {
                       Cotizaciones Comerciales ({partnerQuotes.length})
                     </h2>
                     <p className="text-xs text-[#5C5A55]">
-                      Convierte cotizaciones abiertas en pedido real con descuento de stock.
+                      Convierte cotizaciones abiertas en pedido real con descuento de
+                      stock.
                     </p>
                   </div>
                 </div>
@@ -1924,8 +1968,8 @@ export default function SociosPage() {
                                 status === "CONVERTED"
                                   ? "success"
                                   : status === "OPEN"
-                                  ? "brand"
-                                  : "neutral"
+                                    ? "brand"
+                                    : "neutral"
                               }
                             >
                               {status === "CONVERTED"
@@ -1941,9 +1985,7 @@ export default function SociosPage() {
                                 size="sm"
                                 data-compact="true"
                                 disabled={isBusy}
-                                onClick={() =>
-                                  handlePartnerConvertQuote(qId, "CASH")
-                                }
+                                onClick={() => handlePartnerConvertQuote(qId, "CASH")}
                               >
                                 Convertir Contado
                               </Button>
@@ -1953,9 +1995,7 @@ export default function SociosPage() {
                                 size="sm"
                                 data-compact="true"
                                 disabled={isBusy}
-                                onClick={() =>
-                                  handlePartnerConvertQuote(qId, "CREDIT")
-                                }
+                                onClick={() => handlePartnerConvertQuote(qId, "CREDIT")}
                               >
                                 A Crédito
                               </Button>
@@ -1983,6 +2023,32 @@ export default function SociosPage() {
 
         {tab === "deudores" && (
           <div className="space-y-4">
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+              {[
+                {
+                  label: "Saldo pendiente",
+                  amount: collectionSummary.total,
+                  tone: "text-[#0F2942]",
+                },
+                {
+                  label: "Cobrar hoy / mañana",
+                  amount: collectionSummary.dueSoon,
+                  tone: "text-[#B45309]",
+                },
+                {
+                  label: "Promesa vencida",
+                  amount: collectionSummary.overdue,
+                  tone: "text-[#B91C1C]",
+                },
+              ].map((item) => (
+                <Card key={item.label} padding="sm" className="space-y-1">
+                  <p className="text-xs text-[#5C5A55]">{item.label}</p>
+                  <p className={`text-lg font-semibold tabular-nums ${item.tone}`}>
+                    S/ {item.amount.toFixed(2)}
+                  </p>
+                </Card>
+              ))}
+            </div>
             <Card padding="sm" className="space-y-2.5">
               <div className="relative">
                 <span className="pointer-events-none absolute inset-y-0 left-3.5 flex items-center text-[#6D6A64]">
@@ -2018,8 +2084,7 @@ export default function SociosPage() {
             <div className="grid gap-4 lg:grid-cols-2">
               <Card padding="md" className="space-y-3">
                 <h2 className="text-sm sm:text-base font-semibold text-[#18181B]">
-                  Ranking de Clientes Deudores ({filteredDebtorsByCustomer.length}
-                  )
+                  Ranking de Clientes Deudores ({filteredDebtorsByCustomer.length})
                 </h2>
                 {filteredDebtorsByCustomer.length === 0 ? (
                   <EmptyState title="No hay clientes deudores con este filtro" />
@@ -2096,10 +2161,8 @@ export default function SociosPage() {
                   <EmptyState title="No hay pedidos pendientes con este filtro" />
                 ) : (
                   <div className="space-y-2.5">
-                    {filteredDebtorsByOrder.map((o) => {
-                      const lineCount = Array.isArray(o.lines)
-                        ? o.lines.length
-                        : 0;
+                    {prioritizedDebtorsByOrder.map((o) => {
+                      const lineCount = Array.isArray(o.lines) ? o.lines.length : 0;
                       return (
                         <div
                           key={String(o.orderId)}
@@ -2131,9 +2194,7 @@ export default function SociosPage() {
                                 Falta: {formatPen(o.balanceDuePen)}
                               </strong>
                               <span className="ml-auto inline-flex items-center gap-0.5 font-medium text-[#1E446B]">
-                                {lineCount > 0
-                                  ? `${lineCount} prod.`
-                                  : "Ver detalle"}
+                                {lineCount > 0 ? `${lineCount} prod.` : "Ver detalle"}
                                 <ChevronRightIcon className="h-3.5 w-3.5" />
                               </span>
                             </div>
@@ -2177,34 +2238,75 @@ export default function SociosPage() {
 
         {tab === "stock" && (
           <div className="space-y-4">
-            <Card
-              tone={negStockCount > 0 ? "warning" : "default"}
-              padding="md"
-              className="flex flex-wrap items-center justify-between gap-3"
-            >
-              <div>
-                <h2 className="text-sm sm:text-base font-semibold text-[#18181B]">
-                  Puesta a Punto de Inventario (Día 1)
-                </h2>
-                <p className="mt-0.5 text-xs text-[#5C5A55]">
-                  Existen actualmente{" "}
-                  <strong className="text-[#18181B]">
-                    {negStockCount} productos
-                  </strong>{" "}
-                  con saldo negativo histórico por ventas sin compra previa
-                  registrada.
-                </p>
-              </div>
-              <Button
-                variant="primary"
-                size="md"
-                disabled={busyResetStock || negStockCount === 0}
-                onClick={() => setConfirmResetNegativeOpen(true)}
-              >
-                {busyResetStock
-                  ? "Regularizando..."
-                  : `Poner en 0 los ${negStockCount} saldos negativos`}
-              </Button>
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+              {[
+                {
+                  label: "Stock bajo (≤5)",
+                  count: inventorySummary.lowStock,
+                  tone: "warning" as const,
+                },
+                {
+                  label: "Productos sin costo",
+                  count: inventorySummary.noCost,
+                  tone: "danger" as const,
+                },
+                {
+                  label: "Mínimo sin margen",
+                  count: inventorySummary.marginRisk,
+                  tone: "danger" as const,
+                },
+              ].map((item) => (
+                <Card
+                  key={item.label}
+                  padding="sm"
+                  className="flex items-center justify-between gap-3"
+                >
+                  <span className="text-xs font-medium text-[#5C5A55]">
+                    {item.label}
+                  </span>
+                  <Badge tone={item.tone} className="tabular-nums">
+                    {item.count}
+                  </Badge>
+                </Card>
+              ))}
+            </div>
+            <Card tone={negStockCount > 0 ? "warning" : "default"} padding="md">
+              <details className="group">
+                <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0F2942]">
+                  <div>
+                    <h2 className="text-sm font-semibold text-[#18181B] sm:text-base">
+                      Administración · Regularización histórica
+                    </h2>
+                    <p className="mt-0.5 text-xs text-[#5C5A55]">
+                      {negStockCount} saldo(s) negativo(s) de la carga inicial
+                    </p>
+                  </div>
+                  <span
+                    aria-hidden="true"
+                    className="text-[#5C5A55] group-open:rotate-180"
+                  >
+                    ▾
+                  </span>
+                </summary>
+                <div className="mt-3 flex flex-wrap items-end justify-between gap-3 border-t border-[#E7E5E0] pt-3">
+                  <p className="max-w-2xl text-xs leading-relaxed text-[#5C5A55]">
+                    Esta acción administrativa crea ajustes auditables para llevar a
+                    cero saldos históricos por ventas sin compra previa. No se usa en la
+                    operación cotidiana.
+                  </p>
+                  <Button
+                    variant="outline"
+                    size="md"
+                    disabled={busyResetStock || negStockCount === 0}
+                    onClick={() => setConfirmResetNegativeOpen(true)}
+                    className="border-[#F59E0B] text-[#92400E]"
+                  >
+                    {busyResetStock
+                      ? "Regularizando..."
+                      : `Revisar ajuste de ${negStockCount} saldo(s)`}
+                  </Button>
+                </div>
+              </details>
             </Card>
 
             <Card padding="md" className="space-y-3.5">
@@ -2274,15 +2376,11 @@ export default function SociosPage() {
                             <p className="text-sm font-semibold text-[#18181B]">
                               {p.name}
                             </p>
-                            <p className="text-[11px] text-[#6D6A64]">
-                              {p.sku}
-                            </p>
+                            <p className="text-[11px] text-[#6D6A64]">{p.sku}</p>
                           </div>
                           <Badge
                             tone={
-                              p.fulfillment_mode === "ON_DEMAND"
-                                ? "warning"
-                                : "neutral"
+                              p.fulfillment_mode === "ON_DEMAND" ? "warning" : "neutral"
                             }
                           >
                             {formatFulfillmentModeEs(p.fulfillment_mode)}
@@ -2483,9 +2581,7 @@ export default function SociosPage() {
             recentPurchases={recentPurchases}
             pendingOnDemand={pendingOnDemand}
             preselectedTarget={preselectedPurchaseTarget}
-            onClearPreselectedTarget={() =>
-              setPreselectedPurchaseTarget(null)
-            }
+            onClearPreselectedTarget={() => setPreselectedPurchaseTarget(null)}
             onRefresh={loadDashboard}
             onFeedback={showFeedback}
             onEditingChange={setSubTabEditing}
@@ -2522,9 +2618,7 @@ export default function SociosPage() {
       <ModalSheet
         open={Boolean(editingProd)}
         onClose={() => setEditingProd(null)}
-        title={
-          editingProd ? `Editar producto · ${editingProd.sku}` : "Editar producto"
-        }
+        title={editingProd ? `Editar producto · ${editingProd.sku}` : "Editar producto"}
         subtitle={editingProd?.name}
         maxWidth="2xl"
       >
@@ -2558,9 +2652,7 @@ export default function SociosPage() {
                 />
               </div>
               <div>
-                <FieldLabel htmlFor="edit-prod-price">
-                  Precio normal (S/)
-                </FieldLabel>
+                <FieldLabel htmlFor="edit-prod-price">Precio normal (S/)</FieldLabel>
                 <input
                   id="edit-prod-price"
                   type="number"
@@ -2572,9 +2664,7 @@ export default function SociosPage() {
                 />
               </div>
               <div>
-                <FieldLabel htmlFor="edit-prod-min">
-                  Precio mínimo (S/)
-                </FieldLabel>
+                <FieldLabel htmlFor="edit-prod-min">Precio mínimo (S/)</FieldLabel>
                 <input
                   id="edit-prod-min"
                   type="number"
@@ -2601,44 +2691,35 @@ export default function SociosPage() {
               </div>
             </div>
 
-            {hasPreviewCost &&
-              Number.isFinite(previewPrice) &&
-              previewPrice > 0 && (
-                <div className="grid grid-cols-2 gap-2.5 rounded-xl border border-[#E7E5E0] bg-[#FAF9F6] p-3 text-xs tabular-nums">
-                  <div>
-                    <span className="block text-[#5C5A55]">
-                      Margen al precio normal
-                    </span>
-                    <strong className="text-[#15803D]">
-                      {formatPen(previewPrice - previewCost)} (
-                      {(
-                        ((previewPrice - previewCost) / previewPrice) *
-                        100
-                      ).toFixed(1)}
-                      %)
-                    </strong>
-                  </div>
-                  <div>
-                    <span className="block text-[#5C5A55]">
-                      Margen al precio mínimo
-                    </span>
-                    <strong
-                      className={
-                        previewMin - previewCost <= 0
-                          ? "text-[#B91C1C]"
-                          : "text-[#18181B]"
-                      }
-                    >
-                      {Number.isFinite(previewMin) && previewMin > 0
-                        ? `${formatPen(previewMin - previewCost)} (${(
-                            ((previewMin - previewCost) / previewMin) *
-                            100
-                          ).toFixed(1)}%)`
-                        : "-"}
-                    </strong>
-                  </div>
+            {hasPreviewCost && Number.isFinite(previewPrice) && previewPrice > 0 && (
+              <div className="grid grid-cols-2 gap-2.5 rounded-xl border border-[#E7E5E0] bg-[#FAF9F6] p-3 text-xs tabular-nums">
+                <div>
+                  <span className="block text-[#5C5A55]">Margen al precio normal</span>
+                  <strong className="text-[#15803D]">
+                    {formatPen(previewPrice - previewCost)} (
+                    {(((previewPrice - previewCost) / previewPrice) * 100).toFixed(1)}
+                    %)
+                  </strong>
                 </div>
-              )}
+                <div>
+                  <span className="block text-[#5C5A55]">Margen al precio mínimo</span>
+                  <strong
+                    className={
+                      previewMin - previewCost <= 0
+                        ? "text-[#B91C1C]"
+                        : "text-[#18181B]"
+                    }
+                  >
+                    {Number.isFinite(previewMin) && previewMin > 0
+                      ? `${formatPen(previewMin - previewCost)} (${(
+                          ((previewMin - previewCost) / previewMin) *
+                          100
+                        ).toFixed(1)}%)`
+                      : "-"}
+                  </strong>
+                </div>
+              </div>
+            )}
 
             <div className="flex gap-2 pt-1">
               <Button
@@ -2681,146 +2762,182 @@ export default function SociosPage() {
         }
         maxWidth="lg"
       >
-      {selectedMonitorOrder && (() => {
-        const marginVal = Number(selectedMonitorOrder.order_margin_pen ?? 0);
-        const totalVal = Number(selectedMonitorOrder.total_pen ?? 0);
-        const debtVal = Number(selectedMonitorOrder.balance_due_pen ?? 0);
-        const statusStr = String(selectedMonitorOrder.operational_status ?? "");
-        const canAbonar =
-          debtVal > 0.05 &&
-          statusStr !== "CANCELLED" &&
-          statusStr !== "PENDING_PARTNER_APPROVAL";
-        const canCancel = statusStr !== "CANCELLED";
-        return (
-          <div className="space-y-3 text-xs">
-            <div className="grid grid-cols-1 gap-2 rounded-xl border border-[#D4E0EC] bg-[#F2F6FA]/70 p-3 sm:grid-cols-3 tabular-nums">
-              <div>
-                <span className="block text-[11px] text-[#5C5A55]">Venta</span>
-                <strong className="text-sm text-[#18181B]">
-                  {formatPen(totalVal)}
-                </strong>
-              </div>
-              <div>
-                <span className="block text-[11px] text-[#5C5A55]">Margen</span>
-                <strong
-                  className={`text-sm ${getMarginTextClass(marginVal, totalVal)}`}
-                >
-                  {formatPen(marginVal)}
-                </strong>
-              </div>
-              <div>
-                <span className="block text-[11px] text-[#5C5A55]">Saldo</span>
-                <strong
-                  className={`text-sm ${
-                    debtVal > 0.05 ? "text-[#B91C1C]" : "text-[#15803D]"
-                  }`}
-                >
-                  {formatPen(debtVal)}
-                </strong>
-              </div>
-            </div>
-
-            <div className="space-y-1.5">
-              <p className="font-semibold text-[#0F2942]">
-                Productos comprados (
-                {Array.isArray(selectedMonitorOrder.lines)
-                  ? selectedMonitorOrder.lines.length
-                  : 0}
-                )
-              </p>
-              <div className="space-y-1.5">
-                {Array.isArray(selectedMonitorOrder.lines) &&
-                selectedMonitorOrder.lines.length > 0 ? (
-                  (
-                    selectedMonitorOrder.lines as Array<Record<string, unknown>>
-                  ).map((ln) => (
-                    <div
-                      key={String(ln.order_line_id)}
-                      className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-[#E7E5E0] bg-[#FAF9F6] px-3 py-2"
+        {selectedMonitorOrder &&
+          (() => {
+            const marginVal = Number(selectedMonitorOrder.order_margin_pen ?? 0);
+            const totalVal = Number(selectedMonitorOrder.total_pen ?? 0);
+            const debtVal = Number(selectedMonitorOrder.balance_due_pen ?? 0);
+            const statusStr = String(selectedMonitorOrder.operational_status ?? "");
+            const canAbonar =
+              debtVal > 0.05 &&
+              statusStr !== "CANCELLED" &&
+              statusStr !== "PENDING_PARTNER_APPROVAL";
+            const canCancel = statusStr !== "CANCELLED" && statusStr !== "DELIVERED";
+            return (
+              <div className="space-y-3 text-xs">
+                <div className="grid grid-cols-1 gap-2 rounded-xl border border-[#D4E0EC] bg-[#F2F6FA]/70 p-3 sm:grid-cols-3 tabular-nums">
+                  <div>
+                    <span className="block text-[11px] text-[#5C5A55]">Venta</span>
+                    <strong className="text-sm text-[#18181B]">
+                      {formatPen(totalVal)}
+                    </strong>
+                  </div>
+                  <div>
+                    <span className="block text-[11px] text-[#5C5A55]">Margen</span>
+                    <strong
+                      className={`text-sm ${getMarginTextClass(marginVal, totalVal)}`}
                     >
-                      <div className="min-w-0 flex-1">
-                        <p className="font-medium text-[#18181B]">
-                          {String(ln.raw_description || ln.sku)}
-                        </p>
-                        <p className="text-[11px] text-[#5C5A55] tabular-nums">
-                          {Number(ln.quantity)}{" "}
-                          <span title={formatUnitTitleEs(ln.unit_of_measure)}>
-                            {String(ln.unit_of_measure || "NIU")}
-                          </span>{" "}
-                          × {formatPen(ln.unit_price_pen)}
-                          {Number(ln.unit_discount_pen || 0) > 0
-                            ? ` (desc. ${formatPen(ln.unit_discount_pen)}/u)`
-                            : ""}{" "}
-                          · {formatFulfillmentModeEs(ln.fulfillment_mode)}
-                        </p>
-                      </div>
-                      <div className="text-right tabular-nums">
-                        <span className="block font-semibold text-[#18181B]">
-                          {formatPen(ln.line_total_pen)}
-                        </span>
-                        {ln.line_margin_pen !== null &&
-                          ln.line_margin_pen !== undefined && (
-                            <span
-                              className={`block text-[11px] font-medium ${
-                                Number(ln.line_margin_pen) <= 0
-                                  ? "text-[#B91C1C]"
-                                  : "text-[#15803D]"
-                              }`}
-                            >
-                              {Number(ln.line_margin_pen) >= 0 ? "+" : ""}
-                              {formatPen(ln.line_margin_pen)}
+                      {formatPen(marginVal)}
+                    </strong>
+                  </div>
+                  <div>
+                    <span className="block text-[11px] text-[#5C5A55]">Saldo</span>
+                    <strong
+                      className={`text-sm ${
+                        debtVal > 0.05 ? "text-[#B91C1C]" : "text-[#15803D]"
+                      }`}
+                    >
+                      {formatPen(debtVal)}
+                    </strong>
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <p className="font-semibold text-[#0F2942]">
+                    Productos comprados (
+                    {Array.isArray(selectedMonitorOrder.lines)
+                      ? selectedMonitorOrder.lines.length
+                      : 0}
+                    )
+                  </p>
+                  <div className="space-y-1.5">
+                    {Array.isArray(selectedMonitorOrder.lines) &&
+                    selectedMonitorOrder.lines.length > 0 ? (
+                      (
+                        selectedMonitorOrder.lines as Array<Record<string, unknown>>
+                      ).map((ln) => (
+                        <div
+                          key={String(ln.order_line_id)}
+                          className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-[#E7E5E0] bg-[#FAF9F6] px-3 py-2"
+                        >
+                          <div className="min-w-0 flex-1">
+                            <p className="font-medium text-[#18181B]">
+                              {String(ln.raw_description || ln.sku)}
+                            </p>
+                            <p className="text-[11px] text-[#5C5A55] tabular-nums">
+                              {Number(ln.quantity)}{" "}
+                              <span title={formatUnitTitleEs(ln.unit_of_measure)}>
+                                {String(ln.unit_of_measure || "NIU")}
+                              </span>{" "}
+                              × {formatPen(ln.unit_price_pen)}
+                              {Number(ln.unit_discount_pen || 0) > 0
+                                ? ` (desc. ${formatPen(ln.unit_discount_pen)}/u)`
+                                : ""}{" "}
+                              · {formatFulfillmentModeEs(ln.fulfillment_mode)}
+                            </p>
+                          </div>
+                          <div className="text-right tabular-nums">
+                            <span className="block font-semibold text-[#18181B]">
+                              {formatPen(ln.line_total_pen)}
                             </span>
-                          )}
+                            {ln.line_margin_pen !== null &&
+                              ln.line_margin_pen !== undefined && (
+                                <span
+                                  className={`block text-[11px] font-medium ${
+                                    Number(ln.line_margin_pen) <= 0
+                                      ? "text-[#B91C1C]"
+                                      : "text-[#15803D]"
+                                  }`}
+                                >
+                                  {Number(ln.line_margin_pen) >= 0 ? "+" : ""}
+                                  {formatPen(ln.line_margin_pen)}
+                                </span>
+                              )}
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <p className="text-[#5C5A55]">Sin líneas registradas.</p>
+                    )}
+                  </div>
+                </div>
+
+                {selectedMonitorOrder.notes ? (
+                  <p className="rounded-lg border border-[#E7E5E0] bg-white px-3 py-2 text-[#5C5A55]">
+                    Nota: {String(selectedMonitorOrder.notes)}
+                  </p>
+                ) : null}
+
+                {Array.isArray(selectedMonitorOrder.audit_history) &&
+                  selectedMonitorOrder.audit_history.length > 0 && (
+                    <details className="rounded-lg border border-[#D4E0EC] bg-[#F2F6FA]/60 p-3">
+                      <summary className="cursor-pointer font-semibold text-[#0F2942]">
+                        Historial de cambios (
+                        {selectedMonitorOrder.audit_history.length})
+                      </summary>
+                      <div className="mt-2 space-y-2">
+                        {(
+                          selectedMonitorOrder.audit_history as Array<
+                            Record<string, unknown>
+                          >
+                        ).map((entry) => (
+                          <div
+                            key={String(entry.audit_id)}
+                            className="border-t border-[#D4E0EC] pt-2 text-[11px] text-[#5C5A55]"
+                          >
+                            <p className="font-medium text-[#18181B]">
+                              {String(entry.action) === "CANCEL"
+                                ? "Anulación"
+                                : "Modificación"}{" "}
+                              · {String(entry.reason)}
+                            </p>
+                            <p>
+                              {String(entry.actor_name || "Usuario")} ·{" "}
+                              {new Date(String(entry.created_at)).toLocaleString(
+                                "es-PE"
+                              )}
+                            </p>
+                          </div>
+                        ))}
                       </div>
-                    </div>
-                  ))
-                ) : (
-                  <p className="text-[#5C5A55]">Sin líneas registradas.</p>
+                    </details>
+                  )}
+
+                {(canAbonar || canCancel) && (
+                  <div className="flex flex-col-reverse gap-2 border-t border-[#E7E5E0] pt-3 sm:flex-row sm:justify-end">
+                    {canCancel && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => {
+                          const target = selectedMonitorOrder;
+                          setSelectedMonitorOrder(null);
+                          setCancelOrderReason("");
+                          setConfirmCancelOrder(target);
+                        }}
+                        className="border-[#FECACA] text-[#B91C1C] hover:bg-[#FEF2F2]"
+                      >
+                        Anular Pedido
+                      </Button>
+                    )}
+                    {canAbonar && (
+                      <Button
+                        type="button"
+                        variant="primary"
+                        onClick={() => {
+                          const target = selectedMonitorOrder;
+                          setSelectedMonitorOrder(null);
+                          openAbonoForOrderRecord(target);
+                        }}
+                      >
+                        Registrar Abono ({formatPen(debtVal)})
+                      </Button>
+                    )}
+                  </div>
                 )}
               </div>
-            </div>
-
-            {selectedMonitorOrder.notes ? (
-              <p className="rounded-lg border border-[#E7E5E0] bg-white px-3 py-2 text-[#5C5A55]">
-                Nota: {String(selectedMonitorOrder.notes)}
-              </p>
-            ) : null}
-
-            {(canAbonar || canCancel) && (
-              <div className="flex flex-col-reverse gap-2 border-t border-[#E7E5E0] pt-3 sm:flex-row sm:justify-end">
-                {canCancel && (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => {
-                      const target = selectedMonitorOrder;
-                      setSelectedMonitorOrder(null);
-                      setCancelOrderReason("");
-                      setConfirmCancelOrder(target);
-                    }}
-                    className="border-[#FECACA] text-[#B91C1C] hover:bg-[#FEF2F2]"
-                  >
-                    Anular Pedido
-                  </Button>
-                )}
-                {canAbonar && (
-                  <Button
-                    type="button"
-                    variant="primary"
-                    onClick={() => {
-                      const target = selectedMonitorOrder;
-                      setSelectedMonitorOrder(null);
-                      openAbonoForOrderRecord(target);
-                    }}
-                  >
-                    Registrar Abono ({formatPen(debtVal)})
-                  </Button>
-                )}
-              </div>
-            )}
-          </div>
-        );
-      })()}
+            );
+          })()}
       </ModalSheet>
 
       <DebtorDetailModal
@@ -2828,9 +2945,7 @@ export default function SociosPage() {
         onClose={() => setDebtDetailTarget(null)}
         mode={debtDetailTarget?.mode ?? "order"}
         customerName={
-          debtDetailTarget?.mode === "customer"
-            ? debtDetailTarget.customerName
-            : ""
+          debtDetailTarget?.mode === "customer" ? debtDetailTarget.customerName : ""
         }
         orders={
           !debtDetailTarget
@@ -2842,16 +2957,14 @@ export default function SociosPage() {
                 : debtorsByOrder.filter((o) => {
                     const oKey =
                       o.customerKey ||
-                      (o.customerPartyId !== null &&
-                      o.customerPartyId !== undefined
+                      (o.customerPartyId !== null && o.customerPartyId !== undefined
                         ? `PARTY-${Number(o.customerPartyId)}`
                         : `RAW-${String(o.customerName || "").toUpperCase()}`);
                     return oKey === debtDetailTarget.customerKey;
                   })) as unknown as DebtOrderDetail[])
         }
         canUseCustomerFifo={Boolean(
-          debtDetailTarget?.mode === "customer" &&
-            debtDetailTarget.customerPartyId
+          debtDetailTarget?.mode === "customer" && debtDetailTarget.customerPartyId
         )}
         onSelectOrderAbono={(order) => {
           setDebtDetailTarget(null);
@@ -2885,13 +2998,12 @@ export default function SociosPage() {
         <div className="space-y-4 text-xs sm:text-sm text-[#5C5A55]">
           <p>
             Se pondrán exactamente en <strong>0</strong> los saldos de{" "}
-            <strong className="text-[#18181B]">
-              {negStockCount} producto(s)
-            </strong>{" "}
-            que tienen inventario negativo histórico en Almacén Principal.
+            <strong className="text-[#18181B]">{negStockCount} producto(s)</strong> que
+            tienen inventario negativo histórico en Almacén Principal.
           </p>
           <p className="rounded-xl border border-[#F3D9B1] bg-[#FDF8F0] px-3 py-2.5 text-xs text-[#92400E]">
-            Usa esto únicamente después de verificar que esos productos realmente están agotados y no falta registrar una compra previa.
+            Usa esto únicamente después de verificar que esos productos realmente están
+            agotados y no falta registrar una compra previa.
           </p>
           <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
             <Button
@@ -2908,9 +3020,7 @@ export default function SociosPage() {
               disabled={busyResetStock || negStockCount === 0}
               onClick={handleResetNegativeStock}
             >
-              {busyResetStock
-                ? "Regularizando..."
-                : `Sí, poner ${negStockCount} en 0`}
+              {busyResetStock ? "Regularizando..." : `Sí, poner ${negStockCount} en 0`}
             </Button>
           </div>
         </div>
@@ -2940,8 +3050,8 @@ export default function SociosPage() {
         {confirmCancelOrder && (
           <form onSubmit={handleConfirmCancelOrder} className="space-y-4">
             <p className="rounded-xl border border-[#FECACA] bg-[#FEF2F2] px-3 py-2.5 text-xs text-[#991B1B]">
-              Esta acción anulará el pedido, revertirá sus movimientos pendientes
-              de inventario / cobros asociados y cerrará alertas pendientes.
+              Esta acción anulará el pedido, revertirá sus movimientos pendientes de
+              inventario / cobros asociados y cerrará alertas pendientes.
             </p>
             <div>
               <FieldLabel htmlFor="cancel-order-reason">

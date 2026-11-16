@@ -11,6 +11,7 @@ import {
   signSessionToken,
   verifyPin,
   verifySessionToken,
+  validatePersonalPassword,
 } from "../src/lib/auth";
 import type { SessionUser } from "../src/lib/types";
 
@@ -49,6 +50,13 @@ describe("Auth Hardening (scrypt PINs, Session TTL, Rate Limiter, Production Sec
     expect(verifyPin("5679", legacy)).toBe(false);
     expect(verifyPin("1234", "invalid-format")).toBe(false);
     expect(verifyPin("1234", "")).toBe(false);
+  });
+
+  it("requires a usable personal password with a letter and number", () => {
+    expect(validatePersonalPassword("corta1")).toMatch(/10/);
+    expect(validatePersonalPassword("solamentetexto")).toMatch(/letra y un número/);
+    expect(validatePersonalPassword("12345678901")).toMatch(/letra y un número/);
+    expect(validatePersonalPassword("Horizonte2026")).toBeNull();
   });
 
   it("rejects expired session tokens and invalidates sessionVersion when PIN or role changes", () => {

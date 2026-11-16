@@ -5,6 +5,7 @@ import {
   verifySessionToken,
 } from "@/lib/auth";
 import { withClient, withTransaction } from "@/lib/db";
+import { runIdempotentMutation } from "@/lib/idempotency";
 import { assertRole } from "@/lib/rbac";
 import {
   advanceWarehouseStatus,
@@ -13,12 +14,9 @@ import {
   createOrder,
   listCatalogForRole,
   listOrdersPaginatedForRole,
+  updateOrder,
 } from "@/lib/services/orders";
-import {
-  parsePositiveInt,
-  resolveHttpError,
-  ValidationError,
-} from "@/lib/types";
+import { parsePositiveInt, resolveHttpError, ValidationError } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
@@ -36,13 +34,8 @@ export async function GET(req: NextRequest) {
 
     const limitParam = req.nextUrl.searchParams.get("limit");
     const offsetParam = req.nextUrl.searchParams.get("offset");
-    const limit = limitParam
-      ? parsePositiveInt(limitParam, "Límite")
-      : 80;
-    const offset =
-      offsetParam !== null && offsetParam !== ""
-        ? Number(offsetParam)
-        : 0;
+    const limit = limitParam ? parsePositiveInt(limitParam, "Límite") : 80;
+    const offset = offsetParam !== null && offsetParam !== "" ? Number(offsetParam) : 0;
     if (!Number.isInteger(offset) || offset < 0) {
       throw new ValidationError("Offset inválido");
     }
@@ -131,10 +124,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json(data, { headers: NO_STORE_HEADERS });
   } catch (err) {
     const { status, error } = resolveHttpError(err, "Error cargando pedidos");
-    return NextResponse.json(
-      { error },
-      { status, headers: NO_STORE_HEADERS }
-    );
+    return NextResponse.json({ error }, { status, headers: NO_STORE_HEADERS });
   }
 }
 
@@ -154,89 +144,111 @@ export async function POST(req: NextRequest) {
 
     const result = await withTransaction(async (client) => {
       const actor = await requireActiveSession(client, parsedActor);
-      if (action === "create") {
-        return await createOrder(client, actor, body);
-      }
-      if (action === "approve") {
-        const orderId = parsePositiveInt(body.orderId, "Pedido");
-        return await approveDiscountedOrder(client, actor, orderId);
-      }
-      if (action === "advance") {
-        const orderId = parsePositiveInt(body.orderId, "Pedido");
-        await advanceWarehouseStatus(
-          client,
-          actor,
-          orderId,
-          body.nextStatus
-        );
-        return { ok: true };
-      }
-      if (action === "cancel") {
-        const orderId = parsePositiveInt(body.orderId, "Pedido");
-        await cancelOrder(
-          client,
-          actor,
-          orderId,
-          String(body.reason || "Anulado desde app")
-        );
-        return { ok: true };
-      }
-      if (action === "log_cancelled_draft") {
-        assertRole(actor, ["PARTNER_ADMIN", "PARTNER_MANAGER", "EXTERNAL_SELLER"]);
-        const reasonCode = String(body.reasonCode || "").trim();
-        const reasonLabel = String(body.reasonLabel || "").trim();
-        if (!reasonCode || !reasonLabel) {
-          throw new ValidationError("Selecciona un motivo de cancelación");
-        }
-        const details = {
-          actorUserId: actor.userId,
-          actorName: actor.fullName,
-          actorRole: actor.role,
-          customerName: String(body.customerName || "").trim() || null,
-          paymentMode: body.paymentMode ? String(body.paymentMode) : null,
-          estimatedTotalPen: Number(body.estimatedTotalPen || 0),
-          itemCount: Number(body.itemCount || 0),
-          items: Array.isArray(body.items) ? body.items.slice(0, 50) : [],
-          reasonCode,
-          reasonLabel,
-          notes: String(body.notes || "").trim() || null,
-        };
-        const flagRes = await client.query<{ flag_id: string }>(
-          `INSERT INTO erp.audit_flags
+      return runIdempotentMutation(
+        client,
+        req,
+        actor,
+        `orders:${action}`,
+        body,
+        async () => {
+          if (action === "create") {
+            return await createOrder(client, actor, body);
+          }
+          if (action === "update") {
+            const orderId = parsePositiveInt(body.orderId, "Pedido");
+            return await updateOrder(client, actor, orderId, {
+              lines: body.lines,
+              reason: String(body.reason || "AJUSTE_OPERATIVO"),
+            });
+          }
+          if (action === "approve") {
+            const orderId = parsePositiveInt(body.orderId, "Pedido");
+            return await approveDiscountedOrder(client, actor, orderId);
+          }
+          if (action === "advance") {
+            const orderId = parsePositiveInt(body.orderId, "Pedido");
+            await advanceWarehouseStatus(client, actor, orderId, body.nextStatus);
+            return { ok: true };
+          }
+          if (action === "cancel") {
+            const orderId = parsePositiveInt(body.orderId, "Pedido");
+            await cancelOrder(
+              client,
+              actor,
+              orderId,
+              String(body.reason || "Anulado desde app")
+            );
+            return { ok: true };
+          }
+          if (action === "log_cancelled_draft") {
+            assertRole(actor, ["PARTNER_ADMIN", "PARTNER_MANAGER", "EXTERNAL_SELLER"]);
+            const reasonCode = String(body.reasonCode || "").trim();
+            const reasonLabel = String(body.reasonLabel || "").trim();
+            if (!reasonCode || !reasonLabel) {
+              throw new ValidationError("Selecciona un motivo de cancelación");
+            }
+            const details = {
+              actorUserId: actor.userId,
+              actorName: actor.fullName,
+              actorRole: actor.role,
+              customerName: String(body.customerName || "").trim() || null,
+              paymentMode: body.paymentMode ? String(body.paymentMode) : null,
+              estimatedTotalPen: Number(body.estimatedTotalPen || 0),
+              itemCount: Number(body.itemCount || 0),
+              items: Array.isArray(body.items) ? body.items.slice(0, 50) : [],
+              reasonCode,
+              reasonLabel,
+              notes: String(body.notes || "").trim() || null,
+            };
+            const flagRes = await client.query<{ flag_id: string }>(
+              `INSERT INTO erp.audit_flags
              (flag_code, severity, entity_table, entity_id, message, details, status, resolved_at, resolved_by, source_origin)
            VALUES
              ('CANCELLED_ORDER_DRAFT', 'INFO', 'sales_orders_draft', $1, $2, $3::jsonb, 'RESOLVED', NOW(), $4, 'ERP_APP')
            RETURNING flag_id::text AS flag_id`,
-          [
-            `${actor.userId}:${Date.now()}`,
-            `Pedido cancelado antes de registrar: ${reasonLabel}`.slice(0, 240),
-            JSON.stringify(details),
-            actor.username,
-          ]
-        );
-        return { ok: true, flagId: flagRes.rows[0]?.flag_id ?? null };
-      }
-      if (action === "create_customer") {
-        assertRole(actor, ["PARTNER_ADMIN", "PARTNER_MANAGER", "EXTERNAL_SELLER"]);
-        const name = String(body.legalName || "").trim().toUpperCase();
-        if (!name) throw new ValidationError("Nombre de cliente obligatorio");
-        const key = `CUST_${name.replace(/[^A-Z0-9]+/g, "_").slice(0, 36)}_${Date.now() % 10000}`;
-        const res = await client.query(
-          `INSERT INTO erp.parties (canonical_key, party_type, doc_type, doc_number, legal_name, trade_name, phone, address, source_origin)
+              [
+                `${actor.userId}:${Date.now()}`,
+                `Pedido cancelado antes de registrar: ${reasonLabel}`.slice(0, 240),
+                JSON.stringify(details),
+                actor.username,
+              ]
+            );
+            return { ok: true, flagId: flagRes.rows[0]?.flag_id ?? null };
+          }
+          if (action === "create_customer") {
+            assertRole(actor, ["PARTNER_ADMIN", "PARTNER_MANAGER", "EXTERNAL_SELLER"]);
+            const name = String(body.legalName || "")
+              .trim()
+              .toUpperCase();
+            if (!name) throw new ValidationError("Nombre de cliente obligatorio");
+            const key = `CUST_${name.replace(/[^A-Z0-9]+/g, "_").slice(0, 36)}_${Date.now() % 10000}`;
+            const res = await client.query(
+              `INSERT INTO erp.parties (canonical_key, party_type, doc_type, doc_number, legal_name, trade_name, phone, address, source_origin)
            VALUES ($1, 'CUSTOMER', 'NONE', $2, $3, $3, $4, $5, 'ERP_APP')
            RETURNING party_id, legal_name AS name`,
-          [key, body.docNumber || null, name, body.phone || null, body.address || null]
-        );
-        return res.rows[0];
-      }
-      throw new ValidationError(`Acción desconocida: ${action}`);
+              [
+                key,
+                body.docNumber || null,
+                name,
+                body.phone || null,
+                body.address || null,
+              ]
+            );
+            return res.rows[0];
+          }
+          throw new ValidationError(`Acción desconocida: ${action}`);
+        }
+      );
     });
 
     return NextResponse.json(result, { headers: NO_STORE_HEADERS });
   } catch (err) {
-    const { status, error } = resolveHttpError(err, "Error procesando pedido");
+    const { status, error, code, entityRef } = resolveHttpError(
+      err,
+      "Error procesando pedido"
+    );
     return NextResponse.json(
-      { error },
+      { error, ...(code ? { code } : {}), ...(entityRef ? { entityRef } : {}) },
       { status, headers: NO_STORE_HEADERS }
     );
   }

@@ -135,18 +135,13 @@ export default function KpisBiTab({
   onFeedback,
   onEditingChange,
 }: KpisBiTabProps) {
-  const [downloadingDataset, setDownloadingDataset] = useState<string | null>(
-    null
-  );
+  const [downloadingDataset, setDownloadingDataset] = useState<string | null>(null);
   const [editingPinUserId, setEditingPinUserId] = useState<number | null>(null);
   const [newPinValue, setNewPinValue] = useState("");
-  const [editingNameUserId, setEditingNameUserId] = useState<number | null>(
-    null
-  );
+  const [editingNameUserId, setEditingNameUserId] = useState<number | null>(null);
   const [newFullNameValue, setNewFullNameValue] = useState("");
   const [busyUserActionId, setBusyUserActionId] = useState<number | null>(null);
-  const [confirmToggleUser, setConfirmToggleUser] =
-    useState<AppUserItem | null>(null);
+  const [confirmToggleUser, setConfirmToggleUser] = useState<AppUserItem | null>(null);
   const [skuSearch, setSkuSearch] = useState("");
   const deferredSkuSearch = useDeferredValue(skuSearch);
   const [periodFilter, setPeriodFilter] = useState<string>("ALL");
@@ -182,8 +177,8 @@ export default function KpisBiTab({
         nextStatus === "RESOLVED"
           ? "Alerta operativa marcada como resuelta."
           : nextStatus === "ACKNOWLEDGED"
-          ? "Alerta marcada como revisada."
-          : "Alerta reabierta correctamente."
+            ? "Alerta marcada como revisada."
+            : "Alerta reabierta correctamente."
       );
       notifyLocalSync(["partners"]);
       await onRefresh();
@@ -213,9 +208,7 @@ export default function KpisBiTab({
 
   const selectedMonthRow = useMemo(() => {
     if (periodFilter === "ALL") return null;
-    return (
-      monthlyRows.find((r) => String(r.period_month) === periodFilter) ?? null
-    );
+    return monthlyRows.find((r) => String(r.period_month) === periodFilter) ?? null;
   }, [monthlyRows, periodFilter]);
 
   const visibleMonthlyRows = useMemo(() => {
@@ -243,52 +236,43 @@ export default function KpisBiTab({
     () =>
       selectedMonthRow
         ? Number(selectedMonthRow.route_opex_pen ?? 0)
-        : kpiQ1.route_opex_pen ??
-          monthlyRows.reduce((s, r) => s + Number(r.route_opex_pen ?? 0), 0),
+        : (kpiQ1.route_opex_pen ??
+          monthlyRows.reduce((s, r) => s + Number(r.route_opex_pen ?? 0), 0)),
     [selectedMonthRow, kpiQ1.route_opex_pen, monthlyRows]
   );
   const totalMerchOutflow = useMemo(
     () =>
       selectedMonthRow
         ? Number(selectedMonthRow.merchandise_outflow_pen ?? 0)
-        : kpiQ1.merchandise_outflow_pen ??
-          monthlyRows.reduce(
-            (s, r) => s + Number(r.merchandise_outflow_pen ?? 0),
-            0
-          ),
+        : (kpiQ1.merchandise_outflow_pen ??
+          monthlyRows.reduce((s, r) => s + Number(r.merchandise_outflow_pen ?? 0), 0)),
     [selectedMonthRow, kpiQ1.merchandise_outflow_pen, monthlyRows]
   );
   const totalNonOpexDrain = useMemo(
     () =>
       selectedMonthRow
         ? Number(selectedMonthRow.non_opex_capex_drain_pen ?? 0)
-        : kpiQ1.non_opex_capex_drain_pen ??
-          monthlyRows.reduce(
-            (s, r) => s + Number(r.non_opex_capex_drain_pen ?? 0),
-            0
-          ),
+        : (kpiQ1.non_opex_capex_drain_pen ??
+          monthlyRows.reduce((s, r) => s + Number(r.non_opex_capex_drain_pen ?? 0), 0)),
     [selectedMonthRow, kpiQ1.non_opex_capex_drain_pen, monthlyRows]
   );
   const totalInternalDeposits = useMemo(
     () =>
       selectedMonthRow
         ? Number(selectedMonthRow.internal_deposits_pen ?? 0)
-        : kpiQ1.internal_deposits_pen ??
-          monthlyRows.reduce(
-            (s, r) => s + Number(r.internal_deposits_pen ?? 0),
-            0
-          ),
+        : (kpiQ1.internal_deposits_pen ??
+          monthlyRows.reduce((s, r) => s + Number(r.internal_deposits_pen ?? 0), 0)),
     [selectedMonthRow, kpiQ1.internal_deposits_pen, monthlyRows]
   );
   const totalPreRouteFoundational = useMemo(
     () =>
       selectedMonthRow
         ? Number(selectedMonthRow.pre_route_foundational_outflow_pen ?? 0)
-        : kpiQ1.pre_route_foundational_outflow_pen ??
+        : (kpiQ1.pre_route_foundational_outflow_pen ??
           monthlyRows.reduce(
             (s, r) => s + Number(r.pre_route_foundational_outflow_pen ?? 0),
             0
-          ),
+          )),
     [selectedMonthRow, kpiQ1.pre_route_foundational_outflow_pen, monthlyRows]
   );
 
@@ -297,13 +281,16 @@ export default function KpisBiTab({
     if (!q) return kpiQ2TopSkus;
     return kpiQ2TopSkus.filter(
       (s) =>
-        String(s.product_name ?? "").toLowerCase().includes(q) ||
-        String(s.sku ?? "").toLowerCase().includes(q)
+        String(s.product_name ?? "")
+          .toLowerCase()
+          .includes(q) ||
+        String(s.sku ?? "")
+          .toLowerCase()
+          .includes(q)
     );
   }, [kpiQ2TopSkus, deferredSkuSearch]);
 
-  const dynamicOpenDebtorsCount =
-    kpiQ1.open_debtors_count ?? openDebtorsCount;
+  const dynamicOpenDebtorsCount = kpiQ1.open_debtors_count ?? openDebtorsCount;
 
   async function handleDownloadCsv(dataset: string, title: string) {
     if (downloadingDataset !== null) return;
@@ -327,8 +314,7 @@ export default function KpisBiTab({
       const cd = res.headers.get("content-disposition") || "";
       const match = cd.match(/filename="?([^"]+)"?/i);
       const filename =
-        match?.[1] ||
-        `bht_${dataset}_${new Date().toISOString().slice(0, 10)}.csv`;
+        match?.[1] || `bht_${dataset}_${new Date().toISOString().slice(0, 10)}.csv`;
 
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -348,8 +334,15 @@ export default function KpisBiTab({
 
   async function handleUpdatePin(userId: number, username: string) {
     if (busyUserActionId !== null) return;
-    if (newPinValue.trim().length < 4) {
-      onFeedback("El nuevo PIN debe tener al menos 4 dígitos.", true);
+    if (
+      newPinValue.trim().length < 10 ||
+      !/[A-Za-zÁÉÍÓÚáéíóúÑñ]/.test(newPinValue) ||
+      !/\d/.test(newPinValue)
+    ) {
+      onFeedback(
+        "La contraseña temporal debe tener 10 caracteres o más e incluir una letra y un número.",
+        true
+      );
       return;
     }
     setBusyUserActionId(userId);
@@ -358,22 +351,24 @@ export default function KpisBiTab({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          action: "update_user_pin",
+          action: "reset_user_password",
           userId,
-          newPin: newPinValue.trim(),
+          temporaryPassword: newPinValue.trim(),
         }),
       });
       const data = await res.json();
       if (!res.ok) {
-        onFeedback(data.error || "Error actualizando PIN", true);
+        onFeedback(data.error || "Error reiniciando contraseña", true);
         return;
       }
-      onFeedback(`PIN actualizado para el usuario ${username}.`);
+      onFeedback(
+        `Contraseña temporal creada para ${username}. Deberá cambiarla al ingresar.`
+      );
       setEditingPinUserId(null);
       setNewPinValue("");
       await onRefresh();
     } catch {
-      onFeedback("Error de red al actualizar PIN.", true);
+      onFeedback("Error de red al reiniciar la contraseña.", true);
     } finally {
       setBusyUserActionId(null);
     }
@@ -383,10 +378,7 @@ export default function KpisBiTab({
     if (busyUserActionId !== null) return;
     const cleaned = newFullNameValue.trim().replace(/\s+/g, " ");
     if (cleaned.length < 2 || cleaned.length > 60) {
-      onFeedback(
-        "El nombre visible debe tener entre 2 y 60 caracteres.",
-        true
-      );
+      onFeedback("El nombre visible debe tener entre 2 y 60 caracteres.", true);
       return;
     }
     setBusyUserActionId(userId);
@@ -435,9 +427,7 @@ export default function KpisBiTab({
         return;
       }
       onFeedback(
-        `Usuario ${user.username} ${
-          !user.is_active ? "activado" : "desactivado"
-        }.`
+        `Usuario ${user.username} ${!user.is_active ? "activado" : "desactivado"}.`
       );
       setConfirmToggleUser(null);
       await onRefresh();
@@ -461,8 +451,8 @@ export default function KpisBiTab({
     ? totalMerchOutflow > 0
       ? (totalNonOpexDrain / totalMerchOutflow) * 100
       : totalNonOpexDrain > 0
-      ? 100
-      : 0
+        ? 100
+        : 0
     : Number(kpiQ1.non_opex_vs_reinvestment_ratio_pct ?? 0);
   const gapPct = Number(kpiQ1.reconciliation_gap_pct ?? 0);
 
@@ -472,9 +462,7 @@ export default function KpisBiTab({
       {monthlyRows.length > 0 && (
         <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-[#E7E5E0] bg-white px-4 py-3">
           <div>
-            <p className="text-xs font-semibold text-[#18181B]">
-              Filtro de período
-            </p>
+            <p className="text-xs font-semibold text-[#18181B]">Filtro de período</p>
             <p className="text-[11px] text-[#5C5A55]">
               {selectedMonthRow
                 ? `Viendo ${formatMonthLabel(selectedMonthRow.period_month)} (${Number(
@@ -513,7 +501,10 @@ export default function KpisBiTab({
       )}
 
       {/* Top 4 Executive KPI Cards */}
-      <section aria-label="Indicadores ejecutivos" className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <section
+        aria-label="Indicadores ejecutivos"
+        className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4"
+      >
         <Card padding="md" className="space-y-1.5">
           <span className="text-xs font-medium text-[#5C5A55]">
             {selectedMonthRow
@@ -576,87 +567,97 @@ export default function KpisBiTab({
       </section>
 
       {/* Complete Cash Reconciliation Strip */}
-      <Card padding="md" className="space-y-3.5">
-        <div className="flex flex-wrap items-center justify-between gap-2">
+      <details className="rounded-2xl border border-[#E7E5E0] bg-white p-3 sm:p-4">
+        <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0F2942]">
           <div>
-            <h2 className="text-sm sm:text-base font-semibold text-[#18181B]">
-              Conciliación Completa de Flujos de Caja (Cada Sol Visible)
+            <h2 className="text-sm font-semibold text-[#18181B] sm:text-base">
+              Conciliación completa de caja
             </h2>
-            <p className="mt-0.5 text-xs text-[#5C5A55]">
-              {selectedMonthRow
-                ? `Desglose mensual: ${formatMonthLabel(
-                    selectedMonthRow.period_month
-                  )}.`
-                : "Desglose integral entre operación en ruta (≥ 26 Jun) e inversión inicial pre-ruta (23–25 Jun)."}
+            <p className="text-xs text-[#5C5A55]">
+              Desglose de entradas, salidas e inversión histórica
             </p>
           </div>
-          {kpiQ1.declared_net_cash_pen !== undefined &&
-            kpiQ1.expected_net_cash_pen !== undefined && (
-              <div className="rounded-xl border border-[#D4E0EC] bg-[#F2F6FA] px-3.5 py-2 text-xs tabular-nums">
-                <span className="text-[#1E446B]">Declarado: </span>
-                <strong className="text-[#0F2942]">
-                  {formatPen(kpiQ1.declared_net_cash_pen)}
-                </strong>
-                <span className="mx-2 text-[#D4E0EC]">|</span>
-                <span className="text-[#1E446B]">Esperado: </span>
-                <strong className="text-[#0F2942]">
-                  {formatPen(kpiQ1.expected_net_cash_pen)}
-                </strong>
-              </div>
-            )}
-        </div>
-
-        <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-5">
-          {[
-            {
-              title: "Compra Mercadería (≥ 26 Jun)",
-              value: formatPen(totalMerchOutflow),
-              sub: "Reinversión en mercadería y proveedores",
-              dot: "bg-[#15803D]",
-            },
-            {
-              title: "Gastos Operativos Ruta (≥ 26 Jun)",
-              value: formatPen(totalRouteOpex),
-              sub: "Combustible, viáticos, peajes",
-              dot: "bg-[#D97706]",
-            },
-            {
-              title: "Retiros y No Operativos (≥ 26 Jun)",
-              value: formatPen(totalNonOpexDrain),
-              sub: "Retiros (Socio / Gerencia) y gastos ajenos",
-              dot: "bg-[#DC2626]",
-            },
-            {
-              title: "Depósitos Internos (≥ 26 Jun)",
-              value: formatPen(totalInternalDeposits),
-              sub: "Traslados Caja Ruta → Bancos",
-              dot: "bg-[#1E446B]",
-            },
-            {
-              title: "Inversión Pre-Ruta (Jun 23–25)",
-              value: formatPen(totalPreRouteFoundational),
-              sub: "Camión + hospedaje + comisión",
-              dot: "bg-[#4F46E5]",
-            },
-          ].map((item) => (
-            <div
-              key={item.title}
-              className="rounded-xl bg-[#FAF9F6] p-3"
-            >
-              <span className="flex items-center gap-1.5 text-[11px] font-medium text-[#5C5A55]">
-                <span className={`h-2 w-2 flex-shrink-0 rounded-full ${item.dot}`} aria-hidden="true" />
-                <span>{item.title}</span>
-              </span>
-              <p className="mt-1 text-base font-semibold text-[#18181B] tabular-nums">
-                {item.value}
+          <span className="text-xs font-medium text-[#1E446B]">Ver detalle</span>
+        </summary>
+        <Card padding="md" className="mt-3 space-y-3.5">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <p className="mt-0.5 text-xs text-[#5C5A55]">
+                {selectedMonthRow
+                  ? `Desglose mensual: ${formatMonthLabel(
+                      selectedMonthRow.period_month
+                    )}.`
+                  : "Desglose integral entre operación en ruta (≥ 26 Jun) e inversión inicial pre-ruta (23–25 Jun)."}
               </p>
-              <span className="mt-0.5 block text-[11px] text-[#5C5A55]">
-                {item.sub}
-              </span>
             </div>
-          ))}
-        </div>
-      </Card>
+            {kpiQ1.declared_net_cash_pen !== undefined &&
+              kpiQ1.expected_net_cash_pen !== undefined && (
+                <div className="rounded-xl border border-[#D4E0EC] bg-[#F2F6FA] px-3.5 py-2 text-xs tabular-nums">
+                  <span className="text-[#1E446B]">Declarado: </span>
+                  <strong className="text-[#0F2942]">
+                    {formatPen(kpiQ1.declared_net_cash_pen)}
+                  </strong>
+                  <span className="mx-2 text-[#D4E0EC]">|</span>
+                  <span className="text-[#1E446B]">Esperado: </span>
+                  <strong className="text-[#0F2942]">
+                    {formatPen(kpiQ1.expected_net_cash_pen)}
+                  </strong>
+                </div>
+              )}
+          </div>
+
+          <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-5">
+            {[
+              {
+                title: "Compra Mercadería (≥ 26 Jun)",
+                value: formatPen(totalMerchOutflow),
+                sub: "Reinversión en mercadería y proveedores",
+                dot: "bg-[#15803D]",
+              },
+              {
+                title: "Gastos Operativos Ruta (≥ 26 Jun)",
+                value: formatPen(totalRouteOpex),
+                sub: "Combustible, viáticos, peajes",
+                dot: "bg-[#D97706]",
+              },
+              {
+                title: "Retiros y No Operativos (≥ 26 Jun)",
+                value: formatPen(totalNonOpexDrain),
+                sub: "Retiros (Socio / Gerencia) y gastos ajenos",
+                dot: "bg-[#DC2626]",
+              },
+              {
+                title: "Depósitos Internos (≥ 26 Jun)",
+                value: formatPen(totalInternalDeposits),
+                sub: "Traslados Caja Ruta → Bancos",
+                dot: "bg-[#1E446B]",
+              },
+              {
+                title: "Inversión Pre-Ruta (Jun 23–25)",
+                value: formatPen(totalPreRouteFoundational),
+                sub: "Camión + hospedaje + comisión",
+                dot: "bg-[#4F46E5]",
+              },
+            ].map((item) => (
+              <div key={item.title} className="rounded-xl bg-[#FAF9F6] p-3">
+                <span className="flex items-center gap-1.5 text-[11px] font-medium text-[#5C5A55]">
+                  <span
+                    className={`h-2 w-2 flex-shrink-0 rounded-full ${item.dot}`}
+                    aria-hidden="true"
+                  />
+                  <span>{item.title}</span>
+                </span>
+                <p className="mt-1 text-base font-semibold text-[#18181B] tabular-nums">
+                  {item.value}
+                </p>
+                <span className="mt-0.5 block text-[11px] text-[#5C5A55]">
+                  {item.sub}
+                </span>
+              </div>
+            ))}
+          </div>
+        </Card>
+      </details>
 
       {/* Actionable Alerts: Low Stock & Margin Risk (Above Historical Tables) */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
@@ -679,9 +680,7 @@ export default function KpisBiTab({
                   className="flex flex-wrap items-center justify-between gap-2.5 rounded-xl border border-[#E7E5E0] bg-[#FAF9F6]/60 p-2.5 text-xs sm:flex-nowrap"
                 >
                   <div className="min-w-0 flex-1">
-                    <p className="font-semibold text-[#18181B]">
-                      {item.name}
-                    </p>
+                    <p className="font-semibold text-[#18181B]">{item.name}</p>
                     <p className="mt-0.5 text-[11px] text-[#5C5A55] tabular-nums">
                       {item.sku} · Stock:{" "}
                       <strong
@@ -715,7 +714,11 @@ export default function KpisBiTab({
           </div>
         </Card>
 
-        <Card tone={biSummary?.marginRiskSkus?.length ? "warning" : "default"} padding="md" className="space-y-3">
+        <Card
+          tone={biSummary?.marginRiskSkus?.length ? "warning" : "default"}
+          padding="md"
+          className="space-y-3"
+        >
           <div>
             <h2
               id="margin-risk-heading"
@@ -746,12 +749,9 @@ export default function KpisBiTab({
                         {m.sku}
                       </span>
                     </div>
-                    <p className="font-semibold text-[#18181B]">
-                      {m.product_name}
-                    </p>
+                    <p className="font-semibold text-[#18181B]">{m.product_name}</p>
                     <p className="text-[11px] text-[#5C5A55] tabular-nums">
-                      Ventas: <strong>{formatPen(m.total_revenue_pen)}</strong> ·
-                      Costo:{" "}
+                      Ventas: <strong>{formatPen(m.total_revenue_pen)}</strong> · Costo:{" "}
                       {m.ref_cost_pen !== null && m.ref_cost_pen !== undefined
                         ? formatPen(m.ref_cost_pen)
                         : "Sin costo"}
@@ -845,10 +845,7 @@ export default function KpisBiTab({
                   {bars.map((b) => {
                     const pct = Math.min(
                       100,
-                      Math.max(
-                        b.val > 0 ? 2 : 0,
-                        (b.val / maxMonthlyBarValue) * 100
-                      )
+                      Math.max(b.val > 0 ? 2 : 0, (b.val / maxMonthlyBarValue) * 100)
                     );
                     return (
                       <div key={b.label} className="space-y-0.5">
@@ -882,16 +879,30 @@ export default function KpisBiTab({
           <table className="w-full text-left text-xs">
             <thead className="border-b border-[#E7E5E0] bg-[#FAF9F6] text-[11px] font-semibold uppercase tracking-wide text-[#5C5A55]">
               <tr>
-                <th scope="col" className="whitespace-nowrap p-2">Mes</th>
-                <th scope="col" className="whitespace-nowrap p-2 text-right">Ventas</th>
-                <th scope="col" className="whitespace-nowrap p-2 text-right">Cobros</th>
-                <th scope="col" className="whitespace-nowrap p-2 text-right">Por Cobrar</th>
-                <th scope="col" className="whitespace-nowrap p-2 text-right">Mercadería</th>
-                <th scope="col" className="whitespace-nowrap p-2 text-right">Gastos Ruta</th>
+                <th scope="col" className="whitespace-nowrap p-2">
+                  Mes
+                </th>
+                <th scope="col" className="whitespace-nowrap p-2 text-right">
+                  Ventas
+                </th>
+                <th scope="col" className="whitespace-nowrap p-2 text-right">
+                  Cobros
+                </th>
+                <th scope="col" className="whitespace-nowrap p-2 text-right">
+                  Por Cobrar
+                </th>
+                <th scope="col" className="whitespace-nowrap p-2 text-right">
+                  Mercadería
+                </th>
+                <th scope="col" className="whitespace-nowrap p-2 text-right">
+                  Gastos Ruta
+                </th>
                 <th scope="col" className="whitespace-nowrap p-2 text-right">
                   No Operativos
                 </th>
-                <th scope="col" className="whitespace-nowrap p-2 text-right">Depósitos</th>
+                <th scope="col" className="whitespace-nowrap p-2 text-right">
+                  Depósitos
+                </th>
                 <th scope="col" className="whitespace-nowrap p-2 text-right">
                   Pre-Ruta Jun 23–25
                 </th>
@@ -899,10 +910,7 @@ export default function KpisBiTab({
             </thead>
             <tbody className="divide-y divide-[#E7E5E0]">
               {visibleMonthlyRows.map((m) => (
-                <tr
-                  key={m.period_month}
-                  className="transition hover:bg-[#FAF9F6]"
-                >
+                <tr key={m.period_month} className="transition hover:bg-[#FAF9F6]">
                   <td className="p-2 font-semibold text-[#18181B]">
                     {formatMonthLabel(m.period_month)}
                   </td>
@@ -1044,9 +1052,7 @@ export default function KpisBiTab({
                     className="rounded-xl bg-[#FAF9F6] p-3 text-xs space-y-1.5"
                   >
                     <div className="flex items-start justify-between gap-2">
-                      <p className="font-semibold text-[#18181B]">
-                        {c.customer_name}
-                      </p>
+                      <p className="font-semibold text-[#18181B]">{c.customer_name}</p>
                       <Badge tone="neutral" className="tabular-nums">
                         {c.orders_count} ped.
                       </Badge>
@@ -1069,13 +1075,9 @@ export default function KpisBiTab({
                         </strong>
                       </div>
                       <div>
-                        <span className="block text-[11px] text-[#5C5A55]">
-                          Deuda
-                        </span>
+                        <span className="block text-[11px] text-[#5C5A55]">Deuda</span>
                         <strong
-                          className={
-                            due > 0.05 ? "text-[#B91C1C]" : "text-[#15803D]"
-                          }
+                          className={due > 0.05 ? "text-[#B91C1C]" : "text-[#15803D]"}
                         >
                           {formatPen(due)}
                         </strong>
@@ -1096,11 +1098,21 @@ export default function KpisBiTab({
               <table className="w-full text-left text-xs">
                 <thead className="border-b border-[#E7E5E0] bg-[#FAF9F6] text-[11px] font-semibold uppercase tracking-wide text-[#5C5A55]">
                   <tr>
-                    <th scope="col" className="p-2">Cliente</th>
-                    <th scope="col" className="p-2 text-right">Ped.</th>
-                    <th scope="col" className="p-2 text-right">Vendido</th>
-                    <th scope="col" className="p-2 text-right">Cobrado</th>
-                    <th scope="col" className="p-2 text-right">Deuda</th>
+                    <th scope="col" className="p-2">
+                      Cliente
+                    </th>
+                    <th scope="col" className="p-2 text-right">
+                      Ped.
+                    </th>
+                    <th scope="col" className="p-2 text-right">
+                      Vendido
+                    </th>
+                    <th scope="col" className="p-2 text-right">
+                      Cobrado
+                    </th>
+                    <th scope="col" className="p-2 text-right">
+                      Deuda
+                    </th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#E7E5E0]">
@@ -1109,9 +1121,7 @@ export default function KpisBiTab({
                       <td className="p-2 font-medium text-[#18181B]">
                         {c.customer_name}
                       </td>
-                      <td className="p-2 text-right tabular-nums">
-                        {c.orders_count}
-                      </td>
+                      <td className="p-2 text-right tabular-nums">{c.orders_count}</td>
                       <td className="p-2 text-right font-semibold tabular-nums">
                         {formatPen(c.total_sold_pen)}
                       </td>
@@ -1215,9 +1225,7 @@ export default function KpisBiTab({
                         </strong>
                       </div>
                       <div>
-                        <span className="block text-[11px] text-[#5C5A55]">
-                          Margen
-                        </span>
+                        <span className="block text-[11px] text-[#5C5A55]">Margen</span>
                         <strong className={marginCls}>
                           {sku.gross_margin_pen !== null
                             ? formatPen(sku.gross_margin_pen)
@@ -1250,18 +1258,30 @@ export default function KpisBiTab({
               <table className="w-full text-left text-xs">
                 <thead className="border-b border-[#E7E5E0] bg-[#FAF9F6] text-[11px] font-semibold uppercase tracking-wide text-[#5C5A55]">
                   <tr>
-                    <th scope="col" className="whitespace-nowrap p-2">Código / Producto</th>
+                    <th scope="col" className="whitespace-nowrap p-2">
+                      Código / Producto
+                    </th>
                     <th scope="col" className="whitespace-nowrap p-2 text-right">
                       Unid. Vendidas
                     </th>
-                    <th scope="col" className="whitespace-nowrap p-2 text-right">Ingresos</th>
-                    <th scope="col" className="whitespace-nowrap p-2 text-right">Costo</th>
+                    <th scope="col" className="whitespace-nowrap p-2 text-right">
+                      Ingresos
+                    </th>
+                    <th scope="col" className="whitespace-nowrap p-2 text-right">
+                      Costo
+                    </th>
                     <th scope="col" className="whitespace-nowrap p-2 text-right">
                       Margen Bruto
                     </th>
-                    <th scope="col" className="whitespace-nowrap p-2 text-right">Margen %</th>
-                    <th scope="col" className="whitespace-nowrap p-2">Estado</th>
-                    <th scope="col" className="whitespace-nowrap p-2 text-right">Acción</th>
+                    <th scope="col" className="whitespace-nowrap p-2 text-right">
+                      Margen %
+                    </th>
+                    <th scope="col" className="whitespace-nowrap p-2">
+                      Estado
+                    </th>
+                    <th scope="col" className="whitespace-nowrap p-2 text-right">
+                      Acción
+                    </th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#E7E5E0]">
@@ -1336,8 +1356,8 @@ export default function KpisBiTab({
             Exportar Reportes para Excel / Contador (CSV)
           </h2>
           <p className="mt-0.5 text-xs text-[#5C5A55]">
-            Descarga directa compatible con Microsoft Excel en español (UTF-8,
-            Soles y columnas limpias).
+            Descarga directa compatible con Microsoft Excel en español (UTF-8, Soles y
+            columnas limpias).
           </p>
         </div>
         <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-5">
@@ -1353,12 +1373,8 @@ export default function KpisBiTab({
                 className="flex flex-col justify-between rounded-xl border border-[#E7E5E0] bg-white p-3.5 text-left transition hover:border-[#0F2942] disabled:opacity-50 cursor-pointer"
               >
                 <div>
-                  <p className="text-xs font-semibold text-[#18181B]">
-                    {ds.title}
-                  </p>
-                  <p className="mt-1 text-[11px] text-[#5C5A55]">
-                    {ds.subtitle}
-                  </p>
+                  <p className="text-xs font-semibold text-[#18181B]">{ds.title}</p>
+                  <p className="mt-1 text-[11px] text-[#5C5A55]">{ds.subtitle}</p>
                 </div>
                 <span className="mt-3 inline-flex items-center justify-center gap-1.5 rounded-lg bg-[#0F2942] px-2.5 py-1.5 text-[11px] font-semibold text-white">
                   <DownloadIcon className="h-3.5 w-3.5" />
@@ -1377,25 +1393,17 @@ export default function KpisBiTab({
         </h2>
         <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
           {qualityGaps.map((g) => {
-            const gapInfo = formatQualityGapEs(
-              g.metric_code,
-              g.recommended_action
-            );
+            const gapInfo = formatQualityGapEs(g.metric_code, g.recommended_action);
             return (
               <div
                 key={String(g.metric_code)}
                 className="rounded-xl bg-[#FAF9F6] p-3 text-xs space-y-1"
               >
-                <span className="font-medium text-[#5C5A55]">
-                  {gapInfo.label}
-                </span>
+                <span className="font-medium text-[#5C5A55]">{gapInfo.label}</span>
                 <p className="text-sm font-semibold text-[#18181B] tabular-nums">
-                  {Number(g.gap_count)} caso(s) (
-                  {formatPen(g.impacted_amount_pen)})
+                  {Number(g.gap_count)} caso(s) ({formatPen(g.impacted_amount_pen)})
                 </p>
-                <p className="text-[11px] text-[#5C5A55]">
-                  {gapInfo.description}
-                </p>
+                <p className="text-[11px] text-[#5C5A55]">{gapInfo.description}</p>
               </div>
             );
           })}
@@ -1446,9 +1454,7 @@ export default function KpisBiTab({
             flagFilter === "ALL" ? true : f.status === flagFilter
           );
           if (visibleFlags.length === 0) {
-            return (
-              <EmptyState title="Sin alertas operativas en este filtro" />
-            );
+            return <EmptyState title="Sin alertas operativas en este filtro" />;
           }
           return (
             <div className="space-y-2.5">
@@ -1458,10 +1464,10 @@ export default function KpisBiTab({
                   f.status === "RESOLVED"
                     ? "success"
                     : f.status === "ACKNOWLEDGED"
-                    ? "brand"
-                    : f.severity === "CRITICAL"
-                    ? "danger"
-                    : "warning";
+                      ? "brand"
+                      : f.severity === "CRITICAL"
+                        ? "danger"
+                        : "warning";
                 return (
                   <div
                     key={f.flag_id}
@@ -1470,9 +1476,7 @@ export default function KpisBiTab({
                     <div className="flex flex-wrap items-start justify-between gap-2">
                       <div className="min-w-0 space-y-0.5">
                         <div className="flex flex-wrap items-center gap-1.5">
-                          <Badge tone={tone}>
-                            {formatAuditFlagStatusEs(f.status)}
-                          </Badge>
+                          <Badge tone={tone}>{formatAuditFlagStatusEs(f.status)}</Badge>
                           <span className="font-semibold text-[#18181B]">
                             {formatAuditFlagCodeEs(f.flag_code)}
                           </span>
@@ -1509,9 +1513,7 @@ export default function KpisBiTab({
                             size="sm"
                             data-compact="true"
                             disabled={isBusy}
-                            onClick={() =>
-                              handleUpdateAuditFlag(f.flag_id, "RESOLVED")
-                            }
+                            onClick={() => handleUpdateAuditFlag(f.flag_id, "RESOLVED")}
                           >
                             Resolver
                           </Button>
@@ -1522,9 +1524,7 @@ export default function KpisBiTab({
                             size="sm"
                             data-compact="true"
                             disabled={isBusy}
-                            onClick={() =>
-                              handleUpdateAuditFlag(f.flag_id, "OPEN")
-                            }
+                            onClick={() => handleUpdateAuditFlag(f.flag_id, "OPEN")}
                           >
                             Reabrir
                           </Button>
@@ -1554,18 +1554,18 @@ export default function KpisBiTab({
         })()}
       </Card>
 
-      {/* Team & PIN Management (PARTNER_ADMIN & PARTNER_MANAGER) */}
+      {/* Team and personal password management */}
       {(currentUser?.role === "PARTNER_ADMIN" ||
         currentUser?.role === "PARTNER_MANAGER") && (
         <Card accent="horizon" padding="md" className="space-y-3.5">
           <div>
             <Badge tone="horizon">Socio / Gerencia</Badge>
             <h2 className="mt-2 text-sm sm:text-base font-semibold text-[#18181B]">
-              Gestión de Equipo y PINes ({users.length} usuarios)
+              Gestión de equipo y contraseñas ({users.length} usuarios)
             </h2>
             <p className="mt-0.5 text-xs text-[#5C5A55]">
               Actualiza los nombres visibles en la pantalla de inicio, cambia
-              PINes de acceso o activa/desactiva cuentas.
+              contraseñas temporales o activa/desactiva cuentas.
             </p>
           </div>
 
@@ -1610,9 +1610,7 @@ export default function KpisBiTab({
                         onClick={() => {
                           setEditingPinUserId(null);
                           setEditingNameUserId(isEditingName ? null : u.user_id);
-                          setNewFullNameValue(
-                            isEditingName ? "" : displayName
-                          );
+                          setNewFullNameValue(isEditingName ? "" : displayName);
                         }}
                       >
                         <EditIcon className="h-3.5 w-3.5" />
@@ -1624,7 +1622,7 @@ export default function KpisBiTab({
                         size="sm"
                         disabled={isBusy}
                         aria-expanded={isEditingPin}
-                        aria-label={`${isEditingPin ? "Cancelar cambio de PIN para" : "Cambiar PIN de"} ${u.username}`}
+                        aria-label={`${isEditingPin ? "Cancelar reinicio de contraseña para" : "Reiniciar contraseña de"} ${u.username}`}
                         onClick={() => {
                           setEditingNameUserId(null);
                           setEditingPinUserId(isEditingPin ? null : u.user_id);
@@ -1632,7 +1630,7 @@ export default function KpisBiTab({
                         }}
                       >
                         <LockIcon className="h-3.5 w-3.5" />
-                        {isEditingPin ? "Cancelar PIN" : "Cambiar PIN"}
+                        {isEditingPin ? "Cancelar" : "Reiniciar contraseña"}
                       </Button>
 
                       {isSelf ? (
@@ -1698,13 +1696,12 @@ export default function KpisBiTab({
                     >
                       <input
                         type="password"
-                        inputMode="numeric"
-                        maxLength={8}
+                        maxLength={128}
                         value={newPinValue}
                         onChange={(e) => setNewPinValue(e.target.value)}
-                        aria-label={`Nuevo PIN para ${u.username}`}
-                        placeholder="Nuevo PIN (mín. 4 dígitos)"
-                        className={`${INPUT_CLASS} w-full sm:w-auto sm:min-w-[180px] sm:flex-1 font-semibold tracking-widest tabular-nums`}
+                        aria-label={`Contraseña temporal para ${u.username}`}
+                        placeholder="Temporal: 10+ caracteres, letra y número"
+                        className={`${INPUT_CLASS} w-full sm:w-auto sm:min-w-[220px] sm:flex-1 font-medium`}
                       />
                       <Button
                         type="submit"
@@ -1715,7 +1712,7 @@ export default function KpisBiTab({
                       >
                         {busyUserActionId === u.user_id
                           ? "Guardando..."
-                          : "Guardar Nuevo PIN"}
+                          : "Guardar contraseña temporal"}
                       </Button>
                     </form>
                   )}
@@ -1745,8 +1742,8 @@ export default function KpisBiTab({
               <strong className="text-[#18181B]">
                 {formatTeamMemberName(confirmToggleUser)}
               </strong>
-              , su sesión activa quedará invalidada inmediatamente y no podrá
-              ingresar hasta que vuelvas a activarlo.
+              , su sesión activa quedará invalidada inmediatamente y no podrá ingresar
+              hasta que vuelvas a activarlo.
             </p>
             <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
               <Button

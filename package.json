@@ -4,9 +4,18 @@
   "private": true,
   "scripts": {
     "dev": "next dev --port 3000",
+    "clean": "node scripts/clean-next.mjs",
+    "prebuild": "node scripts/verify-project.mjs",
     "build": "next build",
     "start": "next start --port 3000",
-    "test": "vitest run"
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint . --max-warnings=0",
+    "format": "prettier --write .",
+    "format:check": "prettier --check playwright.config.ts scripts src/app/change-password src/app/offline src/components/auth src/components/pwa src/lib/idempotency.ts src/lib/offline src/lib/schema-version.ts tests/e2e tests/idempotency-*.test.ts",
+    "test": "vitest run",
+    "test:e2e": "playwright test",
+    "test:a11y": "playwright test tests/e2e/accessibility.spec.ts",
+    "audit:lighthouse": "lighthouse http://127.0.0.1:3000/login --only-categories=performance,accessibility,best-practices --output=html --output-path=.lighthouse/login.html"
   },
   "dependencies": {
     "next": "^15.1.0",
@@ -15,12 +24,18 @@
     "react-dom": "^19.0.0"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.14.0",
+    "@playwright/test": "^1.65.1",
     "@tailwindcss/postcss": "^4.0.0",
     "@types/node": "^22.10.0",
     "@types/pg": "^8.11.10",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
+    "eslint": "^8.57.1",
+    "eslint-config-next": "^15.5.29",
+    "lighthouse": "^12.8.2",
     "postcss": "^8.4.49",
+    "prettier": "^3.10.1",
     "tailwindcss": "^4.0.0",
     "typescript": "^5.7.2",
     "vitest": "^2.1.8"

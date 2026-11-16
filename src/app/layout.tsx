@@ -1,10 +1,17 @@
 import type { Metadata, Viewport } from "next";
+import PwaRuntime from "@/components/pwa/PwaRuntime";
 import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Blue Horizon Trade — Gestión y Ventas (S/)",
   description:
     "Sistema interno adaptado a móvil y computadora para distribución mayorista y ventas en Soles (S/)",
+  manifest: "/manifest.webmanifest",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "BHT ERP",
+  },
 };
 
 export const viewport: Viewport = {
@@ -29,6 +36,7 @@ export default function RootLayout({
           Saltar al contenido principal
         </a>
         {children}
+        <PwaRuntime />
       </body>
     </html>
   );

@@ -7,6 +7,7 @@ import {
   cancelOrder,
   createOrder,
   listOrdersForRole,
+  updateOrder,
 } from "../src/lib/services/orders";
 
 const sellerActor: SessionUser = {
@@ -59,7 +60,116 @@ describe("Order Lifecycle Service (Soles Discount Floor, Approval, Stock & 4-Res
     }
   });
 
-  it("holds EXTERNAL_SELLER order below min_sale_price_pen in PENDING_PARTNER_APPROVAL without deducting stock until Partner approves, and handles cancellation safely", async () => {
+  it("lets the seller edit an undelivered order without approval above cost and keeps immutable before/after history", async () => {
+    const pool = getPool("dev");
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      const warehouse = await client.query(
+        `SELECT warehouse_id FROM erp.warehouses WHERE code = 'MAIN' LIMIT 1`
+      );
+      const warehouseId = Number(warehouse.rows[0].warehouse_id);
+      const product = await client.query(
+        `INSERT INTO erp.products
+           (sku, name, unit_of_measure, fulfillment_mode, list_sale_price_pen,
+            min_sale_price_pen, ref_cost_pen)
+         VALUES ('TEST-EDIT-AUDIT', 'PRODUCTO EDITABLE', 'UND', 'STOCKED', 100, 95, 70)
+         RETURNING product_id`
+      );
+      const productId = Number(product.rows[0].product_id);
+      await client.query(
+        `INSERT INTO erp.inventory_movements
+           (warehouse_id, product_id, movement_date, movement_type,
+            quantity_delta, unit_cost_pen, notes)
+         VALUES ($1, $2, NOW(), 'ADJUSTMENT', 20, 70, 'TEST_EDIT_STOCK')`,
+        [warehouseId, productId]
+      );
+
+      const created = await createOrder(client, sellerActor, {
+        customerNameRaw: "CLIENTE EDITABLE",
+        paymentMode: "CREDIT",
+        lines: [{ productId, quantity: 2, unitDiscountPen: 10 }],
+      });
+      expect(created.requiresApproval).toBe(false); // S/ 90 is below minimum, but above cost.
+
+      const updated = await updateOrder(client, sellerActor, created.orderId, {
+        reason: "Calidad del producto",
+        lines: [{ productId, quantity: 3, unitDiscountPen: 10 }],
+      });
+      expect(updated.requiresApproval).toBe(false);
+      expect(updated.operationalStatus).toBe("REGISTERED");
+
+      const audit = await client.query(
+        `SELECT action, actor_user_id, reason, before_data, after_data
+         FROM erp.sales_order_audit_log WHERE order_id = $1`,
+        [created.orderId]
+      );
+      expect(audit.rowCount).toBe(1);
+      expect(audit.rows[0].action).toBe("EDIT");
+      expect(Number(audit.rows[0].actor_user_id)).toBe(sellerActor.userId);
+      expect(audit.rows[0].reason).toBe("Calidad del producto");
+      expect(Number(audit.rows[0].before_data.lines[0].quantity)).toBe(2);
+      expect(Number(audit.rows[0].after_data.lines[0].quantity)).toBe(3);
+
+      const stock = await client.query(
+        `SELECT stock_on_hand FROM erp.v_current_stock
+         WHERE warehouse_id = $1 AND product_id = $2`,
+        [warehouseId, productId]
+      );
+      expect(Number(stock.rows[0].stock_on_hand)).toBe(17);
+    } finally {
+      await client.query("ROLLBACK");
+      client.release();
+    }
+  });
+
+  it("voids collections with a compensating cash entry instead of deleting history", async () => {
+    const pool = getPool("dev");
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      const product = await client.query(
+        `INSERT INTO erp.products
+           (sku, name, unit_of_measure, fulfillment_mode, list_sale_price_pen,
+            min_sale_price_pen, ref_cost_pen)
+         VALUES ('TEST-CANCEL-TRACE', 'PRODUCTO CANCELABLE', 'UND', 'ON_DEMAND', 100, 90, 60)
+         RETURNING product_id`
+      );
+      const created = await createOrder(client, sellerActor, {
+        customerNameRaw: "CLIENTE REVERSA",
+        paymentMode: "CASH",
+        collectOnDelivery: false,
+        lines: [{ productId: Number(product.rows[0].product_id), quantity: 1 }],
+      });
+
+      await cancelOrder(client, partnerActor, created.orderId, "Cambio de opinión");
+
+      const payment = await client.query(
+        `SELECT voided_at, voided_by_user_id, void_reason, reversal_ledger_id
+         FROM erp.ar_payments WHERE order_id = $1`,
+        [created.orderId]
+      );
+      expect(payment.rowCount).toBe(1);
+      expect(payment.rows[0].voided_at).not.toBeNull();
+      expect(Number(payment.rows[0].voided_by_user_id)).toBe(partnerActor.userId);
+      expect(payment.rows[0].void_reason).toBe("Cambio de opinión");
+
+      const reversal = await client.query(
+        `SELECT direction::text, amount_pen, is_reversal, created_by_user_id
+         FROM erp.cash_ledger WHERE ledger_id = $1`,
+        [payment.rows[0].reversal_ledger_id]
+      );
+      expect(reversal.rows[0].direction).toBe("OUT");
+      expect(Number(reversal.rows[0].amount_pen)).toBe(100);
+      expect(reversal.rows[0].is_reversal).toBe(true);
+      expect(Number(reversal.rows[0].created_by_user_id)).toBe(partnerActor.userId);
+    } finally {
+      await client.query("ROLLBACK");
+      client.release();
+    }
+  });
+
+  it("holds an EXTERNAL_SELLER order below cost for approval without deducting stock, and handles cancellation safely", async () => {
     const pool = getPool("dev");
     const client = await pool.connect();
     try {
@@ -83,12 +193,12 @@ describe("Order Lifecycle Service (Soles Discount Floor, Approval, Stock & 4-Res
         [warehouseId, productId]
       );
 
-      // 1. Seller requests S/ 5 per unit discount (80 - 5 = 75 < min 78) with 10-day credit promise
+      // 1. Seller requests S/ 25 discount (80 - 25 = 55 < cost 60).
       const created = await createOrder(client, sellerActor, {
         customerNameRaw: "CLIENTE CREDITO 10D",
         paymentMode: "CREDIT",
         creditDays: 10,
-        lines: [{ productId, quantity: 4, unitDiscountPen: 5 }],
+        lines: [{ productId, quantity: 4, unitDiscountPen: 25 }],
       });
 
       expect(created.requiresApproval).toBe(true);
@@ -103,9 +213,9 @@ describe("Order Lifecycle Service (Soles Discount Floor, Approval, Stock & 4-Res
 
       // Warehouse role must NOT see PENDING_PARTNER_APPROVAL orders
       const whOrdersBefore = await listOrdersForRole(client, warehouseActor);
-      expect(
-        whOrdersBefore.some((o) => Number(o.order_id) === created.orderId)
-      ).toBe(false);
+      expect(whOrdersBefore.some((o) => Number(o.order_id) === created.orderId)).toBe(
+        false
+      );
 
       // 2. Partner approves with 1 tap -> transitions to REGISTERED and deducts 4 units (stock = 16)
       const approved = await approveDiscountedOrder(
@@ -125,7 +235,12 @@ describe("Order Lifecycle Service (Soles Discount Floor, Approval, Stock & 4-Res
       await advanceWarehouseStatus(client, warehouseActor, created.orderId, "PICKING");
       await advanceWarehouseStatus(client, warehouseActor, created.orderId, "READY");
       await advanceWarehouseStatus(client, warehouseActor, created.orderId, "IN_ROUTE");
-      await advanceWarehouseStatus(client, warehouseActor, created.orderId, "DELIVERED");
+      await advanceWarehouseStatus(
+        client,
+        warehouseActor,
+        created.orderId,
+        "DELIVERED"
+      );
 
       const orderCheck = await client.query(
         `SELECT operational_status::text AS status, approved_by_user_id, picked_by_user_id, delivered_by_user_id, promised_payment_date
@@ -135,16 +250,23 @@ describe("Order Lifecycle Service (Soles Discount Floor, Approval, Stock & 4-Res
       expect(orderCheck.rows[0].status).toBe("DELIVERED");
       expect(Number(orderCheck.rows[0].approved_by_user_id)).toBe(partnerActor.userId);
       expect(Number(orderCheck.rows[0].picked_by_user_id)).toBe(warehouseActor.userId);
-      expect(Number(orderCheck.rows[0].delivered_by_user_id)).toBe(warehouseActor.userId);
+      expect(Number(orderCheck.rows[0].delivered_by_user_id)).toBe(
+        warehouseActor.userId
+      );
       expect(orderCheck.rows[0].promised_payment_date).not.toBeNull();
 
       // 4. Verify cancelling an unapproved order does NOT add duplicate RETURN_IN stock
       const unapproved = await createOrder(client, sellerActor, {
         customerNameRaw: "CLIENTE CANCELA SIN APROBAR",
         paymentMode: "CASH",
-        lines: [{ productId, quantity: 3, unitDiscountPen: 5 }],
+        lines: [{ productId, quantity: 3, unitDiscountPen: 25 }],
       });
-      await cancelOrder(client, partnerActor, unapproved.orderId, "Descuento rechazado");
+      await cancelOrder(
+        client,
+        partnerActor,
+        unapproved.orderId,
+        "Descuento rechazado"
+      );
 
       const stockAfterUnapprovedCancel = await client.query(
         `SELECT stock_on_hand FROM erp.v_current_stock WHERE warehouse_id = $1 AND product_id = $2`,
@@ -205,19 +327,41 @@ describe("Order Lifecycle Service (Soles Discount Floor, Approval, Stock & 4-Res
         advanceWarehouseStatus(client, warehouseActor, contraOrder.orderId, "DELIVERED")
       ).rejects.toThrow(ValidationError);
 
-      await advanceWarehouseStatus(client, warehouseActor, contraOrder.orderId, "PICKING");
-      await advanceWarehouseStatus(client, warehouseActor, contraOrder.orderId, "READY");
-      await advanceWarehouseStatus(client, warehouseActor, contraOrder.orderId, "IN_ROUTE");
+      await advanceWarehouseStatus(
+        client,
+        warehouseActor,
+        contraOrder.orderId,
+        "PICKING"
+      );
+      await advanceWarehouseStatus(
+        client,
+        warehouseActor,
+        contraOrder.orderId,
+        "READY"
+      );
+      await advanceWarehouseStatus(
+        client,
+        warehouseActor,
+        contraOrder.orderId,
+        "IN_ROUTE"
+      );
 
       // Issue #5: On IN_ROUTE, delivered_by_user_id is set but delivered_at must still be NULL
       const inRouteCheck = await client.query(
         `SELECT delivered_by_user_id, delivered_at FROM erp.sales_orders WHERE order_id = $1`,
         [contraOrder.orderId]
       );
-      expect(Number(inRouteCheck.rows[0].delivered_by_user_id)).toBe(warehouseActor.userId);
+      expect(Number(inRouteCheck.rows[0].delivered_by_user_id)).toBe(
+        warehouseActor.userId
+      );
       expect(inRouteCheck.rows[0].delivered_at).toBeNull();
 
-      await advanceWarehouseStatus(client, warehouseActor, contraOrder.orderId, "DELIVERED");
+      await advanceWarehouseStatus(
+        client,
+        warehouseActor,
+        contraOrder.orderId,
+        "DELIVERED"
+      );
       const deliveredCheck = await client.query(
         `SELECT delivered_at FROM erp.sales_orders WHERE order_id = $1`,
         [contraOrder.orderId]
@@ -237,7 +381,12 @@ describe("Order Lifecycle Service (Soles Discount Floor, Approval, Stock & 4-Res
         lines: [{ productId, quantity: 1 }],
       });
       await advanceWarehouseStatus(client, warehouseActor, fastOrder.orderId, "READY");
-      await advanceWarehouseStatus(client, warehouseActor, fastOrder.orderId, "DELIVERED");
+      await advanceWarehouseStatus(
+        client,
+        warehouseActor,
+        fastOrder.orderId,
+        "DELIVERED"
+      );
       const fastCheck = await client.query(
         `SELECT operational_status::text AS status, picked_by_user_id, picked_at, delivered_by_user_id, delivered_at
          FROM erp.sales_orders WHERE order_id = $1`,
@@ -246,7 +395,9 @@ describe("Order Lifecycle Service (Soles Discount Floor, Approval, Stock & 4-Res
       expect(fastCheck.rows[0].status).toBe("DELIVERED");
       expect(Number(fastCheck.rows[0].picked_by_user_id)).toBe(warehouseActor.userId);
       expect(fastCheck.rows[0].picked_at).not.toBeNull();
-      expect(Number(fastCheck.rows[0].delivered_by_user_id)).toBe(warehouseActor.userId);
+      expect(Number(fastCheck.rows[0].delivered_by_user_id)).toBe(
+        warehouseActor.userId
+      );
       expect(fastCheck.rows[0].delivered_at).not.toBeNull();
     } finally {
       await client.query("ROLLBACK");
@@ -319,9 +470,8 @@ describe("Order Lifecycle Service (Soles Discount Floor, Approval, Stock & 4-Res
   });
 
   it("serializes concurrent ON_DEMAND purchase fulfillment via FOR UPDATE across parallel DB connections without double-fulfilling", async () => {
-    const { registerSupplierPurchase, createSupplier } = await import(
-      "../src/lib/services/purchases-and-suppliers"
-    );
+    const { registerSupplierPurchase, createSupplier } =
+      await import("../src/lib/services/purchases-and-suppliers");
     const pool = getPool("dev");
     const suffix = `${Date.now()}_${Math.floor(Math.random() * 10000)}`;
     const uniqueSku = `TEST-CONC-${suffix}`;
@@ -428,6 +578,9 @@ describe("Order Lifecycle Service (Soles Discount Floor, Approval, Stock & 4-Res
       const cleanClient = await pool.connect();
       try {
         await cleanClient.query("BEGIN");
+        await cleanClient.query(
+          "SELECT set_config('bht.allow_hard_delete', 'on', true)"
+        );
         if (orderLineId > 0) {
           await cleanClient.query(
             `DELETE FROM erp.audit_flags WHERE entity_table = 'erp.sales_order_lines' AND entity_id = $1`,

@@ -20,6 +20,25 @@
   --horizon-pill: #edf3f8;
   --horizon-tint: #e7eff7;
   --horizon-border: #d4e0ec;
+
+  --status-success-bg: #f0fdf4;
+  --status-success-text: #14532d;
+  --status-warning-bg: #fffbeb;
+  --status-warning-text: #78350f;
+  --status-danger-bg: #fef2f2;
+  --status-danger-border: #fecaca;
+  --status-danger-text: #7f1d1d;
+}
+
+@media (pointer: coarse) {
+  button,
+  a[role="button"],
+  [role="button"],
+  input,
+  select,
+  textarea {
+    min-height: 44px;
+  }
 }
 
 @media (pointer: coarse) {

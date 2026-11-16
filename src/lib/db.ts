@@ -1,8 +1,11 @@
 import fs from "fs";
 import path from "path";
 import { Pool, PoolClient } from "pg";
+import { assertRequiredSchema } from "./schema-version";
 
 declare global {
+  // `var` is required for augmenting a global shared across Next.js reloads.
+  // eslint-disable-next-line no-var
   var __bhtPgPools: Partial<Record<"dev" | "main", Pool>> | undefined;
 }
 
@@ -42,12 +45,15 @@ function loadFallbackEnv(): Record<string, string> {
 
 function getDefaultBranch(): "dev" | "main" {
   const raw = process.env.BHT_DB_BRANCH?.trim().toLowerCase();
-  if (!raw || raw === "main") return "main";
+  if (!raw) return "dev";
+  if (raw === "main") return "main";
   if (raw === "dev") return "dev";
   throw new Error(`Unsupported BHT_DB_BRANCH: ${process.env.BHT_DB_BRANCH}`);
 }
 
-export function resolveDatabaseUrl(branch: "dev" | "main" = "main"): string {
+export function resolveDatabaseUrl(
+  branch: "dev" | "main" = getDefaultBranch()
+): string {
   const fallback = loadFallbackEnv();
   if (branch === "dev") {
     const url =
@@ -76,7 +82,7 @@ export function resolveDatabaseUrl(branch: "dev" | "main" = "main"): string {
   return url;
 }
 
-export function getPool(branch: "dev" | "main" = "main"): Pool {
+export function getPool(branch: "dev" | "main" = getDefaultBranch()): Pool {
   if (!pools[branch]) {
     const pool = new Pool({
       connectionString: resolveDatabaseUrl(branch),
@@ -93,7 +99,10 @@ export function getPool(branch: "dev" | "main" = "main"): Pool {
 
 export function shouldDestroyClientOnError(err: unknown): boolean {
   if (!err || typeof err !== "object") return false;
-  const errName = typeof (err as { name?: unknown }).name === "string" ? (err as { name: string }).name : "";
+  const errName =
+    typeof (err as { name?: unknown }).name === "string"
+      ? (err as { name: string }).name
+      : "";
   if (
     errName === "ValidationError" ||
     errName === "AuthorizationError" ||
@@ -102,7 +111,10 @@ export function shouldDestroyClientOnError(err: unknown): boolean {
   ) {
     return false;
   }
-  const code = typeof (err as { code?: unknown }).code === "string" ? (err as { code: string }).code : "";
+  const code =
+    typeof (err as { code?: unknown }).code === "string"
+      ? (err as { code: string }).code
+      : "";
   if (
     code.startsWith("08") ||
     code.startsWith("57P") ||
@@ -115,7 +127,10 @@ export function shouldDestroyClientOnError(err: unknown): boolean {
   ) {
     return true;
   }
-  const message = typeof (err as { message?: unknown }).message === "string" ? (err as { message: string }).message : "";
+  const message =
+    typeof (err as { message?: unknown }).message === "string"
+      ? (err as { message: string }).message
+      : "";
   return /connection terminated|client has encountered a connection error|terminating connection|socket hang up/i.test(
     message
   );
@@ -129,6 +144,7 @@ export async function withClient<T>(
   const client = await pool.connect();
   let releaseErr: Error | undefined;
   try {
+    await assertRequiredSchema(client, branch);
     return await fn(client);
   } catch (err) {
     if (shouldDestroyClientOnError(err)) {
@@ -148,6 +164,7 @@ export async function withTransaction<T>(
   const client = await pool.connect();
   let releaseErr: Error | undefined;
   try {
+    await assertRequiredSchema(client, branch);
     await client.query("BEGIN");
     const result = await fn(client);
     await client.query("COMMIT");

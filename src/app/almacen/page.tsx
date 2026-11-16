@@ -43,14 +43,10 @@ interface WarehouseOrder {
   order_code: string;
   order_date: string;
   customer_name: string;
+  was_modified?: boolean;
   trip_id?: number | null;
   trip_code?: string | null;
-  operational_status:
-    | "REGISTERED"
-    | "PICKING"
-    | "READY"
-    | "IN_ROUTE"
-    | "DELIVERED";
+  operational_status: "REGISTERED" | "PICKING" | "READY" | "IN_ROUTE" | "DELIVERED";
   notes: string | null;
   created_by_name: string | null;
   picked_by_name: string | null;
@@ -74,9 +70,9 @@ interface RouteTripRow {
 }
 
 const STATUS_TABS = [
-  { id: "PREPARING", label: "Alistando" },
-  { id: "READY", label: "Pedido listo" },
-  { id: "DELIVERED", label: "Entregado" },
+  { id: "PREPARING", label: "Por alistar" },
+  { id: "READY", label: "Listos / En ruta" },
+  { id: "DELIVERED", label: "Entregados" },
 ] as const;
 
 type WarehouseStage = (typeof STATUS_TABS)[number]["id"];
@@ -111,9 +107,7 @@ const WAREHOUSE_SYNC_SCOPES: SyncScope[] = ["orders", "inventory"];
 
 export default function AlmacenPage() {
   const router = useRouter();
-  const [currentUser, setCurrentUser] = useState<CurrentWarehouseUser | null>(
-    null
-  );
+  const [currentUser, setCurrentUser] = useState<CurrentWarehouseUser | null>(null);
   const [orders, setOrders] = useState<WarehouseOrder[]>([]);
   const [trips, setTrips] = useState<RouteTripRow[]>([]);
   const [selectedTripByOrder, setSelectedTripByOrder] = useState<
@@ -128,8 +122,10 @@ export default function AlmacenPage() {
   const [checkedLines, setCheckedLines] = useState<Record<number, boolean>>({});
   const [loading, setLoading] = useState(true);
   const [busyOrderId, setBusyOrderId] = useState<number | null>(null);
-  const [confirmDeliverOrder, setConfirmDeliverOrder] =
-    useState<WarehouseOrder | null>(null);
+  const [confirmDeliverOrder, setConfirmDeliverOrder] = useState<WarehouseOrder | null>(
+    null
+  );
+  const [confirmCloseTrip, setConfirmCloseTrip] = useState<RouteTripRow | null>(null);
   const [loggingOut, setLoggingOut] = useState(false);
   const [feedback, setFeedback] = useState<{
     type: "ok" | "err";
@@ -279,15 +275,12 @@ export default function AlmacenPage() {
 
   const { liveStatus, triggerSync } = useLiveSync({
     scopes: WAREHOUSE_SYNC_SCOPES,
-    enabled: !loggingOut && !confirmDeliverOrder && !showNewTrip,
+    enabled: !loggingOut && !confirmDeliverOrder && !confirmCloseTrip && !showNewTrip,
     onRemoteChange: handleRemoteChange,
     onAuthError: handleSyncAuthError,
   });
 
-  const openTrips = useMemo(
-    () => trips.filter((t) => t.status === "OPEN"),
-    [trips]
-  );
+  const openTrips = useMemo(() => trips.filter((t) => t.status === "OPEN"), [trips]);
 
   async function handleCreateTrip(e: React.FormEvent) {
     e.preventDefault();
@@ -342,6 +335,10 @@ export default function AlmacenPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "close_trip", tripId, nextStatus: "CLOSED" }),
       });
+      if (res.status === 401 || res.status === 403) {
+        router.push("/login");
+        return;
+      }
       const data = await res.json();
       if (!res.ok) {
         setFeedback({
@@ -368,26 +365,24 @@ export default function AlmacenPage() {
       const chosenTripId =
         selectedTripByOrder[order.order_id] ||
         (openTrips[0] ? String(openTrips[0].trip_id) : "");
-      const res = chosenTripId
-        ? await fetch("/api/trips", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              action: "assign_order",
-              tripId: Number(chosenTripId),
-              orderId: order.order_id,
-              advanceToInRoute: true,
-            }),
-          })
-        : await fetch("/api/orders", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              action: "advance",
-              orderId: order.order_id,
-              nextStatus: "IN_ROUTE",
-            }),
-          });
+      if (!chosenTripId) {
+        setShowNewTrip(true);
+        setFeedback({
+          type: "err",
+          msg: "Abre una ruta antes de despachar el pedido.",
+        });
+        return;
+      }
+      const res = await fetch("/api/trips", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "assign_order",
+          tripId: Number(chosenTripId),
+          orderId: order.order_id,
+          advanceToInRoute: true,
+        }),
+      });
       if (res.status === 401 || res.status === 403) {
         router.push("/login");
         return;
@@ -523,9 +518,6 @@ export default function AlmacenPage() {
                 key={tab.id}
                 type="button"
                 aria-pressed={active}
-                aria-label={`${tab.label}: ${count} ${
-                  count === 1 ? "pedido" : "pedidos"
-                }`}
                 onClick={() => setActiveTab(tab.id)}
                 className={`flex min-h-[38px] flex-shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold transition cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0F2942]/45 focus-visible:ring-offset-1 sm:px-3.5 ${
                   active
@@ -535,11 +527,8 @@ export default function AlmacenPage() {
               >
                 <span>{tab.label}</span>
                 <span
-                  aria-hidden="true"
                   className={`rounded-full px-1.5 py-0.5 text-[10px] font-semibold tabular-nums leading-none ${
-                    active
-                      ? "bg-white/20 text-white"
-                      : "bg-[#F4F3EF] text-[#18181B]"
+                    active ? "bg-white/20 text-white" : "bg-[#F4F3EF] text-[#18181B]"
                   }`}
                 >
                   {count}
@@ -563,11 +552,12 @@ export default function AlmacenPage() {
           />
         )}
 
-        <Card padding="sm" className="space-y-2.5">
+        <Card id="route-control" padding="sm" className="space-y-2.5">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
               <span className="text-xs font-semibold text-[#18181B]">
-                Rutas de Reparto ({openTrips.length} activa{openTrips.length === 1 ? "" : "s"})
+                Rutas de Reparto ({openTrips.length} activa
+                {openTrips.length === 1 ? "" : "s"})
               </span>
               <p className="text-[11px] text-[#5C5A55]">
                 Asigna pedidos listos a una salida en ruta antes de entregar.
@@ -645,7 +635,7 @@ export default function AlmacenPage() {
                     size="sm"
                     data-compact="true"
                     disabled={busyTripAction}
-                    onClick={() => handleCloseTrip(trip.trip_id)}
+                    onClick={() => setConfirmCloseTrip(trip)}
                   >
                     Cerrar Ruta
                   </Button>
@@ -667,188 +657,203 @@ export default function AlmacenPage() {
           />
         ) : (
           <div className="grid grid-cols-1 gap-3.5 md:grid-cols-2 md:items-start">
-          {filtered.map((order) => {
-            const checkedCount = order.lines.filter(
-              (l) => checkedLines[l.order_line_id]
-            ).length;
-            const isBusy = busyOrderId === order.order_id;
-            const stage = toWarehouseStage(order.operational_status);
-            const isActiveQueue = stage !== "DELIVERED";
+            {filtered.map((order) => {
+              const checkedCount = order.lines.filter(
+                (l) => checkedLines[l.order_line_id]
+              ).length;
+              const isBusy = busyOrderId === order.order_id;
+              const stage = toWarehouseStage(order.operational_status);
+              const isActiveQueue = stage !== "DELIVERED";
+              const remainingLines = Math.max(0, order.lines.length - checkedCount);
 
-            return (
-              <Card
-                key={order.order_id}
-                accent={isActiveQueue ? "horizon" : "none"}
-                padding="md"
-                className="space-y-3"
-              >
-                <div className="flex items-start justify-between gap-3 border-b border-[#E7E5E0] pb-3">
-                  <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="text-xs font-semibold text-[#1E446B] tabular-nums">
-                        {order.order_code}
-                      </span>
-                      <span className="text-xs text-[#6D6A64] tabular-nums">
-                        {order.order_date}
-                      </span>
-                      {order.operational_status === "IN_ROUTE" && (
-                        <Badge tone="brand">
-                          En ruta{order.trip_code ? ` · ${order.trip_code}` : ""}
-                        </Badge>
-                      )}
-                      {order.operational_status !== "IN_ROUTE" && order.trip_code && (
-                        <Badge tone="neutral">{order.trip_code}</Badge>
+              return (
+                <Card
+                  key={order.order_id}
+                  accent={isActiveQueue ? "horizon" : "none"}
+                  padding="md"
+                  className="space-y-3"
+                >
+                  <div className="flex items-start justify-between gap-3 border-b border-[#E7E5E0] pb-3">
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-xs font-semibold text-[#1E446B] tabular-nums">
+                          {order.order_code}
+                        </span>
+                        <span className="text-xs text-[#6D6A64] tabular-nums">
+                          {order.order_date}
+                        </span>
+                        {order.was_modified && <Badge tone="warning">Modificado</Badge>}
+                        {order.operational_status === "IN_ROUTE" && (
+                          <Badge tone="brand">
+                            En ruta{order.trip_code ? ` · ${order.trip_code}` : ""}
+                          </Badge>
+                        )}
+                        {order.operational_status !== "IN_ROUTE" && order.trip_code && (
+                          <Badge tone="neutral">{order.trip_code}</Badge>
+                        )}
+                      </div>
+                      <h2 className="mt-0.5 text-base font-semibold text-[#18181B]">
+                        {order.customer_name}
+                      </h2>
+                      {order.notes && (
+                        <p className="mt-1.5 rounded-lg border border-[#F3D9B1] bg-[#FDF8F0] px-2.5 py-1.5 text-xs font-medium text-[#92400E]">
+                          Destino / Nota: {order.notes}
+                        </p>
                       )}
                     </div>
-                    <h2 className="mt-0.5 text-base font-semibold text-[#18181B]">
-                      {order.customer_name}
-                    </h2>
-                    {order.notes && (
-                      <p className="mt-1.5 rounded-lg border border-[#F3D9B1] bg-[#FDF8F0] px-2.5 py-1.5 text-xs font-medium text-[#92400E]">
-                        Destino / Nota: {order.notes}
-                      </p>
-                    )}
+                    <Badge
+                      tone={stage === "DELIVERED" ? "success" : "horizon"}
+                      className="tabular-nums"
+                    >
+                      {stage === "DELIVERED"
+                        ? "Entregado"
+                        : `${checkedCount}/${order.lines.length} ítems`}
+                    </Badge>
                   </div>
-                  <Badge
-                    tone={stage === "DELIVERED" ? "success" : "horizon"}
-                    className="tabular-nums"
-                  >
-                    {stage === "DELIVERED"
-                      ? "Entregado"
-                      : `${checkedCount}/${order.lines.length} ítems`}
-                  </Badge>
-                </div>
 
-                <ul
-                  aria-label={`Productos del pedido ${order.order_code}`}
-                  className="divide-y divide-[#E7E5E0]"
-                >
-                  {order.lines.map((line) => {
-                    const isDelivered = stage === "DELIVERED";
-                    const checked =
-                      isDelivered || Boolean(checkedLines[line.order_line_id]);
-                    const lineBody = (
-                      <>
-                        <div className="flex min-w-0 items-start gap-3">
-                          <span
-                            aria-hidden="true"
-                            className={`mt-0.5 flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-md border transition ${
-                              isDelivered
-                                ? "border-[#15803D]/30 bg-[#EEF9F1] text-[#15803D]"
-                                : checked
-                                  ? "border-[#0F2942] bg-[#0F2942] text-white"
-                                  : "border-[#D5D2CA] bg-white"
-                            }`}
-                          >
-                            {checked && <CheckIcon className="h-3.5 w-3.5" />}
-                          </span>
-                          <div className="min-w-0">
-                            <p
-                              className={`text-sm font-medium ${
-                                !isDelivered && checked
-                                  ? "line-through text-[#6D6A64]"
-                                  : "text-[#18181B]"
+                  <ul
+                    aria-label={`Productos del pedido ${order.order_code}`}
+                    className="divide-y divide-[#E7E5E0]"
+                  >
+                    {order.lines.map((line) => {
+                      const isDelivered = stage === "DELIVERED";
+                      const checked =
+                        isDelivered || Boolean(checkedLines[line.order_line_id]);
+                      const lineBody = (
+                        <>
+                          <div className="flex min-w-0 items-start gap-3">
+                            <span
+                              aria-hidden="true"
+                              className={`mt-0.5 flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-md border transition ${
+                                isDelivered
+                                  ? "border-[#15803D]/30 bg-[#EEF9F1] text-[#15803D]"
+                                  : checked
+                                    ? "border-[#0F2942] bg-[#0F2942] text-white"
+                                    : "border-[#D5D2CA] bg-white"
                               }`}
                             >
-                              {line.raw_description}
-                            </p>
-                            <div className="mt-1 flex flex-wrap items-center gap-1.5">
-                              <span className="text-[11px] font-medium text-[#5C5A55]">
-                                {line.sku}
-                              </span>
-                              {line.needs_supplier_pickup && (
-                                <Badge
-                                  tone="warning"
-                                  className="whitespace-normal text-left"
-                                >
-                                  Recoger de proveedor (bajo pedido)
-                                </Badge>
-                              )}
+                              {checked && <CheckIcon className="h-3.5 w-3.5" />}
+                            </span>
+                            <div className="min-w-0">
+                              <p
+                                className={`text-sm font-medium ${
+                                  !isDelivered && checked
+                                    ? "line-through text-[#6D6A64]"
+                                    : "text-[#18181B]"
+                                }`}
+                              >
+                                {line.raw_description}
+                              </p>
+                              <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                                <span className="text-[11px] font-medium text-[#5C5A55]">
+                                  {line.sku}
+                                </span>
+                                {line.needs_supplier_pickup && (
+                                  <Badge
+                                    tone="warning"
+                                    className="whitespace-normal text-left"
+                                  >
+                                    Recoger de proveedor (bajo pedido)
+                                  </Badge>
+                                )}
+                              </div>
                             </div>
                           </div>
-                        </div>
 
-                        <div
-                          className={`flex-shrink-0 rounded-xl px-3 py-1.5 text-sm font-semibold tabular-nums ${
-                            isDelivered
-                              ? "bg-[#F4F3EF] text-[#4A4843]"
-                              : checked
-                                ? "bg-[#F4F3EF] text-[#6D6A64]"
-                                : "bg-[#0F2942] text-white"
-                          }`}
-                        >
-                          × {line.quantity}
-                          {line.unit_of_measure ? (
-                            <span
-                              className={`ml-1.5 text-[11px] font-medium uppercase ${
-                                isDelivered || checked
-                                  ? "text-[#6D6A64]"
-                                  : "text-white/80"
-                              }`}
-                            >
-                              {line.unit_of_measure}
-                            </span>
-                          ) : null}
-                        </div>
-                      </>
-                    );
-
-                    return (
-                      <li key={line.order_line_id}>
-                        {isDelivered ? (
-                          <div className="flex min-h-[44px] items-center justify-between gap-3 px-1.5 py-3">
-                            {lineBody}
-                          </div>
-                        ) : (
-                          <button
-                            type="button"
-                            onClick={() => toggleLineChecked(line.order_line_id)}
-                            aria-pressed={checked}
-                            aria-label={`${
-                              checked ? "Desmarcar" : "Marcar"
-                            } ${line.raw_description}, código ${
-                              line.sku
-                            }, cantidad ${line.quantity}${
-                              line.unit_of_measure ? ` ${line.unit_of_measure}` : ""
+                          <div
+                            className={`flex-shrink-0 rounded-xl px-3 py-1.5 text-sm font-semibold tabular-nums ${
+                              isDelivered
+                                ? "bg-[#F4F3EF] text-[#4A4843]"
+                                : checked
+                                  ? "bg-[#F4F3EF] text-[#6D6A64]"
+                                  : "bg-[#0F2942] text-white"
                             }`}
-                            className="flex min-h-[44px] w-full items-center justify-between gap-3 rounded-lg px-1.5 py-3 text-left transition hover:bg-[#F2F6FA]/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0F2942]/45 cursor-pointer"
                           >
-                            {lineBody}
-                          </button>
-                        )}
-                      </li>
-                    );
-                  })}
-                </ul>
+                            × {line.quantity}
+                            {line.unit_of_measure ? (
+                              <span
+                                className={`ml-1.5 text-[11px] font-medium uppercase ${
+                                  isDelivered || checked
+                                    ? "text-[#6D6A64]"
+                                    : "text-white/80"
+                                }`}
+                              >
+                                {line.unit_of_measure}
+                              </span>
+                            ) : null}
+                          </div>
+                        </>
+                      );
 
-                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl border border-[#D4E0EC]/70 bg-[#F2F6FA]/75 px-3 py-2 text-[11px] text-[#1E446B]">
-                  <span>Tomó: {order.created_by_name || "Sistema"}</span>
-                  {order.picked_by_name && (
-                    <span>· Preparó: {order.picked_by_name}</span>
-                  )}
-                  {order.delivered_by_name && (
-                    <span>· Entregó: {order.delivered_by_name}</span>
-                  )}
-                </div>
+                      return (
+                        <li key={line.order_line_id}>
+                          {isDelivered ? (
+                            <div className="flex min-h-[44px] items-center justify-between gap-3 px-1.5 py-3">
+                              {lineBody}
+                            </div>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => toggleLineChecked(line.order_line_id)}
+                              aria-pressed={checked}
+                              aria-label={`${
+                                checked ? "Desmarcar" : "Marcar"
+                              } ${line.raw_description}, código ${
+                                line.sku
+                              }, cantidad ${line.quantity}${
+                                line.unit_of_measure ? ` ${line.unit_of_measure}` : ""
+                              }`}
+                              className="flex min-h-[44px] w-full items-center justify-between gap-3 rounded-lg px-1.5 py-3 text-left transition hover:bg-[#F2F6FA]/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0F2942]/45 cursor-pointer"
+                            >
+                              {lineBody}
+                            </button>
+                          )}
+                        </li>
+                      );
+                    })}
+                  </ul>
 
-                {stage === "PREPARING" && (
-                  <Button
-                    variant="primary"
-                    size="lg"
-                    disabled={isBusy}
-                    onClick={() => handleAdvance(order.order_id, "READY")}
-                    aria-label={`Marcar pedido ${order.order_code} como pedido listo`}
-                    className="w-full"
-                  >
-                    <PackageIcon className="h-4 w-4" />
-                    {isBusy ? "Actualizando..." : "Marcar Pedido Listo"}
-                  </Button>
-                )}
-                {stage === "READY" && (
-                  <div className="space-y-2">
-                    {order.operational_status === "READY" && (
-                      <div className="flex flex-wrap items-center gap-2">
-                        {openTrips.length > 0 && (
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl border border-[#D4E0EC]/70 bg-[#F2F6FA]/75 px-3 py-2 text-[11px] text-[#1E446B]">
+                    <strong>
+                      Etapa:{" "}
+                      {order.operational_status === "IN_ROUTE"
+                        ? "En ruta"
+                        : stage === "PREPARING"
+                          ? "Alistamiento"
+                          : stage === "READY"
+                            ? "Listo para despacho"
+                            : "Entregado"}
+                    </strong>
+                    <span>Tomó: {order.created_by_name || "Sistema"}</span>
+                    {order.picked_by_name && (
+                      <span>· Preparó: {order.picked_by_name}</span>
+                    )}
+                    {order.delivered_by_name && (
+                      <span>· Entregó: {order.delivered_by_name}</span>
+                    )}
+                  </div>
+
+                  {stage === "PREPARING" && (
+                    <Button
+                      variant="primary"
+                      size="lg"
+                      disabled={isBusy || remainingLines > 0}
+                      onClick={() => handleAdvance(order.order_id, "READY")}
+                      aria-label={`Marcar pedido ${order.order_code} como pedido listo`}
+                      className="w-full"
+                    >
+                      <PackageIcon className="h-4 w-4" />
+                      {isBusy
+                        ? "Actualizando..."
+                        : remainingLines > 0
+                          ? `Falta verificar ${remainingLines} producto${remainingLines === 1 ? "" : "s"}`
+                          : "Alistamiento completo · Marcar listo"}
+                    </Button>
+                  )}
+                  {order.operational_status === "READY" && (
+                    <div className="space-y-2">
+                      {openTrips.length > 0 ? (
+                        <div className="flex flex-wrap items-center gap-2">
                           <select
                             aria-label={`Ruta para pedido ${order.order_code}`}
                             value={
@@ -869,18 +874,37 @@ export default function AlmacenPage() {
                               </option>
                             ))}
                           </select>
-                        )}
+                          <Button
+                            variant="primary"
+                            size="lg"
+                            disabled={isBusy}
+                            onClick={() => handleDispatchToRoute(order)}
+                            className="w-full sm:w-auto sm:flex-1"
+                          >
+                            {isBusy ? "Enviando..." : "Asignar y enviar en ruta"}
+                          </Button>
+                        </div>
+                      ) : (
                         <Button
-                          variant="outline"
-                          size="md"
-                          disabled={isBusy}
-                          onClick={() => handleDispatchToRoute(order)}
-                          className="flex-1"
+                          variant="primary"
+                          size="lg"
+                          onClick={() => {
+                            setShowNewTrip(true);
+                            requestAnimationFrame(() =>
+                              document.getElementById("route-control")?.scrollIntoView({
+                                behavior: "smooth",
+                                block: "start",
+                              })
+                            );
+                          }}
+                          className="w-full"
                         >
-                          {isBusy ? "Enviando..." : "Enviar en ruta"}
+                          Abrir una ruta para despachar
                         </Button>
-                      </div>
-                    )}
+                      )}
+                    </div>
+                  )}
+                  {order.operational_status === "IN_ROUTE" && (
                     <Button
                       variant="success"
                       size="lg"
@@ -892,14 +916,59 @@ export default function AlmacenPage() {
                       <CheckIcon className="h-4 w-4" />
                       {isBusy ? "Actualizando..." : "Marcar Entregado"}
                     </Button>
-                  </div>
-                )}
-              </Card>
-            );
-          })}
+                  )}
+                </Card>
+              );
+            })}
           </div>
         )}
       </main>
+
+      <ModalSheet
+        open={Boolean(confirmCloseTrip)}
+        onClose={() => {
+          if (!busyTripAction) setConfirmCloseTrip(null);
+        }}
+        title="Cerrar ruta de reparto"
+        subtitle={confirmCloseTrip?.trip_code}
+      >
+        {confirmCloseTrip && (
+          <div className="space-y-4 text-xs text-[#5C5A55] sm:text-sm">
+            <p>
+              Confirma que la salida de {confirmCloseTrip.zone_name || "reparto"}{" "}
+              terminó. La ruta dejará de estar disponible para asignar pedidos.
+            </p>
+            {confirmCloseTrip.in_route_count > 0 && (
+              <p className="rounded-xl border border-[#F3D9B1] bg-[#FDF8F0] px-3 py-2.5 text-xs text-[#92400E]">
+                Aún figuran {confirmCloseTrip.in_route_count} pedido(s) en ruta. Revisa
+                sus entregas antes de cerrar.
+              </p>
+            )}
+            <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <Button
+                type="button"
+                variant="outline"
+                disabled={busyTripAction}
+                onClick={() => setConfirmCloseTrip(null)}
+              >
+                Volver
+              </Button>
+              <Button
+                type="button"
+                variant="primary"
+                disabled={busyTripAction || confirmCloseTrip.in_route_count > 0}
+                onClick={async () => {
+                  const trip = confirmCloseTrip;
+                  setConfirmCloseTrip(null);
+                  await handleCloseTrip(trip.trip_id);
+                }}
+              >
+                {busyTripAction ? "Cerrando..." : "Confirmar cierre de ruta"}
+              </Button>
+            </div>
+          </div>
+        )}
+      </ModalSheet>
 
       <ModalSheet
         open={Boolean(confirmDeliverOrder)}
@@ -913,51 +982,53 @@ export default function AlmacenPage() {
         }
         subtitle={confirmDeliverOrder?.customer_name}
       >
-        {confirmDeliverOrder && (() => {
-          const totalLines = confirmDeliverOrder.lines.length;
-          const checkedInOrder = confirmDeliverOrder.lines.filter((ln) =>
-            Boolean(checkedLines[ln.order_line_id])
-          ).length;
-          const isDeliverBusy = busyOrderId === confirmDeliverOrder.order_id;
-          return (
-            <div className="space-y-4 text-xs sm:text-sm text-[#5C5A55]">
-              <p>
-                ¿Confirmas que todos los productos de{" "}
-                <strong className="text-[#18181B]">
-                  {confirmDeliverOrder.order_code}
-                </strong>{" "}
-                ({totalLines} ítem(s)) fueron entregados al cliente?
-              </p>
-              {checkedInOrder < totalLines && (
-                <p className="rounded-xl border border-[#F3D9B1] bg-[#FDF8F0] px-3 py-2.5 text-xs text-[#92400E]">
-                  Llevas marcados {checkedInOrder} de {totalLines} ítems en la lista de verificación.
+        {confirmDeliverOrder &&
+          (() => {
+            const totalLines = confirmDeliverOrder.lines.length;
+            const checkedInOrder = confirmDeliverOrder.lines.filter((ln) =>
+              Boolean(checkedLines[ln.order_line_id])
+            ).length;
+            const isDeliverBusy = busyOrderId === confirmDeliverOrder.order_id;
+            return (
+              <div className="space-y-4 text-xs sm:text-sm text-[#5C5A55]">
+                <p>
+                  ¿Confirmas que todos los productos de{" "}
+                  <strong className="text-[#18181B]">
+                    {confirmDeliverOrder.order_code}
+                  </strong>{" "}
+                  ({totalLines} ítem(s)) fueron entregados al cliente?
                 </p>
-              )}
-              <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-                <Button
-                  type="button"
-                  variant="outline"
-                  disabled={isDeliverBusy}
-                  onClick={() => setConfirmDeliverOrder(null)}
-                >
-                  Cancelar
-                </Button>
-                <Button
-                  type="button"
-                  variant="success"
-                  disabled={isDeliverBusy}
-                  onClick={async () => {
-                    const target = confirmDeliverOrder;
-                    setConfirmDeliverOrder(null);
-                    await handleAdvance(target.order_id, "DELIVERED");
-                  }}
-                >
-                  {isDeliverBusy ? "Confirmando..." : "Sí, marcar entregado"}
-                </Button>
+                {checkedInOrder < totalLines && (
+                  <p className="rounded-xl border border-[#F3D9B1] bg-[#FDF8F0] px-3 py-2.5 text-xs text-[#92400E]">
+                    Llevas marcados {checkedInOrder} de {totalLines} ítems en la lista
+                    de verificación.
+                  </p>
+                )}
+                <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={isDeliverBusy}
+                    onClick={() => setConfirmDeliverOrder(null)}
+                  >
+                    Cancelar
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="success"
+                    disabled={isDeliverBusy}
+                    onClick={async () => {
+                      const target = confirmDeliverOrder;
+                      setConfirmDeliverOrder(null);
+                      await handleAdvance(target.order_id, "DELIVERED");
+                    }}
+                  >
+                    {isDeliverBusy ? "Confirmando..." : "Sí, marcar entregado"}
+                  </Button>
+                </div>
               </div>
-            </div>
-          );
-        })()}
+            );
+          })()}
       </ModalSheet>
     </div>
   );

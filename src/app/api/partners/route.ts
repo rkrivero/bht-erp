@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import {
   SESSION_COOKIE_NAME,
   SESSION_TTL_SECONDS,
-  hashPin,
+  hashPassword,
   requireActiveSession,
   signSessionToken,
   verifySessionToken,
@@ -507,26 +507,43 @@ export async function POST(req: NextRequest) {
               : undefined,
         };
       }
-      if (action === "update_user_pin") {
+      if (action === "reset_user_password" || action === "update_user_pin") {
         assertRole(actor, ["PARTNER_ADMIN", "PARTNER_MANAGER"]);
         const targetUserId = Number(body.userId);
         if (!Number.isInteger(targetUserId) || targetUserId <= 0) {
           throw new ValidationError("ID de usuario inválido");
         }
-        const newPin = String(body.newPin || "").trim();
-        if (!/^\d{4,8}$/.test(newPin)) {
+        const isLegacyPinAction = action === "update_user_pin";
+        const temporaryPassword = String(
+          isLegacyPinAction ? body.newPin : body.temporaryPassword
+        ).trim();
+        if (
+          (isLegacyPinAction && !/^\d{4,8}$/.test(temporaryPassword)) ||
+          (!isLegacyPinAction &&
+            (temporaryPassword.length < 10 ||
+              !/[A-Za-zÁÉÍÓÚáéíóúÑñ]/.test(temporaryPassword) ||
+              !/\d/.test(temporaryPassword)))
+        ) {
           throw new ValidationError(
-            "El PIN debe tener entre 4 y 8 dígitos numéricos"
+            isLegacyPinAction
+              ? "El PIN debe tener entre 4 y 8 dígitos numéricos"
+              : "La contraseña temporal debe tener 10 caracteres o más e incluir una letra y un número"
           );
         }
+        const passwordHash = hashPassword(temporaryPassword);
         const updRes = await client.query(
-          `UPDATE erp.app_users SET pin_hash = $1 WHERE user_id = $2 RETURNING user_id`,
-          [hashPin(newPin), targetUserId]
+          `UPDATE erp.app_users
+           SET password_hash = $1,
+               pin_hash = $1,
+               must_change_password = TRUE
+           WHERE user_id = $2
+           RETURNING user_id`,
+          [passwordHash, targetUserId]
         );
         if (updRes.rowCount === 0) {
           throw new ValidationError("Usuario no encontrado");
         }
-        return { ok: true };
+        return { ok: true, mustChangePassword: true };
       }
       if (action === "toggle_user_active") {
         assertRole(actor, ["PARTNER_ADMIN", "PARTNER_MANAGER"]);
@@ -576,7 +593,11 @@ export async function POST(req: NextRequest) {
         : null;
     const responsePayload =
       "refreshedSelfSession" in result
-        ? (({ refreshedSelfSession: _omit, ...rest }) => rest)(result)
+        ? Object.fromEntries(
+            Object.entries(result).filter(
+              ([key]) => key !== "refreshedSelfSession"
+            )
+          )
         : result;
     const res = NextResponse.json(responsePayload, { headers: NO_STORE_HEADERS });
     if (action === "update_user_name" && refreshedSelfSession) {

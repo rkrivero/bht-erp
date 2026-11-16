@@ -1,6 +1,11 @@
 import crypto from "crypto";
 import type { PoolClient } from "pg";
-import { AuthenticationError, type SessionUser, type UserRole } from "./types";
+import {
+  AuthenticationError,
+  PasswordChangeRequiredError,
+  type SessionUser,
+  type UserRole,
+} from "./types";
 
 export const SESSION_COOKIE_NAME = "bht_session";
 export const SESSION_TTL_SECONDS = 60 * 60 * 14; // 14 hours shift
@@ -31,6 +36,8 @@ export function hashPin(pin: string): string {
   const derived = crypto.scryptSync(pin, salt, SCRYPT_KEYLEN).toString("hex");
   return `${SCRYPT_PREFIX}${salt}$${derived}`;
 }
+
+export const hashPassword = hashPin;
 
 export function hashPinLegacySha256(pin: string): string {
   return crypto.createHash("sha256").update(pin, "utf8").digest("hex");
@@ -68,6 +75,18 @@ export function verifyPin(pin: string, storedHash: string): boolean {
   return false;
 }
 
+export const verifyPassword = verifyPin;
+
+export function validatePersonalPassword(password: string): string | null {
+  if (password.length < 10 || password.length > 128) {
+    return "La contraseña debe tener entre 10 y 128 caracteres";
+  }
+  if (!/[A-Za-zÁÉÍÓÚáéíóúÑñ]/.test(password) || !/\d/.test(password)) {
+    return "La contraseña debe incluir al menos una letra y un número";
+  }
+  return null;
+}
+
 export function computeSessionVersion(pinHash: string, role: UserRole): string {
   return crypto
     .createHash("sha256")
@@ -93,6 +112,9 @@ export function signSessionToken(
     defaultCashAccountId: user.defaultCashAccountId ?? null,
     exp,
     ...(user.sessionVersion ? { sessionVersion: user.sessionVersion } : {}),
+    ...(typeof user.mustChangePassword === "boolean"
+      ? { mustChangePassword: user.mustChangePassword }
+      : {}),
   };
   const payload = Buffer.from(JSON.stringify(payloadObj), "utf8").toString(
     "base64url"
@@ -159,10 +181,12 @@ export async function authenticateUser(
     full_name: string;
     role: UserRole;
     default_cash_account_id: number | null;
-    pin_hash: string;
+    password_hash: string;
+    must_change_password: boolean;
   }>(
     `SELECT user_id, username, full_name, role::text AS role,
-            default_cash_account_id, pin_hash
+            default_cash_account_id, COALESCE(password_hash, pin_hash) AS password_hash,
+            must_change_password
      FROM erp.app_users
      WHERE LOWER(username) = $1
        AND is_active = TRUE
@@ -171,7 +195,7 @@ export async function authenticateUser(
   );
   if (res.rowCount === 0) return null;
   const row = res.rows[0];
-  if (!verifyPin(trimmedPassword, row.pin_hash)) return null;
+  if (!verifyPassword(trimmedPassword, row.password_hash)) return null;
   const role = row.role as UserRole;
   return {
     userId: Number(row.user_id),
@@ -182,7 +206,8 @@ export async function authenticateUser(
       row.default_cash_account_id !== null
         ? Number(row.default_cash_account_id)
         : null,
-    sessionVersion: computeSessionVersion(row.pin_hash, role),
+    sessionVersion: computeSessionVersion(row.password_hash, role),
+    mustChangePassword: Boolean(row.must_change_password),
   };
 }
 
@@ -201,10 +226,13 @@ export async function verifyActiveSessionUser(
     role: UserRole;
     default_cash_account_id: number | null;
     is_active: boolean;
-    pin_hash: string;
+    password_hash: string;
+    must_change_password: boolean;
   }>(
     `SELECT user_id, username, full_name, role::text AS role,
-            default_cash_account_id, is_active, pin_hash
+            default_cash_account_id, is_active,
+            COALESCE(password_hash, pin_hash) AS password_hash,
+            must_change_password
      FROM erp.app_users
      WHERE user_id = $1
      LIMIT 1`,
@@ -215,7 +243,7 @@ export async function verifyActiveSessionUser(
   if (!row.is_active) return null;
   const role = row.role as UserRole;
   if (sessionUser.sessionVersion) {
-    const expectedSv = computeSessionVersion(row.pin_hash, role);
+    const expectedSv = computeSessionVersion(row.password_hash, role);
     if (sessionUser.sessionVersion !== expectedSv) {
       return null;
     }
@@ -231,6 +259,11 @@ export async function verifyActiveSessionUser(
         : null,
     exp: sessionUser.exp,
     sessionVersion: sessionUser.sessionVersion,
+    // Only sessions issued after the password migration carry the enforcement
+    // claim. Pre-deployment sessions remain valid until their normal 14h expiry.
+    mustChangePassword:
+      sessionUser.mustChangePassword === true &&
+      Boolean(row.must_change_password),
   };
 }
 
@@ -241,6 +274,9 @@ export async function requireActiveSession(
   const verified = await verifyActiveSessionUser(client, sessionUser);
   if (!verified) {
     throw new AuthenticationError("Sesión inválida, expirada o usuario inactivo");
+  }
+  if (verified.mustChangePassword) {
+    throw new PasswordChangeRequiredError();
   }
   return verified;
 }

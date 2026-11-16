@@ -6,7 +6,10 @@ import {
   type UserRole,
 } from "./types";
 
-export function assertRole(actor: SessionUser | null, allowed: UserRole[]): SessionUser {
+export function assertRole(
+  actor: SessionUser | null,
+  allowed: UserRole[]
+): SessionUser {
   if (!actor) {
     throw new AuthorizationError("Sesión no iniciada");
   }
@@ -68,6 +71,9 @@ export function projectOrderForRole(
       trip_id: order.trip_id ?? null,
       trip_code: order.trip_code ?? null,
       customer_name: order.customer_name,
+      was_modified: Boolean(
+        order.audit_history?.some((entry) => entry.action === "EDIT")
+      ),
       notes: order.notes ?? null,
       created_by_name: order.created_by_name,
       created_at: order.created_at ?? null,
@@ -110,7 +116,9 @@ export function projectOrderForRole(
       balance_due_pen: Number(order.balance_due_pen),
       is_settled: Boolean(order.is_settled),
       notes: order.notes ?? null,
+      created_by_user_id: order.created_by_user_id ?? null,
       created_by_name: order.created_by_name,
+      audit_history: order.audit_history ?? [],
       created_at: order.created_at ?? null,
       approved_by_name: order.approved_by_name ?? null,
       approved_at: order.approved_at ?? null,
@@ -187,7 +195,9 @@ export function projectOrderForRole(
     is_settled: Boolean(order.is_settled),
     order_margin_pen: Number(totalMarginPen.toFixed(2)),
     notes: order.notes ?? null,
+    created_by_user_id: order.created_by_user_id ?? null,
     created_by_name: order.created_by_name,
+    audit_history: order.audit_history ?? [],
     created_at: order.created_at ?? null,
     approved_by_name: order.approved_by_name ?? null,
     approved_at: order.approved_at ?? null,

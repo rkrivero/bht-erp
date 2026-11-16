@@ -3,11 +3,7 @@ import type { NextRequest } from "next/server";
 import type { PoolClient } from "pg";
 import { SESSION_COOKIE_NAME, verifySessionToken } from "@/lib/auth";
 import type { SessionUser, UserRole } from "@/lib/types";
-import type {
-  SyncEngineMode,
-  SyncSnapshotResponse,
-  SyncScope,
-} from "./types";
+import type { SyncEngineMode, SyncSnapshotResponse, SyncScope } from "./types";
 
 const PARTNER_SCOPES: SyncScope[] = [
   "orders",
@@ -18,12 +14,7 @@ const PARTNER_SCOPES: SyncScope[] = [
   "partners",
 ];
 
-const SELLER_SCOPES: SyncScope[] = [
-  "orders",
-  "inventory",
-  "collections",
-  "treasury",
-];
+const SELLER_SCOPES: SyncScope[] = ["orders", "inventory", "collections", "treasury"];
 
 const WAREHOUSE_SCOPES: SyncScope[] = ["orders", "inventory"];
 
@@ -41,12 +32,14 @@ export interface NeonRealtimeConfig {
 export function getNeonRealtimeConfig(): NeonRealtimeConfig {
   const realtimeUrl = process.env.NEON_REALTIME_URL?.trim() || null;
   const hasSecret = Boolean(process.env.NEON_REALTIME_SECRET?.trim());
-  const rawDbUrl =
-    process.env.NEON_DATABASE_URL_DEV ||
-    process.env.DEV_DATABASE_URL ||
-    process.env.NEON_DATABASE_URL_MAIN ||
-    process.env.DATABASE_URL ||
-    "";
+  const branch = process.env.BHT_DB_BRANCH?.trim().toLowerCase();
+  if (branch && branch !== "dev" && branch !== "main") {
+    throw new Error("BHT_DB_BRANCH debe ser dev o main");
+  }
+  const isMain = branch ? branch === "main" : process.env.VERCEL_ENV === "production";
+  const rawDbUrl = isMain
+    ? process.env.NEON_DATABASE_URL_MAIN || process.env.DATABASE_URL || ""
+    : process.env.NEON_DATABASE_URL_DEV || process.env.DEV_DATABASE_URL || "";
   let databaseName = "bht_erp";
   if (rawDbUrl) {
     try {

@@ -3,6 +3,7 @@ import path from "path";
 
 export default defineConfig({
   test: {
+    exclude: ["tests/e2e/**", "node_modules/**", ".next/**"],
     environment: "node",
     testTimeout: 30000,
     hookTimeout: 30000,

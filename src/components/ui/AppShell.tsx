@@ -67,24 +67,24 @@ export function AppHeader({
     maxWidth === "xl"
       ? "max-w-xl"
       : maxWidth === "5xl"
-      ? "max-w-5xl"
-      : maxWidth === "6xl"
-      ? "max-w-6xl"
-      : maxWidth === "7xl"
-      ? "max-w-7xl"
-      : "max-w-2xl";
+        ? "max-w-5xl"
+        : maxWidth === "6xl"
+          ? "max-w-6xl"
+          : maxWidth === "7xl"
+            ? "max-w-7xl"
+            : "max-w-2xl";
 
   const syncCfg = syncStatus ? SYNC_STATUS_CONFIG[syncStatus] : null;
 
   return (
     <header className="sticky top-0 z-30 border-b border-[#E7E5E0] bg-[#FAF9F6]/95 backdrop-blur-md">
       <div
-        className={`mx-auto flex ${widthClass} flex-wrap items-center justify-between gap-3 px-3.5 py-3 sm:px-5`}
+        className={`mx-auto grid ${widthClass} grid-cols-[minmax(0,1fr)_auto] items-start gap-x-2 gap-y-2 px-3.5 py-3 sm:flex sm:flex-wrap sm:items-center sm:justify-between sm:gap-3 sm:px-5`}
       >
-        <div className="flex min-w-[min(100%,14rem)] flex-1 items-center gap-3">
+        <div className="flex min-w-0 flex-1 items-center gap-3">
           <HorizonLogo className="h-9 w-9 flex-shrink-0 rounded-xl shadow-xs" />
           <div className="min-w-0 flex-1">
-            <h1 className="truncate text-base sm:text-lg font-semibold tracking-tight text-[#0F2942] leading-tight">
+            <h1 className="line-clamp-2 text-sm font-semibold leading-tight tracking-tight text-[#0F2942] min-[380px]:text-base sm:truncate sm:text-lg">
               {title}
             </h1>
             <div className="mt-1 flex flex-wrap items-center gap-2">
@@ -128,13 +128,13 @@ export function AppHeader({
           </div>
         </div>
 
-        <div className="ml-auto flex flex-shrink-0 flex-wrap items-center justify-end gap-2">
+        <div className="ml-auto flex min-w-0 flex-shrink-0 flex-wrap items-center justify-end gap-2">
           {actions}
           <Button
             variant="outline"
             size="sm"
             onClick={onLogout}
-            aria-label="Cerrar sesión"
+            aria-label="Salir y cerrar sesión"
             className="min-h-[38px] sm:min-h-[40px] rounded-xl px-3.5 text-xs sm:text-sm"
           >
             <LogOutIcon className="h-3.5 w-3.5" />
@@ -191,9 +191,7 @@ export function DesktopTabBar<T extends string>({
             {item.badgeCount !== undefined && item.badgeCount > 0 && (
               <span
                 className={`rounded-full px-1.5 py-0.5 text-[10px] font-semibold tabular-nums leading-none ${
-                  active
-                    ? "bg-[#0F2942] text-white"
-                    : "bg-[#F4F3EF] text-[#18181B]"
+                  active ? "bg-[#0F2942] text-white" : "bg-[#F4F3EF] text-[#18181B]"
                 }`}
               >
                 {item.badgeCount}
@@ -235,9 +233,7 @@ export function BottomNav<T extends string>({
               aria-current={active ? "page" : undefined}
               onClick={() => onChange(item.id)}
               className={`relative flex min-w-0 flex-1 min-h-[44px] flex-col items-center justify-center gap-1 rounded-xl py-1.5 px-1 text-[11px] font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0F2942] cursor-pointer ${
-                active
-                  ? "text-[#0F2942]"
-                  : "text-[#5C5A55] hover:text-[#0F2942]"
+                active ? "text-[#0F2942]" : "text-[#5C5A55] hover:text-[#0F2942]"
               }`}
             >
               <div
@@ -249,9 +245,7 @@ export function BottomNav<T extends string>({
               >
                 <span aria-hidden="true">{item.icon}</span>
                 {item.badgeCount !== undefined && item.badgeCount > 0 && (
-                  <span
-                    className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-[#0F2942] px-1 text-[9px] font-bold text-white tabular-nums"
-                  >
+                  <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-[#0F2942] px-1 text-[9px] font-bold text-white tabular-nums">
                     {item.badgeCount > 99 ? "99+" : item.badgeCount}
                   </span>
                 )}
@@ -280,12 +274,12 @@ export function AppMain({
     maxWidth === "xl"
       ? "max-w-xl"
       : maxWidth === "5xl"
-      ? "max-w-5xl"
-      : maxWidth === "6xl"
-      ? "max-w-6xl"
-      : maxWidth === "7xl"
-      ? "max-w-7xl"
-      : "max-w-2xl";
+        ? "max-w-5xl"
+        : maxWidth === "6xl"
+          ? "max-w-6xl"
+          : maxWidth === "7xl"
+            ? "max-w-7xl"
+            : "max-w-2xl";
   return (
     <main
       id="main-content"

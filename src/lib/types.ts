@@ -1,8 +1,5 @@
 export type UserRole =
-  | "PARTNER_ADMIN"
-  | "PARTNER_MANAGER"
-  | "EXTERNAL_SELLER"
-  | "WAREHOUSE_DELIVERY";
+  "PARTNER_ADMIN" | "PARTNER_MANAGER" | "EXTERNAL_SELLER" | "WAREHOUSE_DELIVERY";
 
 export type OrderOperationalStatus =
   | "PENDING_PARTNER_APPROVAL"
@@ -16,9 +13,7 @@ export type OrderOperationalStatus =
 export type PaymentMode = "CASH" | "CREDIT" | "TRANSFER" | "YAPE_PLIN";
 export type FulfillmentMode = "STOCKED" | "ON_DEMAND";
 export type LineFulfillmentStatus =
-  | "FULFILLED"
-  | "PENDING_SUPPLIER_PURCHASE"
-  | "CANCELLED";
+  "FULFILLED" | "PENDING_SUPPLIER_PURCHASE" | "CANCELLED";
 
 export interface SessionUser {
   userId: number;
@@ -28,12 +23,20 @@ export interface SessionUser {
   defaultCashAccountId: number | null;
   exp?: number;
   sessionVersion?: string;
+  mustChangePassword?: boolean;
 }
 
 export class AuthenticationError extends Error {
   constructor(message = "Sesión inválida o expirada") {
     super(message);
     this.name = "AuthenticationError";
+  }
+}
+
+export class PasswordChangeRequiredError extends Error {
+  constructor(message = "Debes cambiar tu contraseña temporal antes de continuar") {
+    super(message);
+    this.name = "PasswordChangeRequiredError";
   }
 }
 
@@ -85,7 +88,16 @@ export interface RawOrderWithLines {
   balance_due_pen: number;
   is_settled?: boolean;
   notes?: string | null;
+  created_by_user_id?: number | null;
   created_by_name: string | null;
+  audit_history?: Array<{
+    audit_id: number;
+    action: string;
+    actor_name: string | null;
+    actor_role: string;
+    reason: string;
+    created_at: string;
+  }>;
   created_at?: string | null;
   approved_by_name?: string | null;
   approved_at?: string | null;
@@ -111,7 +123,11 @@ export class AuthorizationError extends Error {
 }
 
 export class ConflictError extends Error {
-  constructor(message: string) {
+  constructor(
+    message: string,
+    public readonly code = "CONFLICT",
+    public readonly entityRef?: string
+  ) {
     super(message);
     this.name = "ConflictError";
   }
@@ -120,9 +136,12 @@ export class ConflictError extends Error {
 export function resolveHttpError(
   err: unknown,
   fallbackMessage: string
-): { status: number; error: string } {
+): { status: number; error: string; code?: string; entityRef?: string } {
   if (err instanceof AuthenticationError) {
     return { status: 401, error: err.message };
+  }
+  if (err instanceof PasswordChangeRequiredError) {
+    return { status: 428, error: err.message };
   }
   if (err instanceof AuthorizationError) {
     return { status: 403, error: err.message };
@@ -131,7 +150,12 @@ export function resolveHttpError(
     return { status: 400, error: err.message };
   }
   if (err instanceof ConflictError) {
-    return { status: 409, error: err.message };
+    return {
+      status: 409,
+      error: err.message,
+      code: err.code,
+      entityRef: err.entityRef,
+    };
   }
 
   if (typeof err === "object" && err !== null && "code" in err) {
@@ -140,14 +164,18 @@ export function resolveHttpError(
     const constraint = String(pgErr.constraint || "");
     if (code === "23505") {
       const constraintHints: Record<string, string> = {
-        uq_parties_real_doc: "Ya existe un cliente o proveedor registrado con ese documento",
-        uq_purchase_invoice_doc: "Ese comprobante de compra ya existe para este proveedor",
+        uq_parties_real_doc:
+          "Ya existe un cliente o proveedor registrado con ese documento",
+        uq_purchase_invoice_doc:
+          "Ese comprobante de compra ya existe para este proveedor",
         products_sku_key: "Ya existe un producto con ese SKU",
         app_users_username_key: "Ese nombre de usuario ya está en uso",
-        sales_orders_order_code_key: "El código de pedido ya existe; intente nuevamente",
+        sales_orders_order_code_key:
+          "El código de pedido ya existe; intente nuevamente",
         quotes_quote_code_key: "El código de cotización ya existe; intente nuevamente",
         route_trips_trip_code_key: "Ya existe una hoja de ruta con ese código",
-        uq_audit_flags_open_dedup: "Ya existe una alerta abierta idéntica para ese registro",
+        uq_audit_flags_open_dedup:
+          "Ya existe una alerta abierta idéntica para ese registro",
       };
       return {
         status: 409,

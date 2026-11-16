@@ -60,6 +60,12 @@ import {
   useLiveSync,
   type SyncScope,
 } from "@/lib/realtime/useLiveSync";
+import {
+  deleteOfflineSnapshot,
+  readOfflineSnapshot,
+  saveOfflineSnapshot,
+  submitOfflineCapable,
+} from "@/lib/offline/outbox";
 
 const SELLER_SYNC_SCOPES: SyncScope[] = [
   "orders",
@@ -68,6 +74,27 @@ const SELLER_SYNC_SCOPES: SyncScope[] = [
   "treasury",
 ];
 const SELLER_DRAFT_STORAGE_KEY = "bht_vendedor_order_draft_v1";
+const SELLER_DRAFT_ACTOR_STORAGE_KEY = "bht_vendedor_order_draft_actor_v1";
+const SELLER_LAST_ACTOR_STORAGE_KEY = "bht_vendedor_last_actor_v1";
+
+interface SellerOfflineReferenceSnapshot {
+  catalog: CatalogItem[];
+  customers: CustomerOption[];
+  accounts: AbonoCashAccountOption[];
+  savedAt: string;
+}
+
+interface SellerOrderDraft {
+  customerNameRaw: string;
+  selectedCustomer: CustomerOption | null;
+  paymentMode: "CASH" | "CREDIT" | "YAPE_PLIN" | "TRANSFER";
+  collectOnDelivery: boolean;
+  creditDays: number;
+  customPromiseDate: string;
+  initialPaidPen: string;
+  notes: string;
+  cart: CartLine[];
+}
 
 interface CustomerOption {
   party_id: number;
@@ -84,6 +111,16 @@ const CANCEL_DRAFT_REASONS = [
   { code: "CHANGED_MIND", label: "Cliente postergó o cambió de opinión" },
   { code: "ORDER_ERROR", label: "Error al armar el pedido" },
   { code: "OTHER", label: "Otro motivo" },
+] as const;
+
+const ORDER_EDIT_REASONS = [
+  { code: "CUSTOMER_INCREASED", label: "Aumentó el pedido" },
+  { code: "ENTRY_ERROR", label: "Error al registrar" },
+  { code: "PRODUCT_CHANGE", label: "Cambió productos" },
+  { code: "PRODUCT_QUALITY", label: "Calidad del producto" },
+  { code: "BETTER_PRICE_ELSEWHERE", label: "Consiguió otro precio" },
+  { code: "CHANGED_MIND", label: "Cambio de opinión" },
+  { code: "OTHER", label: "Otro" },
 ] as const;
 
 function normalizeSearchText(value: string): string {
@@ -139,10 +176,7 @@ interface OrderDebtItem {
   agingBucket: "GREEN_0_7" | "AMBER_8_29" | "RED_30_PLUS";
   promisedPaymentDate: string | null;
   promiseStatus:
-    | "DUE_TODAY_OR_TOMORROW"
-    | "PROMISE_BROKEN"
-    | "ON_SCHEDULE"
-    | "NO_PROMISE_DATE";
+    "DUE_TODAY_OR_TOMORROW" | "PROMISE_BROKEN" | "ON_SCHEDULE" | "NO_PROMISE_DATE";
   paymentCount: number;
   lastPaymentDate: string | null;
   createdByName?: string | null;
@@ -208,22 +242,17 @@ export default function VendedorPage() {
   } | null>(null);
   const [catalog, setCatalog] = useState<CatalogItem[]>([]);
   const [customers, setCustomers] = useState<CustomerOption[]>([]);
-  const [sellerAccounts, setSellerAccounts] = useState<
-    AbonoCashAccountOption[]
-  >([]);
+  const [sellerAccounts, setSellerAccounts] = useState<AbonoCashAccountOption[]>([]);
   const [orders, setOrders] = useState<Record<string, unknown>[]>([]);
   const [debtorsByOrder, setDebtorsByOrder] = useState<OrderDebtItem[]>([]);
-  const [debtorsByCustomer, setDebtorsByCustomer] = useState<
-    CustomerDebtSummary[]
-  >([]);
+  const [debtorsByCustomer, setDebtorsByCustomer] = useState<CustomerDebtSummary[]>([]);
   const [initialLoading, setInitialLoading] = useState(true);
   const [searchProduct, setSearchProduct] = useState("");
   const deferredSearchProduct = useDeferredValue(searchProduct);
   const [showAllCatalog, setShowAllCatalog] = useState(false);
 
   const [customerNameRaw, setCustomerNameRaw] = useState("");
-  const [selectedCustomer, setSelectedCustomer] =
-    useState<CustomerOption | null>(null);
+  const [selectedCustomer, setSelectedCustomer] = useState<CustomerOption | null>(null);
   const deferredCustomerQuery = useDeferredValue(customerNameRaw);
   const [customerDropdownOpen, setCustomerDropdownOpen] = useState(false);
   const customerBoxRef = useRef<HTMLDivElement | null>(null);
@@ -231,9 +260,12 @@ export default function VendedorPage() {
     Record<number, boolean>
   >({});
   const [expandedOrderId, setExpandedOrderId] = useState<number | null>(null);
+  const [editingOrderId, setEditingOrderId] = useState<number | null>(null);
+  const [editingOrderCode, setEditingOrderCode] = useState("");
+  const [editReasonCode, setEditReasonCode] = useState("CUSTOMER_INCREASED");
+  const [editReasonNote, setEditReasonNote] = useState("");
   const [cancelDraftOpen, setCancelDraftOpen] = useState(false);
-  const [cancelReasonCode, setCancelReasonCode] =
-    useState<string>("CHANGED_MIND");
+  const [cancelReasonCode, setCancelReasonCode] = useState<string>("CHANGED_MIND");
   const [cancelCustomNote, setCancelCustomNote] = useState("");
   const [busyCancelDraft, setBusyCancelDraft] = useState(false);
   const [paymentMode, setPaymentMode] = useState<
@@ -253,9 +285,7 @@ export default function VendedorPage() {
   } | null>(null);
 
   // Debtors state
-  const [debtorView, setDebtorView] = useState<"orders" | "customers">(
-    "orders"
-  );
+  const [debtorView, setDebtorView] = useState<"orders" | "customers">("orders");
   const [promiseFilter, setPromiseFilter] = useState<string>("ALL");
   const [debtorSearch, setDebtorSearch] = useState("");
   const deferredDebtorSearch = useDeferredValue(debtorSearch);
@@ -274,9 +304,7 @@ export default function VendedorPage() {
     | null
   >(null);
   const [abonoAmount, setAbonoAmount] = useState("");
-  const [abonoMode, setAbonoMode] = useState<"CASH" | "YAPE_PLIN" | "TRANSFER">(
-    "CASH"
-  );
+  const [abonoMode, setAbonoMode] = useState<"CASH" | "YAPE_PLIN" | "TRANSFER">("CASH");
   const [abonoNextDays, setAbonoNextDays] = useState<number>(7);
   const [abonoAccountId, setAbonoAccountId] = useState<string>("");
   const [busyAbono, setBusyAbono] = useState(false);
@@ -284,9 +312,7 @@ export default function VendedorPage() {
   const [timelineEntries, setTimelineEntries] = useState<
     Array<Record<string, unknown>>
   >([]);
-  const [timelineLoadingId, setTimelineLoadingId] = useState<number | null>(
-    null
-  );
+  const [timelineLoadingId, setTimelineLoadingId] = useState<number | null>(null);
 
   // Expenses state
   const [expenseCategory, setExpenseCategory] = useState("COMBUSTIBLE");
@@ -298,67 +324,115 @@ export default function VendedorPage() {
   const draftHydratedRef = useRef(false);
 
   useEffect(() => {
-    try {
-      const raw = sessionStorage.getItem(SELLER_DRAFT_STORAGE_KEY);
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        if (parsed && typeof parsed === "object") {
-          if (typeof parsed.customerNameRaw === "string")
-            setCustomerNameRaw(parsed.customerNameRaw);
-          if (parsed.selectedCustomer)
-            setSelectedCustomer(parsed.selectedCustomer);
-          if (
-            parsed.paymentMode === "CASH" ||
-            parsed.paymentMode === "CREDIT" ||
-            parsed.paymentMode === "YAPE_PLIN" ||
-            parsed.paymentMode === "TRANSFER"
-          ) {
-            setPaymentMode(parsed.paymentMode);
+    let active = true;
+    const hydrateDraft = async () => {
+      let actor: string | null = null;
+      let savedDraft: SellerOrderDraft | null = null;
+      try {
+        if (navigator.onLine) {
+          const response = await fetch("/api/auth", { cache: "no-store" });
+          const data = response.ok ? await response.json() : null;
+          actor =
+            typeof data?.session?.username === "string" ? data.session.username : null;
+          if (actor) sessionStorage.setItem(SELLER_LAST_ACTOR_STORAGE_KEY, actor);
+        } else {
+          actor = sessionStorage.getItem(SELLER_LAST_ACTOR_STORAGE_KEY);
+        }
+      } catch {
+        // Only use the tab identity when truly offline; avoid stale data on server errors.
+        if (navigator.onLine === false) {
+          try {
+            actor = sessionStorage.getItem(SELLER_LAST_ACTOR_STORAGE_KEY);
+          } catch {
+            actor = null;
           }
-          if (typeof parsed.collectOnDelivery === "boolean")
-            setCollectOnDelivery(parsed.collectOnDelivery);
-          if (typeof parsed.creditDays === "number")
-            setCreditDays(parsed.creditDays);
-          if (typeof parsed.customPromiseDate === "string")
-            setCustomPromiseDate(parsed.customPromiseDate);
-          if (typeof parsed.initialPaidPen === "string")
-            setInitialPaidPen(parsed.initialPaidPen);
-          if (typeof parsed.notes === "string") setNotes(parsed.notes);
-          if (Array.isArray(parsed.cart)) setCart(parsed.cart);
         }
       }
-    } catch {
-      // ignore sessionStorage failure
-    } finally {
-      draftHydratedRef.current = true;
-    }
+      if (actor) {
+        savedDraft = await readOfflineSnapshot<SellerOrderDraft>(
+          actor,
+          "order-draft"
+        ).catch(() => null);
+        if (!savedDraft) {
+          try {
+            const draftActor = sessionStorage.getItem(SELLER_DRAFT_ACTOR_STORAGE_KEY);
+            const raw = sessionStorage.getItem(SELLER_DRAFT_STORAGE_KEY);
+            if (draftActor === actor && raw) savedDraft = JSON.parse(raw);
+          } catch {
+            // A bad or unavailable session draft does not block the screen.
+          }
+        }
+      }
+      if (active && savedDraft && typeof savedDraft === "object") {
+        if (typeof savedDraft.customerNameRaw === "string")
+          setCustomerNameRaw(savedDraft.customerNameRaw);
+        if (savedDraft.selectedCustomer)
+          setSelectedCustomer(savedDraft.selectedCustomer);
+        if (
+          savedDraft.paymentMode === "CASH" ||
+          savedDraft.paymentMode === "CREDIT" ||
+          savedDraft.paymentMode === "YAPE_PLIN" ||
+          savedDraft.paymentMode === "TRANSFER"
+        ) {
+          setPaymentMode(savedDraft.paymentMode);
+        }
+        if (typeof savedDraft.collectOnDelivery === "boolean")
+          setCollectOnDelivery(savedDraft.collectOnDelivery);
+        if (typeof savedDraft.creditDays === "number")
+          setCreditDays(savedDraft.creditDays);
+        if (typeof savedDraft.customPromiseDate === "string")
+          setCustomPromiseDate(savedDraft.customPromiseDate);
+        if (typeof savedDraft.initialPaidPen === "string")
+          setInitialPaidPen(savedDraft.initialPaidPen);
+        if (typeof savedDraft.notes === "string") setNotes(savedDraft.notes);
+        if (Array.isArray(savedDraft.cart)) setCart(savedDraft.cart);
+      }
+      if (active) draftHydratedRef.current = true;
+    };
+    void hydrateDraft();
+    return () => {
+      active = false;
+    };
   }, []);
 
   useEffect(() => {
     if (!draftHydratedRef.current) return;
+    const draft: SellerOrderDraft = {
+      customerNameRaw,
+      selectedCustomer,
+      paymentMode,
+      collectOnDelivery,
+      creditDays,
+      customPromiseDate,
+      initialPaidPen,
+      notes,
+      cart,
+    };
+    const hasDraft = Boolean(cart.length || customerNameRaw.trim() || notes.trim());
+    let actor = currentUser?.username || null;
     try {
-      if (cart.length === 0 && !customerNameRaw.trim() && !notes.trim()) {
+      actor ||= sessionStorage.getItem(SELLER_LAST_ACTOR_STORAGE_KEY);
+      if (!hasDraft) {
         sessionStorage.removeItem(SELLER_DRAFT_STORAGE_KEY);
-        return;
+        sessionStorage.removeItem(SELLER_DRAFT_ACTOR_STORAGE_KEY);
+      } else if (actor) {
+        sessionStorage.setItem(SELLER_DRAFT_STORAGE_KEY, JSON.stringify(draft));
+        sessionStorage.setItem(SELLER_DRAFT_ACTOR_STORAGE_KEY, actor);
       }
-      sessionStorage.setItem(
-        SELLER_DRAFT_STORAGE_KEY,
-        JSON.stringify({
-          customerNameRaw,
-          selectedCustomer,
-          paymentMode,
-          collectOnDelivery,
-          creditDays,
-          customPromiseDate,
-          initialPaidPen,
-          notes,
-          cart,
-        })
-      );
     } catch {
       // ignore sessionStorage failure
     }
+    if (actor) {
+      if (hasDraft) {
+        void saveOfflineSnapshot(actor, "order-draft", draft).catch(() => {
+          // IndexedDB can be unavailable in private browsing.
+        });
+      } else {
+        void deleteOfflineSnapshot(actor, "order-draft").catch(() => undefined);
+      }
+    }
   }, [
+    currentUser?.username,
     customerNameRaw,
     selectedCustomer,
     paymentMode,
@@ -394,6 +468,16 @@ export default function VendedorPage() {
         }
         if (ordData.currentUser) {
           setCurrentUser(ordData.currentUser);
+          try {
+            // Tab-scoped identity avoids exposing a previous worker's snapshot
+            // when several people share the same device.
+            sessionStorage.setItem(
+              SELLER_LAST_ACTOR_STORAGE_KEY,
+              String(ordData.currentUser.username)
+            );
+          } catch {
+            // Online operation remains available if browser storage is blocked.
+          }
         }
         if (quotesRes && quotesRes.ok) {
           const quotesJson = await quotesRes.json();
@@ -401,12 +485,57 @@ export default function VendedorPage() {
         }
         setCatalog(ordData.catalog || []);
         setCustomers(Array.isArray(ordData.customers) ? ordData.customers : []);
-        setSellerAccounts(
-          Array.isArray(ordData.accounts) ? ordData.accounts : []
-        );
+        setSellerAccounts(Array.isArray(ordData.accounts) ? ordData.accounts : []);
         setOrders(ordData.orders || []);
+        if (ordData.currentUser?.username) {
+          await saveOfflineSnapshot(
+            String(ordData.currentUser.username),
+            "references",
+            {
+              catalog: ordData.catalog || [],
+              customers: Array.isArray(ordData.customers) ? ordData.customers : [],
+              accounts: Array.isArray(ordData.accounts) ? ordData.accounts : [],
+              savedAt: new Date().toISOString(),
+            }
+          ).catch(() => {
+            // IndexedDB may be unavailable in private browsing; online mode remains usable.
+          });
+        }
         return true;
       } catch {
+        let lastActor: string | null = null;
+        try {
+          lastActor = sessionStorage.getItem(SELLER_LAST_ACTOR_STORAGE_KEY);
+        } catch {
+          // No offline snapshot can be selected safely without a tab identity.
+        }
+        if (lastActor && navigator.onLine === false) {
+          const snapshot = await readOfflineSnapshot<SellerOfflineReferenceSnapshot>(
+            lastActor,
+            "references"
+          ).catch(() => null);
+          if (snapshot) {
+            setCurrentUser(
+              (previous) =>
+                previous ?? {
+                  userId: 0,
+                  username: lastActor,
+                  fullName: lastActor,
+                  role: "EXTERNAL_SELLER",
+                }
+            );
+            setCatalog(snapshot.catalog);
+            setCustomers(snapshot.customers);
+            setSellerAccounts(snapshot.accounts);
+            if (!silent) {
+              setFeedback({
+                type: "warn",
+                msg: "Estás sin conexión. Puedes crear pedidos, cobros y gastos; quedarán pendientes de sincronización.",
+              });
+            }
+            return true;
+          }
+        }
         if (!silent) {
           setFeedback({
             type: "err",
@@ -501,9 +630,7 @@ export default function VendedorPage() {
     router.push("/login");
   }, [router]);
 
-  const isAbonoModalOpen = Boolean(
-    selectedOrderForAbono || selectedCustomerForFifo
-  );
+  const isAbonoModalOpen = Boolean(selectedOrderForAbono || selectedCustomerForFifo);
 
   const { liveStatus, triggerSync } = useLiveSync({
     scopes: SELLER_SYNC_SCOPES,
@@ -515,9 +642,7 @@ export default function VendedorPage() {
   const addToCart = useCallback((prod: CatalogItem) => {
     const fractional = isFractionalUom(prod.unit_of_measure);
     setCart((prev) => {
-      const existing = prev.find(
-        (c) => c.product.product_id === prod.product_id
-      );
+      const existing = prev.find((c) => c.product.product_id === prod.product_id);
       if (existing) {
         const nextQty = normalizeOrderQuantity(
           Math.max(0, existing.quantity) + 1,
@@ -546,8 +671,7 @@ export default function VendedorPage() {
   }, []);
 
   const isPartnerControlUser =
-    currentUser?.role === "PARTNER_ADMIN" ||
-    currentUser?.role === "PARTNER_MANAGER";
+    currentUser?.role === "PARTNER_ADMIN" || currentUser?.role === "PARTNER_MANAGER";
 
   const cartQtyByProductId = useMemo(
     () => new Map(cart.map((c) => [c.product.product_id, c.quantity])),
@@ -558,9 +682,7 @@ export default function VendedorPage() {
     () =>
       cart.reduce((sum, item) => {
         const base = item.product.list_sale_price_pen ?? 0;
-        const qty = Number.isFinite(item.quantity)
-          ? Math.max(0, item.quantity)
-          : 0;
+        const qty = Number.isFinite(item.quantity) ? Math.max(0, item.quantity) : 0;
         const disc = Number.isFinite(item.unitDiscountPen)
           ? Math.max(0, item.unitDiscountPen)
           : 0;
@@ -570,20 +692,9 @@ export default function VendedorPage() {
     [cart]
   );
 
-  const hasBelowMinFloor = useMemo(
-    () =>
-      cart.some((item) => {
-        const base = item.product.list_sale_price_pen ?? 0;
-        const min = item.product.min_sale_price_pen ?? base;
-        const disc = Number.isFinite(item.unitDiscountPen)
-          ? Math.max(0, item.unitDiscountPen)
-          : 0;
-        return base - disc < min - 0.001;
-      }),
-    [cart]
-  );
-
-  const requiresPartnerApproval = hasBelowMinFloor && !isPartnerControlUser;
+  // Cost is intentionally hidden from sellers. The backend alone decides when
+  // a final price is below cost and therefore needs approval.
+  const requiresPartnerApproval = false;
 
   const filteredCustomerSuggestions = useMemo(() => {
     const q = normalizeSearchText(deferredCustomerQuery);
@@ -591,9 +702,7 @@ export default function VendedorPage() {
     const tokens = q.split(/\s+/).filter(Boolean);
     return customers
       .filter((c) => {
-        const haystack = normalizeSearchText(
-          `${c.name} ${c.doc_number ?? ""}`
-        );
+        const haystack = normalizeSearchText(`${c.name} ${c.doc_number ?? ""}`);
         return tokens.every((tok) => haystack.includes(tok));
       })
       .slice(0, 8);
@@ -623,9 +732,7 @@ export default function VendedorPage() {
     }
   }
 
-  function handleSelectPaymentMode(
-    mode: "CASH" | "YAPE_PLIN" | "TRANSFER" | "CREDIT"
-  ) {
+  function handleSelectPaymentMode(mode: "CASH" | "YAPE_PLIN" | "TRANSFER" | "CREDIT") {
     setPaymentMode(mode);
     if (mode === "YAPE_PLIN" || mode === "TRANSFER") {
       setCollectOnDelivery(false);
@@ -648,19 +755,70 @@ export default function VendedorPage() {
     setSearchProduct("");
     setShowAllCatalog(false);
     setNotes("");
+    setEditingOrderId(null);
+    setEditingOrderCode("");
+    setEditReasonCode("CUSTOMER_INCREASED");
+    setEditReasonNote("");
     try {
       sessionStorage.removeItem(SELLER_DRAFT_STORAGE_KEY);
+      sessionStorage.removeItem(SELLER_DRAFT_ACTOR_STORAGE_KEY);
     } catch {
       // ignore sessionStorage failure
     }
+    const actor = currentUser?.username;
+    if (actor) {
+      void deleteOfflineSnapshot(actor, "order-draft").catch(() => undefined);
+    }
+  }
+
+  function beginEditingOrder(order: Record<string, unknown>) {
+    const orderLines = Array.isArray(order.lines)
+      ? (order.lines as Array<Record<string, unknown>>)
+      : [];
+    const nextCart: CartLine[] = [];
+    for (const line of orderLines) {
+      const product = catalog.find(
+        (item) => item.product_id === Number(line.product_id)
+      );
+      if (!product) {
+        setFeedback({
+          type: "err",
+          msg: "Uno de los productos ya no está disponible en el catálogo.",
+        });
+        return;
+      }
+      const quantity = Number(line.quantity);
+      nextCart.push({
+        product,
+        quantity,
+        quantityInput: String(quantity),
+        unitDiscountPen: Number(line.unit_discount_pen ?? 0),
+      });
+    }
+    const customer = customers.find(
+      (item) => item.party_id === Number(order.customer_party_id)
+    );
+    const mode = String(order.payment_mode) as
+      "CASH" | "CREDIT" | "YAPE_PLIN" | "TRANSFER";
+    setEditingOrderId(Number(order.order_id));
+    setEditingOrderCode(String(order.order_code));
+    setEditReasonCode("CUSTOMER_INCREASED");
+    setEditReasonNote("");
+    setCart(nextCart);
+    setSelectedCustomer(customer ?? null);
+    setCustomerNameRaw(String(order.customer_name ?? ""));
+    setPaymentMode(mode);
+    setCollectOnDelivery(mode === "CASH" && Number(order.paid_pen ?? 0) <= 0.05);
+    setNotes(String(order.notes ?? ""));
+    setExpandedOrderId(null);
+    setTab("nuevo");
+    window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
   async function handleConfirmCancelDraft(e: React.FormEvent) {
     e.preventDefault();
     if (busyCancelDraft) return;
-    const chosen = CANCEL_DRAFT_REASONS.find(
-      (r) => r.code === cancelReasonCode
-    );
+    const chosen = CANCEL_DRAFT_REASONS.find((r) => r.code === cancelReasonCode);
     const reasonLabel = chosen?.label || "Otro motivo";
     setBusyCancelDraft(true);
     try {
@@ -762,69 +920,110 @@ export default function VendedorPage() {
     setFeedback(null);
     setBusyOrder(true);
     try {
-      const res = await fetch("/api/orders", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: "create",
-          customerPartyId: selectedCustomer ? selectedCustomer.party_id : null,
-          customerNameRaw,
-          paymentMode,
-          collectOnDelivery:
-            paymentMode !== "CREDIT"
-              ? requiresPartnerApproval
-                ? true
-                : collectOnDelivery
-              : undefined,
-          creditDays: paymentMode === "CREDIT" ? creditDays : undefined,
-          promisedPaymentDate:
-            paymentMode === "CREDIT" && customPromiseDate
-              ? customPromiseDate
-              : null,
-          initialPaidPen:
-            !requiresPartnerApproval &&
-            paymentMode === "CREDIT" &&
-            parsedInitialPaid > 0
-              ? parsedInitialPaid
-              : undefined,
-          notes,
-          lines: cart.map((c) => {
-            const fractional = isFractionalUom(c.product.unit_of_measure);
-            return {
-              productId: c.product.product_id,
-              quantity: normalizeOrderQuantity(c.quantity, fractional),
-              unitDiscountPen: Number.isFinite(c.unitDiscountPen)
-                ? Math.max(0, c.unitDiscountPen)
-                : 0,
-            };
-          }),
-        }),
-      });
-      if (res.status === 401 || res.status === 403) {
-        router.push("/login");
+      const selectedEditReason = ORDER_EDIT_REASONS.find(
+        (item) => item.code === editReasonCode
+      );
+      if (
+        editingOrderId !== null &&
+        editReasonCode === "OTHER" &&
+        !editReasonNote.trim()
+      ) {
+        setFeedback({ type: "err", msg: "Describe brevemente el otro motivo." });
         return;
       }
-      const data = await res.json();
-      if (!res.ok) {
+      const payload = {
+        action: editingOrderId === null ? "create" : "update",
+        orderId: editingOrderId ?? undefined,
+        reason:
+          editingOrderId === null
+            ? undefined
+            : editReasonCode === "OTHER"
+              ? `Otro: ${editReasonNote.trim()}`
+              : selectedEditReason?.label || "Ajuste operativo",
+        customerPartyId: selectedCustomer ? selectedCustomer.party_id : null,
+        customerNameRaw,
+        paymentMode,
+        collectOnDelivery:
+          paymentMode !== "CREDIT"
+            ? requiresPartnerApproval
+              ? true
+              : collectOnDelivery
+            : undefined,
+        creditDays: paymentMode === "CREDIT" ? creditDays : undefined,
+        promisedPaymentDate:
+          paymentMode === "CREDIT" && customPromiseDate ? customPromiseDate : null,
+        initialPaidPen:
+          !requiresPartnerApproval && paymentMode === "CREDIT" && parsedInitialPaid > 0
+            ? parsedInitialPaid
+            : undefined,
+        notes,
+        lines: cart.map((c) => {
+          const fractional = isFractionalUom(c.product.unit_of_measure);
+          return {
+            productId: c.product.product_id,
+            quantity: normalizeOrderQuantity(c.quantity, fractional),
+            unitDiscountPen: Number.isFinite(c.unitDiscountPen)
+              ? Math.max(0, c.unitDiscountPen)
+              : 0,
+          };
+        }),
+      };
+      const result =
+        editingOrderId === null
+          ? await submitOfflineCapable<Record<string, unknown>>({
+              kind: "ORDER_CREATE",
+              actorUsername: currentUser?.username || "",
+              url: "/api/orders",
+              body: payload,
+            })
+          : await fetch("/api/orders", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(payload),
+            }).then(async (response) => {
+              const data = await response.json();
+              if (!response.ok) {
+                throw Object.assign(
+                  new Error(data.error || "No se pudo modificar el pedido"),
+                  { status: response.status }
+                );
+              }
+              return { queued: false, data };
+            });
+      const wasEditing = editingOrderId !== null;
+      resetOrderDraft();
+      if (result.queued) {
         setFeedback({
-          type: "err",
-          msg: data.error || "Error al guardar pedido.",
+          type: "warn",
+          msg: "Pedido guardado en este dispositivo. Se enviará automáticamente cuando vuelva Internet.",
         });
         return;
       }
-      resetOrderDraft();
+      const data = result.data!;
       setFeedback({
         type: data.requiresApproval ? "warn" : "ok",
-        msg: data.requiresApproval
-          ? `Pedido ${data.orderCode} guardado pendiente de aprobación de Socio o Gerencia (descuento bajo el precio mínimo).`
-          : `Pedido ${data.orderCode} registrado y enviado a Almacén.`,
+        msg: wasEditing
+          ? data.requiresApproval
+            ? `Pedido ${data.orderCode} modificado y enviado a aprobación por precio bajo costo.`
+            : `Pedido ${data.orderCode} modificado; el cambio quedó registrado.`
+          : data.requiresApproval
+            ? `Pedido ${data.orderCode} guardado pendiente de aprobación de Socio o Gerencia (precio bajo costo).`
+            : `Pedido ${data.orderCode} registrado y enviado a Almacén.`,
       });
       notifyLocalSync(["orders", "inventory", "collections", "treasury", "partners"]);
       await loadAll({ silent: true });
-    } catch {
+    } catch (error) {
+      const status = Number((error as { status?: unknown })?.status ?? 0);
+      if (status === 401 || status === 403) {
+        router.push("/login");
+        return;
+      }
       setFeedback({
         type: "err",
-        msg: "Error de conexión al registrar el pedido.",
+        msg:
+          error instanceof Error
+            ? error.message
+            : "Error de conexión al registrar el pedido.",
       });
     } finally {
       setBusyOrder(false);
@@ -833,18 +1032,16 @@ export default function VendedorPage() {
 
   async function handleSubmitAbono(e: React.FormEvent) {
     e.preventDefault();
-    if (busyAbono || (!selectedOrderForAbono && !selectedCustomerForFifo))
-      return;
+    if (busyAbono || (!selectedOrderForAbono && !selectedCustomerForFifo)) return;
     setFeedback(null);
     setBusyAbono(true);
     try {
       const activeBalanceDue = selectedCustomerForFifo
         ? selectedCustomerForFifo.totalBalanceDuePen
-        : selectedOrderForAbono?.balanceDuePen ?? 0;
+        : (selectedOrderForAbono?.balanceDuePen ?? 0);
       const parsedAbono = Number(abonoAmount);
       const isFullSettlement =
-        Number.isFinite(parsedAbono) &&
-        parsedAbono >= activeBalanceDue - 0.05;
+        Number.isFinite(parsedAbono) && parsedAbono >= activeBalanceDue - 0.05;
       const selectedAccId = abonoAccountId ? Number(abonoAccountId) : undefined;
       const payload = selectedCustomerForFifo
         ? {
@@ -865,45 +1062,50 @@ export default function VendedorPage() {
             nextCollectionDays: isFullSettlement ? null : abonoNextDays,
             notes: "Abono registrado por Vendedor",
           };
-      const res = await fetch("/api/collections", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+      const result = await submitOfflineCapable<Record<string, unknown>>({
+        kind: "COLLECTION",
+        actorUsername: currentUser?.username || "",
+        url: "/api/collections",
+        body: payload,
       });
-      if (res.status === 401 || res.status === 403) {
-        router.push("/login");
-        return;
-      }
-      const data = await res.json();
-      if (!res.ok) {
-        setFeedback({
-          type: "err",
-          msg: data.error || "Error al registrar abono.",
-        });
-        return;
-      }
       setSelectedOrderForAbono(null);
       setSelectedCustomerForFifo(null);
       setAbonoAmount("");
       setAbonoAccountId("");
+      if (result.queued) {
+        setFeedback({
+          type: "warn",
+          msg: "Cobro guardado en este dispositivo. Se validará y sincronizará al recuperar Internet.",
+        });
+        return;
+      }
+      const data = result.data!;
       setFeedback({
         type: "ok",
         msg: selectedCustomerForFifo
           ? `Abono general aplicado a ${
-              data.allocations?.length ?? 1
+              Array.isArray(data.allocations) ? data.allocations.length : 1
             } pedido(s) más antiguos.`
           : data.isSettled
-          ? "¡Pedido cancelado al 100%!"
-          : `Abono registrado. Nuevo saldo pendiente: S/ ${Number(
-              data.newBalanceDuePen
-            ).toFixed(2)}`,
+            ? "¡Pedido cancelado al 100%!"
+            : `Abono registrado. Nuevo saldo pendiente: S/ ${Number(
+                data.newBalanceDuePen
+              ).toFixed(2)}`,
       });
       notifyLocalSync(["collections", "orders", "treasury", "partners"]);
       await loadAll({ silent: true });
-    } catch {
+    } catch (error) {
+      const status = Number((error as { status?: unknown })?.status ?? 0);
+      if (status === 401 || status === 403) {
+        router.push("/login");
+        return;
+      }
       setFeedback({
         type: "err",
-        msg: "Error de red al registrar el abono.",
+        msg:
+          error instanceof Error
+            ? error.message
+            : "Error de red al registrar el abono.",
       });
     } finally {
       setBusyAbono(false);
@@ -951,36 +1153,41 @@ export default function VendedorPage() {
     setFeedback(null);
     setBusyExpense(true);
     try {
-      const res = await fetch("/api/treasury", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+      const result = await submitOfflineCapable<Record<string, unknown>>({
+        kind: "ROUTE_EXPENSE",
+        actorUsername: currentUser?.username || "",
+        url: "/api/treasury",
+        body: {
           amountPen: Number(expenseAmount),
           expenseBucket: "ROUTE_OPEX",
           expenseCategory,
           description: expenseDesc,
-        }),
+        },
       });
-      if (res.status === 401 || res.status === 403) {
+      setExpenseAmount("");
+      setExpenseDesc("");
+      setFeedback(
+        result.queued
+          ? {
+              type: "warn",
+              msg: "Gasto guardado en este dispositivo. Se sincronizará al recuperar Internet.",
+            }
+          : { type: "ok", msg: "Gasto operativo registrado." }
+      );
+      if (result.queued) return;
+      notifyLocalSync(["treasury", "partners"]);
+    } catch (error) {
+      const status = Number((error as { status?: unknown })?.status ?? 0);
+      if (status === 401 || status === 403) {
         router.push("/login");
         return;
       }
-      const data = await res.json();
-      if (!res.ok) {
-        setFeedback({
-          type: "err",
-          msg: data.error || "Error al guardar gasto.",
-        });
-        return;
-      }
-      setExpenseAmount("");
-      setExpenseDesc("");
-      setFeedback({ type: "ok", msg: "Gasto operativo registrado." });
-      notifyLocalSync(["treasury", "partners"]);
-    } catch {
       setFeedback({
         type: "err",
-        msg: "Error de conexión al guardar el gasto.",
+        msg:
+          error instanceof Error
+            ? error.message
+            : "Error de conexión al guardar el gasto.",
       });
     } finally {
       setBusyExpense(false);
@@ -1021,19 +1228,17 @@ export default function VendedorPage() {
       scored.push({ item: entry.item, score });
     }
     scored.sort(
-      (a, b) =>
-        b.score - a.score || a.item.name.localeCompare(b.item.name, "es")
+      (a, b) => b.score - a.score || a.item.name.localeCompare(b.item.name, "es")
     );
     return scored.map((s) => s.item);
   }, [catalog, deferredSearchProduct, normalizedCatalog]);
 
-  const visibleCatalog = useMemo(
-    () =>
-      showAllCatalog || filteredCatalog.length <= 24
-        ? filteredCatalog
-        : filteredCatalog.slice(0, 24),
-    [filteredCatalog, showAllCatalog]
-  );
+  const catalogPreviewLimit = normalizeSearchText(deferredSearchProduct) ? 24 : 12;
+  const visibleCatalog = useMemo(() => {
+    return showAllCatalog || filteredCatalog.length <= catalogPreviewLimit
+      ? filteredCatalog
+      : filteredCatalog.slice(0, catalogPreviewLimit);
+  }, [catalogPreviewLimit, filteredCatalog, showAllCatalog]);
 
   const filteredDebtOrders = useMemo(() => {
     const q = normalizeSearchText(deferredDebtorSearch);
@@ -1057,6 +1262,27 @@ export default function VendedorPage() {
       return tokens.every((tok) => haystack.includes(tok));
     });
   }, [debtorsByCustomer, deferredDebtorSearch]);
+
+  const collectionSummary = useMemo(() => {
+    const total = debtorsByOrder.reduce((sum, order) => sum + order.balanceDuePen, 0);
+    const dueSoon = debtorsByOrder
+      .filter((order) => order.promiseStatus === "DUE_TODAY_OR_TOMORROW")
+      .reduce((sum, order) => sum + order.balanceDuePen, 0);
+    const overdue = debtorsByOrder
+      .filter((order) => order.promiseStatus === "PROMISE_BROKEN")
+      .reduce((sum, order) => sum + order.balanceDuePen, 0);
+    return { total, dueSoon, overdue };
+  }, [debtorsByOrder]);
+
+  const prioritizedDebtOrders = useMemo(() => {
+    const priority = (status: string) =>
+      status === "PROMISE_BROKEN" ? 0 : status === "DUE_TODAY_OR_TOMORROW" ? 1 : 2;
+    return [...filteredDebtOrders].sort(
+      (a, b) =>
+        priority(a.promiseStatus) - priority(b.promiseStatus) ||
+        b.balanceDuePen - a.balanceDuePen
+    );
+  }, [filteredDebtOrders]);
 
   async function handleCreateQuoteFromCart() {
     if (busyCreateQuote || busyOrder) return;
@@ -1133,10 +1359,7 @@ export default function VendedorPage() {
     }
   }
 
-  async function handleConvertQuote(
-    quoteId: number,
-    mode: "CASH" | "CREDIT"
-  ) {
+  async function handleConvertQuote(quoteId: number, mode: "CASH" | "CREDIT") {
     if (busyQuoteId === quoteId) return;
     setFeedback(null);
     setBusyQuoteId(quoteId);
@@ -1240,8 +1463,7 @@ export default function VendedorPage() {
         label: "Cobros",
         mobileLabel: "Cobros",
         icon: <WalletIcon className="h-4 w-4" />,
-        badgeCount:
-          debtorsByOrder.length > 0 ? debtorsByOrder.length : undefined,
+        badgeCount: debtorsByOrder.length > 0 ? debtorsByOrder.length : undefined,
       },
       {
         id: "pedidos",
@@ -1275,21 +1497,20 @@ export default function VendedorPage() {
 
   const cleanSellerName =
     currentUser?.fullName &&
-    !/vendedor\s+externo|socio\s+operativo|socio\s+gerente/i.test(
-      currentUser.fullName
-    )
+    !/vendedor\s+externo|socio\s+operativo|socio\s+gerente/i.test(currentUser.fullName)
       ? currentUser.fullName
       : currentUser?.username === "socio_admin"
-      ? "Renzo"
-      : null;
+        ? "Renzo"
+        : null;
   const sellerHeaderRoleLabel =
     currentUser?.role === "PARTNER_ADMIN"
       ? `${cleanSellerName || "Renzo"} · Ventas y Control`
       : currentUser?.role === "PARTNER_MANAGER"
-      ? `${cleanSellerName || "Samuel"} · Gerencia`
-      : cleanSellerName
-      ? `${cleanSellerName} · Vendedor S/`
-      : "Vendedor · S/";
+        ? `${cleanSellerName || "Samuel"} · Gerencia`
+        : cleanSellerName
+          ? `${cleanSellerName} · Vendedor S/`
+          : "Vendedor · S/";
+  const hasOrderDraft = Boolean(cart.length || customerNameRaw.trim() || notes.trim());
 
   return (
     <div className="min-h-screen bg-[#FAF9F6] pb-40 md:pb-12">
@@ -1336,81 +1557,152 @@ export default function VendedorPage() {
           />
         )}
 
+        {liveStatus === "offline" && (
+          <Card
+            tone="warning"
+            padding="sm"
+            className="text-xs leading-relaxed text-[#78350F]"
+            role="status"
+          >
+            Sin conexión. Puedes guardar pedidos, cobros y gastos; se enviarán al
+            recuperar Internet. Precio, stock y crédito se validarán al sincronizar.
+          </Card>
+        )}
+        {tab === "nuevo" && hasOrderDraft && (
+          <p className="-mt-2 px-1 text-[11px] text-[#5C5A55]" role="status">
+            Borrador guardado automáticamente en este dispositivo para tu usuario.
+          </p>
+        )}
+
         {tab === "nuevo" && (
           <section aria-label="Nuevo pedido">
             <form
               onSubmit={handleSubmitOrder}
               className="grid grid-cols-1 gap-4 lg:grid-cols-12 lg:items-start lg:gap-5"
             >
-              <div className="min-w-0 space-y-4 lg:col-span-7">
-              {/* Step 1: Client Identification */}
-              <Card className="space-y-3">
-                <div ref={customerBoxRef} className="relative">
-                  <FieldLabel htmlFor="seller-customer-name" required>
-                    1. Cliente o ferretería
-                  </FieldLabel>
-                  <div className="relative mt-1.5">
-                    <SearchIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#6D6A64]" />
-                    <input
-                      id="seller-customer-name"
-                      type="text"
-                      required
-                      autoComplete="off"
-                      role="combobox"
-                      aria-expanded={
-                        customerDropdownOpen &&
-                        filteredCustomerSuggestions.length > 0
-                      }
-                      aria-controls="seller-customer-listbox"
-                      value={customerNameRaw}
-                      onFocus={() => setCustomerDropdownOpen(true)}
-                      onChange={(e) => {
-                        const nextVal = e.target.value;
-                        setCustomerNameRaw(nextVal);
-                        if (
-                          selectedCustomer &&
-                          normalizeSearchText(nextVal) !==
-                            normalizeSearchText(selectedCustomer.name)
-                        ) {
-                          setSelectedCustomer(null);
-                        }
-                        setCustomerDropdownOpen(true);
-                      }}
-                      onKeyDown={(e) => {
-                        if (e.key === "Escape") {
-                          setCustomerDropdownOpen(false);
-                        }
-                      }}
-                      placeholder="Buscar por cualquier palabra o escribir cliente nuevo..."
-                      className={`${INPUT_CLASS} pl-9 pr-9 font-medium`}
-                    />
-                    {customerNameRaw && (
-                      <button
-                        type="button"
-                        data-compact="true"
-                        onClick={() => {
-                          setCustomerNameRaw("");
-                          setSelectedCustomer(null);
-                          setCustomerDropdownOpen(true);
-                        }}
-                        aria-label="Limpiar cliente"
-                        className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded-md p-1 text-[#6D6A64] hover:bg-[#F4F3EF] hover:text-[#18181B] cursor-pointer"
+              {editingOrderId !== null && (
+                <Card className="space-y-3 border-[#A9C7E3] bg-[#F2F6FA] lg:col-span-12">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                      <p className="font-semibold text-[#0F2942]">
+                        Modificando {editingOrderCode}
+                      </p>
+                      <p className="text-xs text-[#5C5A55]">
+                        El pedido volverá a alistamiento y se guardará la versión
+                        anterior.
+                      </p>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={resetOrderDraft}
+                    >
+                      Cancelar edición
+                    </Button>
+                  </div>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div>
+                      <FieldLabel htmlFor="order-edit-reason">
+                        Motivo del cambio
+                      </FieldLabel>
+                      <select
+                        id="order-edit-reason"
+                        value={editReasonCode}
+                        onChange={(event) => setEditReasonCode(event.target.value)}
+                        className={`${INPUT_CLASS} mt-1.5`}
                       >
-                        <CloseIcon className="h-3.5 w-3.5" />
-                      </button>
+                        {ORDER_EDIT_REASONS.map((reason) => (
+                          <option key={reason.code} value={reason.code}>
+                            {reason.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    {editReasonCode === "OTHER" && (
+                      <div>
+                        <FieldLabel htmlFor="order-edit-note" required>
+                          Describe el motivo
+                        </FieldLabel>
+                        <input
+                          id="order-edit-note"
+                          value={editReasonNote}
+                          onChange={(event) => setEditReasonNote(event.target.value)}
+                          className={`${INPUT_CLASS} mt-1.5`}
+                          required
+                        />
+                      </div>
                     )}
                   </div>
-                  {selectedCustomer && (
-                    <p className="mt-1.5 text-[11px] font-medium text-[#15803D]">
-                      Cliente vinculado ({selectedCustomer.doc_number || "registrado"}
-                      {selectedCustomer.address
-                        ? ` · ${selectedCustomer.address}`
-                        : ""}
-                      )
-                    </p>
-                  )}
-                  {customerDropdownOpen &&
-                    filteredCustomerSuggestions.length > 0 && (
+                </Card>
+              )}
+              <div className="min-w-0 space-y-4 lg:col-span-7">
+                {/* Step 1: Client Identification */}
+                <Card className="space-y-3">
+                  <div ref={customerBoxRef} className="relative">
+                    <FieldLabel htmlFor="seller-customer-name" required>
+                      1. Cliente o ferretería
+                    </FieldLabel>
+                    <div className="relative mt-1.5">
+                      <SearchIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#6D6A64]" />
+                      <input
+                        id="seller-customer-name"
+                        type="text"
+                        required
+                        autoComplete="off"
+                        role="combobox"
+                        aria-expanded={
+                          customerDropdownOpen && filteredCustomerSuggestions.length > 0
+                        }
+                        aria-controls="seller-customer-listbox"
+                        value={customerNameRaw}
+                        onFocus={() => setCustomerDropdownOpen(true)}
+                        onChange={(e) => {
+                          const nextVal = e.target.value;
+                          setCustomerNameRaw(nextVal);
+                          if (
+                            selectedCustomer &&
+                            normalizeSearchText(nextVal) !==
+                              normalizeSearchText(selectedCustomer.name)
+                          ) {
+                            setSelectedCustomer(null);
+                          }
+                          setCustomerDropdownOpen(true);
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === "Escape") {
+                            setCustomerDropdownOpen(false);
+                          }
+                        }}
+                        placeholder="Buscar por cualquier palabra o escribir cliente nuevo..."
+                        className={`${INPUT_CLASS} pl-9 pr-9 font-medium`}
+                      />
+                      {customerNameRaw && (
+                        <button
+                          type="button"
+                          data-compact="true"
+                          onClick={() => {
+                            setCustomerNameRaw("");
+                            setSelectedCustomer(null);
+                            setCustomerDropdownOpen(true);
+                          }}
+                          aria-label="Limpiar cliente"
+                          className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded-md p-1 text-[#6D6A64] hover:bg-[#F4F3EF] hover:text-[#18181B] cursor-pointer"
+                        >
+                          <CloseIcon className="h-3.5 w-3.5" />
+                        </button>
+                      )}
+                    </div>
+                    {selectedCustomer && (
+                      <p className="mt-1.5 text-[11px] font-medium text-[#15803D]">
+                        Cliente vinculado ({selectedCustomer.doc_number || "registrado"}
+                        {selectedCustomer.address
+                          ? ` · ${selectedCustomer.address}`
+                          : ""}
+                        )
+                      </p>
+                    )}
+                    {customerDropdownOpen && filteredCustomerSuggestions.length > 0 && (
                       <ul
                         id="seller-customer-listbox"
                         role="listbox"
@@ -1418,7 +1710,14 @@ export default function VendedorPage() {
                         className="absolute z-30 mt-1.5 max-h-56 w-full overflow-y-auto rounded-xl border border-[#D4E0EC] bg-white p-1 shadow-[0_12px_28px_rgba(15,41,66,0.12)]"
                       >
                         {filteredCustomerSuggestions.map((c) => (
-                          <li key={c.party_id} role="option" aria-selected={selectedCustomer?.party_id === c.party_id || customerNameRaw === c.name}>
+                          <li
+                            key={c.party_id}
+                            role="option"
+                            aria-selected={
+                              selectedCustomer?.party_id === c.party_id ||
+                              customerNameRaw === c.name
+                            }
+                          >
                             <button
                               type="button"
                               onMouseDown={(e) => {
@@ -1441,467 +1740,317 @@ export default function VendedorPage() {
                         ))}
                       </ul>
                     )}
-                </div>
-              </Card>
+                  </div>
+                </Card>
 
-              {/* Step 2: Product Search & Add */}
-              <Card className="space-y-3">
-                <div className="flex items-center justify-between gap-2">
-                  <FieldLabel htmlFor="seller-search-product">
-                    2. Buscar y agregar productos
-                  </FieldLabel>
-                  <span
-                    id="seller-catalog-count"
-                    className="text-[11px] text-[#5C5A55] tabular-nums"
-                  >
-                    {initialLoading
-                      ? "Cargando..."
-                      : searchProduct.trim()
-                      ? `Mostrando ${filteredCatalog.length} de ${catalog.length}`
-                      : `${catalog.length} disponibles`}
-                  </span>
-                </div>
-
-                <div className="relative">
-                  <span
-                    aria-hidden="true"
-                    className="pointer-events-none absolute inset-y-0 left-3.5 flex items-center text-[#6D6A64]"
-                  >
-                    <SearchIcon className="h-4 w-4" />
-                  </span>
-                  <input
-                    id="seller-search-product"
-                    type="search"
-                    value={searchProduct}
-                    onChange={(e) => setSearchProduct(e.target.value)}
-                    aria-describedby="seller-catalog-count"
-                    placeholder="Buscar producto por nombre o código..."
-                    className={`${INPUT_CLASS} pl-10 ${
-                      searchProduct ? "pr-10" : ""
-                    }`}
-                  />
-                  {searchProduct && (
-                    <button
-                      type="button"
-                      data-compact="true"
-                      onClick={() => setSearchProduct("")}
-                      aria-label="Limpiar búsqueda de productos"
-                      className="absolute inset-y-1 right-1.5 flex items-center justify-center rounded-lg px-2 text-[#5C5A55] hover:bg-[#F2F6FA] hover:text-[#0F2942] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0F2942]/40 cursor-pointer"
+                {/* Step 2: Product Search & Add */}
+                <Card className="space-y-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <FieldLabel htmlFor="seller-search-product">
+                      2. Buscar y agregar productos
+                    </FieldLabel>
+                    <span
+                      id="seller-catalog-count"
+                      className="text-[11px] text-[#5C5A55] tabular-nums"
                     >
-                      <CloseIcon className="h-4 w-4" />
-                    </button>
-                  )}
-                </div>
+                      {initialLoading
+                        ? "Cargando..."
+                        : searchProduct.trim()
+                          ? `Mostrando ${filteredCatalog.length} de ${catalog.length}`
+                          : `${catalog.length} disponibles`}
+                    </span>
+                  </div>
 
-                <div className="space-y-2 lg:max-h-[32rem] lg:overflow-y-auto lg:pr-0.5">
-                  {initialLoading && catalog.length === 0 ? (
-                    <p className="py-6 text-center text-xs text-[#5C5A55]">
-                      Cargando catálogo de productos...
-                    </p>
-                  ) : filteredCatalog.length === 0 ? (
-                    <p className="py-6 text-center text-xs text-[#5C5A55]">
-                      No hay productos que coincidan con &ldquo;{searchProduct}
-                      &rdquo;.
-                    </p>
-                  ) : (
-                    <>
-                      {visibleCatalog.map((prod) => {
-                        const inCartQty =
-                          cartQtyByProductId.get(prod.product_id) ?? 0;
-                        return (
-                          <div
-                            key={prod.product_id}
-                            className="flex items-center justify-between gap-3 rounded-xl border border-[#E7E5E0] bg-[#FAF9F6]/60 p-3 transition hover:border-[#D4E0EC] hover:bg-white"
-                          >
-                            <div className="min-w-0">
-                              <p className="line-clamp-2 text-sm font-semibold text-[#18181B]">
-                                {prod.name}
-                              </p>
-                              <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-[#5C5A55] tabular-nums">
-                                <span className="font-semibold text-[#18181B]">
-                                  S/{" "}
-                                  {Number(prod.list_sale_price_pen ?? 0).toFixed(
-                                    2
-                                  )}{" "}
-                                  <span
-                                    title={formatUnitTitleEs(
-                                      prod.unit_of_measure || "NIU"
-                                    )}
-                                    className="text-[11px] font-normal text-[#6D6A64]"
-                                  >
-                                    / {prod.unit_of_measure || "NIU"}
-                                  </span>
-                                </span>
-                                <span>
-                                  · Mín: S/{" "}
-                                  {Number(prod.min_sale_price_pen ?? 0).toFixed(
-                                    2
-                                  )}
-                                </span>
-                                <span>
-                                  · Stock:{" "}
-                                  <strong>
-                                    {prod.stock_on_hand}{" "}
-                                    {prod.unit_of_measure || "NIU"}
-                                  </strong>
-                                </span>
-                                <Badge
-                                  tone={
-                                    prod.fulfillment_mode === "ON_DEMAND"
-                                      ? "warning"
-                                      : "neutral"
-                                  }
-                                >
-                                  {formatFulfillmentModeEs(prod.fulfillment_mode)}
-                                </Badge>
-                              </div>
-                            </div>
-                            <Button
-                              variant={inCartQty > 0 ? "primary" : "outline"}
-                              size="sm"
-                              onClick={() => addToCart(prod)}
-                              aria-label={`Agregar ${prod.name}${
-                                inCartQty > 0
-                                  ? `, ${inCartQty} en el pedido`
-                                  : ""
-                              }`}
-                              className="flex-shrink-0"
+                  <div className="relative">
+                    <span
+                      aria-hidden="true"
+                      className="pointer-events-none absolute inset-y-0 left-3.5 flex items-center text-[#6D6A64]"
+                    >
+                      <SearchIcon className="h-4 w-4" />
+                    </span>
+                    <input
+                      id="seller-search-product"
+                      type="search"
+                      value={searchProduct}
+                      onChange={(e) => {
+                        setSearchProduct(e.target.value);
+                        setShowAllCatalog(false);
+                      }}
+                      aria-describedby="seller-catalog-count"
+                      placeholder="Buscar producto por nombre o código..."
+                      className={`${INPUT_CLASS} pl-10 ${searchProduct ? "pr-10" : ""}`}
+                    />
+                    {searchProduct && (
+                      <button
+                        type="button"
+                        data-compact="true"
+                        onClick={() => setSearchProduct("")}
+                        aria-label="Limpiar búsqueda de productos"
+                        className="absolute inset-y-1 right-1.5 flex items-center justify-center rounded-lg px-2 text-[#5C5A55] hover:bg-[#F2F6FA] hover:text-[#0F2942] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0F2942]/40 cursor-pointer"
+                      >
+                        <CloseIcon className="h-4 w-4" />
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="space-y-2 lg:max-h-[32rem] lg:overflow-y-auto lg:pr-0.5">
+                    {initialLoading && catalog.length === 0 ? (
+                      <p className="py-6 text-center text-xs text-[#5C5A55]">
+                        Cargando catálogo de productos...
+                      </p>
+                    ) : filteredCatalog.length === 0 ? (
+                      <p className="py-6 text-center text-xs text-[#5C5A55]">
+                        No hay productos que coincidan con &ldquo;{searchProduct}
+                        &rdquo;.
+                      </p>
+                    ) : (
+                      <>
+                        {visibleCatalog.map((prod) => {
+                          const inCartQty =
+                            cartQtyByProductId.get(prod.product_id) ?? 0;
+                          return (
+                            <div
+                              key={prod.product_id}
+                              className="flex items-center justify-between gap-3 rounded-xl border border-[#E7E5E0] bg-[#FAF9F6]/60 p-3 transition hover:border-[#D4E0EC] hover:bg-white"
                             >
-                              <PlusIcon className="h-3.5 w-3.5" />
-                              {inCartQty > 0 ? `(${inCartQty})` : "Agregar"}
+                              <div className="min-w-0">
+                                <p className="line-clamp-2 text-sm font-semibold text-[#18181B]">
+                                  {prod.name}
+                                </p>
+                                <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-[#5C5A55] tabular-nums">
+                                  <span className="font-semibold text-[#18181B]">
+                                    S/{" "}
+                                    {Number(prod.list_sale_price_pen ?? 0).toFixed(2)}{" "}
+                                    <span
+                                      title={formatUnitTitleEs(
+                                        prod.unit_of_measure || "NIU"
+                                      )}
+                                      className="text-[11px] font-normal text-[#6D6A64]"
+                                    >
+                                      / {prod.unit_of_measure || "NIU"}
+                                    </span>
+                                  </span>
+                                  <span>
+                                    · Mín: S/{" "}
+                                    {Number(prod.min_sale_price_pen ?? 0).toFixed(2)}
+                                  </span>
+                                  <span>
+                                    · Stock:{" "}
+                                    <strong>
+                                      {prod.stock_on_hand}{" "}
+                                      {prod.unit_of_measure || "NIU"}
+                                    </strong>
+                                  </span>
+                                  <Badge
+                                    tone={
+                                      prod.fulfillment_mode === "ON_DEMAND"
+                                        ? "warning"
+                                        : "neutral"
+                                    }
+                                  >
+                                    {formatFulfillmentModeEs(prod.fulfillment_mode)}
+                                  </Badge>
+                                </div>
+                              </div>
+                              <Button
+                                variant={inCartQty > 0 ? "primary" : "outline"}
+                                size="sm"
+                                onClick={() => addToCart(prod)}
+                                aria-label={`Agregar ${prod.name}${
+                                  inCartQty > 0 ? `, ${inCartQty} en el pedido` : ""
+                                }`}
+                                className="flex-shrink-0"
+                              >
+                                <PlusIcon className="h-3.5 w-3.5" />
+                                {inCartQty > 0 ? `(${inCartQty})` : "Agregar"}
+                              </Button>
+                            </div>
+                          );
+                        })}
+                        {filteredCatalog.length > catalogPreviewLimit && (
+                          <div className="pt-1 text-center">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setShowAllCatalog((prev) => !prev)}
+                              className="w-full"
+                            >
+                              {showAllCatalog
+                                ? `Mostrar solo los primeros ${catalogPreviewLimit}`
+                                : `Ver todos (${filteredCatalog.length} productos)`}
                             </Button>
                           </div>
-                        );
-                      })}
-                      {filteredCatalog.length > 24 && (
-                        <div className="pt-1 text-center">
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            onClick={() => setShowAllCatalog((prev) => !prev)}
-                            className="w-full"
-                          >
-                            {showAllCatalog
-                              ? "Mostrar solo los primeros 24"
-                              : `Ver todos (${filteredCatalog.length} productos)`}
-                          </Button>
-                        </div>
-                      )}
-                    </>
-                  )}
-                </div>
-              </Card>
+                        )}
+                      </>
+                    )}
+                  </div>
+                </Card>
               </div>
 
               {/* Step 3: Sticky Right Cart & Order Summary (Strategic Blue Horizon Focus Zone) */}
               <div className="min-w-0 space-y-4 lg:col-span-5 lg:sticky lg:top-20">
-              {cart.length === 0 && (
-                <Card
-                  accent="horizon"
-                  className="hidden lg:flex lg:flex-col lg:items-center lg:justify-center lg:py-10 text-center"
-                >
-                  <div
-                    aria-hidden="true"
-                    className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#F2F6FA] text-[#0F2942]"
+                {cart.length === 0 && (
+                  <Card
+                    accent="horizon"
+                    className="hidden lg:flex lg:flex-col lg:items-center lg:justify-center lg:py-10 text-center"
                   >
-                    <ShoppingBagIcon className="h-5 w-5" />
-                  </div>
-                  <p className="mt-3 text-sm font-semibold text-[#18181B]">
-                    3. Resumen, pago y envío
-                  </p>
-                  <p className="mt-1 max-w-xs text-xs text-[#5C5A55]">
-                    Elige cliente y agrega productos a la izquierda; luego confirma aquí la forma de pago y el envío.
-                  </p>
-                </Card>
-              )}
-              {cart.length > 0 && (
-                <Card
-                  id="cart-checkout-card"
-                  accent="horizon"
-                  className="space-y-3.5 shadow-[0_4px_16px_rgba(15,41,66,0.05)]"
-                >
-                  <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#D4E0EC] pb-2.5">
-                    <h2 className="text-sm font-semibold text-[#0F2942]">
-                      Productos en el pedido ({cart.length})
-                    </h2>
-                  </div>
+                    <div
+                      aria-hidden="true"
+                      className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#F2F6FA] text-[#0F2942]"
+                    >
+                      <ShoppingBagIcon className="h-5 w-5" />
+                    </div>
+                    <p className="mt-3 text-sm font-semibold text-[#18181B]">
+                      3. Resumen, pago y envío
+                    </p>
+                    <p className="mt-1 max-w-xs text-xs text-[#5C5A55]">
+                      Elige cliente y agrega productos a la izquierda; luego confirma
+                      aquí la forma de pago y el envío.
+                    </p>
+                  </Card>
+                )}
+                {cart.length > 0 && (
+                  <Card
+                    id="cart-checkout-card"
+                    accent="horizon"
+                    className="space-y-3.5 shadow-[0_4px_16px_rgba(15,41,66,0.05)]"
+                  >
+                    <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#D4E0EC] pb-2.5">
+                      <h2 className="text-sm font-semibold text-[#0F2942]">
+                        3. Resumen y pago · {cart.length} producto(s)
+                      </h2>
+                    </div>
 
-                  <div className="space-y-2.5">
-                    {cart.map((line, idx) => {
-                      const base = line.product.list_sale_price_pen ?? 0;
-                      const min = line.product.min_sale_price_pen ?? base;
-                      const fractional = isFractionalUom(
-                        line.product.unit_of_measure
-                      );
-                      const safeQty = Number.isFinite(line.quantity)
-                        ? Math.max(0, line.quantity)
-                        : 0;
-                      const safeDisc = Number.isFinite(line.unitDiscountPen)
-                        ? Math.max(0, line.unitDiscountPen)
-                        : 0;
-                      const finalUnit = Math.max(0, base - safeDisc);
-                      const belowMin = finalUnit < min - 0.001;
-                      const discountOpen =
-                        Boolean(expandedDiscountIds[line.product.product_id]) ||
-                        safeDisc > 0;
-                      return (
-                        <div
-                          key={line.product.product_id}
-                          className={`space-y-3 rounded-xl border p-3.5 ${
-                            belowMin
-                              ? "border-[#F3D9B1] bg-[#FDF8F0]"
-                              : "border-[#D4E0EC] bg-[#F2F6FA]/55"
-                          }`}
-                        >
-                          <div className="flex flex-wrap items-start justify-between gap-2">
-                            <div className="min-w-0 flex-1">
-                              <p className="text-sm font-semibold text-[#18181B]">
-                                {line.product.name}
-                              </p>
-                              <p className="text-xs text-[#5C5A55] tabular-nums">
-                                Precio lista: S/ {base.toFixed(2)}{" "}
-                                <span
-                                  title={formatUnitTitleEs(
-                                    line.product.unit_of_measure || "NIU"
-                                  )}
-                                >
-                                  / {line.product.unit_of_measure || "NIU"}
-                                </span>{" "}
-                                · Mín: S/ {min.toFixed(2)}
-                              </p>
-                            </div>
-                            <div className="flex flex-shrink-0 items-center gap-1.5">
-                              <button
-                                type="button"
-                                aria-expanded={discountOpen}
-                                onClick={() =>
-                                  setExpandedDiscountIds((prev) => ({
-                                    ...prev,
-                                    [line.product.product_id]: !discountOpen,
-                                  }))
-                                }
-                                className={`inline-flex min-h-[40px] items-center rounded-lg border px-3 py-1.5 text-xs font-medium transition cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0F2942]/45 ${
-                                  discountOpen
-                                    ? "border-[#0F2942] bg-[#0F2942] text-white"
-                                    : "border-[#D4E0EC] bg-white text-[#1E446B] hover:bg-[#F2F6FA]"
-                                }`}
-                              >
-                                {safeDisc > 0
-                                  ? `Desc. S/ ${safeDisc.toFixed(2)}`
-                                  : discountOpen
-                                  ? "Ocultar desc."
-                                  : "Descuento"}
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setExpandedDiscountIds((prev) => {
-                                    const next = { ...prev };
-                                    delete next[line.product.product_id];
-                                    return next;
-                                  });
-                                  setCart((prev) =>
-                                    prev.filter((_, i) => i !== idx)
-                                  );
-                                }}
-                                aria-label={`Quitar ${line.product.name} del pedido`}
-                                className="inline-flex min-h-[40px] items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-medium text-[#B91C1C] transition hover:bg-[#FEF2F2] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#B91C1C]/35 cursor-pointer"
-                              >
-                                <TrashIcon className="h-3.5 w-3.5" />
-                                Quitar
-                              </button>
-                            </div>
-                          </div>
-
+                    <div className="space-y-2.5">
+                      {cart.map((line, idx) => {
+                        const base = line.product.list_sale_price_pen ?? 0;
+                        const min = line.product.min_sale_price_pen ?? base;
+                        const fractional = isFractionalUom(
+                          line.product.unit_of_measure
+                        );
+                        const safeQty = Number.isFinite(line.quantity)
+                          ? Math.max(0, line.quantity)
+                          : 0;
+                        const safeDisc = Number.isFinite(line.unitDiscountPen)
+                          ? Math.max(0, line.unitDiscountPen)
+                          : 0;
+                        const finalUnit = Math.max(0, base - safeDisc);
+                        const belowMin = finalUnit < min - 0.001;
+                        const discountOpen =
+                          Boolean(expandedDiscountIds[line.product.product_id]) ||
+                          safeDisc > 0;
+                        return (
                           <div
-                            className={`grid grid-cols-1 gap-3 ${
-                              discountOpen
-                                ? "sm:grid-cols-2"
-                                : "max-w-full sm:max-w-[260px]"
+                            key={line.product.product_id}
+                            className={`space-y-3 rounded-xl border p-3.5 ${
+                              belowMin
+                                ? "border-[#F3D9B1] bg-[#FDF8F0]"
+                                : "border-[#D4E0EC] bg-[#F2F6FA]/55"
                             }`}
                           >
-                            <div>
-                              <FieldLabel
-                                htmlFor={`cart-qty-${line.product.product_id}`}
-                              >
-                                Cantidad ({line.product.unit_of_measure || "NIU"})
-                              </FieldLabel>
-                              <div className="mt-1 flex items-center gap-1.5">
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  aria-label={`Reducir cantidad de ${line.product.name}`}
-                                  onClick={() =>
-                                    setCart((prev) =>
-                                      prev.map((c, i) => {
-                                        if (i !== idx) return c;
-                                        const cur = Number.isFinite(c.quantity)
-                                          ? Math.max(0, c.quantity)
-                                          : 1;
-                                        const nextQty = fractional
-                                          ? Math.max(
-                                              0.01,
-                                              normalizeOrderQuantity(
-                                                cur > 1
-                                                  ? cur - 1
-                                                  : cur > 0.5
-                                                  ? cur - 0.5
-                                                  : cur - 0.1,
-                                                true
-                                              ) || 0.01
-                                            )
-                                          : Math.max(1, Math.floor(cur) - 1);
-                                        return {
-                                          ...c,
-                                          quantity: nextQty,
-                                          quantityInput: String(nextQty),
-                                        };
-                                      })
-                                    )
-                                  }
-                                  className="px-2.5"
-                                >
-                                  <MinusIcon className="h-3.5 w-3.5" />
-                                </Button>
-                                <input
-                                  id={`cart-qty-${line.product.product_id}`}
-                                  type="number"
-                                  inputMode={fractional ? "decimal" : "numeric"}
-                                  min={fractional ? "0.01" : 1}
-                                  step={fractional ? "any" : 1}
-                                  value={line.quantityInput}
-                                  onChange={(e) => {
-                                    const raw = e.target.value.replace(",", ".");
-                                    if (raw.trim() === "") {
-                                      setCart((prev) =>
-                                        prev.map((c, i) =>
-                                          i === idx
-                                            ? {
-                                                ...c,
-                                                quantity: 0,
-                                                quantityInput: "",
-                                              }
-                                            : c
-                                        )
-                                      );
-                                      return;
-                                    }
-                                    const parsed = Number(raw);
-                                    if (!Number.isFinite(parsed) || parsed < 0)
-                                      return;
-                                    const nextQty = fractional
-                                      ? parsed
-                                      : Math.max(0, Math.floor(parsed));
-                                    setCart((prev) =>
-                                      prev.map((c, i) =>
-                                        i === idx
-                                          ? {
-                                              ...c,
-                                              quantity: nextQty,
-                                              quantityInput: fractional
-                                                ? raw
-                                                : String(nextQty || ""),
-                                            }
-                                          : c
-                                      )
-                                    );
-                                  }}
-                                  onBlur={() =>
-                                    setCart((prev) =>
-                                      prev.map((c, i) => {
-                                        if (i !== idx) return c;
-                                        const normalized = fractional
-                                          ? normalizeOrderQuantity(
-                                              c.quantity,
-                                              true
-                                            )
-                                          : Math.floor(c.quantity);
-                                        const valid =
-                                          Number.isFinite(normalized) &&
-                                          normalized > 0
-                                            ? fractional
-                                              ? normalized
-                                              : Math.max(1, normalized)
-                                            : 1;
-                                        return {
-                                          ...c,
-                                          quantity: valid,
-                                          quantityInput: String(valid),
-                                        };
-                                      })
-                                    )
-                                  }
-                                  className={`${INPUT_CLASS} min-w-0 flex-1 text-center font-semibold tabular-nums`}
-                                />
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  aria-label={`Aumentar cantidad de ${line.product.name}`}
-                                  onClick={() =>
-                                    setCart((prev) =>
-                                      prev.map((c, i) => {
-                                        if (i !== idx) return c;
-                                        const cur = Number.isFinite(c.quantity)
-                                          ? Math.max(0, c.quantity)
-                                          : 0;
-                                        const nextQty = fractional
-                                          ? normalizeOrderQuantity(
-                                              cur + 1,
-                                              true
-                                            ) || 1
-                                          : Math.max(1, Math.floor(cur) + 1);
-                                        return {
-                                          ...c,
-                                          quantity: nextQty,
-                                          quantityInput: String(nextQty),
-                                        };
-                                      })
-                                    )
-                                  }
-                                  className="px-2.5"
-                                >
-                                  <PlusIcon className="h-3.5 w-3.5" />
-                                </Button>
-                              </div>
-                            </div>
-
-                            {discountOpen && (
-                              <div>
-                                <FieldLabel
-                                  htmlFor={`cart-disc-${line.product.product_id}`}
-                                >
-                                  Descuento S/ /{" "}
+                            <div className="flex flex-wrap items-start justify-between gap-2">
+                              <div className="min-w-0 flex-1">
+                                <p className="text-sm font-semibold text-[#18181B]">
+                                  {line.product.name}
+                                </p>
+                                <p className="text-xs text-[#5C5A55] tabular-nums">
+                                  Precio lista: S/ {base.toFixed(2)}{" "}
                                   <span
                                     title={formatUnitTitleEs(
                                       line.product.unit_of_measure || "NIU"
                                     )}
                                   >
-                                    {line.product.unit_of_measure || "NIU"}
-                                  </span>
+                                    / {line.product.unit_of_measure || "NIU"}
+                                  </span>{" "}
+                                  · Mín: S/ {min.toFixed(2)}
+                                </p>
+                              </div>
+                              <div className="flex flex-shrink-0 items-center gap-1.5">
+                                <button
+                                  type="button"
+                                  aria-expanded={discountOpen}
+                                  onClick={() =>
+                                    setExpandedDiscountIds((prev) => ({
+                                      ...prev,
+                                      [line.product.product_id]: !discountOpen,
+                                    }))
+                                  }
+                                  className={`inline-flex min-h-[40px] items-center rounded-lg border px-3 py-1.5 text-xs font-medium transition cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0F2942]/45 ${
+                                    discountOpen
+                                      ? "border-[#0F2942] bg-[#0F2942] text-white"
+                                      : "border-[#D4E0EC] bg-white text-[#1E446B] hover:bg-[#F2F6FA]"
+                                  }`}
+                                >
+                                  {safeDisc > 0
+                                    ? `Desc. S/ ${safeDisc.toFixed(2)}`
+                                    : discountOpen
+                                      ? "Ocultar desc."
+                                      : "Descuento"}
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setExpandedDiscountIds((prev) => {
+                                      const next = { ...prev };
+                                      delete next[line.product.product_id];
+                                      return next;
+                                    });
+                                    setCart((prev) => prev.filter((_, i) => i !== idx));
+                                  }}
+                                  aria-label={`Quitar ${line.product.name} del pedido`}
+                                  className="inline-flex min-h-[40px] items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-medium text-[#B91C1C] transition hover:bg-[#FEF2F2] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#B91C1C]/35 cursor-pointer"
+                                >
+                                  <TrashIcon className="h-3.5 w-3.5" />
+                                  Quitar
+                                </button>
+                              </div>
+                            </div>
+
+                            <div
+                              className={`grid grid-cols-1 gap-3 ${
+                                discountOpen
+                                  ? "sm:grid-cols-2"
+                                  : "max-w-full sm:max-w-[260px]"
+                              }`}
+                            >
+                              <div>
+                                <FieldLabel
+                                  htmlFor={`cart-qty-${line.product.product_id}`}
+                                >
+                                  Cantidad ({line.product.unit_of_measure || "NIU"})
                                 </FieldLabel>
                                 <div className="mt-1 flex items-center gap-1.5">
                                   <Button
                                     variant="outline"
                                     size="sm"
-                                    aria-label={`Reducir descuento en 1 sol para ${line.product.name}`}
+                                    aria-label={`Reducir cantidad de ${line.product.name}`}
                                     onClick={() =>
                                       setCart((prev) =>
-                                        prev.map((c, i) =>
-                                          i === idx
-                                            ? {
-                                                ...c,
-                                                unitDiscountPen: Math.max(
-                                                  0,
-                                                  (Number.isFinite(
-                                                    c.unitDiscountPen
-                                                  )
-                                                    ? c.unitDiscountPen
-                                                    : 0) - 1
-                                                ),
-                                              }
-                                            : c
-                                        )
+                                        prev.map((c, i) => {
+                                          if (i !== idx) return c;
+                                          const cur = Number.isFinite(c.quantity)
+                                            ? Math.max(0, c.quantity)
+                                            : 1;
+                                          const nextQty = fractional
+                                            ? Math.max(
+                                                0.01,
+                                                normalizeOrderQuantity(
+                                                  cur > 1
+                                                    ? cur - 1
+                                                    : cur > 0.5
+                                                      ? cur - 0.5
+                                                      : cur - 0.1,
+                                                  true
+                                                ) || 0.01
+                                              )
+                                            : Math.max(1, Math.floor(cur) - 1);
+                                          return {
+                                            ...c,
+                                            quantity: nextQty,
+                                            quantityInput: String(nextQty),
+                                          };
+                                        })
                                       )
                                     }
                                     className="px-2.5"
@@ -1909,55 +2058,92 @@ export default function VendedorPage() {
                                     <MinusIcon className="h-3.5 w-3.5" />
                                   </Button>
                                   <input
-                                    id={`cart-disc-${line.product.product_id}`}
+                                    id={`cart-qty-${line.product.product_id}`}
                                     type="number"
-                                    step="0.01"
-                                    min={0}
-                                    value={
-                                      Number.isFinite(line.unitDiscountPen)
-                                        ? line.unitDiscountPen
-                                        : 0
-                                    }
+                                    inputMode={fractional ? "decimal" : "numeric"}
+                                    min={fractional ? "0.01" : 1}
+                                    step={fractional ? "any" : 1}
+                                    value={line.quantityInput}
                                     onChange={(e) => {
-                                      const raw = e.target.value;
-                                      const parsed =
-                                        raw === "" ? 0 : Number(raw);
-                                      if (!Number.isFinite(parsed)) return;
+                                      const raw = e.target.value.replace(",", ".");
+                                      if (raw.trim() === "") {
+                                        setCart((prev) =>
+                                          prev.map((c, i) =>
+                                            i === idx
+                                              ? {
+                                                  ...c,
+                                                  quantity: 0,
+                                                  quantityInput: "",
+                                                }
+                                              : c
+                                          )
+                                        );
+                                        return;
+                                      }
+                                      const parsed = Number(raw);
+                                      if (!Number.isFinite(parsed) || parsed < 0)
+                                        return;
+                                      const nextQty = fractional
+                                        ? parsed
+                                        : Math.max(0, Math.floor(parsed));
                                       setCart((prev) =>
                                         prev.map((c, i) =>
                                           i === idx
                                             ? {
                                                 ...c,
-                                                unitDiscountPen: Math.max(
-                                                  0,
-                                                  parsed
-                                                ),
+                                                quantity: nextQty,
+                                                quantityInput: fractional
+                                                  ? raw
+                                                  : String(nextQty || ""),
                                               }
                                             : c
                                         )
                                       );
                                     }}
+                                    onBlur={() =>
+                                      setCart((prev) =>
+                                        prev.map((c, i) => {
+                                          if (i !== idx) return c;
+                                          const normalized = fractional
+                                            ? normalizeOrderQuantity(c.quantity, true)
+                                            : Math.floor(c.quantity);
+                                          const valid =
+                                            Number.isFinite(normalized) &&
+                                            normalized > 0
+                                              ? fractional
+                                                ? normalized
+                                                : Math.max(1, normalized)
+                                              : 1;
+                                          return {
+                                            ...c,
+                                            quantity: valid,
+                                            quantityInput: String(valid),
+                                          };
+                                        })
+                                      )
+                                    }
                                     className={`${INPUT_CLASS} min-w-0 flex-1 text-center font-semibold tabular-nums`}
                                   />
                                   <Button
                                     variant="outline"
                                     size="sm"
-                                    aria-label={`Aumentar descuento en 1 sol para ${line.product.name}`}
+                                    aria-label={`Aumentar cantidad de ${line.product.name}`}
                                     onClick={() =>
                                       setCart((prev) =>
-                                        prev.map((c, i) =>
-                                          i === idx
-                                            ? {
-                                                ...c,
-                                                unitDiscountPen:
-                                                  (Number.isFinite(
-                                                    c.unitDiscountPen
-                                                  )
-                                                    ? c.unitDiscountPen
-                                                    : 0) + 1,
-                                              }
-                                            : c
-                                        )
+                                        prev.map((c, i) => {
+                                          if (i !== idx) return c;
+                                          const cur = Number.isFinite(c.quantity)
+                                            ? Math.max(0, c.quantity)
+                                            : 0;
+                                          const nextQty = fractional
+                                            ? normalizeOrderQuantity(cur + 1, true) || 1
+                                            : Math.max(1, Math.floor(cur) + 1);
+                                          return {
+                                            ...c,
+                                            quantity: nextQty,
+                                            quantityInput: String(nextQty),
+                                          };
+                                        })
                                       )
                                     }
                                     className="px-2.5"
@@ -1966,263 +2152,407 @@ export default function VendedorPage() {
                                   </Button>
                                 </div>
                               </div>
+
+                              {discountOpen && (
+                                <div>
+                                  <FieldLabel
+                                    htmlFor={`cart-disc-${line.product.product_id}`}
+                                  >
+                                    Descuento S/ /{" "}
+                                    <span
+                                      title={formatUnitTitleEs(
+                                        line.product.unit_of_measure || "NIU"
+                                      )}
+                                    >
+                                      {line.product.unit_of_measure || "NIU"}
+                                    </span>
+                                  </FieldLabel>
+                                  <div className="mt-1 flex items-center gap-1.5">
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      aria-label={`Reducir descuento en 1 sol para ${line.product.name}`}
+                                      onClick={() =>
+                                        setCart((prev) =>
+                                          prev.map((c, i) =>
+                                            i === idx
+                                              ? {
+                                                  ...c,
+                                                  unitDiscountPen: Math.max(
+                                                    0,
+                                                    (Number.isFinite(c.unitDiscountPen)
+                                                      ? c.unitDiscountPen
+                                                      : 0) - 1
+                                                  ),
+                                                }
+                                              : c
+                                          )
+                                        )
+                                      }
+                                      className="px-2.5"
+                                    >
+                                      <MinusIcon className="h-3.5 w-3.5" />
+                                    </Button>
+                                    <input
+                                      id={`cart-disc-${line.product.product_id}`}
+                                      type="number"
+                                      step="0.01"
+                                      min={0}
+                                      value={
+                                        Number.isFinite(line.unitDiscountPen)
+                                          ? line.unitDiscountPen
+                                          : 0
+                                      }
+                                      onChange={(e) => {
+                                        const raw = e.target.value;
+                                        const parsed = raw === "" ? 0 : Number(raw);
+                                        if (!Number.isFinite(parsed)) return;
+                                        setCart((prev) =>
+                                          prev.map((c, i) =>
+                                            i === idx
+                                              ? {
+                                                  ...c,
+                                                  unitDiscountPen: Math.max(0, parsed),
+                                                }
+                                              : c
+                                          )
+                                        );
+                                      }}
+                                      className={`${INPUT_CLASS} min-w-0 flex-1 text-center font-semibold tabular-nums`}
+                                    />
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      aria-label={`Aumentar descuento en 1 sol para ${line.product.name}`}
+                                      onClick={() =>
+                                        setCart((prev) =>
+                                          prev.map((c, i) =>
+                                            i === idx
+                                              ? {
+                                                  ...c,
+                                                  unitDiscountPen:
+                                                    (Number.isFinite(c.unitDiscountPen)
+                                                      ? c.unitDiscountPen
+                                                      : 0) + 1,
+                                                }
+                                              : c
+                                          )
+                                        )
+                                      }
+                                      className="px-2.5"
+                                    >
+                                      <PlusIcon className="h-3.5 w-3.5" />
+                                    </Button>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+
+                            <div className="flex flex-wrap items-center justify-between gap-2 border-t border-[#E7E5E0]/80 pt-2 text-xs tabular-nums">
+                              <span className="text-[#5C5A55]">
+                                Final /{" "}
+                                <span
+                                  title={formatUnitTitleEs(
+                                    line.product.unit_of_measure || "NIU"
+                                  )}
+                                >
+                                  {line.product.unit_of_measure || "NIU"}
+                                </span>
+                                :{" "}
+                                <strong className="text-[#18181B]">
+                                  S/ {finalUnit.toFixed(2)}
+                                </strong>
+                              </span>
+                              <span className="text-sm font-semibold text-[#18181B]">
+                                Subtotal: S/ {(safeQty * finalUnit).toFixed(2)}
+                              </span>
+                            </div>
+
+                            {belowMin && !isPartnerControlUser && (
+                              <p className="flex items-start gap-1.5 text-xs font-medium text-[#B45309]">
+                                <AlertTriangleIcon className="mt-0.5 h-3.5 w-3.5 flex-shrink-0" />
+                                <span>
+                                  Precio menor al mínimo comercial (S/ {min.toFixed(2)}
+                                  ). Quedará registrado; solo requiere aprobación si
+                                  baja del costo.
+                                </span>
+                              </p>
                             )}
                           </div>
-
-                          <div className="flex flex-wrap items-center justify-between gap-2 border-t border-[#E7E5E0]/80 pt-2 text-xs tabular-nums">
-                            <span className="text-[#5C5A55]">
-                              Final /{" "}
-                              <span
-                                title={formatUnitTitleEs(
-                                  line.product.unit_of_measure || "NIU"
-                                )}
-                              >
-                                {line.product.unit_of_measure || "NIU"}
-                              </span>
-                              :{" "}
-                              <strong className="text-[#18181B]">
-                                S/ {finalUnit.toFixed(2)}
-                              </strong>
-                            </span>
-                            <span className="text-sm font-semibold text-[#18181B]">
-                              Subtotal: S/ {(safeQty * finalUnit).toFixed(2)}
-                            </span>
-                          </div>
-
-                          {belowMin && !isPartnerControlUser && (
-                            <p className="flex items-start gap-1.5 text-xs font-medium text-[#B45309]">
-                              <AlertTriangleIcon className="mt-0.5 h-3.5 w-3.5 flex-shrink-0" />
-                              <span>
-                                Precio menor al mínimo (S/ {min.toFixed(2)}).
-                                Requerirá aprobación de Socio o Gerencia.
-                              </span>
-                            </p>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-
-                  <div className="flex items-center justify-between rounded-xl bg-[#0F2942] px-4 py-3.5 text-white shadow-xs">
-                    <span className="text-sm font-medium text-[#D4E0EC]">
-                      Total del pedido
-                    </span>
-                    <span className="text-xl font-semibold tabular-nums">
-                      S/ {cartTotalPen.toFixed(2)}
-                    </span>
-                  </div>
-
-                  {/* Step 3b: Payment Condition decided once total is known */}
-                  <div className="space-y-3 rounded-xl border border-[#E7E5E0] bg-[#FAF9F6]/70 p-3.5">
-                    <div>
-                      <p
-                        id="seller-payment-mode-label"
-                        className="block text-xs font-medium text-[#5C5A55]"
-                      >
-                        3. Condición de pago
-                      </p>
-                      <div
-                        role="group"
-                        aria-labelledby="seller-payment-mode-label"
-                        className="mt-1.5 grid grid-cols-2 gap-1.5"
-                      >
-                        {(
-                          [
-                            ["CASH", "Efectivo"],
-                            ["YAPE_PLIN", "Yape / Plin"],
-                            ["TRANSFER", "Transferencia"],
-                            ["CREDIT", "A Crédito"],
-                          ] as const
-                        ).map(([mode, label]) => {
-                          const active = paymentMode === mode;
-                          return (
-                            <button
-                              key={mode}
-                              type="button"
-                              aria-pressed={active}
-                              onClick={() => handleSelectPaymentMode(mode)}
-                              className={`min-h-[40px] rounded-xl border px-3 py-2 text-xs font-semibold transition cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0F2942]/45 ${
-                                active
-                                  ? "border-[#0F2942] bg-[#0F2942] text-white shadow-xs"
-                                  : "border-[#E7E5E0] bg-white text-[#5C5A55] hover:border-[#D4E0EC] hover:bg-[#F2F6FA] hover:text-[#0F2942]"
-                              }`}
-                            >
-                              {label}
-                            </button>
-                          );
-                        })}
-                      </div>
+                        );
+                      })}
                     </div>
 
-                    {paymentMode !== "CREDIT" && (
-                      <SegmentedControl
-                        ariaLabel="Momento de cobro"
-                        value={collectOnDelivery ? "cod" : "now"}
-                        onChange={(v) => setCollectOnDelivery(v === "cod")}
-                        options={[
-                          { id: "cod", label: "Contra Entrega" },
-                          { id: "now", label: "Ya pagó hoy" },
-                        ]}
-                      />
-                    )}
+                    <div className="flex items-center justify-between rounded-xl bg-[#0F2942] px-4 py-3.5 text-white shadow-xs">
+                      <span className="text-sm font-medium text-[#D4E0EC]">
+                        Total del pedido
+                      </span>
+                      <span className="text-xl font-semibold tabular-nums">
+                        S/ {cartTotalPen.toFixed(2)}
+                      </span>
+                    </div>
 
-                    {paymentMode === "CREDIT" && (
-                      <div className="space-y-3 rounded-xl border border-[#F3D9B1] bg-[#FDF8F0] p-3">
-                        <div>
-                          <p
-                            id="seller-credit-days-label"
-                            className="block text-xs font-medium text-[#78350F]"
-                          >
-                            ¿Cuándo volvemos a cobrar?
-                          </p>
-                          <div
-                            role="group"
-                            aria-labelledby="seller-credit-days-label"
-                            className="mt-1.5 flex flex-wrap gap-1.5"
-                          >
-                            {CREDIT_DAY_CHIPS.map((chip) => {
-                              const active =
-                                creditDays === chip.days && !customPromiseDate;
-                              return (
-                                <button
-                                  key={chip.days}
-                                  type="button"
-                                  aria-pressed={active}
-                                  onClick={() => {
-                                    setCreditDays(chip.days);
-                                    setCustomPromiseDate("");
-                                  }}
-                                  className={`min-h-[34px] rounded-full border px-2.5 py-1 text-xs font-medium transition cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0F2942]/45 ${
-                                    active
-                                      ? "border-[#0F2942] bg-[#0F2942] text-white"
-                                      : "border-[#E7D3B1] bg-white text-[#78350F] hover:bg-[#FAF9F6]"
-                                  }`}
-                                >
-                                  {chip.label}
-                                </button>
-                              );
-                            })}
-                          </div>
-                          <div className="mt-2 flex flex-wrap items-center gap-2">
-                            <label
-                              htmlFor="seller-custom-date"
-                              className="text-xs font-medium text-[#78350F]"
+                    {/* Step 3b: Payment Condition decided once total is known */}
+                    <div className="space-y-3 rounded-xl border border-[#E7E5E0] bg-[#FAF9F6]/70 p-3.5">
+                      <div>
+                        <p
+                          id="seller-payment-mode-label"
+                          className="block text-xs font-medium text-[#5C5A55]"
+                        >
+                          3. Condición de pago
+                        </p>
+                        <div
+                          role="group"
+                          aria-labelledby="seller-payment-mode-label"
+                          className="mt-1.5 grid grid-cols-2 gap-1.5"
+                        >
+                          {(
+                            [
+                              ["CASH", "Efectivo"],
+                              ["YAPE_PLIN", "Yape / Plin"],
+                              ["TRANSFER", "Transferencia"],
+                              ["CREDIT", "A Crédito"],
+                            ] as const
+                          ).map(([mode, label]) => {
+                            const active = paymentMode === mode;
+                            return (
+                              <button
+                                key={mode}
+                                type="button"
+                                aria-pressed={active}
+                                onClick={() => handleSelectPaymentMode(mode)}
+                                className={`min-h-[40px] rounded-xl border px-3 py-2 text-xs font-semibold transition cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0F2942]/45 ${
+                                  active
+                                    ? "border-[#0F2942] bg-[#0F2942] text-white shadow-xs"
+                                    : "border-[#E7E5E0] bg-white text-[#5C5A55] hover:border-[#D4E0EC] hover:bg-[#F2F6FA] hover:text-[#0F2942]"
+                                }`}
+                              >
+                                {label}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      {paymentMode !== "CREDIT" && (
+                        <SegmentedControl
+                          ariaLabel="Momento de cobro"
+                          value={collectOnDelivery ? "cod" : "now"}
+                          onChange={(v) => setCollectOnDelivery(v === "cod")}
+                          options={[
+                            { id: "cod", label: "Contra Entrega" },
+                            { id: "now", label: "Ya pagó hoy" },
+                          ]}
+                        />
+                      )}
+
+                      {paymentMode === "CREDIT" && (
+                        <div className="space-y-3 rounded-xl border border-[#F3D9B1] bg-[#FDF8F0] p-3">
+                          <div>
+                            <p
+                              id="seller-credit-days-label"
+                              className="block text-xs font-medium text-[#78350F]"
                             >
-                              O fecha:
-                            </label>
+                              ¿Cuándo volvemos a cobrar?
+                            </p>
+                            <div
+                              role="group"
+                              aria-labelledby="seller-credit-days-label"
+                              className="mt-1.5 flex flex-wrap gap-1.5"
+                            >
+                              {CREDIT_DAY_CHIPS.map((chip) => {
+                                const active =
+                                  creditDays === chip.days && !customPromiseDate;
+                                return (
+                                  <button
+                                    key={chip.days}
+                                    type="button"
+                                    aria-pressed={active}
+                                    onClick={() => {
+                                      setCreditDays(chip.days);
+                                      setCustomPromiseDate("");
+                                    }}
+                                    className={`min-h-[34px] rounded-full border px-2.5 py-1 text-xs font-medium transition cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0F2942]/45 ${
+                                      active
+                                        ? "border-[#0F2942] bg-[#0F2942] text-white"
+                                        : "border-[#E7D3B1] bg-white text-[#78350F] hover:bg-[#FAF9F6]"
+                                    }`}
+                                  >
+                                    {chip.label}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                            <div className="mt-2 flex flex-wrap items-center gap-2">
+                              <label
+                                htmlFor="seller-custom-date"
+                                className="text-xs font-medium text-[#78350F]"
+                              >
+                                O fecha:
+                              </label>
+                              <input
+                                id="seller-custom-date"
+                                type="date"
+                                value={customPromiseDate}
+                                onChange={(e) => setCustomPromiseDate(e.target.value)}
+                                className="min-h-[36px] rounded-lg border border-[#E7D3B1] bg-white px-2.5 py-1 text-xs font-medium text-[#18181B] focus:border-[#0F2942] focus:outline-none focus:ring-2 focus:ring-[#0F2942]/15"
+                              />
+                            </div>
+                          </div>
+
+                          <div>
+                            <FieldLabel
+                              htmlFor="seller-initial-paid"
+                              className="text-[#78350F]"
+                            >
+                              Adelanto inicial hoy (Opcional, S/)
+                            </FieldLabel>
                             <input
-                              id="seller-custom-date"
-                              type="date"
-                              value={customPromiseDate}
-                              onChange={(e) => setCustomPromiseDate(e.target.value)}
-                              className="min-h-[36px] rounded-lg border border-[#E7D3B1] bg-white px-2.5 py-1 text-xs font-medium text-[#18181B] focus:border-[#0F2942] focus:outline-none focus:ring-2 focus:ring-[#0F2942]/15"
+                              id="seller-initial-paid"
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              value={initialPaidPen}
+                              onChange={(e) => setInitialPaidPen(e.target.value)}
+                              placeholder="Ej. 200.00"
+                              className={`${INPUT_CLASS} mt-1 tabular-nums`}
                             />
                           </div>
                         </div>
+                      )}
+                    </div>
 
-                        <div>
-                          <FieldLabel
-                            htmlFor="seller-initial-paid"
-                            className="text-[#78350F]"
-                          >
-                            Adelanto inicial hoy (Opcional, S/)
-                          </FieldLabel>
-                          <input
-                            id="seller-initial-paid"
-                            type="number"
-                            step="0.01"
-                            min="0"
-                            value={initialPaidPen}
-                            onChange={(e) => setInitialPaidPen(e.target.value)}
-                            placeholder="Ej. 200.00"
-                            className={`${INPUT_CLASS} mt-1 tabular-nums`}
-                          />
-                        </div>
-                      </div>
-                    )}
-                  </div>
+                    <div>
+                      <FieldLabel htmlFor="seller-order-notes">
+                        Dirección o nota para almacén (opcional)
+                      </FieldLabel>
+                      <input
+                        id="seller-order-notes"
+                        type="text"
+                        value={notes}
+                        onChange={(e) => setNotes(e.target.value)}
+                        placeholder="Dirección de entrega o referencia..."
+                        className={`${INPUT_CLASS} mt-1.5`}
+                      />
+                    </div>
 
-                  <div>
-                    <FieldLabel htmlFor="seller-order-notes">
-                      Dirección o nota para almacén (opcional)
-                    </FieldLabel>
-                    <input
-                      id="seller-order-notes"
-                      type="text"
-                      value={notes}
-                      onChange={(e) => setNotes(e.target.value)}
-                      placeholder="Dirección de entrega o referencia..."
-                      className={`${INPUT_CLASS} mt-1.5`}
-                    />
-                  </div>
+                    <section
+                      aria-labelledby="seller-confirmation-heading"
+                      className="rounded-xl border border-[#D4E0EC] bg-white p-3"
+                    >
+                      <h3
+                        id="seller-confirmation-heading"
+                        className="text-xs font-semibold text-[#0F2942]"
+                      >
+                        4. Confirma el destino del pedido
+                      </h3>
+                      <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1.5 text-xs">
+                        <dt className="text-[#5C5A55]">Cliente</dt>
+                        <dd className="text-right font-medium text-[#18181B]">
+                          {customerNameRaw.trim() || "Pendiente"}
+                        </dd>
+                        <dt className="text-[#5C5A55]">Total</dt>
+                        <dd className="text-right font-semibold tabular-nums text-[#18181B]">
+                          S/ {cartTotalPen.toFixed(2)}
+                        </dd>
+                        <dt className="text-[#5C5A55]">Modalidad</dt>
+                        <dd className="text-right font-medium text-[#18181B]">
+                          {formatPaymentModeEs(paymentMode)}
+                        </dd>
+                        <dt className="text-[#5C5A55]">Cobro inicial</dt>
+                        <dd className="text-right font-medium tabular-nums text-[#18181B]">
+                          {paymentMode === "CREDIT" && Number(initialPaidPen) > 0
+                            ? `S/ ${Number(initialPaidPen).toFixed(2)}`
+                            : paymentMode === "CREDIT"
+                              ? "Sin adelanto"
+                              : collectOnDelivery
+                                ? "Contra entrega"
+                                : "Pagado hoy"}
+                        </dd>
+                        <dt className="text-[#5C5A55]">Destino</dt>
+                        <dd className="text-right font-medium text-[#18181B]">
+                          {notes.trim() || "Almacén para alistamiento"}
+                        </dd>
+                      </dl>
+                    </section>
 
-                  <div className="flex flex-col gap-2 sm:flex-row">
-                    <Button
-                      type="submit"
-                      variant={requiresPartnerApproval ? "primary" : "success"}
-                      size="lg"
-                      disabled={busyOrder || busyCreateQuote}
-                      className="flex-1"
-                    >
-                      {busyOrder
-                        ? "Guardando pedido..."
-                        : requiresPartnerApproval
-                        ? "Enviar Pedido a Aprobación de Socio o Gerencia"
-                        : "Confirmar Pedido y Enviar a Almacén"}
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="lg"
-                      disabled={busyOrder || busyCreateQuote}
-                      onClick={handleCreateQuoteFromCart}
-                      className="sm:w-auto"
-                    >
-                      {busyCreateQuote ? "Cotizando..." : "Cotizar"}
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="lg"
-                      disabled={busyOrder || busyCancelDraft}
-                      onClick={() => setCancelDraftOpen(true)}
-                      className="border-[#E7E5E0] bg-[#FAF9F6] text-[#5C5A55] hover:border-[#E8C5C5] hover:bg-[#FEF2F2]/65 hover:text-[#991B1B] sm:w-auto"
-                    >
-                      Cancelado
-                    </Button>
-                  </div>
-                </Card>
-              )}
-
-              {cart.length === 0 &&
-                (customerNameRaw.trim().length > 0 || notes.trim().length > 0) && (
-                  <div className="flex justify-end">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      disabled={busyCancelDraft}
-                      onClick={() => setCancelDraftOpen(true)}
-                      className="border-[#E7E5E0] bg-[#FAF9F6] text-[#5C5A55] hover:border-[#E8C5C5] hover:bg-[#FEF2F2]/65 hover:text-[#991B1B]"
-                    >
-                      Cancelado
-                    </Button>
-                  </div>
+                    <div className="flex flex-col gap-2 sm:flex-row">
+                      <Button
+                        type="submit"
+                        variant={requiresPartnerApproval ? "primary" : "success"}
+                        size="lg"
+                        disabled={busyOrder || busyCreateQuote}
+                        className="flex-1"
+                      >
+                        {busyOrder
+                          ? editingOrderId !== null
+                            ? "Guardando cambios..."
+                            : "Guardando pedido..."
+                          : editingOrderId !== null
+                            ? "Guardar cambios y enviar a alistamiento"
+                            : requiresPartnerApproval
+                              ? "Enviar Pedido a Aprobación de Socio o Gerencia"
+                              : "Confirmar Pedido y Enviar a Almacén"}
+                      </Button>
+                      {editingOrderId === null && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="lg"
+                          disabled={busyOrder || busyCreateQuote}
+                          onClick={handleCreateQuoteFromCart}
+                          className="sm:w-auto"
+                        >
+                          {busyCreateQuote ? "Cotizando..." : "Cotizar"}
+                        </Button>
+                      )}
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="lg"
+                        disabled={busyOrder || busyCancelDraft}
+                        onClick={() => setCancelDraftOpen(true)}
+                        className="border-[#E7E5E0] bg-[#FAF9F6] text-[#5C5A55] hover:border-[#E8C5C5] hover:bg-[#FEF2F2]/65 hover:text-[#991B1B] sm:w-auto"
+                      >
+                        Cancelado
+                      </Button>
+                    </div>
+                  </Card>
                 )}
-            </div>
+
+                {cart.length === 0 &&
+                  (customerNameRaw.trim().length > 0 || notes.trim().length > 0) && (
+                    <div className="flex justify-end">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        disabled={busyCancelDraft}
+                        onClick={() => setCancelDraftOpen(true)}
+                        className="border-[#E7E5E0] bg-[#FAF9F6] text-[#5C5A55] hover:border-[#E8C5C5] hover:bg-[#FEF2F2]/65 hover:text-[#991B1B]"
+                      >
+                        Cancelado
+                      </Button>
+                    </div>
+                  )}
+              </div>
             </form>
           </section>
         )}
 
         {tab === "cotizaciones" && (
           <section aria-label="Cotizaciones" className="space-y-3">
-            <Card padding="sm" className="flex flex-wrap items-center justify-between gap-2">
+            <Card
+              padding="sm"
+              className="flex flex-wrap items-center justify-between gap-2"
+            >
               <div>
                 <h2 className="text-sm sm:text-base font-semibold text-[#18181B]">
                   Cotizaciones ({quotes.length})
                 </h2>
                 <p className="text-xs text-[#5C5A55]">
-                  Arma ítems en Pedido y usa “Cotizar”, o convierte una cotización abierta en pedido real.
+                  Arma ítems en Pedido y usa “Cotizar”, o convierte una cotización
+                  abierta en pedido real.
                 </p>
               </div>
               <Button
@@ -2248,8 +2578,8 @@ export default function VendedorPage() {
                     q.status === "CONVERTED"
                       ? "success"
                       : q.status === "OPEN"
-                      ? "brand"
-                      : "neutral";
+                        ? "brand"
+                        : "neutral";
                   return (
                     <Card key={q.quote_id} padding="md" className="space-y-2.5">
                       <div className="flex items-start justify-between gap-2">
@@ -2265,10 +2595,10 @@ export default function VendedorPage() {
                           {q.status === "OPEN"
                             ? "Abierta"
                             : q.status === "CONVERTED"
-                            ? `Pedido ${q.converted_order_code || q.related_cpe || ""}`.trim()
-                            : q.status === "EXPIRED"
-                            ? "Vencida"
-                            : "Anulada"}
+                              ? `Pedido ${q.converted_order_code || q.related_cpe || ""}`.trim()
+                              : q.status === "EXPIRED"
+                                ? "Vencida"
+                                : "Anulada"}
                         </Badge>
                       </div>
 
@@ -2339,6 +2669,32 @@ export default function VendedorPage() {
 
         {tab === "deudores" && (
           <section aria-label="Cobros y deudores" className="space-y-3.5">
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+              {[
+                {
+                  label: "Saldo pendiente",
+                  amount: collectionSummary.total,
+                  tone: "text-[#0F2942]",
+                },
+                {
+                  label: "Cobrar hoy / mañana",
+                  amount: collectionSummary.dueSoon,
+                  tone: "text-[#B45309]",
+                },
+                {
+                  label: "Promesa vencida",
+                  amount: collectionSummary.overdue,
+                  tone: "text-[#B91C1C]",
+                },
+              ].map((item) => (
+                <Card key={item.label} padding="sm" className="space-y-1">
+                  <p className="text-xs text-[#5C5A55]">{item.label}</p>
+                  <p className={`text-lg font-semibold tabular-nums ${item.tone}`}>
+                    S/ {item.amount.toFixed(2)}
+                  </p>
+                </Card>
+              ))}
+            </div>
             <Card padding="sm" className="space-y-3">
               <div className="flex flex-wrap items-center justify-between gap-2.5">
                 <SegmentedControl
@@ -2402,10 +2758,8 @@ export default function VendedorPage() {
                 />
               ) : (
                 <div className="grid grid-cols-1 gap-3 md:grid-cols-2 md:items-start">
-                  {filteredDebtOrders.map((item) => {
-                    const lineCount = Array.isArray(item.lines)
-                      ? item.lines.length
-                      : 0;
+                  {prioritizedDebtOrders.map((item) => {
+                    const lineCount = Array.isArray(item.lines) ? item.lines.length : 0;
                     return (
                       <Card key={item.orderId} padding="md" className="space-y-3">
                         <button
@@ -2433,8 +2787,8 @@ export default function VendedorPage() {
                                 item.agingBucket === "RED_30_PLUS"
                                   ? "danger"
                                   : item.agingBucket === "AMBER_8_29"
-                                  ? "warning"
-                                  : "success"
+                                    ? "warning"
+                                    : "success"
                               }
                               className="tabular-nums"
                             >
@@ -2479,77 +2833,73 @@ export default function VendedorPage() {
                             <div className="flex items-center gap-2">
                               <PromiseStatusPill status={item.promiseStatus} />
                               <span className="inline-flex items-center gap-0.5 font-medium text-[#1E446B]">
-                                {lineCount > 0
-                                  ? `${lineCount} prod.`
-                                  : "Ver detalle"}
+                                {lineCount > 0 ? `${lineCount} prod.` : "Ver detalle"}
                                 <ChevronRightIcon className="h-3.5 w-3.5" />
                               </span>
                             </div>
                           </div>
                         </button>
 
-                      <div className="flex flex-wrap gap-2">
-                        <Button
-                          variant="primary"
-                          size="sm"
-                          aria-label={`Registrar abono para ${item.customerName}, pedido ${item.orderCode}`}
-                          onClick={() => {
-                            setSelectedCustomerForFifo(null);
-                            setSelectedOrderForAbono(item);
-                            setAbonoAmount(String(item.balanceDuePen));
-                            setAbonoAccountId("");
-                          }}
-                          className="flex-1"
-                        >
-                          <PlusIcon className="h-3.5 w-3.5" />
-                          Registrar Abono
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          aria-expanded={timelineOrderId === item.orderId}
-                          aria-label={`Ver historial de pagos del pedido ${item.orderCode}`}
-                          disabled={timelineLoadingId === item.orderId}
-                          onClick={() => handleOpenTimeline(item.orderId)}
-                        >
-                          <ClockIcon className="h-3.5 w-3.5" />
-                          {timelineLoadingId === item.orderId
-                            ? "Cargando..."
-                            : `Historial (${item.paymentCount})`}
-                        </Button>
-                      </div>
-
-                      {timelineOrderId === item.orderId && (
-                        <div className="rounded-xl border border-[#D4E0EC] bg-[#F2F6FA]/60 p-3 text-xs">
-                          <p className="mb-2 font-semibold text-[#0F2942]">
-                            Historial de pagos de este pedido
-                          </p>
-                          {timelineEntries.length === 0 ? (
-                            <p className="text-[#5C5A55]">
-                              Sin abonos previos.
-                            </p>
-                          ) : (
-                            <ul className="divide-y divide-[#D4E0EC]/70">
-                              {timelineEntries.map((t) => (
-                                <li
-                                  key={String(t.arPaymentId)}
-                                  className="flex items-center justify-between gap-2 py-1.5"
-                                >
-                                  <span className="text-[#5C5A55]">
-                                    {String(t.paymentDate)} ·{" "}
-                                    {formatPaymentModeEs(t.paymentMode)} (
-                                    {String(t.collectedByName || "Histórico")})
-                                  </span>
-                                  <strong className="font-semibold text-[#15803D] tabular-nums">
-                                    S/ {Number(t.amountPen).toFixed(2)}
-                                  </strong>
-                                </li>
-                              ))}
-                            </ul>
-                          )}
+                        <div className="flex flex-wrap gap-2">
+                          <Button
+                            variant="primary"
+                            size="sm"
+                            aria-label={`Registrar abono para ${item.customerName}, pedido ${item.orderCode}`}
+                            onClick={() => {
+                              setSelectedCustomerForFifo(null);
+                              setSelectedOrderForAbono(item);
+                              setAbonoAmount(String(item.balanceDuePen));
+                              setAbonoAccountId("");
+                            }}
+                            className="flex-1"
+                          >
+                            <PlusIcon className="h-3.5 w-3.5" />
+                            Registrar Abono
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            aria-expanded={timelineOrderId === item.orderId}
+                            aria-label={`Ver historial de pagos del pedido ${item.orderCode}`}
+                            disabled={timelineLoadingId === item.orderId}
+                            onClick={() => handleOpenTimeline(item.orderId)}
+                          >
+                            <ClockIcon className="h-3.5 w-3.5" />
+                            {timelineLoadingId === item.orderId
+                              ? "Cargando..."
+                              : `Historial (${item.paymentCount})`}
+                          </Button>
                         </div>
-                      )}
-                    </Card>
+
+                        {timelineOrderId === item.orderId && (
+                          <div className="rounded-xl border border-[#D4E0EC] bg-[#F2F6FA]/60 p-3 text-xs">
+                            <p className="mb-2 font-semibold text-[#0F2942]">
+                              Historial de pagos de este pedido
+                            </p>
+                            {timelineEntries.length === 0 ? (
+                              <p className="text-[#5C5A55]">Sin abonos previos.</p>
+                            ) : (
+                              <ul className="divide-y divide-[#D4E0EC]/70">
+                                {timelineEntries.map((t) => (
+                                  <li
+                                    key={String(t.arPaymentId)}
+                                    className="flex items-center justify-between gap-2 py-1.5"
+                                  >
+                                    <span className="text-[#5C5A55]">
+                                      {String(t.paymentDate)} ·{" "}
+                                      {formatPaymentModeEs(t.paymentMode)} (
+                                      {String(t.collectedByName || "Histórico")})
+                                    </span>
+                                    <strong className="font-semibold text-[#15803D] tabular-nums">
+                                      S/ {Number(t.amountPen).toFixed(2)}
+                                    </strong>
+                                  </li>
+                                ))}
+                              </ul>
+                            )}
+                          </div>
+                        )}
+                      </Card>
                     );
                   })}
                 </div>
@@ -2566,11 +2916,7 @@ export default function VendedorPage() {
             ) : (
               <div className="grid grid-cols-1 gap-3 md:grid-cols-2 md:items-start">
                 {filteredDebtorsByCustomer.map((c) => (
-                  <Card
-                    key={c.customerKey}
-                    padding="md"
-                    className="space-y-2.5"
-                  >
+                  <Card key={c.customerKey} padding="md" className="space-y-2.5">
                     <button
                       type="button"
                       onClick={() =>
@@ -2637,138 +2983,180 @@ export default function VendedorPage() {
               />
             ) : (
               <div className="grid grid-cols-1 gap-3 lg:grid-cols-2 lg:items-start">
-              {orders.map((o) => {
-                const orderId = Number(o.order_id);
-                const isExpanded = expandedOrderId === orderId;
-                const orderLines = Array.isArray(o.lines)
-                  ? (o.lines as Array<Record<string, unknown>>)
-                  : [];
-                return (
-                  <Card
-                    key={String(o.order_id)}
-                    padding="md"
-                    className="space-y-2.5"
-                  >
-                    <button
-                      type="button"
-                      aria-expanded={isExpanded}
-                      onClick={() =>
-                        setExpandedOrderId((prev) =>
-                          prev === orderId ? null : orderId
-                        )
-                      }
-                      className="w-full space-y-2 text-left cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0F2942]/45 rounded-lg"
-                    >
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="text-xs font-semibold text-[#1E446B] tabular-nums">
-                          {String(o.order_code)} · {String(o.order_date)}
-                        </span>
-                        <div className="flex flex-wrap items-center gap-1.5">
-                          {Boolean(o.trip_code) && (
-                            <Badge tone="brand">{String(o.trip_code)}</Badge>
-                          )}
-                          <Badge tone="neutral">
-                            {formatOperationalStatusEs(o.operational_status)}
-                          </Badge>
-                          <ChevronRightIcon
-                            className={`h-4 w-4 text-[#5C5A55] transition-transform ${
-                              isExpanded ? "rotate-90 text-[#0F2942]" : ""
-                            }`}
-                          />
-                        </div>
-                      </div>
-                      <h2 className="text-sm sm:text-base font-semibold text-[#18181B]">
-                        {String(o.customer_name)}
-                      </h2>
-                      <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-[#5C5A55] tabular-nums">
-                        <span>
-                          Total:{" "}
-                          <strong className="text-[#18181B]">
-                            S/ {Number(o.total_pen).toFixed(2)}
-                          </strong>
-                        </span>
-                        <span>
-                          Pagado:{" "}
-                          <strong className="text-[#15803D]">
-                            S/ {Number(o.paid_pen).toFixed(2)}
-                          </strong>
-                        </span>
-                        <span>
-                          Saldo:{" "}
-                          <strong
-                            className={
-                              Number(o.balance_due_pen) > 0.05
-                                ? "text-[#B91C1C]"
-                                : "text-[#15803D]"
-                            }
-                          >
-                            S/ {Number(o.balance_due_pen).toFixed(2)}
-                          </strong>
-                        </span>
-                      </div>
-                      <p className="rounded-lg bg-[#F2F6FA]/70 px-2.5 py-1.5 text-[11px] text-[#1E446B]">
-                        Tomó: {String(o.created_by_name || "-")} · Preparó:{" "}
-                        {String(o.picked_by_name || "Pendiente")} · Entregó:{" "}
-                        {String(o.delivered_by_name || "Pendiente")}
-                      </p>
-                    </button>
-
-                    {isExpanded && (
-                      <div className="space-y-2 border-t border-[#E7E5E0] pt-2.5 text-xs">
-                        <div className="flex items-center justify-between text-[11px] font-semibold uppercase tracking-wide text-[#5C5A55]">
-                          <span>
-                            Detalle comprado ({orderLines.length}{" "}
-                            {orderLines.length === 1 ? "ítem" : "ítems"})
+                {orders.map((o) => {
+                  const orderId = Number(o.order_id);
+                  const isExpanded = expandedOrderId === orderId;
+                  const orderLines = Array.isArray(o.lines)
+                    ? (o.lines as Array<Record<string, unknown>>)
+                    : [];
+                  const auditHistory = Array.isArray(o.audit_history)
+                    ? (o.audit_history as Array<Record<string, unknown>>)
+                    : [];
+                  const wasModified = auditHistory.some(
+                    (entry) => String(entry.action) === "EDIT"
+                  );
+                  return (
+                    <Card key={String(o.order_id)} padding="md" className="space-y-2.5">
+                      <button
+                        type="button"
+                        aria-expanded={isExpanded}
+                        onClick={() =>
+                          setExpandedOrderId((prev) =>
+                            prev === orderId ? null : orderId
+                          )
+                        }
+                        className="w-full space-y-2 text-left cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0F2942]/45 rounded-lg"
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-xs font-semibold text-[#1E446B] tabular-nums">
+                            {String(o.order_code)} · {String(o.order_date)}
                           </span>
-                          <span>{formatPaymentModeEs(o.payment_mode)}</span>
-                        </div>
-                        {orderLines.length === 0 ? (
-                          <p className="text-[#5C5A55]">
-                            Sin líneas de producto registradas.
-                          </p>
-                        ) : (
-                          <div className="space-y-1.5">
-                            {orderLines.map((ln) => (
-                              <div
-                                key={String(ln.order_line_id)}
-                                className="flex items-start justify-between gap-2 rounded-lg border border-[#E7E5E0] bg-[#FAF9F6] px-2.5 py-2"
-                              >
-                                <div className="min-w-0 flex-1">
-                                  <p className="font-medium text-[#18181B]">
-                                    {String(ln.raw_description || ln.sku)}
-                                  </p>
-                                  <p className="text-[11px] text-[#5C5A55] tabular-nums">
-                                    {Number(ln.quantity)}{" "}
-                                    {String(ln.unit_of_measure || "NIU")} × S/{" "}
-                                    {Number(ln.unit_price_pen).toFixed(2)}
-                                    {Number(ln.unit_discount_pen || 0) > 0
-                                      ? ` (desc. S/ ${Number(
-                                          ln.unit_discount_pen
-                                        ).toFixed(2)}/u)`
-                                      : ""}{" "}
-                                    ·{" "}
-                                    {formatFulfillmentModeEs(
-                                      ln.fulfillment_mode
-                                    )}
-                                  </p>
-                                </div>
-                                <span className="flex-shrink-0 font-semibold text-[#18181B] tabular-nums">
-                                  S/ {Number(ln.line_total_pen).toFixed(2)}
-                                </span>
-                              </div>
-                            ))}
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            {Boolean(o.trip_code) && (
+                              <Badge tone="brand">{String(o.trip_code)}</Badge>
+                            )}
+                            {wasModified && <Badge tone="warning">Modificado</Badge>}
+                            <Badge tone="neutral">
+                              {formatOperationalStatusEs(o.operational_status)}
+                            </Badge>
+                            <ChevronRightIcon
+                              className={`h-4 w-4 text-[#5C5A55] transition-transform ${
+                                isExpanded ? "rotate-90 text-[#0F2942]" : ""
+                              }`}
+                            />
                           </div>
-                        )}
-                        {o.notes ? (
-                          <p className="rounded-lg bg-[#FAF9F6] px-2.5 py-1.5 text-[11px] text-[#5C5A55]">
-                            Nota: {String(o.notes)}
-                          </p>
-                        ) : null}
-                      </div>
-                    )}
-                  </Card>
-                );
-              })}
+                        </div>
+                        <h2 className="text-sm sm:text-base font-semibold text-[#18181B]">
+                          {String(o.customer_name)}
+                        </h2>
+                        <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-[#5C5A55] tabular-nums">
+                          <span>
+                            Total:{" "}
+                            <strong className="text-[#18181B]">
+                              S/ {Number(o.total_pen).toFixed(2)}
+                            </strong>
+                          </span>
+                          <span>
+                            Pagado:{" "}
+                            <strong className="text-[#15803D]">
+                              S/ {Number(o.paid_pen).toFixed(2)}
+                            </strong>
+                          </span>
+                          <span>
+                            Saldo:{" "}
+                            <strong
+                              className={
+                                Number(o.balance_due_pen) > 0.05
+                                  ? "text-[#B91C1C]"
+                                  : "text-[#15803D]"
+                              }
+                            >
+                              S/ {Number(o.balance_due_pen).toFixed(2)}
+                            </strong>
+                          </span>
+                        </div>
+                        <p className="rounded-lg bg-[#F2F6FA]/70 px-2.5 py-1.5 text-[11px] text-[#1E446B]">
+                          Tomó: {String(o.created_by_name || "-")} · Preparó:{" "}
+                          {String(o.picked_by_name || "Pendiente")} · Entregó:{" "}
+                          {String(o.delivered_by_name || "Pendiente")}
+                        </p>
+                      </button>
+
+                      {isExpanded && (
+                        <div className="space-y-2 border-t border-[#E7E5E0] pt-2.5 text-xs">
+                          <div className="flex items-center justify-between text-[11px] font-semibold uppercase tracking-wide text-[#5C5A55]">
+                            <span>
+                              Detalle comprado ({orderLines.length}{" "}
+                              {orderLines.length === 1 ? "ítem" : "ítems"})
+                            </span>
+                            <span>{formatPaymentModeEs(o.payment_mode)}</span>
+                          </div>
+                          {orderLines.length === 0 ? (
+                            <p className="text-[#5C5A55]">
+                              Sin líneas de producto registradas.
+                            </p>
+                          ) : (
+                            <div className="space-y-1.5">
+                              {orderLines.map((ln) => (
+                                <div
+                                  key={String(ln.order_line_id)}
+                                  className="flex items-start justify-between gap-2 rounded-lg border border-[#E7E5E0] bg-[#FAF9F6] px-2.5 py-2"
+                                >
+                                  <div className="min-w-0 flex-1">
+                                    <p className="font-medium text-[#18181B]">
+                                      {String(ln.raw_description || ln.sku)}
+                                    </p>
+                                    <p className="text-[11px] text-[#5C5A55] tabular-nums">
+                                      {Number(ln.quantity)}{" "}
+                                      {String(ln.unit_of_measure || "NIU")} × S/{" "}
+                                      {Number(ln.unit_price_pen).toFixed(2)}
+                                      {Number(ln.unit_discount_pen || 0) > 0
+                                        ? ` (desc. S/ ${Number(
+                                            ln.unit_discount_pen
+                                          ).toFixed(2)}/u)`
+                                        : ""}{" "}
+                                      · {formatFulfillmentModeEs(ln.fulfillment_mode)}
+                                    </p>
+                                  </div>
+                                  <span className="flex-shrink-0 font-semibold text-[#18181B] tabular-nums">
+                                    S/ {Number(ln.line_total_pen).toFixed(2)}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                          {o.notes ? (
+                            <p className="rounded-lg bg-[#FAF9F6] px-2.5 py-1.5 text-[11px] text-[#5C5A55]">
+                              Nota: {String(o.notes)}
+                            </p>
+                          ) : null}
+                          {auditHistory.length > 0 && (
+                            <details className="rounded-lg border border-[#D4E0EC] bg-[#F2F6FA]/60 p-2.5">
+                              <summary className="cursor-pointer font-semibold text-[#0F2942]">
+                                Historial de cambios ({auditHistory.length})
+                              </summary>
+                              <div className="mt-2 space-y-2">
+                                {auditHistory.map((entry) => (
+                                  <div
+                                    key={String(entry.audit_id)}
+                                    className="border-t border-[#D4E0EC] pt-2 text-[11px] text-[#5C5A55]"
+                                  >
+                                    <p className="font-medium text-[#18181B]">
+                                      {String(entry.action) === "CANCEL"
+                                        ? "Anulación"
+                                        : "Modificación"}{" "}
+                                      · {String(entry.reason)}
+                                    </p>
+                                    <p>
+                                      {String(entry.actor_name || "Usuario")} ·{" "}
+                                      {new Date(
+                                        String(entry.created_at)
+                                      ).toLocaleString("es-PE")}
+                                    </p>
+                                  </div>
+                                ))}
+                              </div>
+                            </details>
+                          )}
+                          {!["DELIVERED", "CANCELLED"].includes(
+                            String(o.operational_status)
+                          ) &&
+                            Number(o.created_by_user_id) === currentUser?.userId && (
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={() => beginEditingOrder(o)}
+                                className="w-full"
+                              >
+                                Modificar pedido
+                              </Button>
+                            )}
+                        </div>
+                      )}
+                    </Card>
+                  );
+                })}
               </div>
             )}
           </section>
@@ -2805,12 +3193,8 @@ export default function VendedorPage() {
                   >
                     <option value="COMBUSTIBLE">Combustible / Gasolina</option>
                     <option value="PEAJE">Peaje / Cochera</option>
-                    <option value="ALMUERZO_VIATICOS">
-                      Almuerzo / Viáticos
-                    </option>
-                    <option value="ESTIBADOR_APOYO">
-                      Estibador / Descarga
-                    </option>
+                    <option value="ALMUERZO_VIATICOS">Almuerzo / Viáticos</option>
+                    <option value="ESTIBADOR_APOYO">Estibador / Descarga</option>
                   </select>
                 </div>
 
@@ -2868,7 +3252,11 @@ export default function VendedorPage() {
         subtitle="Guardaremos el motivo para análisis comercial y limpiaremos el formulario."
       >
         <form onSubmit={handleConfirmCancelDraft} className="space-y-4">
-          <div className="space-y-2" role="radiogroup" aria-label="Motivo de cancelación">
+          <div
+            className="space-y-2"
+            role="radiogroup"
+            aria-label="Motivo de cancelación"
+          >
             {CANCEL_DRAFT_REASONS.map((r) => {
               const selected = cancelReasonCode === r.code;
               return (
@@ -2922,9 +3310,7 @@ export default function VendedorPage() {
               Seguir editando
             </Button>
             <Button type="submit" variant="primary" disabled={busyCancelDraft}>
-              {busyCancelDraft
-                ? "Registrando..."
-                : "Registrar cancelación y limpiar"}
+              {busyCancelDraft ? "Registrando..." : "Registrar cancelación y limpiar"}
             </Button>
           </div>
         </form>
@@ -2934,20 +3320,22 @@ export default function VendedorPage() {
         open={Boolean(debtDetailTarget)}
         onClose={() => setDebtDetailTarget(null)}
         mode={debtDetailTarget?.mode ?? "order"}
-        customerName={debtDetailTarget?.mode === "customer" ? debtDetailTarget.customerName : ""}
+        customerName={
+          debtDetailTarget?.mode === "customer" ? debtDetailTarget.customerName : ""
+        }
         orders={
           !debtDetailTarget
             ? []
             : debtDetailTarget.mode === "order"
-            ? debtorsByOrder.filter((o) => o.orderId === debtDetailTarget.orderId)
-            : debtorsByOrder.filter((o) => {
-                const oKey =
-                  o.customerKey ||
-                  (o.customerPartyId !== null
-                    ? `PARTY-${o.customerPartyId}`
-                    : `RAW-${o.customerName.toUpperCase()}`);
-                return oKey === debtDetailTarget.customerKey;
-              })
+              ? debtorsByOrder.filter((o) => o.orderId === debtDetailTarget.orderId)
+              : debtorsByOrder.filter((o) => {
+                  const oKey =
+                    o.customerKey ||
+                    (o.customerPartyId !== null
+                      ? `PARTY-${o.customerPartyId}`
+                      : `RAW-${o.customerName.toUpperCase()}`);
+                  return oKey === debtDetailTarget.customerKey;
+                })
         }
         canUseCustomerFifo={Boolean(
           debtDetailTarget?.mode === "customer" && debtDetailTarget.customerPartyId
@@ -2991,8 +3379,7 @@ export default function VendedorPage() {
               Se repartirá desde el pedido más antiguo (
               {selectedCustomerForFifo.openOrdersCount} pedidos) ·{" "}
               <strong className="text-[#B91C1C] tabular-nums">
-                Deuda Total: S/{" "}
-                {selectedCustomerForFifo.totalBalanceDuePen.toFixed(2)}
+                Deuda Total: S/ {selectedCustomerForFifo.totalBalanceDuePen.toFixed(2)}
               </strong>
             </>
           ) : selectedOrderForAbono ? (
@@ -3009,7 +3396,7 @@ export default function VendedorPage() {
         balanceDuePen={
           selectedCustomerForFifo
             ? selectedCustomerForFifo.totalBalanceDuePen
-            : selectedOrderForAbono?.balanceDuePen ?? 0
+            : (selectedOrderForAbono?.balanceDuePen ?? 0)
         }
         amount={abonoAmount}
         onAmountChange={setAbonoAmount}

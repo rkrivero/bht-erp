@@ -5,6 +5,7 @@ import {
   verifySessionToken,
 } from "@/lib/auth";
 import { withClient, withTransaction } from "@/lib/db";
+import { runIdempotentMutation } from "@/lib/idempotency";
 import { assertRole, isPartnerRole } from "@/lib/rbac";
 import { registerCashOutflow } from "@/lib/services/collections-and-treasury";
 import {
@@ -179,24 +180,35 @@ export async function POST(req: NextRequest) {
         "PARTNER_MANAGER",
         "EXTERNAL_SELLER",
       ]);
-      return await registerCashOutflow(client, actor, {
-        amountPen: Number(body.amountPen),
-        expenseBucket: body.isInternalTransfer
-          ? null
-          : body.expenseBucket || "ROUTE_OPEX",
-        expenseCategory: String(body.expenseCategory || "GASTO_RUTA"),
-        description: String(body.description || ""),
-        accountId: body.accountId ? Number(body.accountId) : undefined,
-        toAccountId: body.toAccountId ? Number(body.toAccountId) : undefined,
-        isInternalTransfer: Boolean(body.isInternalTransfer),
-      });
+      return runIdempotentMutation(
+        client,
+        req,
+        actor,
+        "treasury:cash_outflow",
+        body,
+        () =>
+          registerCashOutflow(client, actor, {
+            amountPen: Number(body.amountPen),
+            expenseBucket: body.isInternalTransfer
+              ? null
+              : body.expenseBucket || "ROUTE_OPEX",
+            expenseCategory: String(body.expenseCategory || "GASTO_RUTA"),
+            description: String(body.description || ""),
+            accountId: body.accountId ? Number(body.accountId) : undefined,
+            toAccountId: body.toAccountId ? Number(body.toAccountId) : undefined,
+            isInternalTransfer: Boolean(body.isInternalTransfer),
+          })
+      );
     });
 
     return NextResponse.json(result, { headers: NO_STORE_HEADERS });
   } catch (err) {
-    const { status, error } = resolveHttpError(err, "Error registrando gasto");
+    const { status, error, code, entityRef } = resolveHttpError(
+      err,
+      "Error registrando gasto"
+    );
     return NextResponse.json(
-      { error },
+      { error, ...(code ? { code } : {}), ...(entityRef ? { entityRef } : {}) },
       { status, headers: NO_STORE_HEADERS }
     );
   }

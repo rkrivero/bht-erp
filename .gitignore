@@ -7,3 +7,9 @@ out/
 .superpowers/
 *.tsbuildinfo
 next-env.d.ts
+playwright-report/
+test-results/
+.lighthouse/
+.playwright-mcp/
+.vscode/
+interface-login.png

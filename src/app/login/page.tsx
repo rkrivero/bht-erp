@@ -2,8 +2,14 @@
 
 import React, { useState } from "react";
 import { useRouter } from "next/navigation";
-import { EyeIcon, EyeOffIcon, HorizonLogo, LockIcon } from "@/components/ui/Icons";
-import { Button, FieldLabel, INPUT_CLASS, ToastBanner } from "@/components/ui/Primitives";
+import AuthCardShell from "@/components/auth/AuthCardShell";
+import { EyeIcon, EyeOffIcon, LockIcon } from "@/components/ui/Icons";
+import {
+  Button,
+  FieldLabel,
+  INPUT_CLASS,
+  ToastBanner,
+} from "@/components/ui/Primitives";
 
 function routeForRole(role: string): string {
   if (role === "WAREHOUSE_DELIVERY") return "/almacen";
@@ -36,7 +42,9 @@ export default function LoginPage() {
         setError(data.error || "Usuario o contraseña incorrectos");
         return;
       }
-      router.replace(routeForRole(data.user.role));
+      router.replace(
+        data.user.mustChangePassword ? "/change-password" : routeForRole(data.user.role)
+      );
     } catch {
       setError("Error de red al iniciar sesión");
     } finally {
@@ -45,93 +53,89 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="relative min-h-[100dvh] overflow-x-clip bg-[#FAF9F6]">
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute -top-24 left-1/2 h-[340px] w-[620px] -translate-x-1/2 rounded-full bg-[radial-gradient(closest-side,rgba(30,68,107,0.07),transparent)]"
-      />
-      <main
-        id="main-content"
-        tabIndex={-1}
-        className="relative mx-auto flex min-h-[100dvh] w-full max-w-md flex-col justify-center px-4 py-6 outline-none sm:px-6"
+    <AuthCardShell
+      title="Blue Horizon Trade"
+      subtitle="Ingresa con tu usuario y contraseña"
+    >
+      <form
+        onSubmit={handleLogin}
+        className="flex flex-1 flex-col px-6 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-7 sm:block sm:p-8"
       >
-        <section className="overflow-hidden rounded-[26px] border border-[#E7E5E0] bg-white shadow-[0_18px_46px_-18px_rgba(15,41,66,0.12)]">
-          <div className="bg-[#F4F7FA] px-6 py-7 text-center sm:px-8">
-            <HorizonLogo className="mx-auto h-12 w-12 rounded-2xl shadow-sm" />
-            <h1 className="mt-4 text-xl font-semibold tracking-tight text-[#0F2942]">
-              Blue Horizon Trade
-            </h1>
-            <p className="mt-1.5 text-sm text-[#5C5A55]">
-              Ingresa con tu usuario y contraseña
-            </p>
+        <div className="space-y-5">
+          <div>
+            <FieldLabel htmlFor="login-username" required>
+              Usuario
+            </FieldLabel>
+            <input
+              id="login-username"
+              type="text"
+              autoComplete="username"
+              maxLength={80}
+              value={username}
+              onChange={(event) => setUsername(event.target.value)}
+              aria-invalid={Boolean(error)}
+              placeholder="Ej. juan.perez"
+              required
+              className={`${INPUT_CLASS} mt-1.5 w-full rounded-xl`}
+            />
           </div>
 
-          <form onSubmit={handleLogin} className="space-y-5 p-6 sm:p-8">
-            <div>
-              <FieldLabel htmlFor="login-username" required>
-                Usuario
-              </FieldLabel>
+          <div>
+            <FieldLabel htmlFor="login-password" required>
+              Contraseña
+            </FieldLabel>
+            <div className="relative mt-1.5">
+              <span
+                aria-hidden="true"
+                className="pointer-events-none absolute inset-y-0 left-3.5 flex items-center text-[#6D6A64]"
+              >
+                <LockIcon className="h-4 w-4" />
+              </span>
               <input
-                id="login-username"
-                type="text"
-                autoComplete="username"
-                maxLength={80}
-                value={username}
-                onChange={(event) => setUsername(event.target.value)}
+                id="login-password"
+                type={showPassword ? "text" : "password"}
+                autoComplete="current-password"
+                maxLength={128}
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
                 aria-invalid={Boolean(error)}
-                placeholder="Ej. juan.perez"
+                placeholder="Tu contraseña"
                 required
-                className={`${INPUT_CLASS} mt-1.5 w-full rounded-xl`}
+                className={`${INPUT_CLASS} w-full rounded-xl pl-10 pr-11`}
               />
+              <button
+                type="button"
+                onClick={() => setShowPassword((visible) => !visible)}
+                aria-label={showPassword ? "Ocultar contraseña" : "Mostrar contraseña"}
+                aria-pressed={showPassword}
+                className="absolute inset-y-1 right-1.5 flex min-w-[38px] items-center justify-center rounded-lg px-2 text-[#5C5A55] transition hover:bg-[#F2F6FA] hover:text-[#0F2942] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0F2942]/40"
+              >
+                {showPassword ? (
+                  <EyeOffIcon className="h-4 w-4" />
+                ) : (
+                  <EyeIcon className="h-4 w-4" />
+                )}
+              </button>
             </div>
+          </div>
 
-            <div>
-              <FieldLabel htmlFor="login-password" required>
-                Contraseña
-              </FieldLabel>
-              <div className="relative mt-1.5">
-                <span
-                  aria-hidden="true"
-                  className="pointer-events-none absolute inset-y-0 left-3.5 flex items-center text-[#6D6A64]"
-                >
-                  <LockIcon className="h-4 w-4" />
-                </span>
-                <input
-                  id="login-password"
-                  type={showPassword ? "text" : "password"}
-                  autoComplete="current-password"
-                  maxLength={128}
-                  value={password}
-                  onChange={(event) => setPassword(event.target.value)}
-                  aria-invalid={Boolean(error)}
-                  placeholder="Tu contraseña"
-                  required
-                  className={`${INPUT_CLASS} w-full rounded-xl pl-10 pr-11`}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword((visible) => !visible)}
-                  aria-label={showPassword ? "Ocultar contraseña" : "Mostrar contraseña"}
-                  aria-pressed={showPassword}
-                  className="absolute inset-y-1 right-1.5 flex min-w-[38px] items-center justify-center rounded-lg px-2 text-[#5C5A55] transition hover:bg-[#F2F6FA] hover:text-[#0F2942] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0F2942]/40"
-                >
-                  {showPassword ? (
-                    <EyeOffIcon className="h-4 w-4" />
-                  ) : (
-                    <EyeIcon className="h-4 w-4" />
-                  )}
-                </button>
-              </div>
-            </div>
+          {error && <ToastBanner type="err" message={error} />}
 
-            {error && <ToastBanner type="err" message={error} />}
+          <p className="text-xs leading-relaxed text-[#6D6A64]">
+            Tu sesión y permisos son personales. No compartas tu contraseña.
+          </p>
+        </div>
 
-            <Button type="submit" variant="primary" size="lg" disabled={loading} className="w-full">
-              {loading ? "Ingresando..." : "Ingresar"}
-            </Button>
-          </form>
-        </section>
-      </main>
-    </div>
+        <Button
+          type="submit"
+          variant="primary"
+          size="lg"
+          disabled={loading}
+          className="mt-auto w-full sm:mt-6"
+        >
+          {loading ? "Ingresando..." : "Ingresar"}
+        </Button>
+      </form>
+    </AuthCardShell>
   );
 }

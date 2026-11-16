@@ -70,7 +70,7 @@ describe("Collections, Partial Amortizations, FIFO, Debtors Aging, Treasury & Da
         customerNameRaw: "CLIENTE DESCUENTO PENDIENTE",
         paymentMode: "CREDIT",
         creditDays: 7,
-        lines: [{ productId, quantity: 2, unitDiscountPen: 10 }], // 100 - 10 = 90 < min 95
+        lines: [{ productId, quantity: 2, unitDiscountPen: 35 }], // 100 - 35 = 65 < cost 70
       });
       expect(unapprovedOrder.operationalStatus).toBe("PENDING_PARTNER_APPROVAL");
 
@@ -208,9 +208,7 @@ describe("Collections, Partial Amortizations, FIFO, Debtors Aging, Treasury & Da
         (c) => c.customerPartyId === customerPartyId
       );
       expect(fifoCust?.totalBalanceDuePen).toBe(300);
-      const fifoOrder = debtors.byOrder.find(
-        (o) => o.orderId === newerOrder.orderId
-      );
+      const fifoOrder = debtors.byOrder.find((o) => o.orderId === newerOrder.orderId);
       expect(fifoOrder?.customerKey).toBe(`PARTY-${customerPartyId}`);
       expect(fifoOrder?.lines.length).toBe(1);
       expect(fifoOrder?.lines[0]).toMatchObject({

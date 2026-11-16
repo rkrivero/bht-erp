@@ -105,9 +105,7 @@ function InvoiceLinesBreakdown({
           className="flex flex-wrap items-start justify-between gap-2 rounded-xl border border-[#E7E5E0] bg-[#FAF9F6] px-3 py-2 text-xs"
         >
           <div className="min-w-0 flex-1">
-            <p className="font-semibold text-[#18181B]">
-              {ln.raw_description}
-            </p>
+            <p className="font-semibold text-[#18181B]">{ln.raw_description}</p>
             <p className="mt-0.5 text-[11px] text-[#5C5A55] tabular-nums">
               {ln.sku ? `${ln.sku} · ` : ""}
               {Number(ln.quantity)} {ln.unit_of_measure || "NIU"} ×{" "}
@@ -196,17 +194,15 @@ const PurchaseLineRow = React.memo(function PurchaseLineRow({
           <option value="">-- Elegir producto --</option>
           {filteredProds.map((p) => (
             <option key={p.product_id} value={String(p.product_id)}>
-              {p.sku} — {p.name} (Stock: {p.stock_on_hand} {p.unit_of_measure}{" "}
-              · {formatFulfillmentModeEs(p.fulfillment_mode)})
+              {p.sku} — {p.name} (Stock: {p.stock_on_hand} {p.unit_of_measure} ·{" "}
+              {formatFulfillmentModeEs(p.fulfillment_mode)})
             </option>
           ))}
         </select>
         {selectedProd && (
           <p className="text-[11px] text-[#5C5A55] tabular-nums">
             Stock actual:{" "}
-            <strong className="text-[#18181B]">
-              {selectedProd.stock_on_hand}
-            </strong>{" "}
+            <strong className="text-[#18181B]">{selectedProd.stock_on_hand}</strong>{" "}
             {selectedProd.unit_of_measure} · Costo ref:{" "}
             {selectedProd.ref_cost_pen !== null
               ? formatPen(selectedProd.ref_cost_pen)
@@ -298,8 +294,7 @@ export default function CajaProveedoresTab({
 
   // Detail modal state (AP obligation or Recent Purchase)
   const [detailAp, setDetailAp] = useState<ApObligationItem | null>(null);
-  const [detailPurchase, setDetailPurchase] =
-    useState<RecentPurchaseItem | null>(null);
+  const [detailPurchase, setDetailPurchase] = useState<RecentPurchaseItem | null>(null);
 
   // Pay AP modal state
   const [payingAp, setPayingAp] = useState<ApObligationItem | null>(null);
@@ -307,6 +302,7 @@ export default function CajaProveedoresTab({
   const [apPayAccountId, setApPayAccountId] = useState<string>("");
   const [apPayNotes, setApPayNotes] = useState("");
   const [busyApPay, setBusyApPay] = useState(false);
+  const [confirmApPayment, setConfirmApPayment] = useState(false);
 
   // Create Supplier modal state
   const [showNewSupplier, setShowNewSupplier] = useState(false);
@@ -336,9 +332,9 @@ export default function CajaProveedoresTab({
   const [purTaxMode, setPurTaxMode] = useState<"NONE" | "INCLUDED" | "EXCLUDED">(
     "NONE"
   );
-  const [purPaymentCond, setPurPaymentCond] = useState<
-    "CASH" | "CREDIT" | "PARTIAL"
-  >("CASH");
+  const [purPaymentCond, setPurPaymentCond] = useState<"CASH" | "CREDIT" | "PARTIAL">(
+    "CASH"
+  );
   const [purPaidNow, setPurPaidNow] = useState("");
   const [purAccountId, setPurAccountId] = useState<string>("");
   const [purNotes, setPurNotes] = useState("");
@@ -350,8 +346,7 @@ export default function CajaProveedoresTab({
 
   // Treasury Outflow state
   const [outflowIsTransfer, setOutflowIsTransfer] = useState(false);
-  const [outflowBucket, setOutflowBucket] =
-    useState<OutflowBucket>("ROUTE_OPEX");
+  const [outflowBucket, setOutflowBucket] = useState<OutflowBucket>("ROUTE_OPEX");
   const [outflowCategory, setOutflowCategory] = useState<string>(
     OUTFLOW_CATEGORIES_BY_BUCKET.ROUTE_OPEX[0].value
   );
@@ -360,16 +355,17 @@ export default function CajaProveedoresTab({
   const [outflowToAccountId, setOutflowToAccountId] = useState<string>("");
   const [outflowDesc, setOutflowDesc] = useState("");
   const [busyOutflow, setBusyOutflow] = useState(false);
+  const [confirmOutflow, setConfirmOutflow] = useState(false);
 
   useEffect(() => {
     onEditingChange?.(
       Boolean(
         showPurchaseForm ||
-          showNewSupplier ||
-          payingAp ||
-          outflowIsTransfer ||
-          outflowAmount.trim() ||
-          outflowDesc.trim()
+        showNewSupplier ||
+        payingAp ||
+        outflowIsTransfer ||
+        outflowAmount.trim() ||
+        outflowDesc.trim()
       )
     );
   }, [
@@ -388,33 +384,22 @@ export default function CajaProveedoresTab({
 
   useEffect(() => {
     if (accounts.length > 0) {
-      const defaultAcc =
-        accounts.find((a) => a.code === "CAJA_RUTA") || accounts[0];
+      const defaultAcc = accounts.find((a) => a.code === "CAJA_RUTA") || accounts[0];
       const defId = String(defaultAcc.account_id);
       if (!apPayAccountId) setApPayAccountId(defId);
       if (!purAccountId) setPurAccountId(defId);
       if (!outflowAccountId) setOutflowAccountId(defId);
       const effectiveFromId = outflowAccountId || defId;
       if (!outflowToAccountId || outflowToAccountId === effectiveFromId) {
-        const altAcc = accounts.find(
-          (a) => String(a.account_id) !== effectiveFromId
-        );
+        const altAcc = accounts.find((a) => String(a.account_id) !== effectiveFromId);
         if (altAcc) setOutflowToAccountId(String(altAcc.account_id));
       }
     }
-  }, [
-    accounts,
-    apPayAccountId,
-    purAccountId,
-    outflowAccountId,
-    outflowToAccountId,
-  ]);
+  }, [accounts, apPayAccountId, purAccountId, outflowAccountId, outflowToAccountId]);
 
   useEffect(() => {
     if (!preselectedTarget) return;
-    const prod = catalog.find(
-      (p) => p.product_id === preselectedTarget.productId
-    );
+    const prod = catalog.find((p) => p.product_id === preselectedTarget.productId);
     if (prod) {
       const nextQty =
         preselectedTarget.quantity && preselectedTarget.quantity > 0
@@ -427,15 +412,12 @@ export default function CajaProveedoresTab({
           productId: prod.product_id,
           search: `${prod.sku} ${prod.name}`,
           quantity: String(nextQty),
-          unitCostPen:
-            prod.ref_cost_pen !== null ? String(prod.ref_cost_pen) : "",
+          unitCostPen: prod.ref_cost_pen !== null ? String(prod.ref_cost_pen) : "",
         },
       ]);
       if (
         preselectedTarget.orderLineId &&
-        pendingOnDemand.some(
-          (od) => od.order_line_id === preselectedTarget.orderLineId
-        )
+        pendingOnDemand.some((od) => od.order_line_id === preselectedTarget.orderLineId)
       ) {
         setFulfillOrderLineIds([preselectedTarget.orderLineId]);
       } else {
@@ -443,12 +425,7 @@ export default function CajaProveedoresTab({
       }
     }
     onClearPreselectedTarget();
-  }, [
-    preselectedTarget,
-    catalog,
-    pendingOnDemand,
-    onClearPreselectedTarget,
-  ]);
+  }, [preselectedTarget, catalog, pendingOnDemand, onClearPreselectedTarget]);
 
   const selectedProductIds = useMemo(
     () =>
@@ -459,18 +436,12 @@ export default function CajaProveedoresTab({
   );
 
   const matchingOnDemandLines = useMemo(
-    () =>
-      pendingOnDemand.filter((od) =>
-        selectedProductIds.includes(od.product_id)
-      ),
+    () => pendingOnDemand.filter((od) => selectedProductIds.includes(od.product_id)),
     [pendingOnDemand, selectedProductIds]
   );
 
   const otherOnDemandLines = useMemo(
-    () =>
-      pendingOnDemand.filter(
-        (od) => !selectedProductIds.includes(od.product_id)
-      ),
+    () => pendingOnDemand.filter((od) => !selectedProductIds.includes(od.product_id)),
     [pendingOnDemand, selectedProductIds]
   );
 
@@ -491,43 +462,39 @@ export default function CajaProveedoresTab({
     [purItems]
   );
 
-  const {
-    purchaseSubtotalPen,
-    purchaseIgvPen,
-    purchaseTotalPen,
-    purchaseOrigTotal,
-  } = useMemo(() => {
-    const rate = effectiveExchangeRate > 0 ? effectiveExchangeRate : 0;
-    const rawNetPen = Number((purchaseOrigBase * rate).toFixed(2));
-    if (purTaxMode === "INCLUDED") {
-      const tot = rawNetPen;
-      const sub = Number((tot / 1.18).toFixed(2));
-      const igv = Number((tot - sub).toFixed(2));
+  const { purchaseSubtotalPen, purchaseIgvPen, purchaseTotalPen, purchaseOrigTotal } =
+    useMemo(() => {
+      const rate = effectiveExchangeRate > 0 ? effectiveExchangeRate : 0;
+      const rawNetPen = Number((purchaseOrigBase * rate).toFixed(2));
+      if (purTaxMode === "INCLUDED") {
+        const tot = rawNetPen;
+        const sub = Number((tot / 1.18).toFixed(2));
+        const igv = Number((tot - sub).toFixed(2));
+        return {
+          purchaseSubtotalPen: sub,
+          purchaseIgvPen: igv,
+          purchaseTotalPen: tot,
+          purchaseOrigTotal: Number(purchaseOrigBase.toFixed(2)),
+        };
+      }
+      if (purTaxMode === "EXCLUDED") {
+        const sub = rawNetPen;
+        const igv = Number((sub * 0.18).toFixed(2));
+        const tot = Number((sub + igv).toFixed(2));
+        return {
+          purchaseSubtotalPen: sub,
+          purchaseIgvPen: igv,
+          purchaseTotalPen: tot,
+          purchaseOrigTotal: Number((purchaseOrigBase * 1.18).toFixed(2)),
+        };
+      }
       return {
-        purchaseSubtotalPen: sub,
-        purchaseIgvPen: igv,
-        purchaseTotalPen: tot,
+        purchaseSubtotalPen: rawNetPen,
+        purchaseIgvPen: 0,
+        purchaseTotalPen: rawNetPen,
         purchaseOrigTotal: Number(purchaseOrigBase.toFixed(2)),
       };
-    }
-    if (purTaxMode === "EXCLUDED") {
-      const sub = rawNetPen;
-      const igv = Number((sub * 0.18).toFixed(2));
-      const tot = Number((sub + igv).toFixed(2));
-      return {
-        purchaseSubtotalPen: sub,
-        purchaseIgvPen: igv,
-        purchaseTotalPen: tot,
-        purchaseOrigTotal: Number((purchaseOrigBase * 1.18).toFixed(2)),
-      };
-    }
-    return {
-      purchaseSubtotalPen: rawNetPen,
-      purchaseIgvPen: 0,
-      purchaseTotalPen: rawNetPen,
-      purchaseOrigTotal: Number(purchaseOrigBase.toFixed(2)),
-    };
-  }, [purchaseOrigBase, effectiveExchangeRate, purTaxMode]);
+    }, [purchaseOrigBase, effectiveExchangeRate, purTaxMode]);
 
   const purchasePaidNowComputed = useMemo(() => {
     if (purPaymentCond === "CASH") return purchaseTotalPen;
@@ -551,11 +518,17 @@ export default function CajaProveedoresTab({
 
   const openDocsCount = useMemo(
     () =>
-      apObligations.filter(
-        (ap) => ap.status === "OPEN" || ap.status === "PARTIAL"
-      ).length,
+      apObligations.filter((ap) => ap.status === "OPEN" || ap.status === "PARTIAL")
+        .length,
     [apObligations]
   );
+
+  const apPayAccount = accounts.find(
+    (account) => String(account.account_id) === apPayAccountId
+  );
+  const apPayBalanceAfter = payingAp
+    ? Math.max(0, Number(payingAp.balance_due_pen) - Number(apPayAmount || 0))
+    : 0;
 
   const filteredApObligations = useMemo(() => {
     const q = deferredApSearch.trim().toLowerCase();
@@ -611,9 +584,7 @@ export default function CajaProveedoresTab({
   const handleSelectProductForLine = useCallback(
     (key: string, productIdStr: string) => {
       const pid = productIdStr ? Number(productIdStr) : "";
-      const prod = pid
-        ? catalog.find((p) => p.product_id === pid)
-        : undefined;
+      const prod = pid ? catalog.find((p) => p.product_id === pid) : undefined;
       setPurItems((prev) =>
         prev.map((row) =>
           row.key === key
@@ -669,9 +640,7 @@ export default function CajaProveedoresTab({
       };
       return hasBlankOnly ? [newLine] : [...prev, newLine];
     });
-    setFulfillOrderLineIds((prev) =>
-      Array.from(new Set([...prev, od.order_line_id]))
-    );
+    setFulfillOrderLineIds((prev) => Array.from(new Set([...prev, od.order_line_id])));
   }
 
   async function handleCreateSupplier(e: React.FormEvent) {
@@ -687,8 +656,7 @@ export default function CajaProveedoresTab({
           legalName: supLegalName,
           tradeName: supTradeName || undefined,
           docType: supDocType,
-          docNumber:
-            supDocType === "NONE" ? undefined : supDocNumber || undefined,
+          docNumber: supDocType === "NONE" ? undefined : supDocNumber || undefined,
           phone: supPhone || undefined,
           address: supAddress || undefined,
           notes: supNotes || undefined,
@@ -701,9 +669,7 @@ export default function CajaProveedoresTab({
       }
       onFeedback(
         `Proveedor "${
-          data.supplier?.trade_name ||
-          data.supplier?.legal_name ||
-          supLegalName
+          data.supplier?.trade_name || data.supplier?.legal_name || supLegalName
         }" registrado.`
       );
       if (data.supplier?.party_id) {
@@ -762,8 +728,7 @@ export default function CajaProveedoresTab({
           issueDate: purIssueDate || undefined,
           dueDate: purDueDate || undefined,
           currency: purCurrency,
-          exchangeRate:
-            purCurrency === "USD" ? effectiveExchangeRate : undefined,
+          exchangeRate: purCurrency === "USD" ? effectiveExchangeRate : undefined,
           taxMode: purTaxMode,
           paymentCondition: purPaymentCond,
           paidNowPen:
@@ -824,6 +789,22 @@ export default function CajaProveedoresTab({
   async function handlePayApObligation(e: React.FormEvent) {
     e.preventDefault();
     if (!payingAp || busyApPay) return;
+    const amount = Number(apPayAmount);
+    if (
+      !Number.isFinite(amount) ||
+      amount <= 0 ||
+      amount > Number(payingAp.balance_due_pen) + 0.005
+    ) {
+      onFeedback(
+        "El monto debe ser mayor que cero y no superar el saldo pendiente.",
+        true
+      );
+      return;
+    }
+    if (!confirmApPayment) {
+      setConfirmApPayment(true);
+      return;
+    }
     setBusyApPay(true);
     try {
       const res = await fetch("/api/purchases", {
@@ -848,6 +829,7 @@ export default function CajaProveedoresTab({
         }). Nuevo saldo: ${formatPen(data.newBalanceDuePen ?? 0)}.`
       );
       setPayingAp(null);
+      setConfirmApPayment(false);
       setApPayAmount("");
       setApPayNotes("");
       notifyLocalSync(["purchases", "treasury", "partners"]);
@@ -862,6 +844,11 @@ export default function CajaProveedoresTab({
   async function handleSaveOutflow(e: React.FormEvent) {
     e.preventDefault();
     if (busyOutflow) return;
+    const amount = Number(outflowAmount);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      onFeedback("Ingresa un monto válido mayor que cero.", true);
+      return;
+    }
     if (outflowIsTransfer) {
       if (!outflowAccountId || !outflowToAccountId) {
         onFeedback(
@@ -871,12 +858,13 @@ export default function CajaProveedoresTab({
         return;
       }
       if (outflowAccountId === outflowToAccountId) {
-        onFeedback(
-          "La cuenta de origen y destino deben ser diferentes.",
-          true
-        );
+        onFeedback("La cuenta de origen y destino deben ser diferentes.", true);
         return;
       }
+    }
+    if (!confirmOutflow) {
+      setConfirmOutflow(true);
+      return;
     }
     setBusyOutflow(true);
     try {
@@ -897,9 +885,7 @@ export default function CajaProveedoresTab({
                 amountPen: Number(outflowAmount),
                 expenseBucket: outflowBucket,
                 expenseCategory: outflowCategory,
-                accountId: outflowAccountId
-                  ? Number(outflowAccountId)
-                  : undefined,
+                accountId: outflowAccountId ? Number(outflowAccountId) : undefined,
                 description: outflowDesc,
               }
         ),
@@ -917,6 +903,7 @@ export default function CajaProveedoresTab({
       setOutflowAmount("");
       setOutflowDesc("");
       setOutflowIsTransfer(false);
+      setConfirmOutflow(false);
       notifyLocalSync(["treasury", "purchases", "partners"]);
       await onRefresh();
     } catch {
@@ -966,14 +953,28 @@ export default function CajaProveedoresTab({
               </>
             )}
           </Button>
-          <Button
-            variant="outline"
-            size="md"
-            onClick={() => setShowNewSupplier(true)}
-          >
+          <Button variant="outline" size="md" onClick={() => setShowNewSupplier(true)}>
             <PlusIcon className="h-3.5 w-3.5" />
             Nuevo Proveedor
           </Button>
+        </div>
+        <div className="grid w-full grid-cols-1 gap-2 border-t border-[#E7E5E0] pt-3 sm:grid-cols-2 lg:grid-cols-3">
+          {accounts.map((account) => (
+            <div
+              key={account.account_id}
+              className="flex items-center justify-between gap-2 rounded-xl border border-[#E7E5E0] bg-white/80 px-3 py-2"
+            >
+              <div className="min-w-0">
+                <p className="truncate text-[11px] font-medium text-[#5C5A55]">
+                  {account.name}
+                </p>
+                <p className="text-[10px] text-[#6D6A64]">{account.code}</p>
+              </div>
+              <strong className="flex-shrink-0 text-xs tabular-nums text-[#0F2942]">
+                {formatPen(Number(account.current_balance_pen ?? 0))}
+              </strong>
+            </div>
+          ))}
         </div>
       </Card>
 
@@ -988,8 +989,8 @@ export default function CajaProveedoresTab({
                 </h3>
                 <p className="mt-0.5 text-xs text-[#5C5A55]">
                   Ingresa mercadería al almacén principal, actualiza costo de
-                  referencia, genera CxP si es crédito/parcial y cierra líneas
-                  bajo pedido.
+                  referencia, genera CxP si es crédito/parcial y cierra líneas bajo
+                  pedido.
                 </p>
               </div>
               <Button
@@ -1040,9 +1041,7 @@ export default function CajaProveedoresTab({
                 <select
                   id="pur-doctype"
                   value={purDocType}
-                  onChange={(e) =>
-                    setPurDocType(e.target.value as typeof purDocType)
-                  }
+                  onChange={(e) => setPurDocType(e.target.value as typeof purDocType)}
                   className={`${INPUT_CLASS} mt-1.5 font-medium`}
                 >
                   <option value="FACTURA">Factura</option>
@@ -1062,9 +1061,7 @@ export default function CajaProveedoresTab({
                     type="text"
                     required
                     value={purDocSeries}
-                    onChange={(e) =>
-                      setPurDocSeries(e.target.value.toUpperCase())
-                    }
+                    onChange={(e) => setPurDocSeries(e.target.value.toUpperCase())}
                     placeholder="F001"
                     className={`${INPUT_CLASS} mt-1.5 font-semibold`}
                   />
@@ -1115,9 +1112,7 @@ export default function CajaProveedoresTab({
                   <select
                     id="pur-currency"
                     value={purCurrency}
-                    onChange={(e) =>
-                      setPurCurrency(e.target.value as "PEN" | "USD")
-                    }
+                    onChange={(e) => setPurCurrency(e.target.value as "PEN" | "USD")}
                     className={`${INPUT_CLASS} w-28 font-semibold`}
                   >
                     <option value="PEN">PEN (S/)</option>
@@ -1145,9 +1140,7 @@ export default function CajaProveedoresTab({
                   id="pur-tax-mode"
                   value={purTaxMode}
                   onChange={(e) =>
-                    setPurTaxMode(
-                      e.target.value as "NONE" | "INCLUDED" | "EXCLUDED"
-                    )
+                    setPurTaxMode(e.target.value as "NONE" | "INCLUDED" | "EXCLUDED")
                   }
                   className={`${INPUT_CLASS} mt-1.5`}
                 >
@@ -1171,9 +1164,7 @@ export default function CajaProveedoresTab({
                         key={c.id}
                         type="button"
                         aria-pressed={active}
-                        onClick={() =>
-                          setPurPaymentCond(c.id as typeof purPaymentCond)
-                        }
+                        onClick={() => setPurPaymentCond(c.id as typeof purPaymentCond)}
                         className={`rounded-xl border px-2 py-2.5 text-xs font-semibold transition cursor-pointer ${
                           active
                             ? "border-[#0F2942] bg-[#0F2942] text-white"
@@ -1208,9 +1199,7 @@ export default function CajaProveedoresTab({
 
               {purPaymentCond !== "CREDIT" && (
                 <div>
-                  <FieldLabel htmlFor="pur-account">
-                    Cuenta de salida
-                  </FieldLabel>
+                  <FieldLabel htmlFor="pur-account">Cuenta de salida</FieldLabel>
                   <select
                     id="pur-account"
                     value={purAccountId}
@@ -1218,10 +1207,7 @@ export default function CajaProveedoresTab({
                     className={`${INPUT_CLASS} mt-1.5 font-medium`}
                   >
                     {accounts.map((acc) => (
-                      <option
-                        key={acc.account_id}
-                        value={String(acc.account_id)}
-                      >
+                      <option key={acc.account_id} value={String(acc.account_id)}>
                         {acc.name} ({acc.code})
                         {acc.current_balance_pen !== undefined &&
                         acc.current_balance_pen !== null &&
@@ -1310,14 +1296,12 @@ export default function CajaProveedoresTab({
                   </Button>
                 </div>
                 <p className="text-xs text-[#5C5A55]">
-                  Marca las líneas de cliente que se surten con esta compra para
-                  cerrar la alerta pendiente al instante:
+                  Marca las líneas de cliente que se surten con esta compra para cerrar
+                  la alerta pendiente al instante:
                 </p>
                 <div className="grid gap-2 md:grid-cols-2">
                   {matchingOnDemandLines.map((od) => {
-                    const checked = fulfillOrderLineIds.includes(
-                      od.order_line_id
-                    );
+                    const checked = fulfillOrderLineIds.includes(od.order_line_id);
                     return (
                       <label
                         key={od.order_line_id}
@@ -1364,8 +1348,7 @@ export default function CajaProveedoresTab({
             {otherOnDemandLines.length > 0 && (
               <Card tone="warning" padding="sm" className="space-y-2">
                 <p className="text-xs font-semibold text-[#18181B]">
-                  Otros pedidos bajo pedido pendientes (
-                  {otherOnDemandLines.length}):
+                  Otros pedidos bajo pedido pendientes ({otherOnDemandLines.length}):
                 </p>
                 <div className="flex flex-wrap gap-1.5">
                   {otherOnDemandLines.slice(0, 8).map((od) => (
@@ -1376,8 +1359,8 @@ export default function CajaProveedoresTab({
                       onClick={() => handleAddOnDemandProductToPurchase(od)}
                     >
                       <PlusIcon className="h-3 w-3" />
-                      {od.sku} (×{Number(od.quantity)}{" "}
-                      {od.unit_of_measure || "NIU"} · {od.order_code})
+                      {od.sku} (×{Number(od.quantity)} {od.unit_of_measure || "NIU"} ·{" "}
+                      {od.order_code})
                     </Button>
                   ))}
                 </div>
@@ -1429,9 +1412,7 @@ export default function CajaProveedoresTab({
                 disabled={busyPurchase}
                 className="w-full sm:w-auto"
               >
-                {busyPurchase
-                  ? "Registrando Compra..."
-                  : "Confirmar Compra e Ingreso"}
+                {busyPurchase ? "Registrando Compra..." : "Confirmar Compra e Ingreso"}
               </Button>
             </div>
           </form>
@@ -1440,77 +1421,89 @@ export default function CajaProveedoresTab({
 
       {/* Supplier Summary Cards */}
       <Card padding="md" className="space-y-3">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div>
-            <h3 className="text-sm sm:text-base font-semibold text-[#18181B]">
-              Resumen por Proveedor ({suppliers.length})
-            </h3>
-            <p className="text-xs text-[#5C5A55]">
-              Toca un proveedor para filtrar sus facturas y cuentas por pagar.
-            </p>
-          </div>
-          {selectedSupplierFilterId !== null && (
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={() => setSelectedSupplierFilterId(null)}
-            >
-              <CloseIcon className="h-3.5 w-3.5" />
-              Ver todos
-            </Button>
-          )}
-        </div>
-        {suppliers.length === 0 ? (
-          <p className="text-xs text-[#5C5A55]">
-            No hay proveedores registrados aún.
-          </p>
-        ) : (
-          <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
-            {suppliers.map((sup) => {
-              const isSelected = selectedSupplierFilterId === sup.party_id;
-              const openBal = Number(sup.open_ap_balance_pen ?? 0);
-              const openDocs = Number(sup.open_docs_count ?? 0);
-              return (
-                <button
-                  key={sup.party_id}
-                  type="button"
-                  aria-pressed={isSelected}
-                  onClick={() =>
-                    setSelectedSupplierFilterId((prev) =>
-                      prev === sup.party_id ? null : sup.party_id
-                    )
-                  }
-                  className={`flex min-w-0 w-full items-center justify-between gap-3 rounded-xl border p-3 text-left transition cursor-pointer ${
-                    isSelected
-                      ? "border-[#0F2942] bg-[#F2F6FA] ring-1 ring-[#0F2942]"
-                      : "border-[#E7E5E0] bg-white hover:bg-[#FAF9F6]"
-                  }`}
+        <details>
+          <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0F2942]">
+            <div>
+              <h3 className="text-sm font-semibold text-[#18181B] sm:text-base">
+                Resumen por Proveedor ({suppliers.length})
+              </h3>
+              <p className="text-xs text-[#5C5A55]">
+                Filtra CxP por proveedor cuando necesites revisar su detalle.
+              </p>
+            </div>
+            <ChevronRightIcon className="h-4 w-4 text-[#5C5A55]" />
+          </summary>
+          <div className="mt-3 space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <p className="text-xs text-[#5C5A55]">
+                  Toca un proveedor para filtrar sus facturas y cuentas por pagar.
+                </p>
+              </div>
+              {selectedSupplierFilterId !== null && (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => setSelectedSupplierFilterId(null)}
                 >
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-semibold text-[#18181B]">
-                      {sup.trade_name || sup.legal_name}
-                    </p>
-                    <p className="mt-0.5 text-[11px] text-[#5C5A55]">
-                      {sup.doc_type && sup.doc_number
-                        ? `${sup.doc_type}: ${sup.doc_number}`
-                        : "Sin RUC/DNI"}
-                      {sup.phone ? ` · ${sup.phone}` : ""}
-                    </p>
-                    <p className="mt-0.5 text-[11px] text-[#6D6A64] tabular-nums">
-                      {openDocs} doc(s) pendiente(s)
-                    </p>
-                  </div>
-                  <Badge
-                    tone={openBal > 0.05 ? "danger" : "success"}
-                    className="flex-shrink-0 tabular-nums"
-                  >
-                    {formatPen(openBal)}
-                  </Badge>
-                </button>
-              );
-            })}
+                  <CloseIcon className="h-3.5 w-3.5" />
+                  Ver todos
+                </Button>
+              )}
+            </div>
+            {suppliers.length === 0 ? (
+              <p className="text-xs text-[#5C5A55]">
+                No hay proveedores registrados aún.
+              </p>
+            ) : (
+              <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
+                {suppliers.map((sup) => {
+                  const isSelected = selectedSupplierFilterId === sup.party_id;
+                  const openBal = Number(sup.open_ap_balance_pen ?? 0);
+                  const openDocs = Number(sup.open_docs_count ?? 0);
+                  return (
+                    <button
+                      key={sup.party_id}
+                      type="button"
+                      aria-pressed={isSelected}
+                      onClick={() =>
+                        setSelectedSupplierFilterId((prev) =>
+                          prev === sup.party_id ? null : sup.party_id
+                        )
+                      }
+                      className={`flex min-w-0 w-full items-center justify-between gap-3 rounded-xl border p-3 text-left transition cursor-pointer ${
+                        isSelected
+                          ? "border-[#0F2942] bg-[#F2F6FA] ring-1 ring-[#0F2942]"
+                          : "border-[#E7E5E0] bg-white hover:bg-[#FAF9F6]"
+                      }`}
+                    >
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-semibold text-[#18181B]">
+                          {sup.trade_name || sup.legal_name}
+                        </p>
+                        <p className="mt-0.5 text-[11px] text-[#5C5A55]">
+                          {sup.doc_type && sup.doc_number
+                            ? `${sup.doc_type}: ${sup.doc_number}`
+                            : "Sin RUC/DNI"}
+                          {sup.phone ? ` · ${sup.phone}` : ""}
+                        </p>
+                        <p className="mt-0.5 text-[11px] text-[#6D6A64] tabular-nums">
+                          {openDocs} doc(s) pendiente(s)
+                        </p>
+                      </div>
+                      <Badge
+                        tone={openBal > 0.05 ? "danger" : "success"}
+                        className="flex-shrink-0 tabular-nums"
+                      >
+                        {formatPen(openBal)}
+                      </Badge>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </div>
-        )}
+        </details>
       </Card>
 
       {/* Main Split: AP Obligations & Cash Outflow */}
@@ -1561,9 +1554,7 @@ export default function CajaProveedoresTab({
                   key={f.id}
                   type="button"
                   aria-pressed={active}
-                  onClick={() =>
-                    setApStatusFilter(f.id as typeof apStatusFilter)
-                  }
+                  onClick={() => setApStatusFilter(f.id as typeof apStatusFilter)}
                   className={`min-h-[36px] sm:min-h-0 rounded-full border px-3 py-1.5 text-xs font-medium transition cursor-pointer ${
                     active
                       ? "border-[#0F2942] bg-[#0F2942] text-white"
@@ -1581,14 +1572,13 @@ export default function CajaProveedoresTab({
               <EmptyState title="No hay obligaciones en este filtro" />
             ) : (
               filteredApObligations.map((ap) => {
-                const canPay =
-                  ap.status === "OPEN" || ap.status === "PARTIAL";
+                const canPay = ap.status === "OPEN" || ap.status === "PARTIAL";
                 const statusTone =
                   ap.status === "PAID"
                     ? "success"
                     : ap.status === "PARTIAL"
-                    ? "warning"
-                    : "danger";
+                      ? "warning"
+                      : "danger";
                 const itemCount = Array.isArray(ap.lines)
                   ? ap.lines.length
                   : Number(ap.line_count ?? 0);
@@ -1613,9 +1603,7 @@ export default function CajaProveedoresTab({
                             {ap.due_date ? ` · Vence: ${ap.due_date}` : ""}
                           </p>
                         </div>
-                        <Badge tone={statusTone}>
-                          {formatApStatusEs(ap.status)}
-                        </Badge>
+                        <Badge tone={statusTone}>{formatApStatusEs(ap.status)}</Badge>
                       </div>
 
                       <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 tabular-nums text-xs text-[#5C5A55]">
@@ -1642,8 +1630,7 @@ export default function CajaProveedoresTab({
 
                       <span className="inline-flex items-center gap-1 text-[11px] font-medium text-[#1E446B]">
                         Ver detalle ({itemCount}{" "}
-                        {itemCount === 1 ? "ítem pedido" : "ítems pedidos"}) y
-                        pagos
+                        {itemCount === 1 ? "ítem pedido" : "ítems pedidos"}) y pagos
                         <ChevronRightIcon className="h-3 w-3" />
                       </span>
                     </button>
@@ -1656,6 +1643,7 @@ export default function CajaProveedoresTab({
                           aria-label={`Pagar o amortizar ${ap.doc_ref} de ${ap.supplier_name}`}
                           onClick={() => {
                             setPayingAp(ap);
+                            setConfirmApPayment(false);
                             setApPayAmount(String(Number(ap.balance_due_pen)));
                             setApPayNotes("");
                           }}
@@ -1686,14 +1674,14 @@ export default function CajaProveedoresTab({
                 onChange={(e) => {
                   const checked = e.target.checked;
                   setOutflowIsTransfer(checked);
+                  setConfirmOutflow(false);
                   if (checked) {
                     const altAcc = accounts.find(
                       (a) => String(a.account_id) !== outflowAccountId
                     );
                     if (
                       altAcc &&
-                      (!outflowToAccountId ||
-                        outflowToAccountId === outflowAccountId)
+                      (!outflowToAccountId || outflowToAccountId === outflowAccountId)
                     ) {
                       setOutflowToAccountId(String(altAcc.account_id));
                     }
@@ -1716,22 +1704,18 @@ export default function CajaProveedoresTab({
                     onChange={(e) => {
                       const nextFrom = e.target.value;
                       setOutflowAccountId(nextFrom);
+                      setConfirmOutflow(false);
                       if (outflowToAccountId === nextFrom) {
                         const altAcc = accounts.find(
                           (a) => String(a.account_id) !== nextFrom
                         );
-                        setOutflowToAccountId(
-                          altAcc ? String(altAcc.account_id) : ""
-                        );
+                        setOutflowToAccountId(altAcc ? String(altAcc.account_id) : "");
                       }
                     }}
                     className={`${INPUT_CLASS} mt-1.5 font-medium`}
                   >
                     {accounts.map((acc) => (
-                      <option
-                        key={acc.account_id}
-                        value={String(acc.account_id)}
-                      >
+                      <option key={acc.account_id} value={String(acc.account_id)}>
                         {acc.name} ({acc.code})
                         {acc.current_balance_pen !== undefined &&
                         acc.current_balance_pen !== null &&
@@ -1750,19 +1734,17 @@ export default function CajaProveedoresTab({
                     id="outflow-to-account"
                     required
                     value={outflowToAccountId}
-                    onChange={(e) => setOutflowToAccountId(e.target.value)}
+                    onChange={(e) => {
+                      setOutflowToAccountId(e.target.value);
+                      setConfirmOutflow(false);
+                    }}
                     className={`${INPUT_CLASS} mt-1.5 font-medium`}
                   >
                     <option value="">-- Elegir cuenta destino --</option>
                     {accounts
-                      .filter(
-                        (acc) => String(acc.account_id) !== outflowAccountId
-                      )
+                      .filter((acc) => String(acc.account_id) !== outflowAccountId)
                       .map((acc) => (
-                        <option
-                          key={acc.account_id}
-                          value={String(acc.account_id)}
-                        >
+                        <option key={acc.account_id} value={String(acc.account_id)}>
                           {acc.name} ({acc.code})
                           {acc.current_balance_pen !== undefined &&
                           acc.current_balance_pen !== null &&
@@ -1777,15 +1759,14 @@ export default function CajaProveedoresTab({
             ) : (
               <>
                 <div>
-                  <FieldLabel htmlFor="outflow-bucket">
-                    Tipo de salida
-                  </FieldLabel>
+                  <FieldLabel htmlFor="outflow-bucket">Tipo de salida</FieldLabel>
                   <select
                     id="outflow-bucket"
                     value={outflowBucket}
                     onChange={(e) => {
                       const nextBucket = e.target.value as OutflowBucket;
                       setOutflowBucket(nextBucket);
+                      setConfirmOutflow(false);
                       const firstCat =
                         OUTFLOW_CATEGORIES_BY_BUCKET[nextBucket]?.[0]?.value ??
                         "COMBUSTIBLE";
@@ -1807,7 +1788,11 @@ export default function CajaProveedoresTab({
                   <div className="flex items-start gap-2 rounded-xl border border-[#F3D9B1] bg-[#FDF8F0] px-3 py-2.5 text-xs text-[#92400E]">
                     <AlertTriangleIcon className="mt-0.5 h-4 w-4 flex-shrink-0 text-[#B45309]" />
                     <span>
-                      Tienes <strong>{openDocsCount}</strong> cuenta(s) por pagar abiertas ({formatPen(totalOpenApPen)}). Si estás pagando una factura registrada, usa el botón <strong>&ldquo;Pagar / Amortizar&rdquo;</strong> arriba para rebajar la CxP y no duplicar egresos.
+                      Tienes <strong>{openDocsCount}</strong> cuenta(s) por pagar
+                      abiertas ({formatPen(totalOpenApPen)}). Si estás pagando una
+                      factura registrada, usa el botón{" "}
+                      <strong>&ldquo;Pagar / Amortizar&rdquo;</strong> arriba para
+                      rebajar la CxP y no duplicar egresos.
                     </span>
                   </div>
                 )}
@@ -1820,14 +1805,14 @@ export default function CajaProveedoresTab({
                     <select
                       id="outflow-account"
                       value={outflowAccountId}
-                      onChange={(e) => setOutflowAccountId(e.target.value)}
+                      onChange={(e) => {
+                        setOutflowAccountId(e.target.value);
+                        setConfirmOutflow(false);
+                      }}
                       className={`${INPUT_CLASS} mt-1.5 font-medium`}
                     >
                       {accounts.map((acc) => (
-                        <option
-                          key={acc.account_id}
-                          value={String(acc.account_id)}
-                        >
+                        <option key={acc.account_id} value={String(acc.account_id)}>
                           {acc.name} ({acc.code})
                           {acc.current_balance_pen !== undefined &&
                           acc.current_balance_pen !== null &&
@@ -1846,16 +1831,17 @@ export default function CajaProveedoresTab({
                       id="outflow-category"
                       required
                       value={outflowCategory}
-                      onChange={(e) => setOutflowCategory(e.target.value)}
+                      onChange={(e) => {
+                        setOutflowCategory(e.target.value);
+                        setConfirmOutflow(false);
+                      }}
                       className={`${INPUT_CLASS} mt-1.5 font-medium`}
                     >
-                      {OUTFLOW_CATEGORIES_BY_BUCKET[outflowBucket].map(
-                        (cat) => (
-                          <option key={cat.value} value={cat.value}>
-                            {cat.label}
-                          </option>
-                        )
-                      )}
+                      {OUTFLOW_CATEGORIES_BY_BUCKET[outflowBucket].map((cat) => (
+                        <option key={cat.value} value={cat.value}>
+                          {cat.label}
+                        </option>
+                      ))}
                     </select>
                   </div>
                 </div>
@@ -1872,7 +1858,10 @@ export default function CajaProveedoresTab({
                 min="0.10"
                 required
                 value={outflowAmount}
-                onChange={(e) => setOutflowAmount(e.target.value)}
+                onChange={(e) => {
+                  setOutflowAmount(e.target.value);
+                  setConfirmOutflow(false);
+                }}
                 placeholder="0.00"
                 className={`${INPUT_CLASS} mt-1.5 font-semibold tabular-nums`}
               />
@@ -1886,7 +1875,10 @@ export default function CajaProveedoresTab({
                 type="text"
                 required
                 value={outflowDesc}
-                onChange={(e) => setOutflowDesc(e.target.value)}
+                onChange={(e) => {
+                  setOutflowDesc(e.target.value);
+                  setConfirmOutflow(false);
+                }}
                 placeholder={
                   outflowIsTransfer
                     ? "Ej. Entrega de efectivo de ruta a banco o socio"
@@ -1895,6 +1887,76 @@ export default function CajaProveedoresTab({
                 className={`${INPUT_CLASS} mt-1.5`}
               />
             </div>
+            {Number(outflowAmount) > 0 && (
+              <div className="space-y-1.5 rounded-xl border border-[#D4E0EC] bg-[#F2F6FA]/70 p-3 text-xs text-[#5C5A55] tabular-nums">
+                <p className="font-semibold text-[#0F2942]">
+                  {confirmOutflow
+                    ? "Confirma el movimiento"
+                    : "Revisa antes de guardar"}
+                </p>
+                {outflowIsTransfer
+                  ? (() => {
+                      const source = accounts.find(
+                        (a) => String(a.account_id) === outflowAccountId
+                      );
+                      const destination = accounts.find(
+                        (a) => String(a.account_id) === outflowToAccountId
+                      );
+                      return (
+                        <>
+                          <p>
+                            Sale de {source?.name ?? "cuenta de origen"} y entra a{" "}
+                            {destination?.name ?? "cuenta destino"} ·{" "}
+                            {formatPen(Number(outflowAmount))}
+                          </p>
+                          {source?.current_balance_pen != null && (
+                            <p>
+                              Saldo origen después:{" "}
+                              {formatPen(
+                                Number(source.current_balance_pen) -
+                                  Number(outflowAmount)
+                              )}
+                            </p>
+                          )}
+                          {destination?.current_balance_pen != null && (
+                            <p>
+                              Saldo destino después:{" "}
+                              {formatPen(
+                                Number(destination.current_balance_pen) +
+                                  Number(outflowAmount)
+                              )}
+                            </p>
+                          )}
+                        </>
+                      );
+                    })()
+                  : (() => {
+                      const source = accounts.find(
+                        (a) => String(a.account_id) === outflowAccountId
+                      );
+                      return (
+                        <>
+                          <p>
+                            Sale de {source?.name ?? "cuenta seleccionada"} ·{" "}
+                            {outflowCategory} · {formatPen(Number(outflowAmount))}
+                          </p>
+                          {source?.current_balance_pen != null && (
+                            <p>
+                              Saldo de la cuenta después:{" "}
+                              {formatPen(
+                                Number(source.current_balance_pen) -
+                                  Number(outflowAmount)
+                              )}
+                            </p>
+                          )}
+                        </>
+                      );
+                    })()}
+                {outflowDesc.trim() && (
+                  <p className="break-words">{outflowDesc.trim()}</p>
+                )}
+              </div>
+            )}
             <Button
               type="submit"
               variant="primary"
@@ -1904,9 +1966,9 @@ export default function CajaProveedoresTab({
             >
               {busyOutflow
                 ? "Guardando..."
-                : outflowIsTransfer
-                ? "Registrar Traslado Interno"
-                : "Guardar Movimiento de Caja"}
+                : confirmOutflow
+                  ? "Confirmar y registrar movimiento"
+                  : "Revisar movimiento"}
             </Button>
           </form>
         </Card>
@@ -1915,232 +1977,244 @@ export default function CajaProveedoresTab({
       {/* Recent Purchases & Cash Ledger */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <Card padding="md" className="space-y-3">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <h3 className="text-sm sm:text-base font-semibold text-[#18181B]">
-              Historial de Compras Registradas ({filteredRecentPurchases.length}
-              {purchaseSearch ? ` / ${recentPurchases.length}` : ""})
-            </h3>
-          </div>
-          {recentPurchases.length > 0 && (
-            <div className="relative">
-              <span className="pointer-events-none absolute inset-y-0 left-3.5 flex items-center text-[#6D6A64]">
-                <SearchIcon className="h-4 w-4" />
-              </span>
-              <input
-                type="text"
-                value={purchaseSearch}
-                onChange={(e) => setPurchaseSearch(e.target.value)}
-                aria-label="Filtrar compras recientes"
-                placeholder="Buscar compra por comprobante o proveedor..."
-                className={`${INPUT_CLASS} py-2 pl-10 pr-8 text-xs`}
-              />
-              {purchaseSearch && (
-                <button
-                  type="button"
-                  data-compact="true"
-                  aria-label="Limpiar búsqueda de compras"
-                  onClick={() => setPurchaseSearch("")}
-                  className="absolute inset-y-0 right-2.5 flex items-center text-[#6D6A64] hover:text-[#18181B] cursor-pointer"
-                >
-                  <CloseIcon className="h-3.5 w-3.5" />
-                </button>
+          <details>
+            <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-2 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0F2942]">
+              <h3 className="text-sm sm:text-base font-semibold text-[#18181B]">
+                Historial de Compras Registradas ({filteredRecentPurchases.length}
+                {purchaseSearch ? ` / ${recentPurchases.length}` : ""})
+              </h3>
+              <ChevronRightIcon className="h-4 w-4 text-[#5C5A55]" />
+            </summary>
+            <div className="mt-3 space-y-3">
+              {recentPurchases.length > 0 && (
+                <div className="relative">
+                  <span className="pointer-events-none absolute inset-y-0 left-3.5 flex items-center text-[#6D6A64]">
+                    <SearchIcon className="h-4 w-4" />
+                  </span>
+                  <input
+                    type="text"
+                    value={purchaseSearch}
+                    onChange={(e) => setPurchaseSearch(e.target.value)}
+                    aria-label="Filtrar compras recientes"
+                    placeholder="Buscar compra por comprobante o proveedor..."
+                    className={`${INPUT_CLASS} py-2 pl-10 pr-8 text-xs`}
+                  />
+                  {purchaseSearch && (
+                    <button
+                      type="button"
+                      data-compact="true"
+                      aria-label="Limpiar búsqueda de compras"
+                      onClick={() => setPurchaseSearch("")}
+                      className="absolute inset-y-0 right-2.5 flex items-center text-[#6D6A64] hover:text-[#18181B] cursor-pointer"
+                    >
+                      <CloseIcon className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                </div>
               )}
-            </div>
-          )}
-          {filteredRecentPurchases.length === 0 ? (
-            <EmptyState
-              title={
-                purchaseSearch
-                  ? "No hay compras que coincidan con tu búsqueda"
-                  : "Sin compras recientes registradas"
-              }
-            />
-          ) : (
-            <>
-              <div className="space-y-2 md:hidden">
-                {filteredRecentPurchases.map((pur) => (
-                  <button
-                    key={pur.purchase_id}
-                    type="button"
-                    onClick={() => setDetailPurchase(pur)}
-                    aria-label={`Ver detalle de compra ${pur.doc_series}-${pur.doc_number}`}
-                    className="flex w-full items-center justify-between gap-2 rounded-xl border border-[#E7E5E0] bg-[#FAF9F6] p-3 text-left text-xs transition hover:border-[#D4E0EC] hover:bg-[#F2F6FA]/70 cursor-pointer"
-                  >
-                    <div className="min-w-0 flex-1">
-                      <p className="font-semibold text-[#18181B]">
-                        {formatDocTypeEs(pur.doc_type)} {pur.doc_series}-
-                        {pur.doc_number}
-                      </p>
-                      <p className="truncate text-[#5C5A55]">
-                        {pur.supplier_name || pur.supplier_ruc || "-"} ·{" "}
-                        {pur.issue_date}
-                      </p>
-                    </div>
-                    <div className="flex-shrink-0 text-right tabular-nums">
-                      <p className="font-semibold text-[#18181B]">
-                        {formatPen(pur.total_pen)}
-                      </p>
-                      <p className="text-[11px] text-[#1E446B] font-medium">
-                        {Number(pur.line_count ?? 0)} ítem(s) →
-                      </p>
-                    </div>
-                  </button>
-                ))}
-              </div>
-              <div
-                tabIndex={0}
-                role="region"
-                aria-label="Compras recientes a proveedores"
-                className="table-wrapper hidden md:block"
-              >
-                <table className="w-full text-left text-xs">
-                  <thead className="border-b border-[#E7E5E0] bg-[#FAF9F6] text-[11px] font-semibold uppercase tracking-wide text-[#5C5A55]">
-                    <tr>
-                      <th scope="col" className="whitespace-nowrap p-2">
-                        Comprobante / Fecha
-                      </th>
-                      <th scope="col" className="whitespace-nowrap p-2">
-                        Proveedor
-                      </th>
-                      <th scope="col" className="whitespace-nowrap p-2 text-right">
-                        Ítems
-                      </th>
-                      <th scope="col" className="whitespace-nowrap p-2 text-right">
-                        Total
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-[#E7E5E0]">
+              {filteredRecentPurchases.length === 0 ? (
+                <EmptyState
+                  title={
+                    purchaseSearch
+                      ? "No hay compras que coincidan con tu búsqueda"
+                      : "Sin compras recientes registradas"
+                  }
+                />
+              ) : (
+                <>
+                  <div className="space-y-2 md:hidden">
                     {filteredRecentPurchases.map((pur) => (
-                      <tr
+                      <button
                         key={pur.purchase_id}
+                        type="button"
                         onClick={() => setDetailPurchase(pur)}
-                        className="cursor-pointer transition hover:bg-[#F2F6FA]/70"
+                        aria-label={`Ver detalle de compra ${pur.doc_series}-${pur.doc_number}`}
+                        className="flex w-full items-center justify-between gap-2 rounded-xl border border-[#E7E5E0] bg-[#FAF9F6] p-3 text-left text-xs transition hover:border-[#D4E0EC] hover:bg-[#F2F6FA]/70 cursor-pointer"
                       >
-                        <td className="whitespace-nowrap p-2 font-semibold text-[#1E446B]">
-                          <button
-                            type="button"
-                            data-compact="true"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setDetailPurchase(pur);
-                            }}
-                            className="text-left hover:underline cursor-pointer"
-                          >
+                        <div className="min-w-0 flex-1">
+                          <p className="font-semibold text-[#18181B]">
                             {formatDocTypeEs(pur.doc_type)} {pur.doc_series}-
                             {pur.doc_number}
-                          </button>
-                          <span className="block text-[11px] font-normal text-[#6D6A64] tabular-nums">
+                          </p>
+                          <p className="truncate text-[#5C5A55]">
+                            {pur.supplier_name || pur.supplier_ruc || "-"} ·{" "}
                             {pur.issue_date}
-                          </span>
-                        </td>
-                        <td className="p-2 font-medium text-[#5C5A55]">
-                          {pur.supplier_name || pur.supplier_ruc || "-"}
-                        </td>
-                        <td className="p-2 text-right tabular-nums">
-                          {Number(pur.line_count ?? 0)}
-                        </td>
-                        <td className="p-2 text-right font-semibold text-[#18181B] tabular-nums">
-                          {formatPen(pur.total_pen)}
-                        </td>
-                      </tr>
+                          </p>
+                        </div>
+                        <div className="flex-shrink-0 text-right tabular-nums">
+                          <p className="font-semibold text-[#18181B]">
+                            {formatPen(pur.total_pen)}
+                          </p>
+                          <p className="text-[11px] text-[#1E446B] font-medium">
+                            {Number(pur.line_count ?? 0)} ítem(s) →
+                          </p>
+                        </div>
+                      </button>
                     ))}
-                  </tbody>
-                </table>
-              </div>
-            </>
-          )}
+                  </div>
+                  <div
+                    tabIndex={0}
+                    role="region"
+                    aria-label="Compras recientes a proveedores"
+                    className="table-wrapper hidden md:block"
+                  >
+                    <table className="w-full text-left text-xs">
+                      <thead className="border-b border-[#E7E5E0] bg-[#FAF9F6] text-[11px] font-semibold uppercase tracking-wide text-[#5C5A55]">
+                        <tr>
+                          <th scope="col" className="whitespace-nowrap p-2">
+                            Comprobante / Fecha
+                          </th>
+                          <th scope="col" className="whitespace-nowrap p-2">
+                            Proveedor
+                          </th>
+                          <th scope="col" className="whitespace-nowrap p-2 text-right">
+                            Ítems
+                          </th>
+                          <th scope="col" className="whitespace-nowrap p-2 text-right">
+                            Total
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-[#E7E5E0]">
+                        {filteredRecentPurchases.map((pur) => (
+                          <tr
+                            key={pur.purchase_id}
+                            onClick={() => setDetailPurchase(pur)}
+                            className="cursor-pointer transition hover:bg-[#F2F6FA]/70"
+                          >
+                            <td className="whitespace-nowrap p-2 font-semibold text-[#1E446B]">
+                              <button
+                                type="button"
+                                data-compact="true"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setDetailPurchase(pur);
+                                }}
+                                className="text-left hover:underline cursor-pointer"
+                              >
+                                {formatDocTypeEs(pur.doc_type)} {pur.doc_series}-
+                                {pur.doc_number}
+                              </button>
+                              <span className="block text-[11px] font-normal text-[#6D6A64] tabular-nums">
+                                {pur.issue_date}
+                              </span>
+                            </td>
+                            <td className="p-2 font-medium text-[#5C5A55]">
+                              {pur.supplier_name || pur.supplier_ruc || "-"}
+                            </td>
+                            <td className="p-2 text-right tabular-nums">
+                              {Number(pur.line_count ?? 0)}
+                            </td>
+                            <td className="p-2 text-right font-semibold text-[#18181B] tabular-nums">
+                              {formatPen(pur.total_pen)}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </>
+              )}
+            </div>
+          </details>
         </Card>
 
         <Card padding="md" className="space-y-3">
-          <h3 className="text-sm sm:text-base font-semibold text-[#18181B]">
-            Movimientos de Caja ({filteredLedger.length}
-            {ledgerSearch ? ` / ${ledger.length}` : ""})
-          </h3>
-          {ledger.length > 0 && (
-            <div className="relative">
-              <span className="pointer-events-none absolute inset-y-0 left-3.5 flex items-center text-[#6D6A64]">
-                <SearchIcon className="h-4 w-4" />
-              </span>
-              <input
-                type="text"
-                value={ledgerSearch}
-                onChange={(e) => setLedgerSearch(e.target.value)}
-                aria-label="Filtrar movimientos de caja"
-                placeholder="Filtrar caja por descripción, cuenta o categoría..."
-                className={`${INPUT_CLASS} py-2 pl-10 pr-8 text-xs`}
-              />
-              {ledgerSearch && (
-                <button
-                  type="button"
-                  data-compact="true"
-                  aria-label="Limpiar búsqueda de movimientos de caja"
-                  onClick={() => setLedgerSearch("")}
-                  className="absolute inset-y-0 right-2.5 flex items-center text-[#6D6A64] hover:text-[#18181B] cursor-pointer"
-                >
-                  <CloseIcon className="h-3.5 w-3.5" />
-                </button>
+          <details>
+            <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-2 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0F2942]">
+              <h3 className="text-sm sm:text-base font-semibold text-[#18181B]">
+                Movimientos de Caja ({filteredLedger.length}
+                {ledgerSearch ? ` / ${ledger.length}` : ""})
+              </h3>
+              <ChevronRightIcon className="h-4 w-4 text-[#5C5A55]" />
+            </summary>
+            <div className="mt-3 space-y-3">
+              {ledger.length > 0 && (
+                <div className="relative">
+                  <span className="pointer-events-none absolute inset-y-0 left-3.5 flex items-center text-[#6D6A64]">
+                    <SearchIcon className="h-4 w-4" />
+                  </span>
+                  <input
+                    type="text"
+                    value={ledgerSearch}
+                    onChange={(e) => setLedgerSearch(e.target.value)}
+                    aria-label="Filtrar movimientos de caja"
+                    placeholder="Filtrar caja por descripción, cuenta o categoría..."
+                    className={`${INPUT_CLASS} py-2 pl-10 pr-8 text-xs`}
+                  />
+                  {ledgerSearch && (
+                    <button
+                      type="button"
+                      data-compact="true"
+                      aria-label="Limpiar búsqueda de movimientos de caja"
+                      onClick={() => setLedgerSearch("")}
+                      className="absolute inset-y-0 right-2.5 flex items-center text-[#6D6A64] hover:text-[#18181B] cursor-pointer"
+                    >
+                      <CloseIcon className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                </div>
               )}
-            </div>
-          )}
-          <div className="space-y-2 md:max-h-96 md:overflow-y-auto md:pr-1">
-            {filteredLedger.length === 0 ? (
-              <EmptyState
-                title={
-                  ledgerSearch
-                    ? "No hay movimientos que coincidan con tu filtro"
-                    : "No hay movimientos recientes en caja"
-                }
-              />
-            ) : (
-              filteredLedger.map((mov) => {
-                const isIn = mov.direction === "IN";
-                const badgeTone = mov.is_internal_transfer
-                  ? "brand"
-                  : isIn
-                  ? "success"
-                  : "danger";
-                return (
-                  <div
-                    key={mov.ledger_id}
-                    className="flex items-start justify-between gap-2.5 rounded-xl border border-[#E7E5E0] bg-[#FAF9F6]/60 p-2.5 text-xs"
-                  >
-                    <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-center gap-1.5">
-                        <Badge tone={badgeTone}>
-                          {formatCashDirectionEs(
-                            mov.direction,
+              <div className="space-y-2 md:max-h-96 md:overflow-y-auto md:pr-1">
+                {filteredLedger.length === 0 ? (
+                  <EmptyState
+                    title={
+                      ledgerSearch
+                        ? "No hay movimientos que coincidan con tu filtro"
+                        : "No hay movimientos recientes en caja"
+                    }
+                  />
+                ) : (
+                  filteredLedger.map((mov) => {
+                    const isIn = mov.direction === "IN";
+                    const badgeTone = mov.is_internal_transfer
+                      ? "brand"
+                      : isIn
+                        ? "success"
+                        : "danger";
+                    return (
+                      <div
+                        key={mov.ledger_id}
+                        className="flex items-start justify-between gap-2.5 rounded-xl border border-[#E7E5E0] bg-[#FAF9F6]/60 p-2.5 text-xs"
+                      >
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <Badge tone={badgeTone}>
+                              {formatCashDirectionEs(
+                                mov.direction,
+                                mov.is_internal_transfer
+                              )}
+                            </Badge>
+                            <span className="font-semibold text-[#18181B]">
+                              {formatExpenseCategoryEs(mov.expense_category)}
+                            </span>
+                            <span className="text-[11px] text-[#6D6A64]">
+                              · {mov.account_name} · {mov.tx_date}
+                            </span>
+                          </div>
+                          <p className="mt-1 truncate text-xs text-[#5C5A55]">
+                            {mov.description}
+                          </p>
+                        </div>
+                        <span
+                          className={`flex-shrink-0 font-semibold tabular-nums ${
                             mov.is_internal_transfer
-                          )}
-                        </Badge>
-                        <span className="font-semibold text-[#18181B]">
-                          {formatExpenseCategoryEs(mov.expense_category)}
-                        </span>
-                        <span className="text-[11px] text-[#6D6A64]">
-                          · {mov.account_name} · {mov.tx_date}
+                              ? "text-[#1E446B]"
+                              : isIn
+                                ? "text-[#15803D]"
+                                : "text-[#B91C1C]"
+                          }`}
+                        >
+                          {isIn ? "+" : "-"}
+                          {formatPen(mov.amount_pen)}
                         </span>
                       </div>
-                      <p className="mt-1 truncate text-xs text-[#5C5A55]">
-                        {mov.description}
-                      </p>
-                    </div>
-                    <span
-                      className={`flex-shrink-0 font-semibold tabular-nums ${
-                        mov.is_internal_transfer
-                          ? "text-[#1E446B]"
-                          : isIn
-                          ? "text-[#15803D]"
-                          : "text-[#B91C1C]"
-                      }`}
-                    >
-                      {isIn ? "+" : "-"}
-                      {formatPen(mov.amount_pen)}
-                    </span>
-                  </div>
-                );
-              })
-            )}
-          </div>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+          </details>
         </Card>
       </div>
 
@@ -2186,9 +2260,7 @@ export default function CajaProveedoresTab({
               <select
                 id="sup-doc-type"
                 value={supDocType}
-                onChange={(e) =>
-                  setSupDocType(e.target.value as typeof supDocType)
-                }
+                onChange={(e) => setSupDocType(e.target.value as typeof supDocType)}
                 className={`${INPUT_CLASS} mt-1 font-medium`}
               >
                 <option value="RUC">RUC</option>
@@ -2267,12 +2339,13 @@ export default function CajaProveedoresTab({
       {/* AP Payment Modal */}
       <ModalSheet
         open={Boolean(payingAp)}
-        onClose={() => setPayingAp(null)}
+        onClose={() => {
+          setPayingAp(null);
+          setConfirmApPayment(false);
+        }}
         title="Registrar Pago a Proveedor"
         subtitle={
-          payingAp
-            ? `${payingAp.supplier_name} · ${payingAp.doc_ref}`
-            : undefined
+          payingAp ? `${payingAp.supplier_name} · ${payingAp.doc_ref}` : undefined
         }
       >
         {payingAp && (
@@ -2300,27 +2373,30 @@ export default function CajaProveedoresTab({
                   min="0.01"
                   required
                   value={apPayAmount}
-                  onChange={(e) => setApPayAmount(e.target.value)}
+                  onChange={(e) => {
+                    setApPayAmount(e.target.value);
+                    setConfirmApPayment(false);
+                  }}
                   placeholder="0.00"
                   className={`${INPUT_CLASS} flex-1 min-w-[140px] font-semibold tabular-nums`}
                 />
                 <Button
                   variant="secondary"
                   size="sm"
-                  onClick={() =>
-                    setApPayAmount(String(Number(payingAp.balance_due_pen)))
-                  }
+                  onClick={() => {
+                    setApPayAmount(String(Number(payingAp.balance_due_pen)));
+                    setConfirmApPayment(false);
+                  }}
                 >
                   Todo ({formatPen(payingAp.balance_due_pen)})
                 </Button>
                 <Button
                   variant="secondary"
                   size="sm"
-                  onClick={() =>
-                    setApPayAmount(
-                      (Number(payingAp.balance_due_pen) / 2).toFixed(2)
-                    )
-                  }
+                  onClick={() => {
+                    setApPayAmount((Number(payingAp.balance_due_pen) / 2).toFixed(2));
+                    setConfirmApPayment(false);
+                  }}
                 >
                   Mitad
                 </Button>
@@ -2334,7 +2410,10 @@ export default function CajaProveedoresTab({
               <select
                 id="ap-pay-account"
                 value={apPayAccountId}
-                onChange={(e) => setApPayAccountId(e.target.value)}
+                onChange={(e) => {
+                  setApPayAccountId(e.target.value);
+                  setConfirmApPayment(false);
+                }}
                 className={`${INPUT_CLASS} mt-1.5 font-medium`}
               >
                 {accounts.map((acc) => (
@@ -2351,9 +2430,7 @@ export default function CajaProveedoresTab({
             </div>
 
             <div>
-              <FieldLabel htmlFor="ap-pay-notes">
-                Nota / N° Operación
-              </FieldLabel>
+              <FieldLabel htmlFor="ap-pay-notes">Nota / N° Operación</FieldLabel>
               <input
                 id="ap-pay-notes"
                 type="text"
@@ -2364,13 +2441,44 @@ export default function CajaProveedoresTab({
               />
             </div>
 
+            {confirmApPayment && (
+              <div className="space-y-2 rounded-xl border border-[#F3D9B1] bg-[#FDF8F0] p-3 text-xs text-[#5C5A55] tabular-nums">
+                <p className="font-semibold text-[#18181B]">
+                  Revisa el movimiento antes de registrarlo
+                </p>
+                <p>
+                  {payingAp.supplier_name} · {payingAp.doc_ref}
+                </p>
+                <p>
+                  Sale de:{" "}
+                  <strong>{apPayAccount?.name ?? "Cuenta seleccionada"}</strong>
+                </p>
+                <p>
+                  Pago: <strong>{formatPen(Number(apPayAmount))}</strong> · Saldo CxP
+                  después: {formatPen(apPayBalanceAfter)}
+                </p>
+                {apPayAccount?.current_balance_pen !== undefined && (
+                  <p>
+                    Saldo de la cuenta después:{" "}
+                    {formatPen(
+                      Number(apPayAccount.current_balance_pen) -
+                        Number(apPayAmount || 0)
+                    )}
+                  </p>
+                )}
+              </div>
+            )}
+
             <div className="flex gap-2 pt-1">
               <Button
                 variant="outline"
-                onClick={() => setPayingAp(null)}
+                onClick={() => {
+                  if (confirmApPayment) setConfirmApPayment(false);
+                  else setPayingAp(null);
+                }}
                 className="flex-1"
               >
-                Cancelar
+                {confirmApPayment ? "Volver" : "Cancelar"}
               </Button>
               <Button
                 type="submit"
@@ -2378,7 +2486,11 @@ export default function CajaProveedoresTab({
                 disabled={busyApPay}
                 className="flex-[2]"
               >
-                {busyApPay ? "Procesando..." : "Confirmar Pago a Proveedor"}
+                {busyApPay
+                  ? "Procesando..."
+                  : confirmApPayment
+                    ? "Confirmar y registrar pago"
+                    : "Revisar pago"}
               </Button>
             </div>
           </form>
@@ -2434,7 +2546,8 @@ export default function CajaProveedoresTab({
 
             <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-[#E7E5E0] bg-white px-3 py-2.5 text-[#5C5A55] tabular-nums">
               <span>
-                Emisión: <strong className="text-[#18181B]">{detailAp.issue_date}</strong>
+                Emisión:{" "}
+                <strong className="text-[#18181B]">{detailAp.issue_date}</strong>
                 {detailAp.due_date ? ` · Vence: ${detailAp.due_date}` : ""}
               </span>
               <Badge
@@ -2442,8 +2555,8 @@ export default function CajaProveedoresTab({
                   detailAp.status === "PAID"
                     ? "success"
                     : detailAp.status === "PARTIAL"
-                    ? "warning"
-                    : "danger"
+                      ? "warning"
+                      : "danger"
                 }
               >
                 {formatApStatusEs(detailAp.status)}
@@ -2495,8 +2608,8 @@ export default function CajaProveedoresTab({
               ) : Number(detailAp.paid_amount_pen) > 0 ? (
                 <p className="rounded-xl border border-[#FDE68A] bg-[#FFFBEB] px-3 py-2 text-[11px] text-[#78350F] tabular-nums">
                   Abono previo conciliado por{" "}
-                  <strong>{formatPen(detailAp.paid_amount_pen)}</strong>{" "}
-                  (registro anterior al control en vivo; saldo restante:{" "}
+                  <strong>{formatPen(detailAp.paid_amount_pen)}</strong> (registro
+                  anterior al control en vivo; saldo restante:{" "}
                   <strong>{formatPen(detailAp.balance_due_pen)}</strong>).
                 </p>
               ) : (
@@ -2522,6 +2635,7 @@ export default function CajaProveedoresTab({
                       const target = detailAp;
                       setDetailAp(null);
                       setPayingAp(target);
+                      setConfirmApPayment(false);
                       setApPayAmount(String(Number(target.balance_due_pen)));
                       setApPayNotes("");
                     }}
@@ -2560,9 +2674,7 @@ export default function CajaProveedoresTab({
                 <strong className="text-[#18181B]">
                   {formatDocTypeEs(detailPurchase.doc_type)}
                 </strong>
-                {detailPurchase.due_date
-                  ? ` · Vence: ${detailPurchase.due_date}`
-                  : ""}
+                {detailPurchase.due_date ? ` · Vence: ${detailPurchase.due_date}` : ""}
               </span>
               <span className="font-semibold text-[#18181B]">
                 Total: {formatPen(detailPurchase.total_pen)}

@@ -5,6 +5,7 @@ import {
   verifySessionToken,
 } from "@/lib/auth";
 import { withClient, withTransaction } from "@/lib/db";
+import { runIdempotentMutation } from "@/lib/idempotency";
 import { assertRole } from "@/lib/rbac";
 import {
   getOrderPaymentTimeline,
@@ -83,35 +84,54 @@ export async function POST(req: NextRequest) {
         "PARTNER_MANAGER",
         "EXTERNAL_SELLER",
       ]);
-      if (mode === "fifo_customer") {
-        const allocations = await registerCustomerFifoPayment(client, actor, {
-          customerPartyId: parsePositiveInt(body.customerPartyId, "Cliente"),
-          totalAmountPen: Number(body.totalAmountPen),
-          paymentMode: body.paymentMode || "CASH",
-          accountId: body.accountId ? parsePositiveInt(body.accountId, "Cuenta") : undefined,
-          notes: body.notes,
-          nextCollectionDays,
-          nextPromisedPaymentDate: body.nextPromisedPaymentDate ?? null,
-        });
-        return { allocations };
-      }
+      return runIdempotentMutation(
+        client,
+        req,
+        actor,
+        `collections:${mode}`,
+        body,
+        async () => {
+          if (mode === "fifo_customer") {
+            const allocations = await registerCustomerFifoPayment(client, actor, {
+              customerPartyId: parsePositiveInt(
+                body.customerPartyId,
+                "Cliente"
+              ),
+              totalAmountPen: Number(body.totalAmountPen),
+              paymentMode: body.paymentMode || "CASH",
+              accountId: body.accountId
+                ? parsePositiveInt(body.accountId, "Cuenta")
+                : undefined,
+              notes: body.notes,
+              nextCollectionDays,
+              nextPromisedPaymentDate: body.nextPromisedPaymentDate ?? null,
+            });
+            return { allocations };
+          }
 
-      return await registerOrderPayment(client, actor, {
-        orderId: parsePositiveInt(body.orderId, "Pedido"),
-        amountPen: Number(body.amountPen),
-        paymentMode: body.paymentMode || "CASH",
-        accountId: body.accountId ? parsePositiveInt(body.accountId, "Cuenta") : undefined,
-        notes: body.notes,
-        nextCollectionDays,
-        nextPromisedPaymentDate: body.nextPromisedPaymentDate ?? null,
-      });
+          return await registerOrderPayment(client, actor, {
+            orderId: parsePositiveInt(body.orderId, "Pedido"),
+            amountPen: Number(body.amountPen),
+            paymentMode: body.paymentMode || "CASH",
+            accountId: body.accountId
+              ? parsePositiveInt(body.accountId, "Cuenta")
+              : undefined,
+            notes: body.notes,
+            nextCollectionDays,
+            nextPromisedPaymentDate: body.nextPromisedPaymentDate ?? null,
+          });
+        }
+      );
     });
 
     return NextResponse.json(result, { headers: NO_STORE_HEADERS });
   } catch (err) {
-    const { status, error } = resolveHttpError(err, "Error registrando abono");
+    const { status, error, code, entityRef } = resolveHttpError(
+      err,
+      "Error registrando abono"
+    );
     return NextResponse.json(
-      { error },
+      { error, ...(code ? { code } : {}), ...(entityRef ? { entityRef } : {}) },
       { status, headers: NO_STORE_HEADERS }
     );
   }

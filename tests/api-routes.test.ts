@@ -4,9 +4,15 @@ import { signSessionToken } from "../src/lib/auth";
 import { getPool, resolveDatabaseUrl } from "../src/lib/db";
 import { GET as getOrders } from "../src/app/api/orders/route";
 import { GET as getCollections } from "../src/app/api/collections/route";
-import { GET as getPartners, POST as postPartners } from "../src/app/api/partners/route";
+import {
+  GET as getPartners,
+  POST as postPartners,
+} from "../src/app/api/partners/route";
 import { GET as getTreasury } from "../src/app/api/treasury/route";
-import { GET as getPurchases, POST as postPurchases } from "../src/app/api/purchases/route";
+import {
+  GET as getPurchases,
+  POST as postPurchases,
+} from "../src/app/api/purchases/route";
 import { GET as getReports } from "../src/app/api/reports/route";
 
 beforeAll(() => {
@@ -323,7 +329,9 @@ describe("API Route Role Enforcement, DB Branch Isolation & Endpoint Contracts",
         `SELECT is_active FROM erp.app_users WHERE user_id = 3`
       );
       expect(before.rows[0].is_active).toBe(true);
-      await client.query(`UPDATE erp.app_users SET is_active = FALSE WHERE user_id = 3`);
+      await client.query(
+        `UPDATE erp.app_users SET is_active = FALSE WHERE user_id = 3`
+      );
       const after = await client.query(
         `SELECT is_active FROM erp.app_users WHERE user_id = 3`
       );
@@ -386,20 +394,18 @@ describe("API Route Role Enforcement, DB Branch Isolation & Endpoint Contracts",
     const spyClient = vi
       .spyOn(dbMod, "withClient")
       .mockImplementation(async (fn) => await fn(client));
-    const spyTx = vi
-      .spyOn(dbMod, "withTransaction")
-      .mockImplementation(async (fn) => {
-        const sp = `sp_route_${++spCounter}`;
-        await client.query(`SAVEPOINT ${sp}`);
-        try {
-          const out = await fn(client);
-          await client.query(`RELEASE SAVEPOINT ${sp}`);
-          return out;
-        } catch (err) {
-          await client.query(`ROLLBACK TO SAVEPOINT ${sp}`);
-          throw err;
-        }
-      });
+    const spyTx = vi.spyOn(dbMod, "withTransaction").mockImplementation(async (fn) => {
+      const sp = `sp_route_${++spCounter}`;
+      await client.query(`SAVEPOINT ${sp}`);
+      try {
+        const out = await fn(client);
+        await client.query(`RELEASE SAVEPOINT ${sp}`);
+        return out;
+      } catch (err) {
+        await client.query(`ROLLBACK TO SAVEPOINT ${sp}`);
+        throw err;
+      }
+    });
 
     try {
       await client.query("BEGIN");
@@ -428,7 +434,11 @@ describe("API Route Role Enforcement, DB Branch Isolation & Endpoint Contracts",
         user_id: number;
         username: string;
         full_name: string;
-        role: "PARTNER_ADMIN" | "PARTNER_MANAGER" | "EXTERNAL_SELLER" | "WAREHOUSE_DELIVERY";
+        role:
+          | "PARTNER_ADMIN"
+          | "PARTNER_MANAGER"
+          | "EXTERNAL_SELLER"
+          | "WAREHOUSE_DELIVERY";
         default_cash_account_id: number | null;
         pin_hash: string;
       }>(
@@ -442,7 +452,10 @@ describe("API Route Role Enforcement, DB Branch Isolation & Endpoint Contracts",
           username: String(u.username),
           fullName: String(u.full_name),
           role: u.role,
-          defaultCashAccountId: u.default_cash_account_id !== null ? Number(u.default_cash_account_id) : null,
+          defaultCashAccountId:
+            u.default_cash_account_id !== null
+              ? Number(u.default_cash_account_id)
+              : null,
           sessionVersion: authMod.computeSessionVersion(String(u.pin_hash), u.role),
         });
       };
@@ -467,34 +480,46 @@ describe("API Route Role Enforcement, DB Branch Isolation & Endpoint Contracts",
         [warehouseId, productId]
       );
 
-      const { createSupplier } = await import("../src/lib/services/purchases-and-suppliers");
-      const { supplier } = await createSupplier(client, {
-        userId: 1,
-        username: "socio_admin",
-        fullName: "Socio Operativo y Admin",
-        role: "PARTNER_ADMIN",
-        defaultCashAccountId: 1,
-      }, {
-        legalName: "PROVEEDOR HTTP TEST SAC",
-        tradeName: "PROVEEDOR HTTP TEST",
-        docType: "RUC",
-        docNumber: "20987654321",
-      });
+      const { createSupplier } =
+        await import("../src/lib/services/purchases-and-suppliers");
+      const { supplier } = await createSupplier(
+        client,
+        {
+          userId: 1,
+          username: "socio_admin",
+          fullName: "Socio Operativo y Admin",
+          role: "PARTNER_ADMIN",
+          defaultCashAccountId: 1,
+        },
+        {
+          legalName: "PROVEEDOR HTTP TEST SAC",
+          tradeName: "PROVEEDOR HTTP TEST",
+          docType: "RUC",
+          docNumber: "20987654321",
+        }
+      );
       const supplierPartyId = supplier.party_id;
 
       const accRes = await client.query<{ account_id: number; account_type: string }>(
         `SELECT account_id, account_type FROM erp.cash_accounts WHERE is_active = TRUE ORDER BY account_id ASC`
       );
-      const nonCustodyAccs = accRes.rows.filter((a) => a.account_type !== "PARTNER_CUSTODY");
+      const nonCustodyAccs = accRes.rows.filter(
+        (a) => a.account_type !== "PARTNER_CUSTODY"
+      );
       const custodyAcc = accRes.rows.find((a) => a.account_type === "PARTNER_CUSTODY");
       const sellerAccId = Number(nonCustodyAccs[0].account_id);
-      const secondAccId = Number((custodyAcc ?? nonCustodyAccs[1] ?? nonCustodyAccs[0]).account_id);
+      const secondAccId = Number(
+        (custodyAcc ?? nonCustodyAccs[1] ?? nonCustodyAccs[0]).account_id
+      );
 
-      // 2. POST /api/orders: create + below-floor approval + collection blocking + warehouse READY
+      // 2. POST /api/orders: create + below-cost approval + collection blocking + warehouse READY
       const createOrdRes = await ordersRoute.POST(
         new NextRequest("http://localhost:3000/api/orders", {
           method: "POST",
-          headers: { cookie: `bht_session=${sellerTok}`, "Content-Type": "application/json" },
+          headers: {
+            cookie: `bht_session=${sellerTok}`,
+            "Content-Type": "application/json",
+          },
           body: JSON.stringify({
             customerNameRaw: "CLIENTE HTTP CREDIT",
             paymentMode: "CREDIT",
@@ -511,12 +536,15 @@ describe("API Route Role Enforcement, DB Branch Isolation & Endpoint Contracts",
       const pendingOrdRes = await ordersRoute.POST(
         new NextRequest("http://localhost:3000/api/orders", {
           method: "POST",
-          headers: { cookie: `bht_session=${sellerTok}`, "Content-Type": "application/json" },
+          headers: {
+            cookie: `bht_session=${sellerTok}`,
+            "Content-Type": "application/json",
+          },
           body: JSON.stringify({
             customerNameRaw: "CLIENTE HTTP FLOOR",
             paymentMode: "CREDIT",
             creditDays: 7,
-            lines: [{ productId, quantity: 2, unitDiscountPen: 20 }],
+            lines: [{ productId, quantity: 2, unitDiscountPen: 45 }],
           }),
         })
       );
@@ -528,7 +556,10 @@ describe("API Route Role Enforcement, DB Branch Isolation & Endpoint Contracts",
       const payPendingRes = await collectionsRoute.POST(
         new NextRequest("http://localhost:3000/api/collections", {
           method: "POST",
-          headers: { cookie: `bht_session=${sellerTok}`, "Content-Type": "application/json" },
+          headers: {
+            cookie: `bht_session=${sellerTok}`,
+            "Content-Type": "application/json",
+          },
           body: JSON.stringify({
             mode: "single_order",
             orderId: pendingOrd.orderId,
@@ -543,7 +574,10 @@ describe("API Route Role Enforcement, DB Branch Isolation & Endpoint Contracts",
       const approveRes = await ordersRoute.POST(
         new NextRequest("http://localhost:3000/api/orders", {
           method: "POST",
-          headers: { cookie: `bht_session=${adminTok}`, "Content-Type": "application/json" },
+          headers: {
+            cookie: `bht_session=${adminTok}`,
+            "Content-Type": "application/json",
+          },
           body: JSON.stringify({ action: "approve", orderId: pendingOrd.orderId }),
         })
       );
@@ -553,8 +587,15 @@ describe("API Route Role Enforcement, DB Branch Isolation & Endpoint Contracts",
       const readyRes = await ordersRoute.POST(
         new NextRequest("http://localhost:3000/api/orders", {
           method: "POST",
-          headers: { cookie: `bht_session=${whTok}`, "Content-Type": "application/json" },
-          body: JSON.stringify({ action: "advance", orderId: createdOrd.orderId, nextStatus: "READY" }),
+          headers: {
+            cookie: `bht_session=${whTok}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            action: "advance",
+            orderId: createdOrd.orderId,
+            nextStatus: "READY",
+          }),
         })
       );
       expect(readyRes.status).toBe(200);
@@ -563,8 +604,15 @@ describe("API Route Role Enforcement, DB Branch Isolation & Endpoint Contracts",
       const createTripRes = await tripsRoute.POST(
         new NextRequest("http://localhost:3000/api/trips", {
           method: "POST",
-          headers: { cookie: `bht_session=${whTok}`, "Content-Type": "application/json" },
-          body: JSON.stringify({ action: "create_trip", zoneName: "CONO SUR", driverName: "Almacen Test" }),
+          headers: {
+            cookie: `bht_session=${whTok}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            action: "create_trip",
+            zoneName: "CONO SUR",
+            driverName: "Almacen Test",
+          }),
         })
       );
       expect(createTripRes.status).toBe(200);
@@ -574,7 +622,10 @@ describe("API Route Role Enforcement, DB Branch Isolation & Endpoint Contracts",
       const assignRes = await tripsRoute.POST(
         new NextRequest("http://localhost:3000/api/trips", {
           method: "POST",
-          headers: { cookie: `bht_session=${whTok}`, "Content-Type": "application/json" },
+          headers: {
+            cookie: `bht_session=${whTok}`,
+            "Content-Type": "application/json",
+          },
           body: JSON.stringify({
             action: "assign_order",
             tripId: createdTrip.tripId,
@@ -594,12 +645,17 @@ describe("API Route Role Enforcement, DB Branch Isolation & Endpoint Contracts",
       );
       expect(whTripsGet.status).toBe(200);
       const whTripsJson = await whTripsGet.json();
-      expect(JSON.stringify(whTripsJson)).not.toMatch(/computed_sales_pen|declared_gross_sales_pen/);
+      expect(JSON.stringify(whTripsJson)).not.toMatch(
+        /computed_sales_pen|declared_gross_sales_pen/
+      );
 
       const whReconcileRes = await tripsRoute.POST(
         new NextRequest("http://localhost:3000/api/trips", {
           method: "POST",
-          headers: { cookie: `bht_session=${whTok}`, "Content-Type": "application/json" },
+          headers: {
+            cookie: `bht_session=${whTok}`,
+            "Content-Type": "application/json",
+          },
           body: JSON.stringify({
             action: "close_trip",
             tripId: createdTrip.tripId,
@@ -620,7 +676,10 @@ describe("API Route Role Enforcement, DB Branch Isolation & Endpoint Contracts",
       const createQuoteRes = await quotesRoute.POST(
         new NextRequest("http://localhost:3000/api/quotes", {
           method: "POST",
-          headers: { cookie: `bht_session=${sellerTok}`, "Content-Type": "application/json" },
+          headers: {
+            cookie: `bht_session=${sellerTok}`,
+            "Content-Type": "application/json",
+          },
           body: JSON.stringify({
             action: "create_quote",
             customerNameRaw: "CLIENTE COTIZACION HTTP",
@@ -635,7 +694,10 @@ describe("API Route Role Enforcement, DB Branch Isolation & Endpoint Contracts",
       const convertQuoteRes = await quotesRoute.POST(
         new NextRequest("http://localhost:3000/api/quotes", {
           method: "POST",
-          headers: { cookie: `bht_session=${sellerTok}`, "Content-Type": "application/json" },
+          headers: {
+            cookie: `bht_session=${sellerTok}`,
+            "Content-Type": "application/json",
+          },
           body: JSON.stringify({
             action: "convert_to_order",
             quoteId: createdQuote.quoteId,
@@ -651,7 +713,10 @@ describe("API Route Role Enforcement, DB Branch Isolation & Endpoint Contracts",
       const cancelConvertedRes = await quotesRoute.POST(
         new NextRequest("http://localhost:3000/api/quotes", {
           method: "POST",
-          headers: { cookie: `bht_session=${sellerTok}`, "Content-Type": "application/json" },
+          headers: {
+            cookie: `bht_session=${sellerTok}`,
+            "Content-Type": "application/json",
+          },
           body: JSON.stringify({
             action: "update_status",
             quoteId: createdQuote.quoteId,
@@ -665,7 +730,10 @@ describe("API Route Role Enforcement, DB Branch Isolation & Endpoint Contracts",
       const abonoRes = await collectionsRoute.POST(
         new NextRequest("http://localhost:3000/api/collections", {
           method: "POST",
-          headers: { cookie: `bht_session=${sellerTok}`, "Content-Type": "application/json" },
+          headers: {
+            cookie: `bht_session=${sellerTok}`,
+            "Content-Type": "application/json",
+          },
           body: JSON.stringify({
             mode: "single_order",
             orderId: createdOrd.orderId,
@@ -683,7 +751,10 @@ describe("API Route Role Enforcement, DB Branch Isolation & Endpoint Contracts",
       const overpayRes = await collectionsRoute.POST(
         new NextRequest("http://localhost:3000/api/collections", {
           method: "POST",
-          headers: { cookie: `bht_session=${sellerTok}`, "Content-Type": "application/json" },
+          headers: {
+            cookie: `bht_session=${sellerTok}`,
+            "Content-Type": "application/json",
+          },
           body: JSON.stringify({
             mode: "single_order",
             orderId: createdOrd.orderId,
@@ -698,7 +769,10 @@ describe("API Route Role Enforcement, DB Branch Isolation & Endpoint Contracts",
       const sellerTransferRes = await treasuryRoute.POST(
         new NextRequest("http://localhost:3000/api/treasury", {
           method: "POST",
-          headers: { cookie: `bht_session=${sellerTok}`, "Content-Type": "application/json" },
+          headers: {
+            cookie: `bht_session=${sellerTok}`,
+            "Content-Type": "application/json",
+          },
           body: JSON.stringify({
             amountPen: 30,
             isInternalTransfer: true,
@@ -715,7 +789,10 @@ describe("API Route Role Enforcement, DB Branch Isolation & Endpoint Contracts",
         const sellerCustodyRes = await treasuryRoute.POST(
           new NextRequest("http://localhost:3000/api/treasury", {
             method: "POST",
-            headers: { cookie: `bht_session=${sellerTok}`, "Content-Type": "application/json" },
+            headers: {
+              cookie: `bht_session=${sellerTok}`,
+              "Content-Type": "application/json",
+            },
             body: JSON.stringify({
               amountPen: 15,
               expenseBucket: "ROUTE_OPEX",
@@ -731,7 +808,10 @@ describe("API Route Role Enforcement, DB Branch Isolation & Endpoint Contracts",
       const routeOpexRes = await treasuryRoute.POST(
         new NextRequest("http://localhost:3000/api/treasury", {
           method: "POST",
-          headers: { cookie: `bht_session=${sellerTok}`, "Content-Type": "application/json" },
+          headers: {
+            cookie: `bht_session=${sellerTok}`,
+            "Content-Type": "application/json",
+          },
           body: JSON.stringify({
             amountPen: 25,
             expenseBucket: "ROUTE_OPEX",
@@ -747,7 +827,10 @@ describe("API Route Role Enforcement, DB Branch Isolation & Endpoint Contracts",
         const transferRes = await treasuryRoute.POST(
           new NextRequest("http://localhost:3000/api/treasury", {
             method: "POST",
-            headers: { cookie: `bht_session=${adminTok}`, "Content-Type": "application/json" },
+            headers: {
+              cookie: `bht_session=${adminTok}`,
+              "Content-Type": "application/json",
+            },
             body: JSON.stringify({
               amountPen: 40,
               isInternalTransfer: true,
@@ -765,7 +848,10 @@ describe("API Route Role Enforcement, DB Branch Isolation & Endpoint Contracts",
       const sellerPurchaseRes = await purchasesRoute.POST(
         new NextRequest("http://localhost:3000/api/purchases", {
           method: "POST",
-          headers: { cookie: `bht_session=${sellerTok}`, "Content-Type": "application/json" },
+          headers: {
+            cookie: `bht_session=${sellerTok}`,
+            "Content-Type": "application/json",
+          },
           body: JSON.stringify({ action: "register_purchase" }),
         })
       );
@@ -774,7 +860,10 @@ describe("API Route Role Enforcement, DB Branch Isolation & Endpoint Contracts",
       const purchaseRes = await purchasesRoute.POST(
         new NextRequest("http://localhost:3000/api/purchases", {
           method: "POST",
-          headers: { cookie: `bht_session=${adminTok}`, "Content-Type": "application/json" },
+          headers: {
+            cookie: `bht_session=${adminTok}`,
+            "Content-Type": "application/json",
+          },
           body: JSON.stringify({
             action: "register_purchase",
             supplierPartyId,
@@ -804,7 +893,10 @@ describe("API Route Role Enforcement, DB Branch Isolation & Endpoint Contracts",
       const whFlagPost = await auditFlagsRoute.POST(
         new NextRequest("http://localhost:3000/api/audit-flags", {
           method: "POST",
-          headers: { cookie: `bht_session=${whTok}`, "Content-Type": "application/json" },
+          headers: {
+            cookie: `bht_session=${whTok}`,
+            "Content-Type": "application/json",
+          },
           body: JSON.stringify({ action: "resolve", flagId: 1 }),
         })
       );
@@ -827,13 +919,22 @@ describe("API Route Role Enforcement, DB Branch Isolation & Endpoint Contracts",
       );
       expect(getFlagsRes.status).toBe(200);
       const flagsBody = await getFlagsRes.json();
-      expect(flagsBody.flags.some((f: { flag_id: number }) => f.flag_id === flagId)).toBe(true);
+      expect(
+        flagsBody.flags.some((f: { flag_id: number }) => f.flag_id === flagId)
+      ).toBe(true);
 
       const ackFlagRes = await auditFlagsRoute.POST(
         new NextRequest("http://localhost:3000/api/audit-flags", {
           method: "POST",
-          headers: { cookie: `bht_session=${adminTok}`, "Content-Type": "application/json" },
-          body: JSON.stringify({ action: "acknowledge", flagId, resolutionNote: "Revisando" }),
+          headers: {
+            cookie: `bht_session=${adminTok}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            action: "acknowledge",
+            flagId,
+            resolutionNote: "Revisando",
+          }),
         })
       );
       expect(ackFlagRes.status).toBe(200);
@@ -842,8 +943,15 @@ describe("API Route Role Enforcement, DB Branch Isolation & Endpoint Contracts",
       const resolveFlagRes = await auditFlagsRoute.POST(
         new NextRequest("http://localhost:3000/api/audit-flags", {
           method: "POST",
-          headers: { cookie: `bht_session=${adminTok}`, "Content-Type": "application/json" },
-          body: JSON.stringify({ action: "resolve", flagId, resolutionNote: "Cerrado HTTP" }),
+          headers: {
+            cookie: `bht_session=${adminTok}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            action: "resolve",
+            flagId,
+            resolutionNote: "Cerrado HTTP",
+          }),
         })
       );
       expect(resolveFlagRes.status).toBe(200);
@@ -853,7 +961,10 @@ describe("API Route Role Enforcement, DB Branch Isolation & Endpoint Contracts",
       const badPinRes = await postPartners(
         new NextRequest("http://localhost:3000/api/partners", {
           method: "POST",
-          headers: { cookie: `bht_session=${adminTok}`, "Content-Type": "application/json" },
+          headers: {
+            cookie: `bht_session=${adminTok}`,
+            "Content-Type": "application/json",
+          },
           body: JSON.stringify({ action: "update_user_pin", userId: 3, newPin: "12" }),
         })
       );
@@ -862,8 +973,15 @@ describe("API Route Role Enforcement, DB Branch Isolation & Endpoint Contracts",
       const goodPinRes = await postPartners(
         new NextRequest("http://localhost:3000/api/partners", {
           method: "POST",
-          headers: { cookie: `bht_session=${adminTok}`, "Content-Type": "application/json" },
-          body: JSON.stringify({ action: "update_user_pin", userId: 3, newPin: "987654" }),
+          headers: {
+            cookie: `bht_session=${adminTok}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            action: "update_user_pin",
+            userId: 3,
+            newPin: "987654",
+          }),
         })
       );
       expect(goodPinRes.status).toBe(200);
