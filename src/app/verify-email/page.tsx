@@ -21,6 +21,7 @@ export default function VerifyEmailPage() {
   const [otp, setOtp] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState("Ingresa el código enviado a tu correo.");
+  const [verified, setVerified] = useState(false);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -41,12 +42,17 @@ export default function VerifyEmailPage() {
       }
       const response = await fetch("/api/erp/session", { cache: "no-store" });
       const data = await response.json();
-      if (!response.ok || !data.session) {
-        await authClient.signOut();
-        setError("El correo quedó verificado, pero aún no tiene permisos ERP. Pide a un socio administrador que lo habilite.");
+      if (response.ok && data.session) {
+        router.replace(routeForRole(data.session.role));
         return;
       }
-      router.replace(routeForRole(data.session.role));
+      if (response.status === 403) {
+        await authClient.signOut();
+        setVerified(true);
+        setMessage("Correo verificado. Inicia sesión o restablece tu contraseña para continuar.");
+        return;
+      }
+      setError("No pudimos confirmar la sesión. Intenta ingresar nuevamente.");
     } catch {
       setError("No se pudo verificar el correo. Revisa la conexión e inténtalo nuevamente.");
     } finally {
@@ -82,6 +88,12 @@ export default function VerifyEmailPage() {
           </div>
           <p role="status" className="text-xs text-[#6D6A64]">{message}</p>
           {error && <ToastBanner type="err" message={error} />}
+          {verified && (
+            <p className="flex justify-between gap-3 text-xs font-medium">
+              <Link href="/login" className="text-[#1E446B] underline-offset-4 hover:underline">Ingresar</Link>
+              <Link href="/forgot-password" className="text-[#1E446B] underline-offset-4 hover:underline">Crear o restablecer contraseña</Link>
+            </p>
+          )}
         </div>
         <Button type="submit" variant="primary" size="lg" disabled={loading} className="mt-6 w-full">{loading ? "Verificando…" : "Verificar correo"}</Button>
         <Button type="button" variant="outline" size="md" disabled={loading || !email} onClick={() => void resendCode()} className="mt-2 w-full">Reenviar código</Button>
