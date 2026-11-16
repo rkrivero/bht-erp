@@ -4,9 +4,9 @@ import { useState, type FormEvent } from "react";
 import Link from "next/link";
 import AuthCardShell from "@/components/auth/AuthCardShell";
 import { authClient } from "@/lib/auth/client";
+import { Button, FieldLabel, INPUT_CLASS, ToastBanner } from "@/components/ui/Primitives";
 
 export const dynamic = "force-dynamic";
-import { Button, FieldLabel, INPUT_CLASS, ToastBanner } from "@/components/ui/Primitives";
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("");

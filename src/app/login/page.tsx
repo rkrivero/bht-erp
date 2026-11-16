@@ -139,6 +139,9 @@ export default function LoginPage() {
             <Link href="/signup" className="text-[#1E446B] underline-offset-4 hover:underline">
               Crear cuenta
             </Link>
+            <Link href="/verify-email" className="text-[#1E446B] underline-offset-4 hover:underline">
+              Verificar correo
+            </Link>
             <Link href="/forgot-password" className="text-[#1E446B] underline-offset-4 hover:underline">
               Olvidé mi contraseña
             </Link>
