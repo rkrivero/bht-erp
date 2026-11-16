@@ -1,6 +1,6 @@
 import type { PoolClient } from "pg";
 
-export const REQUIRED_SCHEMA_VERSION = "011_neon_auth_identity_link";
+export const REQUIRED_SCHEMA_VERSION = "012_analytics_view_refresh";
 
 const verifiedBranches = new Set<"dev" | "main">();
 
