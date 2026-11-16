@@ -1491,6 +1491,9 @@ export default function VendedorPage() {
     [cart.length, openQuotesCount, debtorsByOrder.length]
   );
 
+  const activeTabLabel =
+    navItems.find((item) => item.id === tab)?.label ?? "Pedido";
+
   async function handleLogout() {
     if (loggingOut) return;
     setLoggingOut(true);
@@ -1554,6 +1557,15 @@ export default function VendedorPage() {
           onChange={setTab}
           className="hidden md:flex"
         />
+
+        <div
+          className="flex items-center gap-2 rounded-2xl border border-[#D4E0EC] bg-white px-3.5 py-3 text-xs shadow-[0_1px_2px_rgba(15,41,66,0.04)]"
+          aria-label={`Ubicación actual: ${activeTabLabel}`}
+        >
+          <span className="font-medium text-[#6D6A64]">Ventas y Cobranzas</span>
+          <ChevronRightIcon className="h-3.5 w-3.5 text-[#A8A49C]" aria-hidden="true" />
+          <span className="font-semibold text-[#0F2942]">{activeTabLabel}</span>
+        </div>
 
         {feedback && (
           <ToastBanner

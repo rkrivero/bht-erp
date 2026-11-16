@@ -227,6 +227,7 @@ export default function SociosPage() {
   const [showAllCatalog, setShowAllCatalog] = useState(false);
   const [showAllMonitor, setShowAllMonitor] = useState(false);
   const [monitorSearch, setMonitorSearch] = useState("");
+  const [globalSearch, setGlobalSearch] = useState("");
   const deferredMonitorSearch = useDeferredValue(monitorSearch);
   const [monitorStatusFilter, setMonitorStatusFilter] =
     useState<MonitorStatusFilter>("ALL");
@@ -1085,6 +1086,22 @@ export default function SociosPage() {
     ]
   );
 
+  const activeTabLabel =
+    navItems.find((item) => item.id === tab)?.label ?? "Control en Vivo";
+
+  function handleGlobalSearchSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const query = globalSearch.trim();
+    if (!query) {
+      handleTabChange("pedidos");
+      return;
+    }
+    setMonitorSearch(query);
+    setMonitorStatusFilter("ALL");
+    setShowAllMonitor(true);
+    handleTabChange("pedidos");
+  }
+
   // Live margin preview when editing product
   const previewCost = Number(editCost);
   const previewPrice = Number(editPrice);
@@ -1167,6 +1184,38 @@ export default function SociosPage() {
           onChange={handleTabChange}
           className="hidden md:flex"
         />
+
+        <div className="flex flex-col gap-3 rounded-2xl border border-[#D4E0EC] bg-white p-3 shadow-[0_1px_2px_rgba(15,41,66,0.04)] sm:flex-row sm:items-center sm:justify-between sm:p-3.5">
+          <div className="flex min-w-0 items-center gap-2 text-xs text-[#6D6A64]">
+            <span className="font-medium text-[#5C5A55]">Inicio</span>
+            <ChevronRightIcon className="h-3.5 w-3.5 text-[#A8A49C]" aria-hidden="true" />
+            <span className="truncate font-semibold text-[#0F2942]">{activeTabLabel}</span>
+          </div>
+          <form
+            onSubmit={handleGlobalSearchSubmit}
+            className="flex min-w-0 flex-1 items-center gap-2 sm:max-w-md"
+            role="search"
+            aria-label="Búsqueda global"
+          >
+            <div className="relative min-w-0 flex-1">
+              <SearchIcon
+                className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-[#6D6A64]"
+                aria-hidden="true"
+              />
+              <input
+                type="search"
+                value={globalSearch}
+                onChange={(event) => setGlobalSearch(event.target.value)}
+                placeholder="Buscar pedido, cliente o vendedor..."
+                aria-label="Buscar pedido, cliente o vendedor"
+                className={`${INPUT_CLASS} py-2.5 pl-10 pr-3 text-xs`}
+              />
+            </div>
+            <Button type="submit" variant="brand" size="sm" className="min-h-[42px] shrink-0">
+              Buscar
+            </Button>
+          </form>
+        </div>
 
         {feedback && (
           <ToastBanner
