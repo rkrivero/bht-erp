@@ -6,11 +6,7 @@ import {
   getSessionUser,
   parseRequestedScopes,
 } from "@/lib/realtime/sync-engine";
-import {
-  AuthenticationError,
-  AuthorizationError,
-  ValidationError,
-} from "@/lib/types";
+import { AuthenticationError, AuthorizationError, ValidationError } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -26,7 +22,7 @@ const SSE_MAX_LIFETIME_MS = 55000;
 
 export async function GET(req: NextRequest) {
   try {
-    const actor = await getSessionUser();
+    const actor = await getSessionUser(req);
     if (!actor) {
       return NextResponse.json(
         { error: "No autenticado" },
@@ -178,10 +174,10 @@ export async function GET(req: NextRequest) {
       err instanceof AuthenticationError
         ? 401
         : err instanceof AuthorizationError
-        ? 403
-        : err instanceof ValidationError
-        ? 400
-        : 500;
+          ? 403
+          : err instanceof ValidationError
+            ? 400
+            : 500;
     return NextResponse.json(
       {
         error:

@@ -1,8 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import {
-  getAuthenticatedERPActor,
-  requireActiveSession,
-} from "@/lib/auth";
+import { getAuthenticatedERPActor, requireActiveSession } from "@/lib/auth";
 import { withClient, withTransaction } from "@/lib/db";
 import { runIdempotentMutation } from "@/lib/idempotency";
 import { assertRole } from "@/lib/rbac";
@@ -12,10 +9,7 @@ import {
   registerCustomerFifoPayment,
   registerOrderPayment,
 } from "@/lib/services/collections-and-treasury";
-import {
-  parsePositiveInt,
-  resolveHttpError,
-} from "@/lib/types";
+import { parsePositiveInt, resolveHttpError } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
@@ -23,7 +17,7 @@ const NO_STORE_HEADERS = { "Cache-Control": "no-store" };
 
 export async function GET(req: NextRequest) {
   try {
-    const parsedActor = assertRole(await getAuthenticatedERPActor(), [
+    const parsedActor = assertRole(await getAuthenticatedERPActor(req), [
       "PARTNER_ADMIN",
       "PARTNER_MANAGER",
       "EXTERNAL_SELLER",
@@ -38,11 +32,7 @@ export async function GET(req: NextRequest) {
       ]);
       if (orderIdParam) {
         const orderId = parsePositiveInt(orderIdParam, "Pedido");
-        const timeline = await getOrderPaymentTimeline(
-          client,
-          actor,
-          orderId
-        );
+        const timeline = await getOrderPaymentTimeline(client, actor, orderId);
         return { timeline };
       }
       return await listDebtors(client, actor);
@@ -51,16 +41,13 @@ export async function GET(req: NextRequest) {
     return NextResponse.json(data, { headers: NO_STORE_HEADERS });
   } catch (err) {
     const { status, error } = resolveHttpError(err, "Error en cobranzas");
-    return NextResponse.json(
-      { error },
-      { status, headers: NO_STORE_HEADERS }
-    );
+    return NextResponse.json({ error }, { status, headers: NO_STORE_HEADERS });
   }
 }
 
 export async function POST(req: NextRequest) {
   try {
-    const parsedActor = assertRole(await getAuthenticatedERPActor(), [
+    const parsedActor = assertRole(await getAuthenticatedERPActor(req), [
       "PARTNER_ADMIN",
       "PARTNER_MANAGER",
       "EXTERNAL_SELLER",
@@ -72,8 +59,8 @@ export async function POST(req: NextRequest) {
       body.nextCollectionDays === null
         ? null
         : body.nextCollectionDays !== undefined && body.nextCollectionDays !== ""
-        ? Number(body.nextCollectionDays)
-        : undefined;
+          ? Number(body.nextCollectionDays)
+          : undefined;
 
     const result = await withTransaction(async (client) => {
       const actor = assertRole(await requireActiveSession(client, parsedActor), [
@@ -90,10 +77,7 @@ export async function POST(req: NextRequest) {
         async () => {
           if (mode === "fifo_customer") {
             const allocations = await registerCustomerFifoPayment(client, actor, {
-              customerPartyId: parsePositiveInt(
-                body.customerPartyId,
-                "Cliente"
-              ),
+              customerPartyId: parsePositiveInt(body.customerPartyId, "Cliente"),
               totalAmountPen: Number(body.totalAmountPen),
               paymentMode: body.paymentMode || "CASH",
               accountId: body.accountId

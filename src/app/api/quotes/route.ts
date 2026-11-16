@@ -1,8 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import {
-  getAuthenticatedERPActor,
-  requireActiveSession,
-} from "@/lib/auth";
+import { getAuthenticatedERPActor, requireActiveSession } from "@/lib/auth";
 import { withClient, withTransaction } from "@/lib/db";
 import { assertRole } from "@/lib/rbac";
 import {
@@ -19,7 +16,7 @@ const NO_STORE_HEADERS = { "Cache-Control": "no-store" };
 
 export async function GET(req: NextRequest) {
   try {
-    const parsedActor = assertRole(await getAuthenticatedERPActor(), [
+    const parsedActor = assertRole(await getAuthenticatedERPActor(req), [
       "PARTNER_ADMIN",
       "PARTNER_MANAGER",
       "EXTERNAL_SELLER",
@@ -40,16 +37,13 @@ export async function GET(req: NextRequest) {
     return NextResponse.json(data, { headers: NO_STORE_HEADERS });
   } catch (err) {
     const { status, error } = resolveHttpError(err, "Error cargando cotizaciones");
-    return NextResponse.json(
-      { error },
-      { status, headers: NO_STORE_HEADERS }
-    );
+    return NextResponse.json({ error }, { status, headers: NO_STORE_HEADERS });
   }
 }
 
 export async function POST(req: NextRequest) {
   try {
-    const parsedActor = assertRole(await getAuthenticatedERPActor(), [
+    const parsedActor = assertRole(await getAuthenticatedERPActor(req), [
       "PARTNER_ADMIN",
       "PARTNER_MANAGER",
       "EXTERNAL_SELLER",
@@ -114,9 +108,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(result, { headers: NO_STORE_HEADERS });
   } catch (err) {
     const { status, error } = resolveHttpError(err, "Error procesando cotización");
-    return NextResponse.json(
-      { error },
-      { status, headers: NO_STORE_HEADERS }
-    );
+    return NextResponse.json({ error }, { status, headers: NO_STORE_HEADERS });
   }
 }

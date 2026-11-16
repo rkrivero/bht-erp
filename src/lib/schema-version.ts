@@ -1,6 +1,6 @@
 import type { PoolClient } from "pg";
 
-export const REQUIRED_SCHEMA_VERSION = "012_analytics_view_refresh";
+export const REQUIRED_SCHEMA_VERSION = "013_user_access_audit";
 
 const verifiedBranches = new Set<"dev" | "main">();
 

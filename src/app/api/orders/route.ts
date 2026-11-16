@@ -1,8 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import {
-  getAuthenticatedERPActor,
-  requireActiveSession,
-} from "@/lib/auth";
+import { getAuthenticatedERPActor, requireActiveSession } from "@/lib/auth";
 import { withClient, withTransaction } from "@/lib/db";
 import { runIdempotentMutation } from "@/lib/idempotency";
 import { assertRole } from "@/lib/rbac";
@@ -23,7 +20,7 @@ const NO_STORE_HEADERS = { "Cache-Control": "no-store" };
 
 export async function GET(req: NextRequest) {
   try {
-    const parsedActor = assertRole(await getAuthenticatedERPActor(), [
+    const parsedActor = assertRole(await getAuthenticatedERPActor(req), [
       "PARTNER_ADMIN",
       "PARTNER_MANAGER",
       "EXTERNAL_SELLER",
@@ -128,7 +125,7 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const parsedActor = await getAuthenticatedERPActor();
+    const parsedActor = await getAuthenticatedERPActor(req);
     if (!parsedActor) {
       return NextResponse.json(
         { error: "No autenticado" },

@@ -1,8 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import {
-  getAuthenticatedERPActor,
-  requireActiveSession,
-} from "@/lib/auth";
+import { getAuthenticatedERPActor, requireActiveSession } from "@/lib/auth";
 import { withClient, withTransaction } from "@/lib/db";
 import { runIdempotentMutation } from "@/lib/idempotency";
 import { assertRole, isPartnerRole } from "@/lib/rbac";
@@ -11,9 +8,7 @@ import {
   AP_OBLIGATIONS_DETAIL_SUBQUERY,
   mapApObligationRow,
 } from "@/lib/services/purchases-and-suppliers";
-import {
-  resolveHttpError,
-} from "@/lib/types";
+import { resolveHttpError } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
@@ -22,7 +17,7 @@ const NO_STORE_HEADERS = { "Cache-Control": "no-store" };
 export async function GET(req: NextRequest) {
   void req;
   try {
-    const parsedActor = assertRole(await getAuthenticatedERPActor(), [
+    const parsedActor = assertRole(await getAuthenticatedERPActor(req), [
       "PARTNER_ADMIN",
       "PARTNER_MANAGER",
       "EXTERNAL_SELLER",
@@ -140,8 +135,7 @@ export async function GET(req: NextRequest) {
               ? String(r.trade_name)
               : null,
           display_name: String(r.display_name),
-          phone:
-            r.phone !== null && r.phone !== undefined ? String(r.phone) : null,
+          phone: r.phone !== null && r.phone !== undefined ? String(r.phone) : null,
         })),
         accounts: (bundle.accounts ?? []).map((r) => ({
           account_id: Number(r.account_id),
@@ -156,16 +150,13 @@ export async function GET(req: NextRequest) {
     return NextResponse.json(data, { headers: NO_STORE_HEADERS });
   } catch (err) {
     const { status, error } = resolveHttpError(err, "Error en caja");
-    return NextResponse.json(
-      { error },
-      { status, headers: NO_STORE_HEADERS }
-    );
+    return NextResponse.json({ error }, { status, headers: NO_STORE_HEADERS });
   }
 }
 
 export async function POST(req: NextRequest) {
   try {
-    const parsedActor = assertRole(await getAuthenticatedERPActor(), [
+    const parsedActor = assertRole(await getAuthenticatedERPActor(req), [
       "PARTNER_ADMIN",
       "PARTNER_MANAGER",
       "EXTERNAL_SELLER",

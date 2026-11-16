@@ -257,6 +257,19 @@ export interface AppUserItem {
   is_active: boolean;
 }
 
+export interface UserAccessAuditItem {
+  audit_id: number;
+  action: string;
+  target_user_id: number;
+  target_username: string;
+  target_name: string;
+  actor_username: string;
+  actor_name: string;
+  before_data: Record<string, unknown> | null;
+  after_data: Record<string, unknown>;
+  created_at: string;
+}
+
 export function formatPen(value: unknown): string {
   const num = Number(value ?? 0);
   const safe = Number.isFinite(num) ? num : 0;

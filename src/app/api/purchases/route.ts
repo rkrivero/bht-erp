@@ -1,8 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import {
-  getAuthenticatedERPActor,
-  requireActiveSession,
-} from "@/lib/auth";
+import { getAuthenticatedERPActor, requireActiveSession } from "@/lib/auth";
 import { withClient, withTransaction } from "@/lib/db";
 import { assertRole } from "@/lib/rbac";
 import {
@@ -11,10 +8,7 @@ import {
   payApObligation,
   registerSupplierPurchase,
 } from "@/lib/services/purchases-and-suppliers";
-import {
-  resolveHttpError,
-  ValidationError,
-} from "@/lib/types";
+import { resolveHttpError, ValidationError } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
@@ -23,7 +17,7 @@ const NO_STORE_HEADERS = { "Cache-Control": "no-store" };
 export async function GET(req: NextRequest) {
   void req;
   try {
-    const parsedActor = assertRole(await getAuthenticatedERPActor(), [
+    const parsedActor = assertRole(await getAuthenticatedERPActor(req), [
       "PARTNER_ADMIN",
       "PARTNER_MANAGER",
     ]);
@@ -41,16 +35,13 @@ export async function GET(req: NextRequest) {
       err,
       "Error cargando compras y proveedores"
     );
-    return NextResponse.json(
-      { error },
-      { status, headers: NO_STORE_HEADERS }
-    );
+    return NextResponse.json({ error }, { status, headers: NO_STORE_HEADERS });
   }
 }
 
 export async function POST(req: NextRequest) {
   try {
-    const parsedActor = assertRole(await getAuthenticatedERPActor(), [
+    const parsedActor = assertRole(await getAuthenticatedERPActor(req), [
       "PARTNER_ADMIN",
       "PARTNER_MANAGER",
     ]);
@@ -83,7 +74,9 @@ export async function POST(req: NextRequest) {
           docNumber: String(body.docNumber || ""),
           issueDate: body.issueDate ? String(body.issueDate) : undefined,
           dueDate: body.dueDate ? String(body.dueDate) : null,
-          currency: body.currency ? (String(body.currency).toUpperCase() as "PEN" | "USD") : "PEN",
+          currency: body.currency
+            ? (String(body.currency).toUpperCase() as "PEN" | "USD")
+            : "PEN",
           exchangeRate:
             body.exchangeRate !== undefined && body.exchangeRate !== ""
               ? Number(body.exchangeRate)
@@ -129,9 +122,6 @@ export async function POST(req: NextRequest) {
       err,
       "Error procesando compra o proveedor"
     );
-    return NextResponse.json(
-      { error },
-      { status, headers: NO_STORE_HEADERS }
-    );
+    return NextResponse.json({ error }, { status, headers: NO_STORE_HEADERS });
   }
 }

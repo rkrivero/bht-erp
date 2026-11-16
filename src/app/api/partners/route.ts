@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import {
-  getAuthenticatedERPActor,
-  requireActiveSession,
-} from "@/lib/auth";
+import type { PoolClient } from "pg";
+import { getAuthenticatedERPActor, requireActiveSession } from "@/lib/auth";
 import { withClient, withTransaction } from "@/lib/db";
 import { assertRole } from "@/lib/rbac";
 import {
@@ -17,10 +15,7 @@ import {
   updateProductStockAndPricing,
 } from "@/lib/services/collections-and-treasury";
 import { listAuditFlags } from "@/lib/services/operations-and-modules";
-import {
-  resolveHttpError,
-  ValidationError,
-} from "@/lib/types";
+import { resolveHttpError, type UserRole, ValidationError } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
@@ -34,14 +29,103 @@ type PartnerDashboardBundleRow = BiNonMonthlyPanelsRow & {
   on_demand: Array<Record<string, unknown>>;
   neg_count: number;
   users: Array<Record<string, unknown>>;
+  user_access_history: Array<Record<string, unknown>>;
   open_debtors_count: number;
   period_end: string;
 };
 
+const USER_ROLES: UserRole[] = [
+  "PARTNER_ADMIN",
+  "PARTNER_MANAGER",
+  "EXTERNAL_SELLER",
+  "WAREHOUSE_DELIVERY",
+];
+
+type UserAccessSnapshot = {
+  user_id: number;
+  username: string;
+  full_name: string;
+  email: string | null;
+  role: UserRole;
+  is_active: boolean;
+};
+
+function parseUserRole(value: unknown): UserRole {
+  const role = String(value || "") as UserRole;
+  if (!USER_ROLES.includes(role)) {
+    throw new ValidationError("Selecciona un rol de usuario válido");
+  }
+  return role;
+}
+
+function normalizeUsername(value: unknown): string {
+  const username = String(value || "")
+    .trim()
+    .toLowerCase();
+  if (!/^[a-z0-9][a-z0-9._-]{2,31}$/.test(username)) {
+    throw new ValidationError(
+      "El usuario debe tener entre 3 y 32 caracteres: letras, números, punto, guion o guion bajo"
+    );
+  }
+  return username;
+}
+
+function normalizeFullName(value: unknown): string {
+  const fullName = String(value || "")
+    .trim()
+    .replace(/\s+/g, " ");
+  if (fullName.length < 2 || fullName.length > 60) {
+    throw new ValidationError("El nombre visible debe tener entre 2 y 60 caracteres");
+  }
+  return fullName;
+}
+
+function normalizeRequiredEmail(value: unknown): string {
+  const email = String(value || "")
+    .trim()
+    .toLowerCase();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254) {
+    throw new ValidationError("Ingresa un correo electrónico válido");
+  }
+  return email;
+}
+
+function toUserSnapshot(row: Record<string, unknown>): UserAccessSnapshot {
+  return {
+    user_id: Number(row.user_id),
+    username: String(row.username),
+    full_name: String(row.full_name),
+    email: row.email ? String(row.email) : null,
+    role: String(row.role) as UserRole,
+    is_active: Boolean(row.is_active),
+  };
+}
+
+async function recordUserAccessAudit(
+  client: PoolClient,
+  actorUserId: number,
+  action: string,
+  before: UserAccessSnapshot | null,
+  after: UserAccessSnapshot
+): Promise<void> {
+  await client.query(
+    `INSERT INTO erp.user_access_audit_log
+       (target_user_id, actor_user_id, action, before_data, after_data)
+     VALUES ($1, $2, $3, $4::jsonb, $5::jsonb)`,
+    [
+      after.user_id,
+      actorUserId,
+      action,
+      before ? JSON.stringify(before) : null,
+      JSON.stringify(after),
+    ]
+  );
+}
+
 export async function GET(req: NextRequest) {
   void req;
   try {
-    const parsedActor = assertRole(await getAuthenticatedERPActor(), [
+    const parsedActor = assertRole(await getAuthenticatedERPActor(req), [
       "PARTNER_ADMIN",
       "PARTNER_MANAGER",
     ]);
@@ -203,6 +287,27 @@ export async function GET(req: NextRequest) {
              ) t
            ), '[]'::json) AS users,
            COALESCE((
+             SELECT json_agg(t)
+             FROM (
+               SELECT
+                 l.audit_id,
+                 l.action,
+                 l.target_user_id,
+                 target.username AS target_username,
+                 target.full_name AS target_name,
+                 actor.username AS actor_username,
+                 actor.full_name AS actor_name,
+                 l.before_data,
+                 l.after_data,
+                 l.created_at
+               FROM erp.user_access_audit_log l
+               JOIN erp.app_users target ON target.user_id = l.target_user_id
+               JOIN erp.app_users actor ON actor.user_id = l.actor_user_id
+               ORDER BY l.created_at DESC, l.audit_id DESC
+               LIMIT 40
+             ) t
+           ), '[]'::json) AS user_access_history,
+           COALESCE((
              SELECT COUNT(*)::int
              FROM analytics.v_debtors_aging
              WHERE operational_status NOT IN ('CANCELLED', 'PENDING_PARTNER_APPROVAL')
@@ -229,9 +334,7 @@ export async function GET(req: NextRequest) {
           r.route_opex_pct !== null && r.route_opex_pct !== undefined
             ? Number(r.route_opex_pct)
             : null,
-        route_operating_cash_margin_pen: Number(
-          r.route_operating_cash_margin_pen ?? 0
-        ),
+        route_operating_cash_margin_pen: Number(r.route_operating_cash_margin_pen ?? 0),
         route_operating_cash_margin_pct:
           r.route_operating_cash_margin_pct !== null &&
           r.route_operating_cash_margin_pct !== undefined
@@ -275,9 +378,7 @@ export async function GET(req: NextRequest) {
         q1Rows.reduce((s, r) => s + r.internal_deposits_pen, 0).toFixed(2)
       );
       const preRouteFoundationalOutflowPen = Number(
-        q1Rows
-          .reduce((s, r) => s + r.pre_route_foundational_outflow_pen, 0)
-          .toFixed(2)
+        q1Rows.reduce((s, r) => s + r.pre_route_foundational_outflow_pen, 0).toFixed(2)
       );
       const declaredNetCashPen = Number(
         q1Rows.reduce((s, r) => s + r.declared_net_cash_pen, 0).toFixed(2)
@@ -285,9 +386,7 @@ export async function GET(req: NextRequest) {
       const expectedNetCashPen = Number(
         q1Rows.reduce((s, r) => s + r.expected_net_cash_pen, 0).toFixed(2)
       );
-      const reconGapPen = Number(
-        (declaredNetCashPen - expectedNetCashPen).toFixed(2)
-      );
+      const reconGapPen = Number((declaredNetCashPen - expectedNetCashPen).toFixed(2));
       const reconGapPct =
         expectedNetCashPen === 0
           ? 0
@@ -322,8 +421,7 @@ export async function GET(req: NextRequest) {
         declared_net_cash_pen: declaredNetCashPen,
         expected_net_cash_pen: expectedNetCashPen,
         non_opex_vs_reinvestment_ratio_pct: drainRatioPct,
-        reinvestment_health_flag:
-          drainRatioPct > 30 ? "ALERTA > 30%" : "SALUDABLE",
+        reinvestment_health_flag: drainRatioPct > 30 ? "ALERTA > 30%" : "SALUDABLE",
         reconciliation_gap_pen: reconGapPen,
         reconciliation_gap_pct: reconGapPct,
         reconciliation_health_flag:
@@ -331,10 +429,7 @@ export async function GET(req: NextRequest) {
         monthlyRows: q1Rows,
       };
 
-      const biSummary = mapBiSummaryFromPanels(
-        bundle ?? {},
-        mapBiMonthlyRows(q1Raw)
-      );
+      const biSummary = mapBiSummaryFromPanels(bundle ?? {}, mapBiMonthlyRows(q1Raw));
 
       return {
         currentUser: actor,
@@ -395,6 +490,24 @@ export async function GET(req: NextRequest) {
           is_active: Boolean(u.is_active),
           email: u.email ? String(u.email) : null,
         })),
+        userAccessHistory: (bundle?.user_access_history ?? []).map((entry) => ({
+          audit_id: Number(entry.audit_id),
+          action: String(entry.action),
+          target_user_id: Number(entry.target_user_id),
+          target_username: String(entry.target_username),
+          target_name: String(entry.target_name),
+          actor_username: String(entry.actor_username),
+          actor_name: String(entry.actor_name),
+          before_data:
+            entry.before_data && typeof entry.before_data === "object"
+              ? entry.before_data
+              : null,
+          after_data:
+            entry.after_data && typeof entry.after_data === "object"
+              ? entry.after_data
+              : {},
+          created_at: String(entry.created_at),
+        })),
         biSummary,
         ...(await (async () => {
           const auditFlagsData = await listAuditFlags(client, actor, {
@@ -411,20 +524,14 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json(data, { headers: NO_STORE_HEADERS });
   } catch (err) {
-    const { status, error } = resolveHttpError(
-      err,
-      "Error cargando datos de socios"
-    );
-    return NextResponse.json(
-      { error },
-      { status, headers: NO_STORE_HEADERS }
-    );
+    const { status, error } = resolveHttpError(err, "Error cargando datos de socios");
+    return NextResponse.json({ error }, { status, headers: NO_STORE_HEADERS });
   }
 }
 
 export async function POST(req: NextRequest) {
   try {
-    const parsedActor = assertRole(await getAuthenticatedERPActor(), [
+    const parsedActor = assertRole(await getAuthenticatedERPActor(req), [
       "PARTNER_ADMIN",
       "PARTNER_MANAGER",
     ]);
@@ -463,52 +570,81 @@ export async function POST(req: NextRequest) {
         });
         return { ok: true };
       }
+      if (action === "create_user") {
+        assertRole(actor, ["PARTNER_ADMIN"]);
+        const username = normalizeUsername(body.username);
+        const fullName = normalizeFullName(body.fullName);
+        const email = normalizeRequiredEmail(body.email);
+        const role = parseUserRole(body.role);
+        const createdRes = await client.query(
+          `WITH generated AS (
+             SELECT encode(sha256(gen_random_uuid()::text::bytea), 'hex') AS legacy_hash
+           )
+           INSERT INTO erp.app_users
+             (username, full_name, email, role, pin_hash, password_hash,
+              must_change_password, is_active)
+           SELECT $1, $2, $3, $4::erp.user_role, legacy_hash, legacy_hash, FALSE, TRUE
+           FROM generated
+           RETURNING user_id, username, full_name, email, role::text AS role, is_active`,
+          [username, fullName, email, role]
+        );
+        const created = toUserSnapshot(createdRes.rows[0]);
+        await recordUserAccessAudit(
+          client,
+          actor.userId,
+          "USER_CREATED",
+          null,
+          created
+        );
+        return { ok: true, user: created };
+      }
       if (action === "update_user_name") {
-        assertRole(actor, ["PARTNER_ADMIN", "PARTNER_MANAGER"]);
+        assertRole(actor, ["PARTNER_ADMIN"]);
         const targetUserId = Number(body.userId);
         if (!Number.isInteger(targetUserId) || targetUserId <= 0) {
           throw new ValidationError("ID de usuario inválido");
         }
-        const fullName = String(body.fullName || "")
-          .trim()
-          .replace(/\s+/g, " ");
-        if (fullName.length < 2 || fullName.length > 60) {
-          throw new ValidationError(
-            "El nombre visible debe tener entre 2 y 60 caracteres"
-          );
-        }
+        const fullName = normalizeFullName(body.fullName);
+        const beforeRes = await client.query(
+          `SELECT user_id, username, full_name, email, role::text AS role, is_active
+           FROM erp.app_users WHERE user_id = $1 FOR UPDATE`,
+          [targetUserId]
+        );
+        if (beforeRes.rowCount === 0)
+          throw new ValidationError("Usuario no encontrado");
+        const before = toUserSnapshot(beforeRes.rows[0]);
         const updRes = await client.query(
           `UPDATE erp.app_users
            SET full_name = $1
            WHERE user_id = $2
-           RETURNING user_id, username, full_name, role::text AS role, is_active`,
+           RETURNING user_id, username, full_name, email, role::text AS role, is_active`,
           [fullName, targetUserId]
         );
-        if (updRes.rowCount === 0) {
-          throw new ValidationError("Usuario no encontrado");
-        }
-        return {
-          ok: true,
-          user: {
-            user_id: Number(updRes.rows[0].user_id),
-            username: String(updRes.rows[0].username),
-            full_name: String(updRes.rows[0].full_name),
-            role: String(updRes.rows[0].role),
-            is_active: Boolean(updRes.rows[0].is_active),
-          },
-        };
+        const after = toUserSnapshot(updRes.rows[0]);
+        await recordUserAccessAudit(
+          client,
+          actor.userId,
+          "USER_NAME_CHANGED",
+          before,
+          after
+        );
+        return { ok: true, user: after };
       }
       if (action === "update_user_email") {
-        assertRole(actor, ["PARTNER_ADMIN", "PARTNER_MANAGER"]);
+        assertRole(actor, ["PARTNER_ADMIN"]);
         const targetUserId = Number(body.userId);
         if (!Number.isInteger(targetUserId) || targetUserId <= 0) {
           throw new ValidationError("ID de usuario inválido");
         }
-        const rawEmail = String(body.email || "").trim().toLowerCase();
-        const email = rawEmail || null;
-        if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-          throw new ValidationError("Ingresa un correo electrónico válido");
-        }
+        const email = normalizeRequiredEmail(body.email);
+        const beforeRes = await client.query(
+          `SELECT user_id, username, full_name, email, role::text AS role, is_active
+           FROM erp.app_users WHERE user_id = $1 FOR UPDATE`,
+          [targetUserId]
+        );
+        if (beforeRes.rowCount === 0)
+          throw new ValidationError("Usuario no encontrado");
+        const before = toUserSnapshot(beforeRes.rows[0]);
         const updRes = await client.query(
           `UPDATE erp.app_users
            SET neon_auth_user_id = CASE
@@ -518,61 +654,119 @@ export async function POST(req: NextRequest) {
                END,
                email = $1
            WHERE user_id = $2
-           RETURNING user_id, username, email, role::text AS role, is_active`,
+           RETURNING user_id, username, full_name, email, role::text AS role, is_active`,
           [email, targetUserId]
         );
-        if (updRes.rowCount === 0) {
-          throw new ValidationError("Usuario no encontrado");
-        }
-        return {
-          ok: true,
-          user: {
-            user_id: Number(updRes.rows[0].user_id),
-            username: String(updRes.rows[0].username),
-            email: updRes.rows[0].email ? String(updRes.rows[0].email) : null,
-            role: String(updRes.rows[0].role),
-            is_active: Boolean(updRes.rows[0].is_active),
-          },
-        };
+        const after = toUserSnapshot(updRes.rows[0]);
+        await recordUserAccessAudit(
+          client,
+          actor.userId,
+          "USER_EMAIL_CHANGED",
+          before,
+          after
+        );
+        return { ok: true, user: after };
       }
-      if (action === "toggle_user_active") {
-        assertRole(actor, ["PARTNER_ADMIN", "PARTNER_MANAGER"]);
+      if (action === "update_user_role") {
+        assertRole(actor, ["PARTNER_ADMIN"]);
         const targetUserId = Number(body.userId);
         if (!Number.isInteger(targetUserId) || targetUserId <= 0) {
           throw new ValidationError("ID de usuario inválido");
         }
         if (targetUserId === actor.userId) {
-          throw new ValidationError(
-            "No puedes desactivar tu propia cuenta de usuario"
+          throw new ValidationError("No puedes cambiar el rol de tu propia cuenta");
+        }
+        const role = parseUserRole(body.role);
+        const beforeRes = await client.query(
+          `SELECT user_id, username, full_name, email, role::text AS role, is_active
+           FROM erp.app_users WHERE user_id = $1 FOR UPDATE`,
+          [targetUserId]
+        );
+        if (beforeRes.rowCount === 0)
+          throw new ValidationError("Usuario no encontrado");
+        const before = toUserSnapshot(beforeRes.rows[0]);
+        if (
+          before.role === "PARTNER_ADMIN" &&
+          role !== "PARTNER_ADMIN" &&
+          before.is_active
+        ) {
+          const admins = await client.query<{ count: string }>(
+            `SELECT COUNT(*)::text AS count
+             FROM erp.app_users
+             WHERE role = 'PARTNER_ADMIN' AND is_active = TRUE`
           );
+          if (Number(admins.rows[0]?.count ?? 0) <= 1) {
+            throw new ValidationError(
+              "Debe permanecer al menos un administrador activo"
+            );
+          }
+        }
+        const updRes = await client.query(
+          `UPDATE erp.app_users
+           SET role = $1::erp.user_role
+           WHERE user_id = $2
+           RETURNING user_id, username, full_name, email, role::text AS role, is_active`,
+          [role, targetUserId]
+        );
+        const after = toUserSnapshot(updRes.rows[0]);
+        await recordUserAccessAudit(
+          client,
+          actor.userId,
+          "USER_ROLE_CHANGED",
+          before,
+          after
+        );
+        return { ok: true, user: after };
+      }
+      if (action === "toggle_user_active") {
+        assertRole(actor, ["PARTNER_ADMIN"]);
+        const targetUserId = Number(body.userId);
+        if (!Number.isInteger(targetUserId) || targetUserId <= 0) {
+          throw new ValidationError("ID de usuario inválido");
+        }
+        if (targetUserId === actor.userId) {
+          throw new ValidationError("No puedes desactivar tu propia cuenta de usuario");
         }
         const userRes = await client.query(
-          `SELECT user_id, is_active FROM erp.app_users WHERE user_id = $1 FOR UPDATE`,
+          `SELECT user_id, username, full_name, email, role::text AS role, is_active
+           FROM erp.app_users WHERE user_id = $1 FOR UPDATE`,
           [targetUserId]
         );
         if (userRes.rowCount === 0) {
           throw new ValidationError("Usuario no encontrado");
         }
-        const currentActive = Boolean(userRes.rows[0].is_active);
+        const before = toUserSnapshot(userRes.rows[0]);
+        const currentActive = before.is_active;
         const nextActive =
           typeof body.isActive === "boolean" ? body.isActive : !currentActive;
+        if (before.role === "PARTNER_ADMIN" && currentActive && !nextActive) {
+          const admins = await client.query<{ count: string }>(
+            `SELECT COUNT(*)::text AS count
+             FROM erp.app_users
+             WHERE role = 'PARTNER_ADMIN' AND is_active = TRUE`
+          );
+          if (Number(admins.rows[0]?.count ?? 0) <= 1) {
+            throw new ValidationError(
+              "Debe permanecer al menos un administrador activo"
+            );
+          }
+        }
         const updRes = await client.query(
           `UPDATE erp.app_users
            SET is_active = $1
            WHERE user_id = $2
-           RETURNING user_id, username, full_name, role::text AS role, is_active`,
+           RETURNING user_id, username, full_name, email, role::text AS role, is_active`,
           [nextActive, targetUserId]
         );
-        return {
-          ok: true,
-          user: {
-            user_id: Number(updRes.rows[0].user_id),
-            username: String(updRes.rows[0].username),
-            full_name: String(updRes.rows[0].full_name),
-            role: String(updRes.rows[0].role),
-            is_active: Boolean(updRes.rows[0].is_active),
-          },
-        };
+        const after = toUserSnapshot(updRes.rows[0]);
+        await recordUserAccessAudit(
+          client,
+          actor.userId,
+          nextActive ? "USER_ACTIVATED" : "USER_DEACTIVATED",
+          before,
+          after
+        );
+        return { ok: true, user: after };
       }
       throw new ValidationError(`Acción desconocida: ${action}`);
     });
@@ -580,9 +774,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(result, { headers: NO_STORE_HEADERS });
   } catch (err) {
     const { status, error } = resolveHttpError(err, "Error en acción de socio");
-    return NextResponse.json(
-      { error },
-      { status, headers: NO_STORE_HEADERS }
-    );
+    return NextResponse.json({ error }, { status, headers: NO_STORE_HEADERS });
   }
 }

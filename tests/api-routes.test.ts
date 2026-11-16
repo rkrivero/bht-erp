@@ -272,7 +272,7 @@ describe("API Route Role Enforcement, DB Branch Isolation & Endpoint Contracts",
     expect(csvText).toContain("ap_id,supplier_party_id,supplier_name");
   });
 
-  it("enforces PARTNER_* roles and self-protection on toggle_user_active, and supports transactional toggle", async () => {
+  it("restricts access administration to PARTNER_ADMIN and protects the active admin", async () => {
     const sellerRes = await postPartners(
       new NextRequest("http://localhost:3000/api/partners", {
         method: "POST",
@@ -319,7 +319,7 @@ describe("API Route Role Enforcement, DB Branch Isolation & Endpoint Contracts",
         body: JSON.stringify({ action: "toggle_user_active", userId: 2 }),
       })
     );
-    expect(selfDisableMgrRes.status).toBe(400);
+    expect(selfDisableMgrRes.status).toBe(403);
 
     // Transactional check inside BEGIN/ROLLBACK on dev
     const client = await getPool("dev").connect();
@@ -342,7 +342,7 @@ describe("API Route Role Enforcement, DB Branch Isolation & Endpoint Contracts",
     }
   });
 
-  it("allows PARTNER_ADMIN and PARTNER_MANAGER on update_user_name, blocks non-partners, and rejects invalid names", async () => {
+  it("allows only PARTNER_ADMIN to manage users and rejects invalid names", async () => {
     const sellerRes = await postPartners(
       new NextRequest("http://localhost:3000/api/partners", {
         method: "POST",
@@ -359,11 +359,27 @@ describe("API Route Role Enforcement, DB Branch Isolation & Endpoint Contracts",
     );
     expect(sellerRes.status).toBe(403);
 
-    const shortRes = await postPartners(
+    const managerRes = await postPartners(
       new NextRequest("http://localhost:3000/api/partners", {
         method: "POST",
         headers: {
           cookie: `bht_session=${partnerManagerToken}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          action: "update_user_name",
+          userId: 1,
+          fullName: "A",
+        }),
+      })
+    );
+    expect(managerRes.status).toBe(403);
+
+    const shortRes = await postPartners(
+      new NextRequest("http://localhost:3000/api/partners", {
+        method: "POST",
+        headers: {
+          cookie: `bht_session=${partnerAdminToken}`,
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
@@ -414,7 +430,7 @@ describe("API Route Role Enforcement, DB Branch Isolation & Endpoint Contracts",
         new NextRequest("http://localhost:3000/api/partners", {
           method: "POST",
           headers: {
-            cookie: `bht_session=${partnerManagerToken}`,
+            cookie: `bht_session=${partnerAdminToken}`,
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
@@ -427,6 +443,55 @@ describe("API Route Role Enforcement, DB Branch Isolation & Endpoint Contracts",
       expect(okRes.status).toBe(200);
       const okJson = await okRes.json();
       expect(okJson.user.full_name).toBe("Carlos Ruta");
+
+      const createRes = await postPartners(
+        new NextRequest("http://localhost:3000/api/partners", {
+          method: "POST",
+          headers: {
+            cookie: `bht_session=${partnerAdminToken}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            action: "create_user",
+            username: "prueba.admin.ui",
+            fullName: "Usuario de Prueba",
+            email: "prueba.admin.ui@example.com",
+            role: "EXTERNAL_SELLER",
+          }),
+        })
+      );
+      expect(createRes.status).toBe(200);
+      const created = (await createRes.json()).user;
+      expect(created.role).toBe("EXTERNAL_SELLER");
+
+      const roleRes = await postPartners(
+        new NextRequest("http://localhost:3000/api/partners", {
+          method: "POST",
+          headers: {
+            cookie: `bht_session=${partnerAdminToken}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            action: "update_user_role",
+            userId: created.user_id,
+            role: "WAREHOUSE_DELIVERY",
+          }),
+        })
+      );
+      expect(roleRes.status).toBe(200);
+      expect((await roleRes.json()).user.role).toBe("WAREHOUSE_DELIVERY");
+
+      const accessAudit = await client.query<{ action: string }>(
+        `SELECT action
+         FROM erp.user_access_audit_log
+         WHERE target_user_id = $1
+         ORDER BY audit_id ASC`,
+        [created.user_id]
+      );
+      expect(accessAudit.rows.map((row) => row.action)).toEqual([
+        "USER_CREATED",
+        "USER_ROLE_CHANGED",
+      ]);
 
       // Sign fresh version-bound tokens from DB state inside this transaction
       const usersRes = await client.query<{
@@ -956,20 +1021,8 @@ describe("API Route Role Enforcement, DB Branch Isolation & Endpoint Contracts",
       expect(resolveFlagRes.status).toBe(200);
       expect((await resolveFlagRes.json()).status).toBe("RESOLVED");
 
-      // 9. POST /api/partners update_user_pin validation + instant sessionVersion invalidation
-      const badPinRes = await postPartners(
-        new NextRequest("http://localhost:3000/api/partners", {
-          method: "POST",
-          headers: {
-            cookie: `bht_session=${adminTok}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ action: "update_user_pin", userId: 3, newPin: "12" }),
-        })
-      );
-      expect(badPinRes.status).toBe(400);
-
-      const goodPinRes = await postPartners(
+      // 9. POST /api/partners role validation + instant legacy fixture invalidation
+      const badRoleRes = await postPartners(
         new NextRequest("http://localhost:3000/api/partners", {
           method: "POST",
           headers: {
@@ -977,21 +1030,37 @@ describe("API Route Role Enforcement, DB Branch Isolation & Endpoint Contracts",
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            action: "update_user_pin",
+            action: "update_user_role",
             userId: 3,
-            newPin: "987654",
+            role: "OWNER",
           }),
         })
       );
-      expect(goodPinRes.status).toBe(200);
+      expect(badRoleRes.status).toBe(400);
 
-      // Old sellerTok has previous pin_hash sessionVersion and must be rejected as 401
+      const goodRoleRes = await postPartners(
+        new NextRequest("http://localhost:3000/api/partners", {
+          method: "POST",
+          headers: {
+            cookie: `bht_session=${adminTok}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            action: "update_user_role",
+            userId: 3,
+            role: "WAREHOUSE_DELIVERY",
+          }),
+        })
+      );
+      expect(goodRoleRes.status).toBe(200);
+
+      // The old seller fixture must no longer retain seller access after the role change.
       const staleSessionRes = await quotesRoute.GET(
         new NextRequest("http://localhost:3000/api/quotes", {
           headers: { cookie: `bht_session=${sellerTok}` },
         })
       );
-      expect(staleSessionRes.status).toBe(401);
+      expect(staleSessionRes.status).toBe(403);
 
       // 10. PG 23505 (unique violation) -> HTTP 409 & PG 23514 (check constraint) -> HTTP 400
       const dupErr = Object.assign(new Error("duplicate key"), { code: "23505" });
@@ -1025,7 +1094,6 @@ describe("API Route Role Enforcement, DB Branch Isolation & Endpoint Contracts",
         await client.query(`ROLLBACK TO SAVEPOINT sp_pg_23514`);
       }
       expect(resolveHttpError(pgCheckCaught, "fallback").status).toBe(400);
-
     } finally {
       authMod.resetAuthRateLimitStore();
       spyTx.mockRestore();

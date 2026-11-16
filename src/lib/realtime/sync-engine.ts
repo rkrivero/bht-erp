@@ -58,8 +58,10 @@ export function getNeonRealtimeConfig(): NeonRealtimeConfig {
 }
 
 /** Resolve the current Neon Auth session to an active ERP identity. */
-export async function getSessionUser(): Promise<SessionUser | null> {
-  return getAuthenticatedERPActor();
+export async function getSessionUser(request?: {
+  cookies: { get(name: string): { value: string } | undefined };
+}): Promise<SessionUser | null> {
+  return getAuthenticatedERPActor(request);
 }
 
 /** Return the ordered list of sync scopes visible to the given role. */

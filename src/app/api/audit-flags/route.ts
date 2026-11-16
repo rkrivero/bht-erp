@@ -1,8 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import {
-  getAuthenticatedERPActor,
-  requireActiveSession,
-} from "@/lib/auth";
+import { getAuthenticatedERPActor, requireActiveSession } from "@/lib/auth";
 import { withClient, withTransaction } from "@/lib/db";
 import { assertRole } from "@/lib/rbac";
 import {
@@ -17,7 +14,7 @@ const NO_STORE_HEADERS = { "Cache-Control": "no-store" };
 
 export async function GET(req: NextRequest) {
   try {
-    const parsedActor = assertRole(await getAuthenticatedERPActor(), [
+    const parsedActor = assertRole(await getAuthenticatedERPActor(req), [
       "PARTNER_ADMIN",
       "PARTNER_MANAGER",
     ]);
@@ -42,16 +39,13 @@ export async function GET(req: NextRequest) {
       err,
       "Error cargando alertas operativas"
     );
-    return NextResponse.json(
-      { error },
-      { status, headers: NO_STORE_HEADERS }
-    );
+    return NextResponse.json({ error }, { status, headers: NO_STORE_HEADERS });
   }
 }
 
 export async function POST(req: NextRequest) {
   try {
-    const parsedActor = assertRole(await getAuthenticatedERPActor(), [
+    const parsedActor = assertRole(await getAuthenticatedERPActor(req), [
       "PARTNER_ADMIN",
       "PARTNER_MANAGER",
     ]);
@@ -64,15 +58,20 @@ export async function POST(req: NextRequest) {
         "PARTNER_ADMIN",
         "PARTNER_MANAGER",
       ]);
-      if (action === "update_status" || action === "acknowledge" || action === "resolve" || action === "reopen") {
+      if (
+        action === "update_status" ||
+        action === "acknowledge" ||
+        action === "resolve" ||
+        action === "reopen"
+      ) {
         const nextStatus =
           action === "acknowledge"
             ? "ACKNOWLEDGED"
             : action === "resolve"
-            ? "RESOLVED"
-            : action === "reopen"
-            ? "OPEN"
-            : body.nextStatus;
+              ? "RESOLVED"
+              : action === "reopen"
+                ? "OPEN"
+                : body.nextStatus;
         return await updateAuditFlagStatus(client, actor, {
           flagId: Number(body.flagId),
           nextStatus,
@@ -88,9 +87,6 @@ export async function POST(req: NextRequest) {
       err,
       "Error actualizando alerta operativa"
     );
-    return NextResponse.json(
-      { error },
-      { status, headers: NO_STORE_HEADERS }
-    );
+    return NextResponse.json({ error }, { status, headers: NO_STORE_HEADERS });
   }
 }

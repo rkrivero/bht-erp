@@ -25,6 +25,7 @@ import {
   type PendingOnDemandItem,
   type RecentPurchaseItem,
   type SupplierItem,
+  type UserAccessAuditItem,
   formatPen,
 } from "@/components/socios/types";
 import {
@@ -895,6 +896,8 @@ export default function SociosPage() {
   const currentUser = (partnerData?.currentUser as CurrentUserInfo | null) || null;
   const biSummary = (partnerData?.biSummary as BiSummary | null) || null;
   const appUsers = (partnerData?.users as AppUserItem[]) || [];
+  const userAccessHistory =
+    (partnerData?.userAccessHistory as UserAccessAuditItem[]) || [];
 
   const accounts: CashAccountItem[] =
     (purchasesData?.accounts as CashAccountItem[]) ||
@@ -2602,6 +2605,7 @@ export default function SociosPage() {
             }
             biSummary={biSummary}
             users={appUsers}
+            userAccessHistory={userAccessHistory}
             onGoToPurchaseProduct={handleGoToPurchaseProduct}
             onGoToEditProduct={handleGoToEditProduct}
             onRefresh={loadDashboard}

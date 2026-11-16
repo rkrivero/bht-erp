@@ -14,7 +14,6 @@ import {
   Card,
   EmptyState,
   INPUT_CLASS,
-  ModalSheet,
 } from "@/components/ui/Primitives";
 import {
   formatAccountTypeEs,
@@ -23,7 +22,6 @@ import {
   formatEntityTableEs,
   formatMarginStatusEs,
   formatQualityGapEs,
-  formatRoleEs,
 } from "@/lib/labels-es";
 import { notifyLocalSync } from "@/lib/realtime/useLiveSync";
 import {
@@ -33,9 +31,11 @@ import {
   type BiSummary,
   type CurrentUserInfo,
   type KpiQ1Summary,
+  type UserAccessAuditItem,
   formatMonthLabel,
   formatPen,
 } from "./types";
+import UserManagementPanel from "./UserManagementPanel";
 
 interface KpisBiTabProps {
   currentUser: CurrentUserInfo | null;
@@ -47,6 +47,7 @@ interface KpisBiTabProps {
   auditFlagCounts?: AuditFlagCounts;
   biSummary: BiSummary | null;
   users: AppUserItem[];
+  userAccessHistory: UserAccessAuditItem[];
   onGoToPurchaseProduct: (productId: number) => void;
   onGoToEditProduct: (sku: string) => void;
   onRefresh: () => Promise<void>;
@@ -82,34 +83,6 @@ const EXPORT_DATASETS = [
   },
 ] as const;
 
-function formatTeamMemberName(u: AppUserItem): string {
-  const name = (u.full_name || "").trim();
-  if (u.username === "socio_admin" && /\bsocio\b|admin|asistente/i.test(name)) {
-    return "Renzo";
-  }
-  if (u.username === "socio_gerente" && /\bsocio\b|gerente/i.test(name)) {
-    return "Samuel";
-  }
-  if (u.username === "vendedor1" && /vendedor|externo|ruta/i.test(name)) {
-    return "Franco";
-  }
-  if (u.username === "almacen1" && /almac[eé]n/i.test(name)) {
-    return "Manuel";
-  }
-  if (u.username === "reparto1" && /reparto|chofer|movilidad/i.test(name)) {
-    return "Emerson";
-  }
-  return name || formatRoleEs(u.role);
-}
-
-const TEAM_ROLE_LABEL_BY_USERNAME: Record<string, string> = {
-  socio_gerente: "Gerencia",
-  socio_admin: "Ventas y Control",
-  vendedor1: "Vendedor",
-  almacen1: "Almacén",
-  reparto1: "Almacén y Reparto",
-};
-
 function getBiMarginClass(marginPen: unknown, pct: unknown): string {
   const m = Number(marginPen ?? 0);
   const p = Number(pct ?? 0);
@@ -128,6 +101,7 @@ export default function KpisBiTab({
   auditFlagCounts,
   biSummary,
   users,
+  userAccessHistory,
   onGoToPurchaseProduct,
   onGoToEditProduct,
   onRefresh,
@@ -135,12 +109,6 @@ export default function KpisBiTab({
   onEditingChange,
 }: KpisBiTabProps) {
   const [downloadingDataset, setDownloadingDataset] = useState<string | null>(null);
-  const [editingEmailUserId, setEditingEmailUserId] = useState<number | null>(null);
-  const [newEmailValue, setNewEmailValue] = useState("");
-  const [editingNameUserId, setEditingNameUserId] = useState<number | null>(null);
-  const [newFullNameValue, setNewFullNameValue] = useState("");
-  const [busyUserActionId, setBusyUserActionId] = useState<number | null>(null);
-  const [confirmToggleUser, setConfirmToggleUser] = useState<AppUserItem | null>(null);
   const [skuSearch, setSkuSearch] = useState("");
   const deferredSkuSearch = useDeferredValue(skuSearch);
   const [periodFilter, setPeriodFilter] = useState<string>("ALL");
@@ -187,14 +155,6 @@ export default function KpisBiTab({
       setBusyFlagId(null);
     }
   }
-
-  useEffect(() => {
-    onEditingChange?.(
-      editingEmailUserId !== null ||
-        editingNameUserId !== null ||
-        confirmToggleUser !== null
-    );
-  }, [editingEmailUserId, editingNameUserId, confirmToggleUser, onEditingChange]);
 
   useEffect(() => {
     return () => onEditingChange?.(false);
@@ -328,106 +288,6 @@ export default function KpisBiTab({
       onFeedback(`Error de red descargando ${title}.`, true);
     } finally {
       setDownloadingDataset(null);
-    }
-  }
-
-  async function handleUpdateEmail(userId: number) {
-    if (busyUserActionId !== null) return;
-    const email = newEmailValue.trim().toLowerCase();
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      onFeedback("Ingresa un correo electrónico válido para el acceso.", true);
-      return;
-    }
-    setBusyUserActionId(userId);
-    try {
-      const res = await fetch("/api/partners", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: "update_user_email",
-          userId,
-          email,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        onFeedback(data.error || "No se pudo guardar el correo de acceso.", true);
-        return;
-      }
-      onFeedback(
-        "Correo de acceso actualizado. La persona puede crear o recuperar su contraseña con Neon Auth."
-      );
-      setEditingEmailUserId(null);
-      setNewEmailValue("");
-      await onRefresh();
-    } catch {
-      onFeedback("Error de red al guardar el correo de acceso.", true);
-    } finally {
-      setBusyUserActionId(null);
-    }
-  }
-
-  async function handleUpdateName(userId: number, username: string) {
-    if (busyUserActionId !== null) return;
-    const cleaned = newFullNameValue.trim().replace(/\s+/g, " ");
-    if (cleaned.length < 2 || cleaned.length > 60) {
-      onFeedback("El nombre visible debe tener entre 2 y 60 caracteres.", true);
-      return;
-    }
-    setBusyUserActionId(userId);
-    try {
-      const res = await fetch("/api/partners", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: "update_user_name",
-          userId,
-          fullName: cleaned,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        onFeedback(data.error || "Error actualizando nombre", true);
-        return;
-      }
-      onFeedback(`Nombre actualizado (${cleaned}) para @${username}.`);
-      setEditingNameUserId(null);
-      setNewFullNameValue("");
-      await onRefresh();
-    } catch {
-      onFeedback("Error de red al actualizar nombre.", true);
-    } finally {
-      setBusyUserActionId(null);
-    }
-  }
-
-  async function handleToggleUserActive(user: AppUserItem) {
-    if (busyUserActionId !== null) return;
-    setBusyUserActionId(user.user_id);
-    try {
-      const res = await fetch("/api/partners", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: "toggle_user_active",
-          userId: user.user_id,
-          isActive: !user.is_active,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        onFeedback(data.error || "Error cambiando estado de usuario", true);
-        return;
-      }
-      onFeedback(
-        `Usuario ${user.username} ${!user.is_active ? "activado" : "desactivado"}.`
-      );
-      setConfirmToggleUser(null);
-      await onRefresh();
-    } catch {
-      onFeedback("Error de red cambiando estado de usuario.", true);
-    } finally {
-      setBusyUserActionId(null);
     }
   }
 
@@ -1547,224 +1407,16 @@ export default function KpisBiTab({
         })()}
       </Card>
 
-      {/* Team and access management */}
-      {(currentUser?.role === "PARTNER_ADMIN" ||
-        currentUser?.role === "PARTNER_MANAGER") && (
-        <Card accent="horizon" padding="md" className="space-y-3.5">
-          <div>
-            <Badge tone="horizon">Socio / Gerencia</Badge>
-            <h2 className="mt-2 text-sm sm:text-base font-semibold text-[#18181B]">
-              Gestión de equipo y accesos ({users.length} usuarios)
-            </h2>
-            <p className="mt-0.5 text-xs text-[#5C5A55]">
-              Define el correo que cada persona usará con Neon Auth, actualiza
-              nombres y activa o desactiva cuentas.
-            </p>
-          </div>
-
-          <div className="space-y-2.5">
-            {users.map((u) => {
-              const isSelf = u.user_id === currentUser.userId;
-              const isEditingEmail = editingEmailUserId === u.user_id;
-              const isEditingName = editingNameUserId === u.user_id;
-              const isBusy = busyUserActionId !== null;
-              const displayName = formatTeamMemberName(u);
-              const roleBadge =
-                TEAM_ROLE_LABEL_BY_USERNAME[u.username] ?? formatRoleEs(u.role);
-
-              return (
-                <div
-                  key={u.user_id}
-                  className={`rounded-xl border p-3.5 text-xs transition ${
-                    u.is_active
-                      ? "border-[#E7E5E0] bg-white"
-                      : "border-[#E7E5E0] bg-[#FAF9F6] opacity-75"
-                  }`}
-                >
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <div className="flex flex-wrap items-center gap-1.5">
-                      <span className="text-sm font-semibold text-[#18181B]">
-                        {displayName}
-                      </span>
-                      <Badge tone="neutral">@{u.username}</Badge>
-                      <Badge tone="brand">{roleBadge}</Badge>
-                      <Badge tone={u.is_active ? "success" : "danger"}>
-                        {u.is_active ? "Activo" : "Inactivo"}
-                      </Badge>
-                    </div>
-
-                    <div className="flex flex-wrap items-center gap-2">
-                      <Button
-                        variant={isEditingName ? "secondary" : "outline"}
-                        size="sm"
-                        disabled={isBusy}
-                        aria-expanded={isEditingName}
-                        aria-label={`${isEditingName ? "Cancelar edición de nombre para" : "Editar nombre de"} ${u.username}`}
-                        onClick={() => {
-                          setEditingEmailUserId(null);
-                          setEditingNameUserId(isEditingName ? null : u.user_id);
-                          setNewFullNameValue(isEditingName ? "" : displayName);
-                        }}
-                      >
-                        <EditIcon className="h-3.5 w-3.5" />
-                        {isEditingName ? "Cancelar nombre" : "Editar nombre"}
-                      </Button>
-
-                      <Button
-                        variant={isEditingEmail ? "secondary" : "outline"}
-                        size="sm"
-                        disabled={isBusy}
-                        aria-expanded={isEditingEmail}
-                        aria-label={`${isEditingEmail ? "Cancelar edición de correo para" : "Editar correo de acceso de"} ${u.username}`}
-                        onClick={() => {
-                          setEditingNameUserId(null);
-                          setEditingEmailUserId(isEditingEmail ? null : u.user_id);
-                          setNewEmailValue(isEditingEmail ? "" : u.email || "");
-                        }}
-                      >
-                        <EditIcon className="h-3.5 w-3.5" />
-                        {isEditingEmail ? "Cancelar correo" : "Correo de acceso"}
-                      </Button>
-
-                      {isSelf ? (
-                        <Badge tone="neutral">Sesión actual</Badge>
-                      ) : (
-                        <Button
-                          variant={u.is_active ? "danger" : "success"}
-                          size="sm"
-                          disabled={isBusy}
-                          aria-label={`${u.is_active ? "Desactivar" : "Activar"} cuenta ${u.username}`}
-                          onClick={() => {
-                            if (u.is_active) {
-                              setConfirmToggleUser(u);
-                            } else {
-                              void handleToggleUserActive(u);
-                            }
-                          }}
-                        >
-                          {u.is_active ? "Desactivar" : "Activar"}
-                        </Button>
-                      )}
-                    </div>
-                  </div>
-
-                  <p className="mt-2 text-xs text-[#5C5A55]">
-                    Acceso: {u.email || "Sin correo habilitado"}
-                  </p>
-
-                  {isEditingName && (
-                    <form
-                      onSubmit={(e) => {
-                        e.preventDefault();
-                        void handleUpdateName(u.user_id, u.username);
-                      }}
-                      className="mt-3 flex flex-wrap items-center gap-2 border-t border-[#E7E5E0] pt-3"
-                    >
-                      <input
-                        type="text"
-                        maxLength={60}
-                        value={newFullNameValue}
-                        onChange={(e) => setNewFullNameValue(e.target.value)}
-                        aria-label={`Nombre visible para ${u.username}`}
-                        placeholder="Nombre de la persona (ej. Renzo)"
-                        className={`${INPUT_CLASS} w-full sm:w-auto sm:min-w-[200px] sm:flex-1 font-medium`}
-                      />
-                      <Button
-                        type="submit"
-                        variant="primary"
-                        size="md"
-                        disabled={isBusy}
-                        className="w-full sm:w-auto"
-                      >
-                        {busyUserActionId === u.user_id
-                          ? "Guardando..."
-                          : "Guardar Nombre"}
-                      </Button>
-                    </form>
-                  )}
-
-                  {isEditingEmail && (
-                    <form
-                      onSubmit={(e) => {
-                        e.preventDefault();
-                        void handleUpdateEmail(u.user_id);
-                      }}
-                      className="mt-3 flex flex-wrap items-center gap-2 border-t border-[#E7E5E0] pt-3"
-                    >
-                      <input
-                        type="email"
-                        maxLength={254}
-                        value={newEmailValue}
-                        onChange={(e) => setNewEmailValue(e.target.value)}
-                        aria-label={`Correo de acceso para ${u.username}`}
-                        placeholder="persona@empresa.com"
-                        className={`${INPUT_CLASS} w-full sm:w-auto sm:min-w-[220px] sm:flex-1 font-medium`}
-                      />
-                      <Button
-                        type="submit"
-                        variant="primary"
-                        size="md"
-                        disabled={isBusy}
-                        className="w-full sm:w-auto"
-                      >
-                        {busyUserActionId === u.user_id
-                          ? "Guardando..."
-                          : "Guardar correo"}
-                      </Button>
-                    </form>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        </Card>
+      {currentUser && (
+        <UserManagementPanel
+          currentUser={currentUser}
+          users={users}
+          userAccessHistory={userAccessHistory}
+          onRefresh={onRefresh}
+          onFeedback={onFeedback}
+          onEditingChange={onEditingChange}
+        />
       )}
-
-      <ModalSheet
-        open={Boolean(confirmToggleUser)}
-        onClose={() => {
-          if (busyUserActionId === null) setConfirmToggleUser(null);
-        }}
-        title="Confirmar desactivación de usuario"
-        subtitle={
-          confirmToggleUser
-            ? `${formatTeamMemberName(confirmToggleUser)} (@${confirmToggleUser.username})`
-            : undefined
-        }
-      >
-        {confirmToggleUser && (
-          <div className="space-y-4 text-xs sm:text-sm text-[#5C5A55]">
-            <p>
-              Al desactivar a{" "}
-              <strong className="text-[#18181B]">
-                {formatTeamMemberName(confirmToggleUser)}
-              </strong>
-              , su sesión activa quedará invalidada inmediatamente y no podrá ingresar
-              hasta que vuelvas a activarlo.
-            </p>
-            <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-              <Button
-                type="button"
-                variant="outline"
-                disabled={busyUserActionId !== null}
-                onClick={() => setConfirmToggleUser(null)}
-              >
-                Cancelar
-              </Button>
-              <Button
-                type="button"
-                variant="danger"
-                disabled={busyUserActionId !== null}
-                onClick={() => void handleToggleUserActive(confirmToggleUser)}
-              >
-                {busyUserActionId !== null
-                  ? "Desactivando..."
-                  : "Sí, desactivar cuenta"}
-              </Button>
-            </div>
-          </div>
-        )}
-      </ModalSheet>
     </div>
   );
 }
