@@ -26,7 +26,7 @@ const SSE_MAX_LIFETIME_MS = 55000;
 
 export async function GET(req: NextRequest) {
   try {
-    const actor = getSessionUser(req);
+    const actor = await getSessionUser();
     if (!actor) {
       return NextResponse.json(
         { error: "No autenticado" },

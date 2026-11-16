@@ -1,6 +1,6 @@
 import type { PoolClient } from "pg";
 
-export const REQUIRED_SCHEMA_VERSION = "010_sales_order_audit_and_reversals";
+export const REQUIRED_SCHEMA_VERSION = "011_neon_auth_identity_link";
 
 const verifiedBranches = new Set<"dev" | "main">();
 

@@ -1,7 +1,6 @@
 import crypto from "crypto";
-import type { NextRequest } from "next/server";
 import type { PoolClient } from "pg";
-import { SESSION_COOKIE_NAME, verifySessionToken } from "@/lib/auth";
+import { getAuthenticatedERPActor } from "@/lib/auth";
 import type { SessionUser, UserRole } from "@/lib/types";
 import type { SyncEngineMode, SyncSnapshotResponse, SyncScope } from "./types";
 
@@ -58,10 +57,9 @@ export function getNeonRealtimeConfig(): NeonRealtimeConfig {
   };
 }
 
-/** Read and verify the authenticated session user from NextRequest cookies. */
-export function getSessionUser(req: NextRequest): SessionUser | null {
-  const token = req.cookies.get(SESSION_COOKIE_NAME)?.value;
-  return verifySessionToken(token);
+/** Resolve the current Neon Auth session to an active ERP identity. */
+export async function getSessionUser(): Promise<SessionUser | null> {
+  return getAuthenticatedERPActor();
 }
 
 /** Return the ordered list of sync scopes visible to the given role. */

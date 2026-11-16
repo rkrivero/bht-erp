@@ -2,6 +2,7 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { authClient } from "@/lib/auth/client";
 import { AppHeader } from "@/components/ui/AppShell";
 import { CheckIcon, PackageIcon } from "@/components/ui/Icons";
 import {
@@ -452,11 +453,7 @@ export default function AlmacenPage() {
     if (loggingOut) return;
     setLoggingOut(true);
     try {
-      await fetch("/api/auth", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "logout" }),
-      });
+      await authClient.signOut();
     } finally {
       router.push("/login");
     }

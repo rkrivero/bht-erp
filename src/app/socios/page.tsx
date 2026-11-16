@@ -8,6 +8,7 @@ import React, {
   useState,
 } from "react";
 import { useRouter } from "next/navigation";
+import { authClient } from "@/lib/auth/client";
 import CajaProveedoresTab from "@/components/socios/CajaProveedoresTab";
 import KpisBiTab from "@/components/socios/KpisBiTab";
 import {
@@ -1110,11 +1111,7 @@ export default function SociosPage() {
           if (busyLogout) return;
           setBusyLogout(true);
           try {
-            await fetch("/api/auth", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ action: "logout" }),
-            });
+            await authClient.signOut();
           } finally {
             setBusyLogout(false);
             router.push("/login");

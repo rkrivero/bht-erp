@@ -386,7 +386,6 @@ describe("API Route Role Enforcement, DB Branch Isolation & Endpoint Contracts",
     const tripsRoute = await import("../src/app/api/trips/route");
     const quotesRoute = await import("../src/app/api/quotes/route");
     const auditFlagsRoute = await import("../src/app/api/audit-flags/route");
-    const authRoute = await import("../src/app/api/auth/route");
 
     const pool = dbMod.getPool("dev");
     const client = await pool.connect();
@@ -1027,34 +1026,6 @@ describe("API Route Role Enforcement, DB Branch Isolation & Endpoint Contracts",
       }
       expect(resolveHttpError(pgCheckCaught, "fallback").status).toBe(400);
 
-      // 11. POST /api/auth brute-force rate limiter returns 429 with Retry-After
-      authMod.resetAuthRateLimitStore();
-      const testIp = "203.0.113.77";
-      for (let i = 0; i < 8; i++) {
-        const failLogin = await authRoute.POST(
-          new NextRequest("http://localhost:3000/api/auth", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              "x-forwarded-for": testIp,
-            },
-            body: JSON.stringify({ username: "vendedor1", pin: "0000" }),
-          })
-        );
-        expect(failLogin.status).toBe(401);
-      }
-      const blockedLogin = await authRoute.POST(
-        new NextRequest("http://localhost:3000/api/auth", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "x-forwarded-for": testIp,
-          },
-          body: JSON.stringify({ username: "vendedor1", pin: "0000" }),
-        })
-      );
-      expect(blockedLogin.status).toBe(429);
-      expect(Number(blockedLogin.headers.get("retry-after"))).toBeGreaterThan(0);
     } finally {
       authMod.resetAuthRateLimitStore();
       spyTx.mockRestore();

@@ -1,11 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
-  SESSION_COOKIE_NAME,
-  SESSION_TTL_SECONDS,
-  hashPassword,
+  getAuthenticatedERPActor,
   requireActiveSession,
-  signSessionToken,
-  verifySessionToken,
 } from "@/lib/auth";
 import { withClient, withTransaction } from "@/lib/db";
 import { assertRole } from "@/lib/rbac";
@@ -43,9 +39,9 @@ type PartnerDashboardBundleRow = BiNonMonthlyPanelsRow & {
 };
 
 export async function GET(req: NextRequest) {
+  void req;
   try {
-    const token = req.cookies.get(SESSION_COOKIE_NAME)?.value;
-    const parsedActor = assertRole(verifySessionToken(token), [
+    const parsedActor = assertRole(await getAuthenticatedERPActor(), [
       "PARTNER_ADMIN",
       "PARTNER_MANAGER",
     ]);
@@ -200,7 +196,8 @@ export async function GET(req: NextRequest) {
                  username,
                  full_name,
                  role::text AS role,
-                 is_active
+                 is_active,
+                 email
                FROM erp.app_users
                ORDER BY user_id ASC
              ) t
@@ -396,6 +393,7 @@ export async function GET(req: NextRequest) {
           full_name: String(u.full_name),
           role: String(u.role),
           is_active: Boolean(u.is_active),
+          email: u.email ? String(u.email) : null,
         })),
         biSummary,
         ...(await (async () => {
@@ -426,8 +424,7 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const token = req.cookies.get(SESSION_COOKIE_NAME)?.value;
-    const parsedActor = assertRole(verifySessionToken(token), [
+    const parsedActor = assertRole(await getAuthenticatedERPActor(), [
       "PARTNER_ADMIN",
       "PARTNER_MANAGER",
     ]);
@@ -499,51 +496,44 @@ export async function POST(req: NextRequest) {
             role: String(updRes.rows[0].role),
             is_active: Boolean(updRes.rows[0].is_active),
           },
-          refreshedSelfName:
-            targetUserId === actor.userId ? fullName : undefined,
-          refreshedSelfSession:
-            targetUserId === actor.userId
-              ? { ...actor, fullName }
-              : undefined,
         };
       }
-      if (action === "reset_user_password" || action === "update_user_pin") {
+      if (action === "update_user_email") {
         assertRole(actor, ["PARTNER_ADMIN", "PARTNER_MANAGER"]);
         const targetUserId = Number(body.userId);
         if (!Number.isInteger(targetUserId) || targetUserId <= 0) {
           throw new ValidationError("ID de usuario inválido");
         }
-        const isLegacyPinAction = action === "update_user_pin";
-        const temporaryPassword = String(
-          isLegacyPinAction ? body.newPin : body.temporaryPassword
-        ).trim();
-        if (
-          (isLegacyPinAction && !/^\d{4,8}$/.test(temporaryPassword)) ||
-          (!isLegacyPinAction &&
-            (temporaryPassword.length < 10 ||
-              !/[A-Za-zÁÉÍÓÚáéíóúÑñ]/.test(temporaryPassword) ||
-              !/\d/.test(temporaryPassword)))
-        ) {
-          throw new ValidationError(
-            isLegacyPinAction
-              ? "El PIN debe tener entre 4 y 8 dígitos numéricos"
-              : "La contraseña temporal debe tener 10 caracteres o más e incluir una letra y un número"
-          );
+        const rawEmail = String(body.email || "").trim().toLowerCase();
+        const email = rawEmail || null;
+        if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+          throw new ValidationError("Ingresa un correo electrónico válido");
         }
-        const passwordHash = hashPassword(temporaryPassword);
         const updRes = await client.query(
           `UPDATE erp.app_users
-           SET password_hash = $1,
-               pin_hash = $1,
-               must_change_password = TRUE
+           SET neon_auth_user_id = CASE
+                 WHEN LOWER(BTRIM(COALESCE(email, ''))) = LOWER(BTRIM(COALESCE($1, '')))
+                   THEN neon_auth_user_id
+                 ELSE NULL
+               END,
+               email = $1
            WHERE user_id = $2
-           RETURNING user_id`,
-          [passwordHash, targetUserId]
+           RETURNING user_id, username, email, role::text AS role, is_active`,
+          [email, targetUserId]
         );
         if (updRes.rowCount === 0) {
           throw new ValidationError("Usuario no encontrado");
         }
-        return { ok: true, mustChangePassword: true };
+        return {
+          ok: true,
+          user: {
+            user_id: Number(updRes.rows[0].user_id),
+            username: String(updRes.rows[0].username),
+            email: updRes.rows[0].email ? String(updRes.rows[0].email) : null,
+            role: String(updRes.rows[0].role),
+            is_active: Boolean(updRes.rows[0].is_active),
+          },
+        };
       }
       if (action === "toggle_user_active") {
         assertRole(actor, ["PARTNER_ADMIN", "PARTNER_MANAGER"]);
@@ -587,30 +577,7 @@ export async function POST(req: NextRequest) {
       throw new ValidationError(`Acción desconocida: ${action}`);
     });
 
-    const refreshedSelfSession =
-      "refreshedSelfSession" in result && result.refreshedSelfSession
-        ? result.refreshedSelfSession
-        : null;
-    const responsePayload =
-      "refreshedSelfSession" in result
-        ? Object.fromEntries(
-            Object.entries(result).filter(
-              ([key]) => key !== "refreshedSelfSession"
-            )
-          )
-        : result;
-    const res = NextResponse.json(responsePayload, { headers: NO_STORE_HEADERS });
-    if (action === "update_user_name" && refreshedSelfSession) {
-      const updatedToken = signSessionToken(refreshedSelfSession);
-      res.cookies.set(SESSION_COOKIE_NAME, updatedToken, {
-        httpOnly: true,
-        sameSite: "lax",
-        secure: process.env.NODE_ENV === "production",
-        path: "/",
-        maxAge: SESSION_TTL_SECONDS,
-      });
-    }
-    return res;
+    return NextResponse.json(result, { headers: NO_STORE_HEADERS });
   } catch (err) {
     const { status, error } = resolveHttpError(err, "Error en acción de socio");
     return NextResponse.json(

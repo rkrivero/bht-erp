@@ -5,7 +5,6 @@ import {
   CloseIcon,
   DownloadIcon,
   EditIcon,
-  LockIcon,
   PlusIcon,
   SearchIcon,
 } from "@/components/ui/Icons";
@@ -136,8 +135,8 @@ export default function KpisBiTab({
   onEditingChange,
 }: KpisBiTabProps) {
   const [downloadingDataset, setDownloadingDataset] = useState<string | null>(null);
-  const [editingPinUserId, setEditingPinUserId] = useState<number | null>(null);
-  const [newPinValue, setNewPinValue] = useState("");
+  const [editingEmailUserId, setEditingEmailUserId] = useState<number | null>(null);
+  const [newEmailValue, setNewEmailValue] = useState("");
   const [editingNameUserId, setEditingNameUserId] = useState<number | null>(null);
   const [newFullNameValue, setNewFullNameValue] = useState("");
   const [busyUserActionId, setBusyUserActionId] = useState<number | null>(null);
@@ -191,11 +190,11 @@ export default function KpisBiTab({
 
   useEffect(() => {
     onEditingChange?.(
-      editingPinUserId !== null ||
+      editingEmailUserId !== null ||
         editingNameUserId !== null ||
         confirmToggleUser !== null
     );
-  }, [editingPinUserId, editingNameUserId, confirmToggleUser, onEditingChange]);
+  }, [editingEmailUserId, editingNameUserId, confirmToggleUser, onEditingChange]);
 
   useEffect(() => {
     return () => onEditingChange?.(false);
@@ -332,17 +331,11 @@ export default function KpisBiTab({
     }
   }
 
-  async function handleUpdatePin(userId: number, username: string) {
+  async function handleUpdateEmail(userId: number) {
     if (busyUserActionId !== null) return;
-    if (
-      newPinValue.trim().length < 10 ||
-      !/[A-Za-zÁÉÍÓÚáéíóúÑñ]/.test(newPinValue) ||
-      !/\d/.test(newPinValue)
-    ) {
-      onFeedback(
-        "La contraseña temporal debe tener 10 caracteres o más e incluir una letra y un número.",
-        true
-      );
+    const email = newEmailValue.trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      onFeedback("Ingresa un correo electrónico válido para el acceso.", true);
       return;
     }
     setBusyUserActionId(userId);
@@ -351,24 +344,24 @@ export default function KpisBiTab({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          action: "reset_user_password",
+          action: "update_user_email",
           userId,
-          temporaryPassword: newPinValue.trim(),
+          email,
         }),
       });
       const data = await res.json();
       if (!res.ok) {
-        onFeedback(data.error || "Error reiniciando contraseña", true);
+        onFeedback(data.error || "No se pudo guardar el correo de acceso.", true);
         return;
       }
       onFeedback(
-        `Contraseña temporal creada para ${username}. Deberá cambiarla al ingresar.`
+        "Correo de acceso actualizado. La persona puede crear o recuperar su contraseña con Neon Auth."
       );
-      setEditingPinUserId(null);
-      setNewPinValue("");
+      setEditingEmailUserId(null);
+      setNewEmailValue("");
       await onRefresh();
     } catch {
-      onFeedback("Error de red al reiniciar la contraseña.", true);
+      onFeedback("Error de red al guardar el correo de acceso.", true);
     } finally {
       setBusyUserActionId(null);
     }
@@ -1554,25 +1547,25 @@ export default function KpisBiTab({
         })()}
       </Card>
 
-      {/* Team and personal password management */}
+      {/* Team and access management */}
       {(currentUser?.role === "PARTNER_ADMIN" ||
         currentUser?.role === "PARTNER_MANAGER") && (
         <Card accent="horizon" padding="md" className="space-y-3.5">
           <div>
             <Badge tone="horizon">Socio / Gerencia</Badge>
             <h2 className="mt-2 text-sm sm:text-base font-semibold text-[#18181B]">
-              Gestión de equipo y contraseñas ({users.length} usuarios)
+              Gestión de equipo y accesos ({users.length} usuarios)
             </h2>
             <p className="mt-0.5 text-xs text-[#5C5A55]">
-              Actualiza los nombres visibles en la pantalla de inicio, cambia
-              contraseñas temporales o activa/desactiva cuentas.
+              Define el correo que cada persona usará con Neon Auth, actualiza
+              nombres y activa o desactiva cuentas.
             </p>
           </div>
 
           <div className="space-y-2.5">
             {users.map((u) => {
               const isSelf = u.user_id === currentUser.userId;
-              const isEditingPin = editingPinUserId === u.user_id;
+              const isEditingEmail = editingEmailUserId === u.user_id;
               const isEditingName = editingNameUserId === u.user_id;
               const isBusy = busyUserActionId !== null;
               const displayName = formatTeamMemberName(u);
@@ -1608,7 +1601,7 @@ export default function KpisBiTab({
                         aria-expanded={isEditingName}
                         aria-label={`${isEditingName ? "Cancelar edición de nombre para" : "Editar nombre de"} ${u.username}`}
                         onClick={() => {
-                          setEditingPinUserId(null);
+                          setEditingEmailUserId(null);
                           setEditingNameUserId(isEditingName ? null : u.user_id);
                           setNewFullNameValue(isEditingName ? "" : displayName);
                         }}
@@ -1618,19 +1611,19 @@ export default function KpisBiTab({
                       </Button>
 
                       <Button
-                        variant={isEditingPin ? "secondary" : "outline"}
+                        variant={isEditingEmail ? "secondary" : "outline"}
                         size="sm"
                         disabled={isBusy}
-                        aria-expanded={isEditingPin}
-                        aria-label={`${isEditingPin ? "Cancelar reinicio de contraseña para" : "Reiniciar contraseña de"} ${u.username}`}
+                        aria-expanded={isEditingEmail}
+                        aria-label={`${isEditingEmail ? "Cancelar edición de correo para" : "Editar correo de acceso de"} ${u.username}`}
                         onClick={() => {
                           setEditingNameUserId(null);
-                          setEditingPinUserId(isEditingPin ? null : u.user_id);
-                          setNewPinValue("");
+                          setEditingEmailUserId(isEditingEmail ? null : u.user_id);
+                          setNewEmailValue(isEditingEmail ? "" : u.email || "");
                         }}
                       >
-                        <LockIcon className="h-3.5 w-3.5" />
-                        {isEditingPin ? "Cancelar" : "Reiniciar contraseña"}
+                        <EditIcon className="h-3.5 w-3.5" />
+                        {isEditingEmail ? "Cancelar correo" : "Correo de acceso"}
                       </Button>
 
                       {isSelf ? (
@@ -1654,6 +1647,10 @@ export default function KpisBiTab({
                       )}
                     </div>
                   </div>
+
+                  <p className="mt-2 text-xs text-[#5C5A55]">
+                    Acceso: {u.email || "Sin correo habilitado"}
+                  </p>
 
                   {isEditingName && (
                     <form
@@ -1686,21 +1683,21 @@ export default function KpisBiTab({
                     </form>
                   )}
 
-                  {isEditingPin && (
+                  {isEditingEmail && (
                     <form
                       onSubmit={(e) => {
                         e.preventDefault();
-                        handleUpdatePin(u.user_id, u.username);
+                        void handleUpdateEmail(u.user_id);
                       }}
                       className="mt-3 flex flex-wrap items-center gap-2 border-t border-[#E7E5E0] pt-3"
                     >
                       <input
-                        type="password"
-                        maxLength={128}
-                        value={newPinValue}
-                        onChange={(e) => setNewPinValue(e.target.value)}
-                        aria-label={`Contraseña temporal para ${u.username}`}
-                        placeholder="Temporal: 10+ caracteres, letra y número"
+                        type="email"
+                        maxLength={254}
+                        value={newEmailValue}
+                        onChange={(e) => setNewEmailValue(e.target.value)}
+                        aria-label={`Correo de acceso para ${u.username}`}
+                        placeholder="persona@empresa.com"
                         className={`${INPUT_CLASS} w-full sm:w-auto sm:min-w-[220px] sm:flex-1 font-medium`}
                       />
                       <Button
@@ -1712,7 +1709,7 @@ export default function KpisBiTab({
                       >
                         {busyUserActionId === u.user_id
                           ? "Guardando..."
-                          : "Guardar contraseña temporal"}
+                          : "Guardar correo"}
                       </Button>
                     </form>
                   )}

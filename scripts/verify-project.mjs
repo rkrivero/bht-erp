@@ -38,15 +38,17 @@ if (vercelEnv === "preview" || vercelEnv === "production") {
     );
   }
 
-  const sessionSecret = process.env.BHT_SESSION_SECRET?.trim() || "";
+  const authBaseUrl = process.env.NEON_AUTH_BASE_URL?.trim() || "";
+  const cookieSecret = process.env.NEON_AUTH_COOKIE_SECRET?.trim() || "";
   if (
-    sessionSecret.length < 32 ||
-    /replace-with|placeholder|changeme/i.test(sessionSecret)
+    !authBaseUrl.startsWith("https://") ||
+    cookieSecret.length < 32 ||
+    /replace-with|placeholder|changeme/i.test(cookieSecret)
   ) {
     throw new Error(
-      `Configura BHT_SESSION_SECRET de Vercel ${vercelEnv} con al menos 32 caracteres aleatorios`
+      `Configura NEON_AUTH_BASE_URL y NEON_AUTH_COOKIE_SECRET en Vercel ${vercelEnv}; la clave debe tener al menos 32 caracteres aleatorios`
     );
   }
 }
 
-console.log("Configuración del proyecto verificada (schema mínimo 010).\n");
+console.log("Configuración del proyecto verificada (schema mínimo 011).\n");

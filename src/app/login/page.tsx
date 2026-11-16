@@ -1,7 +1,9 @@
 "use client";
 
 import React, { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { authClient } from "@/lib/auth/client";
 import AuthCardShell from "@/components/auth/AuthCardShell";
 import { EyeIcon, EyeOffIcon, LockIcon } from "@/components/ui/Icons";
 import {
@@ -11,6 +13,8 @@ import {
   ToastBanner,
 } from "@/components/ui/Primitives";
 
+export const dynamic = "force-dynamic";
+
 function routeForRole(role: string): string {
   if (role === "WAREHOUSE_DELIVERY") return "/almacen";
   if (role === "EXTERNAL_SELLER") return "/vendedor";
@@ -19,7 +23,7 @@ function routeForRole(role: string): string {
 
 export default function LoginPage() {
   const router = useRouter();
-  const [username, setUsername] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -32,19 +36,25 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      const response = await fetch("/api/auth", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username, password }),
+      const result = await authClient.signIn.email({
+        email: email.trim().toLowerCase(),
+        password,
       });
-      const data = await response.json();
-      if (!response.ok) {
-        setError(data.error || "Usuario o contraseña incorrectos");
+      if (result.error) {
+        setError(result.error.message || "Correo o contraseña incorrectos");
         return;
       }
-      router.replace(
-        data.user.mustChangePassword ? "/change-password" : routeForRole(data.user.role)
-      );
+
+      const response = await fetch("/api/erp/session", { cache: "no-store" });
+      const data = await response.json();
+      if (!response.ok || !data.session) {
+        await authClient.signOut();
+        setError(
+          "Tu correo aún no está habilitado en el ERP. Contacta a un socio administrador."
+        );
+        return;
+      }
+      router.replace(routeForRole(data.session.role));
     } catch {
       setError("Error de red al iniciar sesión");
     } finally {
@@ -55,7 +65,7 @@ export default function LoginPage() {
   return (
     <AuthCardShell
       title="Blue Horizon Trade"
-      subtitle="Ingresa con tu usuario y contraseña"
+      subtitle="Ingresa con tu correo y contraseña"
     >
       <form
         onSubmit={handleLogin}
@@ -63,18 +73,18 @@ export default function LoginPage() {
       >
         <div className="space-y-5">
           <div>
-            <FieldLabel htmlFor="login-username" required>
-              Usuario
+            <FieldLabel htmlFor="login-email" required>
+              Correo electrónico
             </FieldLabel>
             <input
-              id="login-username"
-              type="text"
+              id="login-email"
+              type="email"
               autoComplete="username"
               maxLength={80}
-              value={username}
-              onChange={(event) => setUsername(event.target.value)}
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
               aria-invalid={Boolean(error)}
-              placeholder="Ej. juan.perez"
+              placeholder="nombre@empresa.com"
               required
               className={`${INPUT_CLASS} mt-1.5 w-full rounded-xl`}
             />
@@ -122,8 +132,17 @@ export default function LoginPage() {
           {error && <ToastBanner type="err" message={error} />}
 
           <p className="text-xs leading-relaxed text-[#6D6A64]">
-            Tu sesión y permisos son personales. No compartas tu contraseña.
+            Tu correo debe estar habilitado por un socio administrador. Tu sesión
+            y permisos son personales.
           </p>
+          <div className="flex flex-wrap justify-between gap-3 text-xs font-medium">
+            <Link href="/signup" className="text-[#1E446B] underline-offset-4 hover:underline">
+              Crear cuenta
+            </Link>
+            <Link href="/forgot-password" className="text-[#1E446B] underline-offset-4 hover:underline">
+              Olvidé mi contraseña
+            </Link>
+          </div>
         </div>
 
         <Button

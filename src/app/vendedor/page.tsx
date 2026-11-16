@@ -9,6 +9,7 @@ import React, {
   useState,
 } from "react";
 import { useRouter } from "next/navigation";
+import { authClient } from "@/lib/auth/client";
 import {
   AbonoModal,
   type AbonoCashAccountOption,
@@ -330,7 +331,7 @@ export default function VendedorPage() {
       let savedDraft: SellerOrderDraft | null = null;
       try {
         if (navigator.onLine) {
-          const response = await fetch("/api/auth", { cache: "no-store" });
+          const response = await fetch("/api/erp/session", { cache: "no-store" });
           const data = response.ok ? await response.json() : null;
           actor =
             typeof data?.session?.username === "string" ? data.session.username : null;
@@ -1485,11 +1486,7 @@ export default function VendedorPage() {
     if (loggingOut) return;
     setLoggingOut(true);
     try {
-      await fetch("/api/auth", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "logout" }),
-      });
+      await authClient.signOut();
     } finally {
       router.push("/login");
     }

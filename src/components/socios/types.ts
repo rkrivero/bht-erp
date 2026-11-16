@@ -252,6 +252,7 @@ export interface AppUserItem {
   user_id: number;
   username: string;
   full_name: string;
+  email: string | null;
   role: string;
   is_active: boolean;
 }

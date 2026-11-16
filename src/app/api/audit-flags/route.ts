@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
-  SESSION_COOKIE_NAME,
+  getAuthenticatedERPActor,
   requireActiveSession,
-  verifySessionToken,
 } from "@/lib/auth";
 import { withClient, withTransaction } from "@/lib/db";
 import { assertRole } from "@/lib/rbac";
@@ -18,8 +17,7 @@ const NO_STORE_HEADERS = { "Cache-Control": "no-store" };
 
 export async function GET(req: NextRequest) {
   try {
-    const token = req.cookies.get(SESSION_COOKIE_NAME)?.value;
-    const parsedActor = assertRole(verifySessionToken(token), [
+    const parsedActor = assertRole(await getAuthenticatedERPActor(), [
       "PARTNER_ADMIN",
       "PARTNER_MANAGER",
     ]);
@@ -53,8 +51,7 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const token = req.cookies.get(SESSION_COOKIE_NAME)?.value;
-    const parsedActor = assertRole(verifySessionToken(token), [
+    const parsedActor = assertRole(await getAuthenticatedERPActor(), [
       "PARTNER_ADMIN",
       "PARTNER_MANAGER",
     ]);
