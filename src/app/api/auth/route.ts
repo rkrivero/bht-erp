@@ -62,7 +62,7 @@ export async function POST(req: NextRequest) {
     }
 
     const username = String(body.username || "").trim();
-    const pin = String(body.pin || "").trim();
+    const password = String(body.password || body.pin || "").trim();
     const clientIp = extractClientIp(req);
 
     const rateCheck = checkAuthRateLimit(clientIp, username);
@@ -83,12 +83,12 @@ export async function POST(req: NextRequest) {
     }
 
     const user = await withClient((client) =>
-      authenticateUser(client, username, pin)
+      authenticateUser(client, username, password)
     );
     if (!user) {
       recordAuthFailure(clientIp, username);
       return NextResponse.json(
-        { error: "Usuario o PIN incorrecto" },
+        { error: "Usuario o contraseña incorrectos" },
         { status: 401, headers: NO_STORE_HEADERS }
       );
     }

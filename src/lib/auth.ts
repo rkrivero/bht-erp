@@ -147,11 +147,11 @@ export function verifySessionToken(
 export async function authenticateUser(
   client: PoolClient,
   username: string,
-  pin: string
+  password: string
 ): Promise<SessionUser | null> {
   const normalizedUsername = username.trim().toLowerCase();
-  const trimmedPin = pin.trim();
-  if (!normalizedUsername || !trimmedPin) return null;
+  const trimmedPassword = password.trim();
+  if (!normalizedUsername || !trimmedPassword) return null;
 
   const res = await client.query<{
     user_id: number;
@@ -171,7 +171,7 @@ export async function authenticateUser(
   );
   if (res.rowCount === 0) return null;
   const row = res.rows[0];
-  if (!verifyPin(trimmedPin, row.pin_hash)) return null;
+  if (!verifyPin(trimmedPassword, row.pin_hash)) return null;
   const role = row.role as UserRole;
   return {
     userId: Number(row.user_id),
