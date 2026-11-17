@@ -22,7 +22,7 @@ import {
 import {
   AppHeader,
   BottomNav,
-  DesktopTabBar,
+  DesktopSidebar,
   type NavTabItem,
 } from "@/components/ui/AppShell";
 import {
@@ -62,6 +62,12 @@ import {
   useLiveSync,
   type SyncScope,
 } from "@/lib/realtime/useLiveSync";
+import {
+  canonicalSellerUrl,
+  resolveSellerNavigation,
+  sellerUrlForLegacyTab,
+  type LegacySellerTab,
+} from "@/lib/navigation";
 import {
   deleteOfflineSnapshot,
   readOfflineSnapshot,
@@ -228,16 +234,20 @@ interface QuoteItem {
   lines: QuoteLineItem[];
 }
 
-type SellerTab = "nuevo" | "cotizaciones" | "deudores" | "pedidos" | "gastos";
-const SELLER_TABS: SellerTab[] = ["nuevo", "cotizaciones", "deudores", "pedidos", "gastos"];
+type SellerTab = LegacySellerTab;
 
 export default function VendedorPage() {
   const router = useRouter();
   const [tab, setTab] = useState<SellerTab>("nuevo");
   useEffect(() => {
     const syncFromUrl = () => {
-      const raw = new URLSearchParams(window.location.search).get("tab");
-      setTab(raw && SELLER_TABS.includes(raw as SellerTab) ? raw as SellerTab : "nuevo");
+      const current = new URL(window.location.href);
+      const resolved = resolveSellerNavigation(current.searchParams);
+      setTab(resolved.legacyTab);
+      const canonical = canonicalSellerUrl(current);
+      if (canonical.search !== current.search) {
+        window.history.replaceState(null, "", canonical.pathname + canonical.search + canonical.hash);
+      }
     };
     syncFromUrl();
     window.addEventListener("popstate", syncFromUrl);
@@ -245,9 +255,9 @@ export default function VendedorPage() {
   }, []);
   const handleTabChange = useCallback((nextTab: SellerTab) => {
     setTab(nextTab);
-    const url = new URL(window.location.href);
-    if (url.searchParams.get("tab") !== nextTab) {
-      url.searchParams.set("tab", nextTab);
+    const current = new URL(window.location.href);
+    const url = sellerUrlForLegacyTab(current, nextTab);
+    if (url.search !== current.search) {
       window.history.pushState(null, "", url.pathname + url.search + url.hash);
     }
   }, []);
@@ -1550,6 +1560,7 @@ export default function VendedorPage() {
         syncStatus={liveStatus}
         onSyncClick={() => void triggerSync({ force: true })}
         maxWidth="6xl"
+        withSidebar
         actions={
           isPartnerControlUser ? (
             <Button
@@ -1565,18 +1576,18 @@ export default function VendedorPage() {
         onLogout={handleLogout}
       />
 
+      <DesktopSidebar
+        items={navItems}
+        activeId={tab}
+        onChange={handleTabChange}
+        areaLabel="Vendedor · Campo"
+      />
+
       <main
         id="main-content"
         tabIndex={-1}
-        className="mx-auto max-w-6xl space-y-4 px-3.5 pt-4 sm:px-5 outline-none"
+        className="mx-auto max-w-6xl space-y-4 px-3.5 pt-4 sm:px-5 outline-none md:ml-[232px] md:max-w-none md:px-6 lg:px-8"
       >
-        <DesktopTabBar
-          items={navItems}
-          activeId={tab}
-          onChange={handleTabChange}
-          className="hidden md:flex"
-        />
-
         <div
           className="flex items-center gap-2 rounded-xl border border-[#E2E8F0] bg-white px-3.5 py-3 text-xs"
           aria-label={`Ubicación actual: ${activeTabLabel}`}

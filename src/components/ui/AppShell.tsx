@@ -14,6 +14,63 @@ export interface NavTabItem<T extends string = string> {
 
 export type LiveSyncStatus = "live" | "syncing" | "paused" | "offline";
 
+export function DesktopSidebar<T extends string>({
+  items,
+  activeId,
+  onChange,
+  areaLabel,
+  footer,
+}: {
+  items: NavTabItem<T>[];
+  activeId: T;
+  onChange: (id: T) => void;
+  areaLabel: string;
+  footer?: React.ReactNode;
+}) {
+  return (
+    <aside className="fixed inset-y-0 left-0 z-40 hidden w-[232px] flex-col bg-[var(--bht-navy)] px-3.5 py-5 text-white md:flex">
+      <div className="flex items-center gap-3 px-2 pb-6">
+        <HorizonLogo className="h-10 w-10 flex-none rounded-xl ring-1 ring-white/20" />
+        <div className="min-w-0">
+          <p className="text-sm font-bold leading-tight">Blue Horizon Trade</p>
+          <p className="mt-1 truncate text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--bht-sky)]">
+            {areaLabel}
+          </p>
+        </div>
+      </div>
+      <nav aria-label="Secciones principales" className="grid gap-1">
+        {items.map((item) => {
+          const active = item.id === activeId;
+          return (
+            <button
+              key={item.id}
+              type="button"
+              aria-current={active ? "page" : undefined}
+              onClick={() => onChange(item.id)}
+              className={`flex min-h-11 w-full items-center gap-3 rounded-xl px-3 text-left text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white ${
+                active
+                  ? "bg-white text-[var(--bht-navy)]"
+                  : "text-[var(--bht-sky)] hover:bg-white/10 hover:text-white"
+              }`}
+            >
+              <span aria-hidden="true" className="flex h-5 w-5 items-center justify-center">
+                {item.icon}
+              </span>
+              <span className="min-w-0 flex-1 truncate">{item.label}</span>
+              {item.badgeCount !== undefined && item.badgeCount > 0 && (
+                <span className={`rounded-full px-2 py-0.5 text-[10px] tabular-nums ${active ? "bg-[var(--bht-sky)]" : "bg-white/10 text-white"}`}>
+                  {item.badgeCount > 99 ? "99+" : item.badgeCount}
+                </span>
+              )}
+            </button>
+          );
+        })}
+      </nav>
+      {footer && <div className="mt-auto border-t border-white/15 px-2 pt-4 text-xs text-[var(--bht-sky)]">{footer}</div>}
+    </aside>
+  );
+}
+
 const SYNC_STATUS_CONFIG: Record<
   LiveSyncStatus,
   { label: string; dotClass: string; pillClass: string }
@@ -51,6 +108,7 @@ export function AppHeader({
   maxWidth = "2xl",
   actions,
   onLogout,
+  withSidebar = false,
 }: {
   title: string;
   roleLabel: string;
@@ -62,6 +120,7 @@ export function AppHeader({
   maxWidth?: "xl" | "2xl" | "5xl" | "6xl" | "7xl";
   actions?: React.ReactNode;
   onLogout: () => void;
+  withSidebar?: boolean;
 }) {
   const widthClass =
     maxWidth === "xl"
@@ -77,7 +136,7 @@ export function AppHeader({
   const syncCfg = syncStatus ? SYNC_STATUS_CONFIG[syncStatus] : null;
 
   return (
-    <header className="sticky top-0 z-30 border-b border-[#E2E8F0] bg-white/95 backdrop-blur-md">
+    <header className={`sticky top-0 z-30 border-b border-[var(--border-hairline)] bg-white/95 backdrop-blur-md ${withSidebar ? "md:ml-[232px]" : ""}`}>
       <div
         className={`mx-auto grid ${widthClass} grid-cols-[minmax(0,1fr)_auto] items-start gap-x-2 gap-y-2 px-3.5 py-3 sm:flex sm:flex-wrap sm:items-center sm:justify-between sm:gap-3 sm:px-5`}
       >
@@ -314,10 +373,12 @@ export function AppMain({
   children,
   maxWidth = "2xl",
   className = "",
+  withSidebar = false,
 }: {
   children: React.ReactNode;
   maxWidth?: "xl" | "2xl" | "5xl" | "6xl" | "7xl";
   className?: string;
+  withSidebar?: boolean;
 }) {
   const widthClass =
     maxWidth === "xl"
@@ -333,7 +394,7 @@ export function AppMain({
     <main
       id="main-content"
       tabIndex={-1}
-      className={`mx-auto ${widthClass} px-3.5 pt-4 sm:px-5 outline-none ${className}`}
+      className={`mx-auto ${widthClass} px-3.5 pt-4 sm:px-5 outline-none ${withSidebar ? "md:ml-[232px] md:max-w-none md:px-6 lg:px-8" : ""} ${className}`}
     >
       {children}
     </main>

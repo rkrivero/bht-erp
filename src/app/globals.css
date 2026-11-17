@@ -2,26 +2,34 @@
 
 :root {
   --target-size: 24px;
-  --bg-canvas: #ffffff;
+  --bht-navy: #102a43;
+  --bht-cobalt: #1463ff;
+  --bht-steel: #486581;
+  --bht-sky: #d9e8ff;
+  --bht-amber: #f6a623;
+  --bht-ink: #0b192c;
+  --bht-paper: #f7f5f0;
+
+  --bg-canvas: var(--bht-paper);
   --bg-surface: #ffffff;
-  --bg-subtle: #f8fafc;
-  --border-hairline: #e2e8f0;
-  --border-strong: #cbd5e1;
-  --ink-primary: #0b192c;
-  --ink-secondary: #475569;
-  --ink-muted: #64748b;
+  --bg-subtle: #f2f6fa;
+  --border-hairline: #d5e0e9;
+  --border-strong: #b9cad9;
+  --ink-primary: var(--bht-ink);
+  --ink-secondary: var(--bht-steel);
+  --ink-muted: #627d98;
 
   /* Blue Horizon brand tokens — identity used with operational restraint */
-  --horizon-ink: #0b192c;
-  --horizon-field: #16324a;
-  --horizon-mid: #075ee8;
-  --horizon-hover: #064fc3;
-  --horizon-accent: #075ee8;
-  --horizon-mist: #f8fafc;
-  --horizon-pill: #eaf2fe;
-  --horizon-tint: #eaf2fe;
-  --horizon-border: #e2e8f0;
-  --horizon-safety: #f59e0b;
+  --horizon-ink: var(--bht-ink);
+  --horizon-field: var(--bht-navy);
+  --horizon-mid: var(--bht-cobalt);
+  --horizon-hover: #0f54da;
+  --horizon-accent: var(--bht-cobalt);
+  --horizon-mist: #f2f6fa;
+  --horizon-pill: var(--bht-sky);
+  --horizon-tint: var(--bht-sky);
+  --horizon-border: var(--border-hairline);
+  --horizon-safety: var(--bht-amber);
 
   --status-success-bg: #f0fdf4;
   --status-success-text: #14532d;
@@ -60,8 +68,8 @@
   body {
     background-color: var(--bg-canvas);
     color: var(--ink-primary);
-    font-family: var(--font-inter), "Inter", -apple-system, BlinkMacSystemFont,
-      "Segoe UI", sans-serif;
+    font-family: var(--font-plus-jakarta), "Avenir Next", Avenir,
+      "Helvetica Neue", Arial, sans-serif;
     font-feature-settings: "cv02", "cv03", "cv04", "cv11";
     overflow-x: clip;
     overflow-wrap: anywhere;
@@ -88,7 +96,7 @@
   h1,
   h2,
   h3 {
-    font-family: var(--font-plus-jakarta), var(--font-inter), sans-serif;
+    font-family: inherit;
     text-wrap: balance;
     letter-spacing: -0.02em;
   }
@@ -116,12 +124,13 @@
       scroll-behavior: auto;
     }
 
-    *,
-    *::before,
-    *::after {
-      animation-duration: 0.01ms !important;
-      animation-iteration-count: 1 !important;
-      transition-duration: 0.01ms !important;
+    [data-motion="spatial"],
+    [data-motion="spatial"]::before,
+    [data-motion="spatial"]::after {
+      animation: none !important;
+      transform: none !important;
+      transition-property: color, background-color, border-color, opacity !important;
+      transition-duration: 80ms !important;
     }
   }
 }
@@ -149,6 +158,23 @@
     position: sticky;
     inset-block-start: 0;
     z-index: 1;
+  }
+
+  .bht-scrollbar {
+    scrollbar-color: var(--bht-steel) transparent;
+    scrollbar-width: thin;
+  }
+
+  .bht-scrollbar::-webkit-scrollbar {
+    height: 8px;
+    width: 8px;
+  }
+
+  .bht-scrollbar::-webkit-scrollbar-thumb {
+    background: var(--bht-steel);
+    border: 2px solid transparent;
+    border-radius: 999px;
+    background-clip: padding-box;
   }
 }
 

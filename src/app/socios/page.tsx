@@ -39,7 +39,7 @@ import {
 import {
   AppHeader,
   BottomNav,
-  DesktopTabBar,
+  DesktopSidebar,
   type NavTabItem,
 } from "@/components/ui/AppShell";
 import {
@@ -82,18 +82,15 @@ import {
   type SyncScope,
   useLiveSync,
 } from "@/lib/realtime/useLiveSync";
+import {
+  canonicalPartnerUrl,
+  partnerUrlForLegacyTab,
+  resolvePartnerNavigation,
+  type LegacyPartnerTab,
+} from "@/lib/navigation";
 
-type PartnerTab = "control" | "pedidos" | "deudores" | "stock" | "caja" | "kpis";
+type PartnerTab = LegacyPartnerTab;
 type MonitorStatusFilter = "ALL" | "PENDING" | "DELIVERED" | "CANCELLED";
-
-const VALID_PARTNER_TABS: PartnerTab[] = [
-  "control",
-  "pedidos",
-  "deudores",
-  "stock",
-  "caja",
-  "kpis",
-];
 
 const SOCIOS_SYNC_SCOPES: SyncScope[] = [
   "orders",
@@ -558,8 +555,13 @@ export default function SociosPage() {
 
   useEffect(() => {
     const syncFromUrl = () => {
-      const raw = new URLSearchParams(window.location.search).get("tab");
-      setTab(raw && VALID_PARTNER_TABS.includes(raw as PartnerTab) ? raw as PartnerTab : "control");
+      const current = new URL(window.location.href);
+      const resolved = resolvePartnerNavigation(current.searchParams);
+      setTab(resolved.legacyTab);
+      const canonical = canonicalPartnerUrl(current);
+      if (canonical.search !== current.search) {
+        window.history.replaceState(null, "", canonical.pathname + canonical.search + canonical.hash);
+      }
     };
     syncFromUrl();
     window.addEventListener("popstate", syncFromUrl);
@@ -597,9 +599,9 @@ export default function SociosPage() {
     setSubTabEditing(false);
     setTab(nextTab);
     if (typeof window !== "undefined") {
-      const url = new URL(window.location.href);
-      if (url.searchParams.get("tab") !== nextTab) {
-        url.searchParams.set("tab", nextTab);
+      const current = new URL(window.location.href);
+      const url = partnerUrlForLegacyTab(current, nextTab);
+      if (url.search !== current.search) {
         window.history.pushState(null, "", url.pathname + url.search + url.hash);
       }
     }
@@ -1132,6 +1134,7 @@ export default function SociosPage() {
         syncStatus={liveStatus}
         onSyncClick={() => void triggerSync({ force: true })}
         maxWidth="7xl"
+        withSidebar
         actions={
           <div className="hidden sm:inline-flex items-center gap-2">
             <Button
@@ -1165,10 +1168,18 @@ export default function SociosPage() {
         }}
       />
 
+      <DesktopSidebar
+        items={navItems}
+        activeId={tab}
+        onChange={handleTabChange}
+        areaLabel="Socios · Control"
+        footer="Equipo y acceso se mantiene en administración."
+      />
+
       <main
         id="main-content"
         tabIndex={-1}
-        className="mx-auto max-w-7xl px-3.5 pt-4 sm:px-5 space-y-4 focus:outline-none"
+        className="mx-auto max-w-7xl px-3.5 pt-4 sm:px-5 space-y-4 focus:outline-none md:ml-[232px] md:max-w-none md:px-6 lg:px-8"
       >
         {tab !== "control" && (
           <div className="grid grid-cols-[2fr_1fr] gap-2 sm:hidden">
@@ -1191,13 +1202,6 @@ export default function SociosPage() {
             </Button>
           </div>
         )}
-
-        <DesktopTabBar
-          items={navItems}
-          activeId={tab}
-          onChange={handleTabChange}
-          className="hidden md:flex"
-        />
 
         <div className="flex flex-col gap-3 rounded-xl border border-[#E2E8F0] bg-white p-3 sm:flex-row sm:items-center sm:justify-between sm:p-3.5">
           <div className="flex min-w-0 items-center gap-2 text-xs text-[#6D6A64]">
