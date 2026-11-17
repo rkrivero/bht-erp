@@ -1,6 +1,5 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
-import { signSessionToken } from "../../src/lib/auth";
 
 test("login is usable without horizontal overflow and has no serious Axe findings", async ({
   page,
@@ -30,7 +29,7 @@ test("login is usable without horizontal overflow and has no serious Axe finding
   } else {
     expect(layout.width).toBeLessThanOrEqual(464);
     expect(layout.height).toBeLessThan(layout.viewportHeight);
-    expect(layout.borderRadius).toBeGreaterThan(20);
+    expect(layout.borderRadius).toBe(16);
   }
 
   const results = await new AxeBuilder({ page })
@@ -44,41 +43,47 @@ test("login is usable without horizontal overflow and has no serious Axe finding
 
 test("authenticated warehouse header remains usable without clipping", async ({
   page,
-  request,
-  context,
-  baseURL,
 }) => {
-  const authResponse = await request.post("/api/auth", {
-    data: { username: "almacen1", password: "4444" },
+  await page.addInitScript(() => {
+    Object.defineProperty(window, "EventSource", {
+      configurable: true,
+      value: undefined,
+    });
   });
-  expect(authResponse.ok()).toBe(true);
-  const authBody = (await authResponse.json()) as {
-    user: {
-      user_id: number;
-      userId: number;
-      username: string;
-      fullName: string;
-      full_name: string;
-      role: "WAREHOUSE_DELIVERY";
-    };
-  };
-  const warehouseUser = authBody.user;
-  const token = signSessionToken({
-    userId: Number(warehouseUser.userId ?? warehouseUser.user_id),
-    username: warehouseUser.username,
-    fullName: warehouseUser.fullName ?? warehouseUser.full_name,
-    role: "WAREHOUSE_DELIVERY",
-    defaultCashAccountId: null,
+
+  await page.route("**/api/orders", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        orders: [],
+        currentUser: {
+          userId: 4,
+          username: "warehouse-e2e",
+          fullName: "Prueba de Almacén",
+          role: "WAREHOUSE_DELIVERY",
+        },
+      }),
+    });
   });
-  await context.addCookies([
-    {
-      name: "bht_session",
-      value: token,
-      url: baseURL!,
-      httpOnly: true,
-      sameSite: "Lax",
-    },
-  ]);
+  await page.route("**/api/trips", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ trips: [] }),
+    });
+  });
+  await page.route("**/api/sync**", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        version: "e2e-static",
+        changedScopes: [],
+        allowedScopes: ["orders", "inventory"],
+      }),
+    });
+  });
 
   await page.goto("/almacen");
   await expect(

@@ -18,10 +18,10 @@ export type Tone =
   | "indigo";
 
 const CARD_TONE_CLASSES: Record<Tone, string> = {
-  default: "border-[#E7E5E0] bg-white",
-  subtle: "border-[#E7E5E0] bg-[#F4F3EF]",
-  horizon: "border-[#D4E0EC] bg-[#F2F6FA]",
-  brand: "border-[#C7D9EC] bg-[#F6F9FD]",
+  default: "border-[#E2E8F0] bg-white",
+  subtle: "border-[#E2E8F0] bg-[#F8FAFC]",
+  horizon: "border-[#E2E8F0] bg-[#F8FAFC]",
+  brand: "border-[#BFDBFE] bg-[#F8FAFC]",
   success: "border-[#BBF7D0] bg-[#F5FBF7]",
   warning: "border-[#F3D9B1] bg-[#FDF8F0]",
   danger: "border-[#FECACA] bg-[#FEF6F6]",
@@ -75,10 +75,10 @@ export type BadgeTone =
   | "indigo";
 
 const BADGE_CLASSES: Record<BadgeTone, string> = {
-  neutral: "border-[#E7E5E0] bg-[#F4F3EF] text-[#5C5A55]",
+  neutral: "border-[#E2E8F0] bg-[#F8FAFC] text-[#475569]",
   obsidian: "border-[#18181B] bg-[#18181B] text-white",
-  horizon: "border-[#D4E0EC] bg-[#EDF3F8] text-[#0F2942]",
-  brand: "border-[#CBE0F5] bg-[#EFF6FF] text-[#1E446B]",
+  horizon: "border-[#E2E8F0] bg-[#F8FAFC] text-[#0B192C]",
+  brand: "border-[#BFDBFE] bg-[#EAF2FF] text-[#0052D4]",
   success: "border-[#DCFCE7] bg-[#F0FDF4] text-[#15803D]",
   warning: "border-[#FDE68A] bg-[#FFFBEB] text-[#B45309]",
   danger: "border-[#FEE2E2] bg-[#FEF2F2] text-[#B91C1C]",
@@ -127,14 +127,14 @@ export type ButtonVariant =
 
 const BUTTON_VARIANTS: Record<ButtonVariant, string> = {
   primary:
-    "bg-[#0F2942] text-white hover:bg-[#183B5E] shadow-[0_1px_2px_rgba(15,41,66,0.16)]",
+    "bg-[#075EE8] text-white hover:bg-[#064FC3] shadow-[0_1px_2px_rgba(7,94,232,0.18)]",
   brand:
-    "bg-[#1E446B] text-white hover:bg-[#0F2942] shadow-[0_1px_2px_rgba(15,41,66,0.16)]",
+    "bg-[#16324A] text-white hover:bg-[#0B192C] shadow-[0_1px_2px_rgba(11,25,44,0.16)]",
   secondary:
-    "bg-[#F4F3EF] text-[#18181B] border border-[#E7E5E0] hover:bg-[#EAE8E1]",
+    "bg-[#F8FAFC] text-[#0B192C] border border-[#E2E8F0] hover:bg-[#EAF2FF]",
   outline:
-    "bg-white text-[#18181B] border border-[#DDDAD3] hover:bg-[#FAF9F6] shadow-[0_1px_2px_rgba(24,24,27,0.03)]",
-  ghost: "bg-transparent text-[#5C5A55] hover:bg-[#F4F3EF] hover:text-[#18181B]",
+    "bg-white text-[#0B192C] border border-[#E2E8F0] hover:bg-[#F8FAFC] shadow-[0_1px_2px_rgba(11,25,44,0.03)]",
+  ghost: "bg-transparent text-[#475569] hover:bg-[#F8FAFC] hover:text-[#0B192C]",
   success:
     "bg-[#15803D] text-white hover:bg-[#166534] shadow-[0_1px_2px_rgba(21,128,61,0.18)]",
   danger:
@@ -175,7 +175,7 @@ export function Button({
     <button
       type={type}
       data-compact={isCompact ? "true" : undefined}
-      className={`${displayClass} items-center justify-center gap-2 font-semibold transition active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0F2942] focus-visible:ring-offset-2 focus-visible:ring-offset-[#FAF9F6] disabled:pointer-events-none disabled:opacity-50 cursor-pointer ${BUTTON_VARIANTS[variant]} ${BUTTON_SIZES[size]} ${mobileTouchClass} ${className}`}
+      className={`${displayClass} items-center justify-center gap-2 font-semibold transition active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#075EE8] focus-visible:ring-offset-2 focus-visible:ring-offset-white disabled:pointer-events-none disabled:opacity-50 cursor-pointer ${BUTTON_VARIANTS[variant]} ${BUTTON_SIZES[size]} ${mobileTouchClass} ${className}`}
       {...props}
     >
       {children}
@@ -197,7 +197,7 @@ export function FieldLabel({
   return (
     <label
       htmlFor={htmlFor}
-      className={`block text-xs font-medium text-[#5C5A55] ${className}`}
+      className={`block text-xs font-medium text-[#475569] ${className}`}
     >
       {children}
       {required && (
@@ -210,7 +210,7 @@ export function FieldLabel({
 }
 
 export const INPUT_CLASS =
-  "w-full rounded-xl border border-[#DDDAD3] bg-white px-3.5 py-2.5 text-sm text-[#18181B] placeholder:text-[#76736D] transition focus:border-[#0F2942] focus:outline-none focus:ring-2 focus:ring-[#0F2942]/15 disabled:bg-[#F4F3EF] disabled:text-[#5C5A55]";
+  "w-full rounded-xl border border-[#CBD5E1] bg-white px-3.5 py-2.5 text-sm text-[#0B192C] placeholder:text-[#64748B] transition focus:border-[#075EE8] focus:outline-none focus:ring-2 focus:ring-[#075EE8]/20 disabled:bg-[#F8FAFC] disabled:text-[#64748B]";
 
 export function SegmentedControl<T extends string>({
   options,

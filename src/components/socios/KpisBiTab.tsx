@@ -694,7 +694,11 @@ export default function KpisBiTab({
                     {formatPen(m.internal_deposits_pen)}
                   </span>
                 </div>
-                <div className="space-y-1.5">
+                <div
+                  className="space-y-1.5"
+                  role="img"
+                  aria-label={`Desglose de flujos para ${formatMonthLabel(m.period_month)}`}
+                >
                   {bars.map((b) => {
                     const pct = Math.min(
                       100,
@@ -712,6 +716,7 @@ export default function KpisBiTab({
                           <div
                             className={`h-full rounded-full ${b.color}`}
                             style={{ width: `${pct}%` }}
+                            aria-hidden="true"
                           />
                         </div>
                       </div>

@@ -229,10 +229,28 @@ interface QuoteItem {
 }
 
 type SellerTab = "nuevo" | "cotizaciones" | "deudores" | "pedidos" | "gastos";
+const SELLER_TABS: SellerTab[] = ["nuevo", "cotizaciones", "deudores", "pedidos", "gastos"];
 
 export default function VendedorPage() {
   const router = useRouter();
   const [tab, setTab] = useState<SellerTab>("nuevo");
+  useEffect(() => {
+    const syncFromUrl = () => {
+      const raw = new URLSearchParams(window.location.search).get("tab");
+      setTab(raw && SELLER_TABS.includes(raw as SellerTab) ? raw as SellerTab : "nuevo");
+    };
+    syncFromUrl();
+    window.addEventListener("popstate", syncFromUrl);
+    return () => window.removeEventListener("popstate", syncFromUrl);
+  }, []);
+  const handleTabChange = useCallback((nextTab: SellerTab) => {
+    setTab(nextTab);
+    const url = new URL(window.location.href);
+    if (url.searchParams.get("tab") !== nextTab) {
+      url.searchParams.set("tab", nextTab);
+      window.history.pushState(null, "", url.pathname + url.search + url.hash);
+    }
+  }, []);
   const [quotes, setQuotes] = useState<QuoteItem[]>([]);
   const [busyQuoteId, setBusyQuoteId] = useState<number | null>(null);
   const [busyCreateQuote, setBusyCreateQuote] = useState(false);
@@ -821,7 +839,7 @@ export default function VendedorPage() {
     setCollectOnDelivery(mode === "CASH" && Number(order.paid_pen ?? 0) <= 0.05);
     setNotes(String(order.notes ?? ""));
     setExpandedOrderId(null);
-    setTab("nuevo");
+    handleTabChange("nuevo");
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
@@ -1357,7 +1375,7 @@ export default function VendedorPage() {
           data.totalPen ?? 0
         ).toFixed(2)}.`,
       });
-      setTab("cotizaciones");
+      handleTabChange("cotizaciones");
       notifyLocalSync(["orders", "partners"]);
       await loadOrdersAndCatalog({ silent: true });
     } catch {
@@ -1523,12 +1541,12 @@ export default function VendedorPage() {
   const hasOrderDraft = Boolean(cart.length || customerNameRaw.trim() || notes.trim());
 
   return (
-    <div className="min-h-screen bg-[#FAF9F6] pb-40 md:pb-12">
+    <div className="min-h-screen bg-[#F8FAFC] pb-40 md:pb-12">
       <AppHeader
         title="Ventas y Cobranzas"
         roleLabel={sellerHeaderRoleLabel}
         roleTone="horizon"
-        roleDotColor="bg-[#1E446B]"
+        roleDotColor="bg-[#075EE8]"
         syncStatus={liveStatus}
         onSyncClick={() => void triggerSync({ force: true })}
         maxWidth="6xl"
@@ -1555,12 +1573,12 @@ export default function VendedorPage() {
         <DesktopTabBar
           items={navItems}
           activeId={tab}
-          onChange={setTab}
+          onChange={handleTabChange}
           className="hidden md:flex"
         />
 
         <div
-          className="flex items-center gap-2 rounded-2xl border border-[#D4E0EC] bg-white px-3.5 py-3 text-xs shadow-[0_1px_2px_rgba(15,41,66,0.04)]"
+          className="flex items-center gap-2 rounded-xl border border-[#E2E8F0] bg-white px-3.5 py-3 text-xs"
           aria-label={`Ubicación actual: ${activeTabLabel}`}
         >
           <span className="font-medium text-[#6D6A64]">Ventas y Cobranzas</span>
@@ -2578,7 +2596,7 @@ export default function VendedorPage() {
                 type="button"
                 variant="outline"
                 size="sm"
-                onClick={() => setTab("nuevo")}
+                onClick={() => handleTabChange("nuevo")}
               >
                 + Nueva Cotización
               </Button>
@@ -3479,7 +3497,7 @@ export default function VendedorPage() {
       <BottomNav
         items={navItems}
         activeId={tab}
-        onChange={setTab}
+        onChange={handleTabChange}
         maxWidth="2xl"
         className="md:hidden"
       />

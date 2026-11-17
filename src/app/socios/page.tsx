@@ -5,6 +5,7 @@ import React, {
   useDeferredValue,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import { useRouter } from "next/navigation";
@@ -155,6 +156,7 @@ function formatTraceabilitySummary(o: Record<string, unknown>): string {
 }
 
 export default function SociosPage() {
+  const dashboardAbortRef = useRef<AbortController | null>(null);
   const router = useRouter();
   const [tab, setTab] = useState<PartnerTab>("control");
   const [loading, setLoading] = useState(true);
@@ -308,8 +310,14 @@ export default function SociosPage() {
         return;
       }
 
+      dashboardAbortRef.current?.abort();
+      const controller = new AbortController();
+      dashboardAbortRef.current = controller;
       try {
-        const noStoreInit: RequestInit = { cache: "no-store" };
+        const noStoreInit: RequestInit = {
+          cache: "no-store",
+          signal: controller.signal,
+        };
         const [ordRes, colRes, partRes, trRes, purRes, tripsRes, quotesRes] =
           await Promise.all([
             needOrders ? fetch("/api/orders", noStoreInit) : Promise.resolve(null),
@@ -383,6 +391,7 @@ export default function SociosPage() {
           showFeedback("Algunos módulos no pudieron actualizarse por completo.", true);
         }
       } catch (err) {
+        if (controller.signal.aborted) return;
         if (options?.throwOnError) {
           throw err;
         }
@@ -390,11 +399,16 @@ export default function SociosPage() {
           showFeedback("Error de red cargando el panel operativo.", true);
         }
       } finally {
-        setLoading(false);
+        if (dashboardAbortRef.current === controller) {
+          dashboardAbortRef.current = null;
+          setLoading(false);
+        }
       }
     },
     [router, showFeedback]
   );
+
+  useEffect(() => () => dashboardAbortRef.current?.abort(), []);
 
   const loadDashboard = useCallback(async () => {
     await refreshDashboard();
@@ -545,9 +559,7 @@ export default function SociosPage() {
   useEffect(() => {
     const syncFromUrl = () => {
       const raw = new URLSearchParams(window.location.search).get("tab");
-      if (raw && VALID_PARTNER_TABS.includes(raw as PartnerTab)) {
-        setTab(raw as PartnerTab);
-      }
+      setTab(raw && VALID_PARTNER_TABS.includes(raw as PartnerTab) ? raw as PartnerTab : "control");
     };
     syncFromUrl();
     window.addEventListener("popstate", syncFromUrl);
@@ -586,8 +598,10 @@ export default function SociosPage() {
     setTab(nextTab);
     if (typeof window !== "undefined") {
       const url = new URL(window.location.href);
-      url.searchParams.set("tab", nextTab);
-      window.history.replaceState(null, "", url.pathname + url.search);
+      if (url.searchParams.get("tab") !== nextTab) {
+        url.searchParams.set("tab", nextTab);
+        window.history.pushState(null, "", url.pathname + url.search + url.hash);
+      }
     }
   }, []);
 
@@ -1109,12 +1123,12 @@ export default function SociosPage() {
   const hasPreviewCost = editCost.trim() !== "" && Number.isFinite(previewCost);
 
   return (
-    <div className="min-h-screen bg-[#FAF9F6] pb-24 md:pb-12">
+    <div className="min-h-screen bg-[#F8FAFC] pb-24 md:pb-12">
       <AppHeader
         title="Control Operativo"
         roleLabel={headerRoleBadge}
         roleTone="horizon"
-        roleDotColor="bg-[#1E446B]"
+        roleDotColor="bg-[#075EE8]"
         syncStatus={liveStatus}
         onSyncClick={() => void triggerSync({ force: true })}
         maxWidth="7xl"
@@ -1185,7 +1199,7 @@ export default function SociosPage() {
           className="hidden md:flex"
         />
 
-        <div className="flex flex-col gap-3 rounded-2xl border border-[#D4E0EC] bg-white p-3 shadow-[0_1px_2px_rgba(15,41,66,0.04)] sm:flex-row sm:items-center sm:justify-between sm:p-3.5">
+        <div className="flex flex-col gap-3 rounded-xl border border-[#E2E8F0] bg-white p-3 sm:flex-row sm:items-center sm:justify-between sm:p-3.5">
           <div className="flex min-w-0 items-center gap-2 text-xs text-[#6D6A64]">
             <span className="font-medium text-[#5C5A55]">Inicio</span>
             <ChevronRightIcon className="h-3.5 w-3.5 text-[#A8A49C]" aria-hidden="true" />
