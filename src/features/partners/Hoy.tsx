@@ -571,6 +571,7 @@ export function Hoy({
         ordersPagination={ordersPagination}
         flow={flow}
         openAbonoForOrderRecord={openAbonoForOrderRecord}
+        onOpenAllOrders={() => handleTabChange("pedidos")}
       />
 
       <HoyRoutesQuotes

@@ -3,8 +3,8 @@
 import { useCallback, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { signOutFromERP } from "@/lib/auth/logout-client";
-import { AppHeader } from "@/components/ui/AppShell";
-import { PackageIcon } from "@/components/ui/Icons";
+import { AppHeader, BottomNav, type NavTabItem } from "@/components/ui/AppShell";
+import { CheckIcon, PackageIcon, TruckIcon } from "@/components/ui/Icons";
 import {
   Button,
   Card,
@@ -100,6 +100,33 @@ export default function WarehouseWorkspace() {
     return counts;
   }, [orders]);
 
+  const mobileNavItems: NavTabItem<WarehouseStage>[] = useMemo(
+    () => [
+      {
+        id: "PREPARING",
+        label: "Alistar",
+        mobileLabel: "Alistar",
+        icon: <PackageIcon className="h-4 w-4" />,
+        badgeCount: countsByStatus.PREPARING,
+      },
+      {
+        id: "READY",
+        label: "Despacho",
+        mobileLabel: "Despacho",
+        icon: <TruckIcon className="h-4 w-4" />,
+        badgeCount: countsByStatus.READY,
+      },
+      {
+        id: "DELIVERED",
+        label: "Historial",
+        mobileLabel: "Historial",
+        icon: <CheckIcon className="h-4 w-4" />,
+        badgeCount: countsByStatus.DELIVERED,
+      },
+    ],
+    [countsByStatus]
+  );
+
   const filtered = useMemo(() => {
     const query = warehouseSearch.trim().toLocaleLowerCase("es");
     return orders.filter((order) => {
@@ -121,7 +148,7 @@ export default function WarehouseWorkspace() {
   }, [activeTab, checkedLines, orders, preparingFilter, warehouseSearch]);
 
   return (
-    <div className="min-h-screen bg-bht-paper pb-12">
+    <div className="min-h-screen bg-bht-paper pb-24 md:pb-12">
       <AppHeader
         title="Cola de Pedidos y Despacho"
         roleLabel={formatWarehouseRoleBadge(currentUser)}
@@ -310,6 +337,15 @@ export default function WarehouseWorkspace() {
         busyOrderId={actions.busyOrderId}
         onDismiss={() => setConfirmDeliverOrder(null)}
         onConfirm={(orderId) => actions.handleAdvance(orderId, "DELIVERED")}
+      />
+
+      <BottomNav
+        items={mobileNavItems}
+        activeId={activeTab}
+        onChange={setActiveTab}
+        maxWidth="full"
+        visibleCount={3}
+        className="md:hidden"
       />
     </div>
   );

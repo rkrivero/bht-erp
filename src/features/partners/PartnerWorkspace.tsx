@@ -215,15 +215,15 @@ export default function PartnerWorkspace() {
     () => [
       {
         id: "control",
-        label: "Hoy · Control",
+        label: "Hoy",
         mobileLabel: "Hoy",
         icon: <ActivityIcon className="h-4 w-4" />,
         badgeCount: pendingApprovals.length,
       },
       {
         id: "pedidos",
-        label: "Ventas y pedidos",
-        mobileLabel: "Ventas",
+        label: "Pedidos",
+        mobileLabel: "Pedidos",
         icon: <ShoppingBagIcon className="h-4 w-4" />,
         badgeCount: ordersPagination?.totalCount,
       },
@@ -236,28 +236,28 @@ export default function PartnerWorkspace() {
       },
       {
         id: "stock",
-        label: "Inventario y precios",
+        label: "Inventario",
         mobileLabel: "Inventario",
         icon: <PackageIcon className="h-4 w-4" />,
         badgeCount: negStockCount,
       },
       {
         id: "caja",
-        label: "Caja y proveedores",
+        label: "Caja",
         mobileLabel: "Caja",
         icon: <BuildingIcon className="h-4 w-4" />,
         badgeCount: openApCount,
       },
       {
         id: "kpis",
-        label: "Indicadores y BI",
-        mobileLabel: "KPIs",
+        label: "Reportes",
+        mobileLabel: "Reportes",
         icon: <BarChartIcon className="h-4 w-4" />,
       },
       {
         id: "accesos",
-        label: "Accesos y usuarios",
-        mobileLabel: "Accesos",
+        label: "Usuarios",
+        mobileLabel: "Usuarios",
         icon: <LockIcon className="h-4 w-4" />,
         badgeCount: activeUsersCount || undefined,
       },
@@ -272,8 +272,7 @@ export default function PartnerWorkspace() {
     ]
   );
 
-  const activeTabLabel =
-    navItems.find((item) => item.id === tab)?.label ?? "Hoy · Control";
+  const activeTabLabel = navItems.find((item) => item.id === tab)?.label ?? "Hoy";
   const navActiveTab: PartnerTab = tab;
 
   function handleGlobalSearchSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -300,27 +299,6 @@ export default function PartnerWorkspace() {
         onSyncClick={() => void triggerSync({ force: true })}
         maxWidth="7xl"
         withSidebar
-        actions={
-          <div className="hidden sm:inline-flex items-center gap-2">
-            <Button
-              variant="primary"
-              size="md"
-              onClick={() => router.push("/vendedor")}
-              className="min-h-[38px] sm:min-h-[40px] px-4 text-xs sm:text-sm shadow-bht-elev-15"
-            >
-              <PlusIcon className="h-4 w-4" />
-              <span>Tomar Pedido</span>
-            </Button>
-            <Button
-              variant="outline"
-              size="md"
-              onClick={() => router.push("/almacen")}
-              className="min-h-[38px] sm:min-h-[40px] px-3.5 text-xs sm:text-sm"
-            >
-              Almacén
-            </Button>
-          </div>
-        }
         onLogout={async () => {
           if (busyLogout) return;
           setBusyLogout(true);
@@ -354,7 +332,7 @@ export default function PartnerWorkspace() {
               className="flex min-h-9 w-full items-center gap-2 rounded-lg px-2 text-left text-xs font-semibold text-[var(--bht-sky)] transition-colors hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white cursor-pointer"
             >
               <PlusIcon className="h-3.5 w-3.5" aria-hidden="true" />
-              <span>Tomar Pedido (Vendedor)</span>
+              <span>Nuevo pedido</span>
             </button>
             <button
               type="button"
@@ -362,7 +340,7 @@ export default function PartnerWorkspace() {
               className="flex min-h-9 w-full items-center gap-2 rounded-lg px-2 text-left text-xs font-semibold text-[var(--bht-sky)] transition-colors hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white cursor-pointer"
             >
               <PackageIcon className="h-3.5 w-3.5" aria-hidden="true" />
-              <span>Almacén y Reparto</span>
+              <span>Almacén</span>
             </button>
           </div>
         }
@@ -465,6 +443,7 @@ export default function PartnerWorkspace() {
           <Ventas
             orders={orders}
             ordersPagination={ordersPagination}
+            partnerQuotes={data.partnerQuotes}
             flow={orderFlow}
           />
         )}

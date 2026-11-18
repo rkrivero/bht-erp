@@ -33,10 +33,12 @@ import type { CollectionsFlow } from "./useCollectionsFlow";
 interface VentasProps {
   orders: PartnerData["orders"];
   ordersPagination: PartnerData["ordersPagination"];
+  partnerQuotes: PartnerData["partnerQuotes"];
   flow: OrderFlow;
 }
 
-export function Ventas({ orders, ordersPagination, flow }: VentasProps) {
+export function Ventas({ orders, ordersPagination, partnerQuotes, flow }: VentasProps) {
+  const [salesView, setSalesView] = React.useState<"orders" | "quotes">("orders");
   const {
     monitorSearch,
     setMonitorSearch,
@@ -46,100 +48,224 @@ export function Ventas({ orders, ordersPagination, flow }: VentasProps) {
     setSelectedMonitorOrder,
     loadingMoreOrders,
     handleLoadMoreOrders,
+    busyQuoteId,
+    setSelectedPartnerQuote,
+    handlePartnerConvertQuote,
+    handlePartnerCancelQuote,
   } = flow;
   return (
     <div className="space-y-4">
-      <Card padding="md" className="space-y-3">
-        <div>
-          <h2 className="text-sm sm:text-base font-semibold text-bht-ink-strong">
-            Todos los Pedidos y Ventas
-          </h2>
-          <p className="text-xs text-bht-ink-soft">
-            Consulta el historial completo, filtra por estado y abre cualquier pedido
-            para revisar sus productos y trazabilidad.
-          </p>
-        </div>
+      <SegmentedControl<"orders" | "quotes">
+        ariaLabel="Vista de pedidos y cotizaciones"
+        value={salesView}
+        onChange={setSalesView}
+        options={[
+          {
+            id: "orders",
+            label: "Pedidos",
+            count: ordersPagination?.totalCount ?? orders.length,
+          },
+          {
+            id: "quotes",
+            label: "Cotizaciones",
+            count: partnerQuotes.length,
+          },
+        ]}
+      />
 
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="relative min-w-[200px] flex-1">
-            <span className="pointer-events-none absolute inset-y-0 left-3.5 flex items-center text-bht-ink-muted">
-              <SearchIcon className="h-4 w-4" />
-            </span>
-            <input
-              type="text"
-              value={monitorSearch}
-              onChange={(e) => setMonitorSearch(e.target.value)}
-              aria-label="Buscar pedidos y ventas"
-              placeholder="Buscar por pedido, cliente o vendedor..."
-              className={`${INPUT_CLASS} py-2 pl-10 pr-8 text-xs`}
+      {salesView === "quotes" ? (
+        <Card padding="md" className="space-y-3">
+          <div>
+            <h2 className="text-sm sm:text-base font-semibold text-bht-ink-strong">
+              Cotizaciones Comerciales ({partnerQuotes.length})
+            </h2>
+            <p className="text-xs text-bht-ink-soft">
+              Revisa cualquier cotización o conviértela en pedido al contado o crédito.
+            </p>
+          </div>
+          {partnerQuotes.length === 0 ? (
+            <EmptyState title="Sin cotizaciones registradas" />
+          ) : (
+            <div className="grid grid-cols-1 gap-2.5 md:grid-cols-2">
+              {partnerQuotes.map((q) => {
+                const qId = Number(q.quote_id);
+                const status = String(q.status);
+                const isBusy = busyQuoteId === qId;
+                return (
+                  <div
+                    key={qId}
+                    className="rounded-xl border border-bht-line bg-bht-paper p-3 text-xs space-y-2"
+                  >
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="min-w-0">
+                        <span className="font-semibold text-bht-navy-mid tabular-nums">
+                          {String(q.quote_code)} · {String(q.issue_date)}
+                        </span>
+                        <p className="truncate font-semibold text-bht-ink-strong">
+                          {String(q.customer_name)}
+                        </p>
+                        <p className="text-bht-ink-soft tabular-nums">
+                          Total: {formatPen(q.total_pen)} ·{" "}
+                          {Array.isArray(q.lines) ? q.lines.length : 0} ítem(s)
+                        </p>
+                      </div>
+                      <Badge
+                        tone={
+                          status === "CONVERTED"
+                            ? "success"
+                            : status === "OPEN"
+                              ? "brand"
+                              : "neutral"
+                        }
+                      >
+                        {status === "CONVERTED"
+                          ? `Pedido ${String(q.converted_order_code || q.related_cpe || "")}`.trim()
+                          : formatQuoteStatusEs(status)}
+                      </Badge>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      data-compact="true"
+                      onClick={() => setSelectedPartnerQuote(q)}
+                      className="w-full"
+                    >
+                      Ver detalle
+                    </Button>
+                    {status === "OPEN" && (
+                      <div className="flex flex-wrap gap-1.5">
+                        <Button
+                          type="button"
+                          variant="success"
+                          size="sm"
+                          data-compact="true"
+                          disabled={isBusy}
+                          onClick={() => handlePartnerConvertQuote(qId, "CASH")}
+                        >
+                          Convertir Contado
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="primary"
+                          size="sm"
+                          data-compact="true"
+                          disabled={isBusy}
+                          onClick={() => handlePartnerConvertQuote(qId, "CREDIT")}
+                        >
+                          A Crédito
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          data-compact="true"
+                          disabled={isBusy}
+                          onClick={() => handlePartnerCancelQuote(qId)}
+                        >
+                          Anular
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </Card>
+      ) : (
+        <Card padding="md" className="space-y-3">
+          <div>
+            <h2 className="text-sm sm:text-base font-semibold text-bht-ink-strong">
+              Todos los Pedidos
+            </h2>
+            <p className="text-xs text-bht-ink-soft">
+              Consulta el historial completo, filtra por estado y abre cualquier pedido
+              para revisar sus productos y trazabilidad.
+            </p>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="relative min-w-[200px] flex-1">
+              <span className="pointer-events-none absolute inset-y-0 left-3.5 flex items-center text-bht-ink-muted">
+                <SearchIcon className="h-4 w-4" />
+              </span>
+              <input
+                type="text"
+                value={monitorSearch}
+                onChange={(e) => setMonitorSearch(e.target.value)}
+                aria-label="Buscar pedidos y ventas"
+                placeholder="Buscar por pedido, cliente o vendedor..."
+                className={`${INPUT_CLASS} py-2 pl-10 pr-8 text-xs`}
+              />
+            </div>
+            <SegmentedControl<MonitorStatusFilter>
+              ariaLabel="Filtrar pedidos y ventas por estado"
+              value={monitorStatusFilter}
+              onChange={setMonitorStatusFilter}
+              options={[
+                { id: "ALL", label: "Todos" },
+                { id: "PENDING", label: "Pendientes" },
+                { id: "DELIVERED", label: "Entregados" },
+                { id: "CANCELLED", label: "Anulados" },
+              ]}
             />
           </div>
-          <SegmentedControl<MonitorStatusFilter>
-            ariaLabel="Filtrar pedidos y ventas por estado"
-            value={monitorStatusFilter}
-            onChange={setMonitorStatusFilter}
-            options={[
-              { id: "ALL", label: "Todos" },
-              { id: "PENDING", label: "Pendientes" },
-              { id: "DELIVERED", label: "Entregados" },
-              { id: "CANCELLED", label: "Anulados" },
-            ]}
-          />
-        </div>
 
-        {monitorFilteredOrders.length === 0 ? (
-          <EmptyState title="No hay pedidos que coincidan con el filtro" />
-        ) : (
-          <div className="space-y-2">
-            {monitorFilteredOrders.map((order) => (
-              <button
-                key={String(order.order_id)}
+          {monitorFilteredOrders.length === 0 ? (
+            <EmptyState title="No hay pedidos que coincidan con el filtro" />
+          ) : (
+            <div className="space-y-2">
+              {monitorFilteredOrders.map((order) => (
+                <button
+                  key={String(order.order_id)}
+                  type="button"
+                  onClick={() => setSelectedMonitorOrder(order)}
+                  className="flex w-full flex-col gap-2 rounded-xl border border-bht-line bg-white p-3 text-left transition hover:border-bht-line-blue hover:bg-bht-mist/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bht-navy-deep"
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="font-semibold text-bht-navy-mid tabular-nums">
+                      {String(order.order_code)} · {String(order.order_date)}
+                    </span>
+                    <Badge tone={operationalStatusTone(order.operational_status)}>
+                      {formatOperationalStatusEs(order.operational_status)}
+                    </Badge>
+                  </div>
+                  <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+                    <span className="font-medium text-bht-ink-strong">
+                      {String(order.customer_name)}
+                    </span>
+                    <span className="font-semibold text-bht-ink-strong tabular-nums">
+                      {formatPen(order.total_pen)}
+                    </span>
+                  </div>
+                  <span className="text-xs text-bht-ink-soft">
+                    Vendedor: {formatActorName(order.created_by_name, "-")} ·{" "}
+                    {Array.isArray(order.lines) ? order.lines.length : 0} producto(s)
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
+
+          {ordersPagination?.hasMore && (
+            <div className="flex flex-wrap items-center justify-between gap-2 border-t border-bht-line pt-3 text-xs text-bht-ink-soft">
+              <span>
+                Mostrando {orders.length} de {ordersPagination.totalCount} pedidos
+              </span>
+              <Button
                 type="button"
-                onClick={() => setSelectedMonitorOrder(order)}
-                className="flex w-full flex-col gap-2 rounded-xl border border-bht-line bg-white p-3 text-left transition hover:border-bht-line-blue hover:bg-bht-mist/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bht-navy-deep"
+                variant="outline"
+                size="sm"
+                disabled={loadingMoreOrders}
+                onClick={handleLoadMoreOrders}
               >
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <span className="font-semibold text-bht-navy-mid tabular-nums">
-                    {String(order.order_code)} · {String(order.order_date)}
-                  </span>
-                  <Badge tone={operationalStatusTone(order.operational_status)}>
-                    {formatOperationalStatusEs(order.operational_status)}
-                  </Badge>
-                </div>
-                <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
-                  <span className="font-medium text-bht-ink-strong">
-                    {String(order.customer_name)}
-                  </span>
-                  <span className="font-semibold text-bht-ink-strong tabular-nums">
-                    {formatPen(order.total_pen)}
-                  </span>
-                </div>
-                <span className="text-xs text-bht-ink-soft">
-                  Vendedor: {formatActorName(order.created_by_name, "-")} ·{" "}
-                  {Array.isArray(order.lines) ? order.lines.length : 0} producto(s)
-                </span>
-              </button>
-            ))}
-          </div>
-        )}
-
-        {ordersPagination?.hasMore && (
-          <div className="flex flex-wrap items-center justify-between gap-2 border-t border-bht-line pt-3 text-xs text-bht-ink-soft">
-            <span>
-              Mostrando {orders.length} de {ordersPagination.totalCount} pedidos
-            </span>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              disabled={loadingMoreOrders}
-              onClick={handleLoadMoreOrders}
-            >
-              {loadingMoreOrders ? "Cargando..." : "Cargar más pedidos"}
-            </Button>
-          </div>
-        )}
-      </Card>
+                {loadingMoreOrders ? "Cargando..." : "Cargar más pedidos"}
+              </Button>
+            </div>
+          )}
+        </Card>
+      )}
     </div>
   );
 }

@@ -27,6 +27,7 @@ interface HoyMonitorProps {
   ordersPagination: PartnerData["ordersPagination"];
   flow: OrderFlow;
   openAbonoForOrderRecord: CollectionsFlow["openAbonoForOrderRecord"];
+  onOpenAllOrders?: () => void;
 }
 
 export function HoyMonitor({
@@ -34,6 +35,7 @@ export function HoyMonitor({
   ordersPagination,
   flow,
   openAbonoForOrderRecord,
+  onOpenAllOrders,
 }: HoyMonitorProps) {
   const {
     showAllMonitor,
@@ -49,6 +51,9 @@ export function HoyMonitor({
     loadingMoreOrders,
     handleLoadMoreOrders,
   } = flow;
+  const visibleMonitorOrders = showAllMonitor
+    ? recentMonitorOrders
+    : recentMonitorOrders.slice(0, 8);
   return (
     <Card padding="md" className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -60,23 +65,30 @@ export function HoyMonitor({
             Monitor en Tiempo Real
           </h2>
           <p className="text-xs text-bht-ink-soft">
-            {showAllMonitor || recentMonitorOrders.length <= 15
+            {showAllMonitor || recentMonitorOrders.length <= 8
               ? `Mostrando ${recentMonitorOrders.length} pedidos`
-              : `Mostrando 15 de ${recentMonitorOrders.length} pedidos`}{" "}
+              : `Mostrando 8 de ${recentMonitorOrders.length} pedidos`}{" "}
             · Toca una fila para ver detalle, abonar o anular.
           </p>
         </div>
-        {recentMonitorOrders.length > 15 && (
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setShowAllMonitor((prev) => !prev)}
-          >
-            {showAllMonitor
-              ? "Ver últimos 15"
-              : `Ver todos (${recentMonitorOrders.length})`}
-          </Button>
-        )}
+        <div className="flex flex-wrap items-center gap-2">
+          {recentMonitorOrders.length > 8 && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowAllMonitor((prev) => !prev)}
+            >
+              {showAllMonitor
+                ? "Ver últimos 8"
+                : `Ver todos (${recentMonitorOrders.length})`}
+            </Button>
+          )}
+          {onOpenAllOrders && (
+            <Button variant="ghost" size="sm" onClick={onOpenAllOrders}>
+              Ver todos en Pedidos →
+            </Button>
+          )}
+        </div>
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
@@ -119,112 +131,110 @@ export function HoyMonitor({
 
       {/* Mobile card view */}
       <div className="space-y-2.5 md:hidden">
-        {(showAllMonitor ? recentMonitorOrders : recentMonitorOrders.slice(0, 15)).map(
-          (o) => {
-            const marginVal = Number(o.order_margin_pen ?? 0);
-            const totalVal = Number(o.total_pen ?? 0);
-            const debtVal = Number(o.balance_due_pen ?? 0);
-            const statusStr = String(o.operational_status ?? "");
-            const wasModified =
-              Array.isArray(o.audit_history) &&
-              o.audit_history.some((entry) => entry.action === "EDIT");
-            const canAbonar =
-              debtVal > 0.05 &&
-              statusStr !== "CANCELLED" &&
-              statusStr !== "PENDING_PARTNER_APPROVAL";
-            const canCancel = statusStr !== "CANCELLED" && statusStr !== "DELIVERED";
-            return (
-              <div
-                key={String(o.order_id)}
-                className="rounded-xl border border-bht-line bg-bht-paper p-3.5 space-y-2.5 text-xs"
+        {visibleMonitorOrders.map((o) => {
+          const marginVal = Number(o.order_margin_pen ?? 0);
+          const totalVal = Number(o.total_pen ?? 0);
+          const debtVal = Number(o.balance_due_pen ?? 0);
+          const statusStr = String(o.operational_status ?? "");
+          const wasModified =
+            Array.isArray(o.audit_history) &&
+            o.audit_history.some((entry) => entry.action === "EDIT");
+          const canAbonar =
+            debtVal > 0.05 &&
+            statusStr !== "CANCELLED" &&
+            statusStr !== "PENDING_PARTNER_APPROVAL";
+          const canCancel = statusStr !== "CANCELLED" && statusStr !== "DELIVERED";
+          return (
+            <div
+              key={String(o.order_id)}
+              className="rounded-xl border border-bht-line bg-bht-paper p-3.5 space-y-2.5 text-xs"
+            >
+              <button
+                type="button"
+                onClick={() => setSelectedMonitorOrder(o)}
+                aria-label={`Ver detalle del pedido ${String(o.order_code)} de ${String(o.customer_name)}`}
+                className="w-full text-left space-y-2 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bht-navy-deep/45 cursor-pointer"
               >
-                <button
-                  type="button"
-                  onClick={() => setSelectedMonitorOrder(o)}
-                  aria-label={`Ver detalle del pedido ${String(o.order_code)} de ${String(o.customer_name)}`}
-                  className="w-full text-left space-y-2 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bht-navy-deep/45 cursor-pointer"
-                >
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <span className="font-semibold text-bht-navy-mid tabular-nums">
-                      {String(o.order_code)} · {String(o.order_date)}
-                    </span>
-                    <div className="flex flex-wrap items-center gap-1.5">
-                      {wasModified && <Badge tone="warning">Modificado</Badge>}
-                      <Badge tone={operationalStatusTone(o.operational_status)}>
-                        {formatOperationalStatusEs(o.operational_status)}
-                      </Badge>
-                    </div>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="font-semibold text-bht-navy-mid tabular-nums">
+                    {String(o.order_code)} · {String(o.order_date)}
+                  </span>
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    {wasModified && <Badge tone="warning">Modificado</Badge>}
+                    <Badge tone={operationalStatusTone(o.operational_status)}>
+                      {formatOperationalStatusEs(o.operational_status)}
+                    </Badge>
                   </div>
-                  <p className="text-sm font-semibold text-bht-ink-strong">
-                    {String(o.customer_name)}
-                  </p>
-                  <p className="text-xs text-bht-ink-soft">
-                    <span className="text-bht-ink-muted">Equipo:</span>{" "}
-                    <span className="font-medium text-bht-ink-strong">
-                      {formatTraceabilitySummary(o)}
-                    </span>
-                  </p>
-                  <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-t border-bht-line pt-2 tabular-nums">
-                    <span>
-                      Venta:{" "}
-                      <strong className="text-bht-ink-strong">
-                        {formatPen(totalVal)}
-                      </strong>
-                    </span>
-                    <span
-                      className={`font-semibold ${getMarginTextClass(
-                        marginVal,
-                        totalVal
-                      )}`}
+                </div>
+                <p className="text-sm font-semibold text-bht-ink-strong">
+                  {String(o.customer_name)}
+                </p>
+                <p className="text-xs text-bht-ink-soft">
+                  <span className="text-bht-ink-muted">Equipo:</span>{" "}
+                  <span className="font-medium text-bht-ink-strong">
+                    {formatTraceabilitySummary(o)}
+                  </span>
+                </p>
+                <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-t border-bht-line pt-2 tabular-nums">
+                  <span>
+                    Venta:{" "}
+                    <strong className="text-bht-ink-strong">
+                      {formatPen(totalVal)}
+                    </strong>
+                  </span>
+                  <span
+                    className={`font-semibold ${getMarginTextClass(
+                      marginVal,
+                      totalVal
+                    )}`}
+                  >
+                    Margen: {formatPen(marginVal)}
+                  </span>
+                  <span
+                    className={
+                      debtVal > 0.05
+                        ? "font-semibold text-bht-danger"
+                        : "font-medium text-bht-success"
+                    }
+                  >
+                    {debtVal > 0.05 ? `Debe: ${formatPen(debtVal)}` : "Al día"}
+                  </span>
+                </div>
+                <p className="text-xs font-medium text-bht-navy-mid">
+                  Toca para ver productos comprados (
+                  {Array.isArray(o.lines) ? o.lines.length : 0})
+                </p>
+              </button>
+              {(canAbonar || canCancel) && (
+                <div className="flex flex-wrap gap-2 border-t border-bht-line/80 pt-2">
+                  {canAbonar && (
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      onClick={() => openAbonoForOrderRecord(o)}
+                      className="flex-1"
                     >
-                      Margen: {formatPen(marginVal)}
-                    </span>
-                    <span
-                      className={
-                        debtVal > 0.05
-                          ? "font-semibold text-bht-danger"
-                          : "font-medium text-bht-success"
-                      }
+                      Abonar
+                    </Button>
+                  )}
+                  {canCancel && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setCancelOrderReason("");
+                        setConfirmCancelOrder(o);
+                      }}
+                      className="border-bht-danger-line text-bht-danger hover:bg-bht-danger-bg"
                     >
-                      {debtVal > 0.05 ? `Debe: ${formatPen(debtVal)}` : "Al día"}
-                    </span>
-                  </div>
-                  <p className="text-xs font-medium text-bht-navy-mid">
-                    Toca para ver productos comprados (
-                    {Array.isArray(o.lines) ? o.lines.length : 0})
-                  </p>
-                </button>
-                {(canAbonar || canCancel) && (
-                  <div className="flex flex-wrap gap-2 border-t border-bht-line/80 pt-2">
-                    {canAbonar && (
-                      <Button
-                        variant="primary"
-                        size="sm"
-                        onClick={() => openAbonoForOrderRecord(o)}
-                        className="flex-1"
-                      >
-                        Abonar
-                      </Button>
-                    )}
-                    {canCancel && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                          setCancelOrderReason("");
-                          setConfirmCancelOrder(o);
-                        }}
-                        className="border-bht-danger-line text-bht-danger hover:bg-bht-danger-bg"
-                      >
-                        Anular
-                      </Button>
-                    )}
-                  </div>
-                )}
-              </div>
-            );
-          }
-        )}
+                      Anular
+                    </Button>
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
 
       {/* Desktop table view */}
@@ -264,10 +274,7 @@ export function HoyMonitor({
             </tr>
           </thead>
           <tbody className="divide-y divide-bht-line">
-            {(showAllMonitor
-              ? recentMonitorOrders
-              : recentMonitorOrders.slice(0, 15)
-            ).map((o) => {
+            {visibleMonitorOrders.map((o) => {
               const marginVal = Number(o.order_margin_pen ?? 0);
               const totalVal = Number(o.total_pen ?? 0);
               const debtVal = Number(o.balance_due_pen ?? 0);

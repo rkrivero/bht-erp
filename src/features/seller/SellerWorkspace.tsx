@@ -118,29 +118,29 @@ export default function SellerWorkspace() {
     () => [
       {
         id: "nuevo",
-        label: "Vender",
-        mobileLabel: "Vender",
+        label: "Nuevo pedido",
+        mobileLabel: "Nuevo",
         icon: <ShoppingBagIcon className="h-4 w-4" />,
         badgeCount: cart.length > 0 ? cart.length : undefined,
       },
       {
         id: "pedidos",
-        label: "Ventas",
-        mobileLabel: "Ventas",
+        label: "Pedidos",
+        mobileLabel: "Pedidos",
         icon: <PackageIcon className="h-4 w-4" />,
         badgeCount: openQuotesCount > 0 ? openQuotesCount : undefined,
       },
       {
         id: "deudores",
-        label: "Cobrar",
+        label: "Cobranza",
         mobileLabel: "Cobrar",
         icon: <WalletIcon className="h-4 w-4" />,
         badgeCount: debtorsByOrder.length > 0 ? debtorsByOrder.length : undefined,
       },
       {
         id: "gastos",
-        label: "Más",
-        mobileLabel: "Más",
+        label: "Gastos",
+        mobileLabel: "Gastos",
         icon: <ClockIcon className="h-4 w-4" />,
       },
     ],
@@ -149,7 +149,7 @@ export default function SellerWorkspace() {
 
   const activeTabLabel =
     navItems.find((item) => item.id === (tab === "cotizaciones" ? "pedidos" : tab))
-      ?.label ?? "Vender";
+      ?.label ?? "Nuevo pedido";
   const navActiveTab: SellerTab = tab === "cotizaciones" ? "pedidos" : tab;
 
   async function handleLogout() {
