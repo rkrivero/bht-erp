@@ -13,13 +13,7 @@ import {
   FlameIcon,
   PlusIcon,
 } from "../ui/Icons";
-import {
-  Badge,
-  Button,
-  FieldLabel,
-  INPUT_CLASS,
-  ModalSheet,
-} from "../ui/Primitives";
+import { Badge, Button, FieldLabel, INPUT_CLASS, ModalSheet } from "../ui/Primitives";
 
 export const CREDIT_DAY_CHIPS = [
   { days: 1, label: "Mañana (+1d)" },
@@ -168,9 +162,7 @@ export function AbonoModal({
   const accountSelectId = useId();
   const nextDaysLabelId = useId();
 
-  const activeAccounts = (accounts ?? []).filter(
-    (acc) => acc.is_active !== false
-  );
+  const activeAccounts = (accounts ?? []).filter((acc) => acc.is_active !== false);
   const parsedAmount = Number(amount);
   const isFullPayoff =
     Number.isFinite(parsedAmount) &&
@@ -259,9 +251,7 @@ export function AbonoModal({
 
         {activeAccounts.length > 0 && onAccountIdChange && (
           <div>
-            <FieldLabel htmlFor={accountSelectId}>
-              Cuenta de ingreso
-            </FieldLabel>
+            <FieldLabel htmlFor={accountSelectId}>Cuenta de ingreso</FieldLabel>
             <select
               id={accountSelectId}
               value={accountId ?? ""}
@@ -291,7 +281,8 @@ export function AbonoModal({
 
         {isFullPayoff ? (
           <div className="rounded-xl border border-[#A7F3D0] bg-[#ECFDF5] px-3 py-2.5 text-xs font-medium text-[#047857]">
-            Este abono liquida el 100% del saldo pendiente; no se programará prórroga de cobranza.
+            Este abono liquida el 100% del saldo pendiente; no se programará prórroga de
+            cobranza.
           </div>
         ) : (
           <div>
@@ -332,12 +323,7 @@ export function AbonoModal({
           <Button variant="outline" onClick={onClose} className="flex-1">
             Cancelar
           </Button>
-          <Button
-            type="submit"
-            variant="success"
-            disabled={busy}
-            className="flex-[2]"
-          >
+          <Button type="submit" variant="success" disabled={busy} className="flex-[2]">
             {busy ? "Guardando..." : submitLabel}
           </Button>
         </div>
@@ -411,12 +397,12 @@ export function DebtorDetailModal({
   onSelectCustomerAbono?: () => void;
   canUseCustomerFifo?: boolean;
 }) {
-  const [expandedTimelineOrderId, setExpandedTimelineOrderId] = useState<
-    number | null
-  >(null);
-  const [loadingTimelineOrderId, setLoadingTimelineOrderId] = useState<
-    number | null
-  >(null);
+  const [expandedTimelineOrderId, setExpandedTimelineOrderId] = useState<number | null>(
+    null
+  );
+  const [loadingTimelineOrderId, setLoadingTimelineOrderId] = useState<number | null>(
+    null
+  );
   const [timelinesByOrder, setTimelinesByOrder] = useState<
     Record<number, PaymentTimelineEntry[]>
   >({});
@@ -430,10 +416,7 @@ export function DebtorDetailModal({
 
   const totalSold = orders.reduce((s, o) => s + Number(o.totalPen || 0), 0);
   const totalPaid = orders.reduce((s, o) => s + Number(o.paidPen || 0), 0);
-  const totalBalance = orders.reduce(
-    (s, o) => s + Number(o.balanceDuePen || 0),
-    0
-  );
+  const totalBalance = orders.reduce((s, o) => s + Number(o.balanceDuePen || 0), 0);
 
   async function handleToggleTimeline(orderId: number) {
     if (expandedTimelineOrderId === orderId) {
@@ -497,9 +480,7 @@ export function DebtorDetailModal({
             </strong>
           </div>
           <div className="sm:text-right">
-            <span className="block text-xs text-[#5C5A55]">
-              Saldo pendiente
-            </span>
+            <span className="block text-xs text-[#5C5A55]">Saldo pendiente</span>
             <strong className="text-sm text-[#B91C1C]">
               S/ {totalBalance.toFixed(2)}
             </strong>
@@ -544,8 +525,8 @@ export function DebtorDetailModal({
                         order.agingBucket === "RED_30_PLUS"
                           ? "danger"
                           : order.agingBucket === "AMBER_8_29"
-                          ? "warning"
-                          : "success"
+                            ? "warning"
+                            : "success"
                       }
                       className="tabular-nums"
                     >
@@ -559,9 +540,7 @@ export function DebtorDetailModal({
                       <strong className="text-[#18181B]">
                         {order.promisedPaymentDate || "No pactada"}
                       </strong>
-                      {order.createdByName
-                        ? ` · Vendedor: ${order.createdByName}`
-                        : ""}
+                      {order.createdByName ? ` · Vendedor: ${order.createdByName}` : ""}
                     </span>
                     <PromiseStatusPill status={order.promiseStatus} />
                   </div>
@@ -643,8 +622,7 @@ export function DebtorDetailModal({
                               className="flex items-center justify-between gap-2 py-1"
                             >
                               <span className="text-[#5C5A55]">
-                                {t.paymentDate} ·{" "}
-                                {formatPaymentModeEs(t.paymentMode)} (
+                                {t.paymentDate} · {formatPaymentModeEs(t.paymentMode)} (
                                 {t.collectedByName || "Histórico"})
                               </span>
                               <strong className="font-semibold text-[#15803D] tabular-nums">

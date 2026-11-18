@@ -12,6 +12,7 @@
 **Blue Horizon Trade S.A.C.** (`RUC 20614786851`) es una distribuidora mayorista y de venta directa en ruta que opera en Soles peruanos (`PEN`). Los pedidos entran por llamada o WhatsApp, se registran, pasan a almacén para alistarse, salen en movilidad propia (chofer y estibador) y se cobran contra entrega o a crédito.
 
 El diagnóstico de la Fase 1 sobre los archivos históricos (`2026-06-26` a `2026-09-29`) demostró por qué las hojas de Excel generaban fugas de dinero y descontrol:
+
 - **67.6%** de las líneas de venta (`97` órdenes por **S/ 248,981.10**) tenían el estado de cobro en blanco.
 - En septiembre dejaron de anotarse los gastos operativos de ruta en el Excel diario.
 - En julio y agosto los gastos de ruta se mezclaban con compras de mercadería y retiros/compra de activos (**36.15%** de drenaje No-OpEx sobre salidas).
@@ -25,6 +26,7 @@ El diagnóstico de la Fase 1 sobre los archivos históricos (`2026-06-26` a `202
 ## 2. Objetivos, No-Objetivos y Anti-Objetivos
 
 ### Objetivos (Goals)
+
 1. **Operación 100% móvil para campo y almacén + Panel ancho en PC para Socios:** Interfaz táctil rápida (PWA instalable en pantalla de inicio) para tomar pedidos, alistar en almacén, despachar en ruta, cobrar y anotar gastos desde el celular, más vista gerencial de escritorio para los Socios.
 2. **Aislamiento financiero estricto en servidor por Rol (4 roles):**
    - El personal de **Almacén y Reparto** jamás recibe precios, descuentos, costos, totales ni deudas (ni en pantalla ni en el JSON de red).
@@ -46,11 +48,13 @@ El diagnóstico de la Fase 1 sobre los archivos históricos (`2026-06-26` a `202
 7. **Registro limpio de Gastos de Ruta, Compras y Tesorería:** El Vendedor Externo solo puede registrar **Gastos de Ruta** (`ROUTE_OPEX`: combustible, peaje, almuerzo, estibador) contra su caja de ruta; los Socios registran compras de mercadería (`MERCHANDISE_PAYMENT`), pagos a proveedores (`erp.ap_obligations`), gastos de ruta, depósitos bancarios (`is_internal_transfer`) y retiros/activos (`NON_OPEX_OR_CAPEX`).
 
 ### No-Objetivos (Non-Goals)
+
 - **Sin facturación electrónica ni conexión a SUNAT:** El sistema es exclusivamente de control interno operativo y financiero. Puede guardar el número de documento referencial (`doc_ref` ej. `F001-...` o `NV-...`), pero no timbra XML ni conecta con OSE/SUNAT.
 - **Sin contabilidad tributaria formal (Libros Electrónicos PLE/SIRE):** El foco es caja real, márgenes reales, stock físico, cuentas por cobrar (`AR`), cuentas por pagar (`AP`) y desempeño operativo.
 - **Sin e-commerce público para clientes finales:** Los pedidos los ingresan los usuarios internos (Socios y Vendedor Externo) al recibir llamadas o mensajes de WhatsApp.
 
 ### Anti-Objetivos (Anti-Goals — Qué haría fracasar el proyecto aunque funcione técnicamente)
+
 - **Fuga de costos o precios en el navegador:** Ocultar costos o precios solo con CSS (`display: none`) en el cliente. Un empleado curioso o una captura accidental jamás debe exponer costos al Vendedor ni precios/deudas a Almacén. Todo filtrado es **server-side**.
 - **Formularios lentos de escritorio en el celular:** Pantallas que obliguen a hacer zoom horizontal, escribir porcentajes de descuento o llenar 15 campos obligatorios para tomar un pedido en la calle.
 - **Permitir estados de pago ambiguos o en blanco:** Ningún pedido puede crearse sin definir su condición (`CONTADO / CONTRA ENTREGA` vs. `CRÉDITO`) ni quedar cobrado sin especificar quién cobró, en qué medio (`CASH`, `YAPE_PLIN`, `TRANSFER`) y a qué cuenta/caja ingresó.
@@ -71,6 +75,7 @@ El diagnóstico de la Fase 1 sobre los archivos históricos (`2026-06-26` a `202
 ## 4. Enfoques Considerados (Approaches)
 
 ### Enfoque A (Elegido por el Usuario): Monolito Full-Stack Mobile-First con Next.js App Router + TypeScript + Tailwind CSS + SQL Server-Side sobre Neon Postgres (PWA)
+
 - **Cómo funciona:** Una sola aplicación en `bht_neon` usando Next.js (App Router), Server Components y Server Actions / Route Handlers conectados a Neon Postgres (`bht_erp`). Autenticación propia ligera basada en `erp.app_users` (usuario + PIN/contraseña con hash `scrypt`/`bcrypt` y cookie `HTTP-only` firmada con `HMAC-SHA256`).
 - **Ventajas:**
   - Garantiza aislamiento financiero real en el servidor: cada consulta devuelve únicamente las columnas autorizadas para el rol de la sesión activa.
@@ -79,9 +84,11 @@ El diagnóstico de la Fase 1 sobre los archivos históricos (`2026-06-26` a `202
 - **Trade-off:** Requiere disciplinar todas las mutaciones a través de capa de servidor autorizada por rol (lo cual haremos mediante helpers centrales `requireRole(...)`).
 
 ### Enfoque B (Descartado): Frontend React (Vite) separado + Backend API en FastAPI / Hono
+
 - **Trade-off:** Obliga a levantar, configurar CORS y desplegar dos servicios separados para 6 usuarios sin aportar ninguna ventaja funcional.
 
 ### Enfoque C (Descartado): App Móvil Nativa (React Native / Expo) + Panel Web separado
+
 - **Trade-off:** Duplica el código entre móvil y PC y complica distribuir actualizaciones rápidas al equipo de ruta y almacén.
 
 ---
@@ -90,21 +97,21 @@ El diagnóstico de la Fase 1 sobre los archivos históricos (`2026-06-26` a `202
 
 ### 5.1. Roles, Permisos y Vistas por Puesto
 
-| Capacidad / Dato | 1. Socio Operativo y Admin (`PARTNER_ADMIN`) | 2. Socio Gerente (`PARTNER_MANAGER`) | 3. Vendedor Externo (`EXTERNAL_SELLER`) | 4. Almacén y Reparto (`WAREHOUSE_DELIVERY`) |
-| :--- | :---: | :---: | :---: | :---: |
-| **Ver costos de compra (`ref_cost_pen`) y márgenes (`S/` y `%`)** | Sí | Sí | **NO (Jamás sale del servidor)** | **NO (Jamás sale del servidor)** |
-| **Ver precios de venta, descuentos y totales en `S/`** | Sí | Sí | Sí | **NO (Jamás sale del servidor)** |
-| **Ver deudas de clientes (`AR`) y registrar cobros** | Sí | Sí | Sí | **NO** |
-| **Crear clientes y tomar pedidos** | Sí | Sí | Sí | **NO** |
-| **Aplicar descuento en `S/` por unidad hasta `min_sale_price_pen`** | Sí (sin tope) | Sí (sin tope) | Sí (hasta el tope) | **NO** |
-| **Guardar pedido bajo el precio mínimo (`PENDING_PARTNER_APPROVAL`)** | Aprueba directo | Aprueba directo | Solicita aprobación | **NO** |
-| **Aprobar con 1 toque pedidos bajo el precio mínimo** | Sí | Sí | **NO** | **NO** |
-| **Actualizar avance (`En alistamiento -> Listo -> En ruta -> Entregado`)** | Sí | Sí | Solo lectura de avance | **Sí (su vista principal)** |
-| **Registrar Gastos de Ruta (`ROUTE_OPEX`)** | Sí | Sí | Sí (de su caja de ruta) | **NO** |
-| **Registrar Compras, Pagos a Proveedor (`AP`), Depósitos y Retiros** | Sí | Sí | **NO** | **NO** |
-| **Toma de Inventario / Ajuste de Stock y Gestión de Catálogo/Precios/Usuarios** | Sí (Acceso total) | Sí (consulta y apoyo; edición completa opcional) | **NO** | **NO** |
+| Capacidad / Dato                                                                | 1. Socio Operativo y Admin (`PARTNER_ADMIN`) |       2. Socio Gerente (`PARTNER_MANAGER`)       | 3. Vendedor Externo (`EXTERNAL_SELLER`) | 4. Almacén y Reparto (`WAREHOUSE_DELIVERY`) |
+| :------------------------------------------------------------------------------ | :------------------------------------------: | :----------------------------------------------: | :-------------------------------------: | :-----------------------------------------: |
+| **Ver costos de compra (`ref_cost_pen`) y márgenes (`S/` y `%`)**               |                      Sí                      |                        Sí                        |    **NO (Jamás sale del servidor)**     |      **NO (Jamás sale del servidor)**       |
+| **Ver precios de venta, descuentos y totales en `S/`**                          |                      Sí                      |                        Sí                        |                   Sí                    |      **NO (Jamás sale del servidor)**       |
+| **Ver deudas de clientes (`AR`) y registrar cobros**                            |                      Sí                      |                        Sí                        |                   Sí                    |                   **NO**                    |
+| **Crear clientes y tomar pedidos**                                              |                      Sí                      |                        Sí                        |                   Sí                    |                   **NO**                    |
+| **Aplicar descuento en `S/` por unidad hasta `min_sale_price_pen`**             |                Sí (sin tope)                 |                  Sí (sin tope)                   |           Sí (hasta el tope)            |                   **NO**                    |
+| **Guardar pedido bajo el precio mínimo (`PENDING_PARTNER_APPROVAL`)**           |               Aprueba directo                |                 Aprueba directo                  |           Solicita aprobación           |                   **NO**                    |
+| **Aprobar con 1 toque pedidos bajo el precio mínimo**                           |                      Sí                      |                        Sí                        |                 **NO**                  |                   **NO**                    |
+| **Actualizar avance (`En alistamiento -> Listo -> En ruta -> Entregado`)**      |                      Sí                      |                        Sí                        |         Solo lectura de avance          |         **Sí (su vista principal)**         |
+| **Registrar Gastos de Ruta (`ROUTE_OPEX`)**                                     |                      Sí                      |                        Sí                        |         Sí (de su caja de ruta)         |                   **NO**                    |
+| **Registrar Compras, Pagos a Proveedor (`AP`), Depósitos y Retiros**            |                      Sí                      |                        Sí                        |                 **NO**                  |                   **NO**                    |
+| **Toma de Inventario / Ajuste de Stock y Gestión de Catálogo/Precios/Usuarios** |              Sí (Acceso total)               | Sí (consulta y apoyo; edición completa opcional) |                 **NO**                  |                   **NO**                    |
 
-*(Decisión del diseñador: Ambos Socios comparten los permisos de aprobación y consulta total; `PARTNER_ADMIN` tiene además la administración de usuarios y ajustes maestros, aunque `PARTNER_MANAGER` también puede aprobar descuentos y apoyar en operación).*
+_(Decisión del diseñador: Ambos Socios comparten los permisos de aprobación y consulta total; `PARTNER_ADMIN` tiene además la administración de usuarios y ajustes maestros, aunque `PARTNER_MANAGER` también puede aprobar descuentos y apoyar en operación)._
 
 ---
 
@@ -236,7 +243,7 @@ La base de datos en Neon ya cuenta con la tabla `erp.ar_payments` y el trigger a
 
 2. **Historial de Amortizaciones (Bitácora de "Qué día dio cuánto"):**
    - Al tocar cualquier pedido a crédito o cliente deudor, se despliega la línea de tiempo exacta de abonos tomados de `erp.ar_payments`:
-     - *Ejemplo:*
+     - _Ejemplo:_
        - `14/11/2026 09:30` — **Abonó S/ 500.00** (`Efectivo` · Cobró: `Vendedor`)
        - `18/11/2026 15:10` — **Abonó S/ 300.00** (`Yape/Plin` · Cobró: `Socio Operativo`)
        - **Total Venta:** `S/ 1,000.00` | **Total Abonado:** `S/ 800.00` | **Saldo Pendiente:** `S/ 200.00`
@@ -260,6 +267,7 @@ La base de datos en Neon ya cuenta con la tabla `erp.ar_payments` y el trigger a
 ## 6. Lo Que Queda a Criterio del Implementador (What's Left to the Builder)
 
 Las siguientes decisiones menores de implementación quedan a cargo del constructor sin necesidad de volver a preguntar:
+
 - Estructura exacta de carpetas dentro de `bht_neon/src/` (`app/`, `lib/`, `components/`).
 - Paleta visual y componentes Tailwind (usando alto contraste para lectura bajo luz de sol en ruta, botones de mínimo `44px` de alto en móvil y tablas densas en `lg:` para PC).
 - Usuarios semilla iniciales en `erp.app_users` (se crearán cuentas listas para usar para `Socio Operativo`, `Socio Gerente`, `Vendedor Externo`, `Almacén 1` y `Reparto 1`, con PINs iniciales documentados y editables desde la pantalla de Usuarios).

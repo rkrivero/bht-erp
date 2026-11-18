@@ -12,5 +12,6 @@ export interface PriorityItem {
     type: "order" | "collection" | "purchase" | "inventory" | "group";
     count: number;
   };
-  allowedAction: "review-decisions" | "open-collections" | "open-finance" | "open-inventory";
+  allowedAction:
+    "review-decisions" | "open-collections" | "open-finance" | "open-inventory";
 }

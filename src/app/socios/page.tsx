@@ -93,7 +93,10 @@ type PartnerTab = LegacyPartnerTab;
 type MonitorStatusFilter = "ALL" | "PENDING" | "DELIVERED" | "CANCELLED";
 
 const DeferredSection = () => (
-  <Card className="p-8 text-center text-sm font-medium text-[var(--ink-secondary)]" role="status">
+  <Card
+    className="p-8 text-center text-sm font-medium text-[var(--ink-secondary)]"
+    role="status"
+  >
     Preparando sección…
   </Card>
 );
@@ -574,7 +577,9 @@ export default function SociosPage() {
       setTab(resolved.legacyTab);
       const canonical = canonicalPartnerUrl(current);
       if (canonical.search !== current.search) {
-        router.replace(canonical.pathname + canonical.search + canonical.hash, { scroll: false });
+        router.replace(canonical.pathname + canonical.search + canonical.hash, {
+          scroll: false,
+        });
       }
     };
     syncFromUrl();
@@ -1111,10 +1116,13 @@ export default function SociosPage() {
   );
 
   const activeTabLabel =
-    navItems.find((item) => item.id === (tab === "kpis" ? "caja" : tab))?.label ?? "Hoy";
+    navItems.find((item) => item.id === (tab === "kpis" ? "caja" : tab))?.label ??
+    "Hoy";
   const navActiveTab: PartnerTab = tab === "kpis" ? "caja" : tab;
   const brokenPromisesCount = useMemo(
-    () => debtorsByOrder.filter((item) => String(item.promiseStatus) === "PROMISE_BROKEN").length,
+    () =>
+      debtorsByOrder.filter((item) => String(item.promiseStatus) === "PROMISE_BROKEN")
+        .length,
     [debtorsByOrder]
   );
   const priorityItems: PriorityItem[] = useMemo(
@@ -1172,7 +1180,12 @@ export default function SociosPage() {
         allowedAction: "open-inventory",
       },
     ],
-    [brokenPromisesCount, negStockCount, pendingApprovals.length, pendingOnDemand.length]
+    [
+      brokenPromisesCount,
+      negStockCount,
+      pendingApprovals.length,
+      pendingOnDemand.length,
+    ]
   );
 
   const handlePriorityAction = useCallback(
@@ -1244,7 +1257,9 @@ export default function SociosPage() {
           setBusyLogout(true);
           try {
             if (currentUser?.username) {
-              await deleteOfflineSnapshotsForActor(currentUser.username).catch(() => undefined);
+              await deleteOfflineSnapshotsForActor(currentUser.username).catch(
+                () => undefined
+              );
             }
             await authClient.signOut();
           } finally {
@@ -1292,8 +1307,13 @@ export default function SociosPage() {
         <div className="flex flex-col gap-3 rounded-xl border border-[#E2E8F0] bg-white p-3 sm:flex-row sm:items-center sm:justify-between sm:p-3.5">
           <div className="flex min-w-0 items-center gap-2 text-xs text-[#6D6A64]">
             <span className="font-medium text-[#5C5A55]">Inicio</span>
-            <ChevronRightIcon className="h-3.5 w-3.5 text-[#A8A49C]" aria-hidden="true" />
-            <span className="truncate font-semibold text-[#0F2942]">{activeTabLabel}</span>
+            <ChevronRightIcon
+              className="h-3.5 w-3.5 text-[#A8A49C]"
+              aria-hidden="true"
+            />
+            <span className="truncate font-semibold text-[#0F2942]">
+              {activeTabLabel}
+            </span>
           </div>
           <form
             onSubmit={handleGlobalSearchSubmit}
@@ -1315,7 +1335,12 @@ export default function SociosPage() {
                 className={`${INPUT_CLASS} py-2.5 pl-10 pr-3 text-xs`}
               />
             </div>
-            <Button type="submit" variant="brand" size="sm" className="min-h-[42px] shrink-0">
+            <Button
+              type="submit"
+              variant="brand"
+              size="sm"
+              className="min-h-[42px] shrink-0"
+            >
               Buscar
             </Button>
           </form>
@@ -1350,16 +1375,28 @@ export default function SociosPage() {
                 Hoy · America/Lima
               </span>
             </div>
-            <Card padding="none" className="order-1 overflow-hidden border-[var(--border-strong)]">
+            <Card
+              padding="none"
+              className="order-1 overflow-hidden border-[var(--border-strong)]"
+            >
               <div className="flex items-center justify-between gap-3 border-b border-[var(--border-hairline)] px-4 py-3.5 sm:px-5">
                 <div>
-                  <h3 className="text-base font-bold text-[var(--bht-navy)]">Cola priorizada</h3>
+                  <h3 className="text-base font-bold text-[var(--bht-navy)]">
+                    Cola priorizada
+                  </h3>
                   <p className="mt-0.5 text-xs text-[var(--ink-secondary)]">
                     Ordenada por impacto, vencimiento y acción permitida.
                   </p>
                 </div>
-                <Badge tone={priorityItems.some((item) => item.entity.count > 0) ? "warning" : "success"}>
-                  {priorityItems.reduce((sum, item) => sum + item.entity.count, 0)} pendientes
+                <Badge
+                  tone={
+                    priorityItems.some((item) => item.entity.count > 0)
+                      ? "warning"
+                      : "success"
+                  }
+                >
+                  {priorityItems.reduce((sum, item) => sum + item.entity.count, 0)}{" "}
+                  pendientes
                 </Badge>
               </div>
               <div className="divide-y divide-[var(--border-hairline)]">
@@ -1373,18 +1410,35 @@ export default function SociosPage() {
                           ? ShoppingBagIcon
                           : AlertTriangleIcon;
                   return (
-                    <div key={item.id} className="grid gap-3 px-4 py-3.5 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:items-center sm:px-5">
-                      <span className={`flex h-9 w-9 items-center justify-center rounded-xl ${item.level === "clear" ? "bg-[#F2F6FA] text-[var(--bht-steel)]" : item.level === "critical" ? "bg-[#FEF2F2] text-[#B91C1C]" : "bg-[#FFF7E8] text-[#9A5A00]"}`} aria-hidden="true">
+                    <div
+                      key={item.id}
+                      className="grid gap-3 px-4 py-3.5 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:items-center sm:px-5"
+                    >
+                      <span
+                        className={`flex h-9 w-9 items-center justify-center rounded-xl ${item.level === "clear" ? "bg-[#F2F6FA] text-[var(--bht-steel)]" : item.level === "critical" ? "bg-[#FEF2F2] text-[#B91C1C]" : "bg-[#FFF7E8] text-[#9A5A00]"}`}
+                        aria-hidden="true"
+                      >
                         <Icon className="h-4 w-4" />
                       </span>
                       <div className="min-w-0">
                         <div className="flex flex-wrap items-center gap-2">
-                          <h4 className="text-sm font-semibold text-[var(--bht-ink)]">{item.title}</h4>
-                          <span className="text-xs font-semibold text-[var(--ink-secondary)]">{item.dueLabel}</span>
+                          <h4 className="text-sm font-semibold text-[var(--bht-ink)]">
+                            {item.title}
+                          </h4>
+                          <span className="text-xs font-semibold text-[var(--ink-secondary)]">
+                            {item.dueLabel}
+                          </span>
                         </div>
-                        <p className="mt-1 text-xs text-[var(--ink-secondary)]">{item.summary}</p>
+                        <p className="mt-1 text-xs text-[var(--ink-secondary)]">
+                          {item.summary}
+                        </p>
                       </div>
-                      <Button variant={item.entity.count > 0 ? "primary" : "outline"} size="sm" onClick={() => handlePriorityAction(item.allowedAction)} className="w-full sm:w-auto">
+                      <Button
+                        variant={item.entity.count > 0 ? "primary" : "outline"}
+                        size="sm"
+                        onClick={() => handlePriorityAction(item.allowedAction)}
+                        className="w-full sm:w-auto"
+                      >
                         {item.entity.count > 0 ? "Resolver" : "Revisar"}
                       </Button>
                     </div>
@@ -1521,7 +1575,10 @@ export default function SociosPage() {
 
             {/* 1-Tap Discount Approval Queue — calm slim banner when 0 pending */}
             {pendingApprovals.length === 0 ? (
-              <div id="discount-approval-queue" className="order-2 flex scroll-mt-24 items-center justify-between gap-2 rounded-2xl border border-[#D5E0E9] bg-white px-4 py-4 text-sm text-[#486581]">
+              <div
+                id="discount-approval-queue"
+                className="order-2 flex scroll-mt-24 items-center justify-between gap-2 rounded-2xl border border-[#D5E0E9] bg-white px-4 py-4 text-sm text-[#486581]"
+              >
                 <span className="flex items-center gap-2">
                   <CheckIcon className="h-3.5 w-3.5 text-[#15803D]" />
                   No hay pedidos retenidos por descuento en este momento.
@@ -1529,7 +1586,12 @@ export default function SociosPage() {
                 <Badge tone="neutral">0 pendientes</Badge>
               </div>
             ) : (
-              <Card id="discount-approval-queue" tone="warning" padding="md" className="order-2 scroll-mt-24 space-y-3">
+              <Card
+                id="discount-approval-queue"
+                tone="warning"
+                padding="md"
+                className="order-2 scroll-mt-24 space-y-3"
+              >
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div className="flex items-center gap-2">
                     <AlertTriangleIcon className="h-4 w-4 text-[#B45309]" />
@@ -1645,7 +1707,12 @@ export default function SociosPage() {
 
             {/* ON_DEMAND Pending Supplier Purchases */}
             {pendingOnDemand.length > 0 && (
-              <Card tone="horizon" accent="horizon" padding="md" className="order-5 space-y-3">
+              <Card
+                tone="horizon"
+                accent="horizon"
+                padding="md"
+                className="order-5 space-y-3"
+              >
                 <div className="flex items-center justify-between gap-2">
                   <h2 className="text-sm sm:text-base font-semibold text-[#0F2942]">
                     Pedidos Bajo Pedido Pendientes de Compra ({pendingOnDemand.length})
@@ -2048,7 +2115,8 @@ export default function SociosPage() {
                       Rutas y Despachos ({routeTrips.length})
                     </h2>
                     <p className="text-xs text-[#5C5A55]">
-                      Cierra la ruta y compara lo cobrado en el día con los pedidos registrados.
+                      Cierra la ruta y compara lo cobrado en el día con los pedidos
+                      registrados.
                     </p>
                   </div>
                 </div>
@@ -2332,7 +2400,8 @@ export default function SociosPage() {
                       </div>
                       <span className="text-xs text-[#5C5A55]">
                         Vendedor: {formatActorName(order.created_by_name, "-")} ·{" "}
-                        {Array.isArray(order.lines) ? order.lines.length : 0} producto(s)
+                        {Array.isArray(order.lines) ? order.lines.length : 0}{" "}
+                        producto(s)
                       </span>
                     </button>
                   ))}
@@ -2920,44 +2989,48 @@ export default function SociosPage() {
                 { id: "kpis", label: "Indicadores y reportes" },
               ]}
             />
-            {tab === "caja" && <CajaProveedoresTab
-            catalog={catalog}
-            accounts={accounts}
-            ledger={ledger}
-            apObligations={apObligations}
-            suppliers={suppliers}
-            recentPurchases={recentPurchases}
-            pendingOnDemand={pendingOnDemand}
-            preselectedTarget={preselectedPurchaseTarget}
-            onClearPreselectedTarget={() => setPreselectedPurchaseTarget(null)}
-            onRefresh={loadDashboard}
-            onFeedback={showFeedback}
-            onEditingChange={setSubTabEditing}
-            />}
+            {tab === "caja" && (
+              <CajaProveedoresTab
+                catalog={catalog}
+                accounts={accounts}
+                ledger={ledger}
+                apObligations={apObligations}
+                suppliers={suppliers}
+                recentPurchases={recentPurchases}
+                pendingOnDemand={pendingOnDemand}
+                preselectedTarget={preselectedPurchaseTarget}
+                onClearPreselectedTarget={() => setPreselectedPurchaseTarget(null)}
+                onRefresh={loadDashboard}
+                onFeedback={showFeedback}
+                onEditingChange={setSubTabEditing}
+              />
+            )}
 
-            {tab === "kpis" && kpiQ1 && <KpisBiTab
-              currentUser={currentUser}
-              kpiQ1={kpiQ1}
-              openDebtorsCount={openDebtorsCount}
-              kpiQ2TopSkus={kpiQ2TopSkus}
-              qualityGaps={qualityGaps}
-              auditFlags={
-                Array.isArray(partnerData?.auditFlags)
-                  ? (partnerData.auditFlags as AuditFlagItem[])
-                  : undefined
-              }
-              auditFlagCounts={
-                partnerData?.auditFlagCounts as AuditFlagCounts | undefined
-              }
-              biSummary={biSummary}
-              users={appUsers}
-              userAccessHistory={userAccessHistory}
-              onGoToPurchaseProduct={handleGoToPurchaseProduct}
-              onGoToEditProduct={handleGoToEditProduct}
-              onRefresh={loadDashboard}
-              onFeedback={showFeedback}
-              onEditingChange={setSubTabEditing}
-            />}
+            {tab === "kpis" && kpiQ1 && (
+              <KpisBiTab
+                currentUser={currentUser}
+                kpiQ1={kpiQ1}
+                openDebtorsCount={openDebtorsCount}
+                kpiQ2TopSkus={kpiQ2TopSkus}
+                qualityGaps={qualityGaps}
+                auditFlags={
+                  Array.isArray(partnerData?.auditFlags)
+                    ? (partnerData.auditFlags as AuditFlagItem[])
+                    : undefined
+                }
+                auditFlagCounts={
+                  partnerData?.auditFlagCounts as AuditFlagCounts | undefined
+                }
+                biSummary={biSummary}
+                users={appUsers}
+                userAccessHistory={userAccessHistory}
+                onGoToPurchaseProduct={handleGoToPurchaseProduct}
+                onGoToEditProduct={handleGoToEditProduct}
+                onRefresh={loadDashboard}
+                onFeedback={showFeedback}
+                onEditingChange={setSubTabEditing}
+              />
+            )}
           </div>
         )}
       </main>
@@ -3140,28 +3213,28 @@ export default function SociosPage() {
               </p>
               {Array.isArray(selectedPartnerQuote.lines) &&
               selectedPartnerQuote.lines.length > 0 ? (
-                (
-                  selectedPartnerQuote.lines as Array<Record<string, unknown>>
-                ).map((line, index) => (
-                  <div
-                    key={String(line.quote_line_id ?? index)}
-                    className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-[#E7E5E0] bg-[#FAF9F6] px-3 py-2"
-                  >
-                    <div className="min-w-0 flex-1">
-                      <p className="font-medium text-[#18181B]">
-                        {String(line.raw_description || line.sku || "Producto")}
-                      </p>
-                      <p className="text-xs text-[#5C5A55] tabular-nums">
-                        {Number(line.quantity)}{" "}
-                        {String(line.unit_of_measure || "NIU")} ×{" "}
-                        {formatPen(line.unit_price_pen)}
-                      </p>
+                (selectedPartnerQuote.lines as Array<Record<string, unknown>>).map(
+                  (line, index) => (
+                    <div
+                      key={String(line.quote_line_id ?? index)}
+                      className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-[#E7E5E0] bg-[#FAF9F6] px-3 py-2"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <p className="font-medium text-[#18181B]">
+                          {String(line.raw_description || line.sku || "Producto")}
+                        </p>
+                        <p className="text-xs text-[#5C5A55] tabular-nums">
+                          {Number(line.quantity)}{" "}
+                          {String(line.unit_of_measure || "NIU")} ×{" "}
+                          {formatPen(line.unit_price_pen)}
+                        </p>
+                      </div>
+                      <strong className="tabular-nums text-[#18181B]">
+                        {formatPen(line.line_total_pen)}
+                      </strong>
                     </div>
-                    <strong className="tabular-nums text-[#18181B]">
-                      {formatPen(line.line_total_pen)}
-                    </strong>
-                  </div>
-                ))
+                  )
+                )
               ) : (
                 <p className="text-[#5C5A55]">Sin líneas registradas.</p>
               )}

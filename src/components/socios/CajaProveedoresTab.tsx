@@ -2546,9 +2546,7 @@ export default function CajaProveedoresTab({
                 </strong>
               </div>
               <div className="rounded-xl border border-[#FEE2E2] bg-[#FEF2F2]/60 p-3">
-                <span className="block text-xs text-[#991B1B]">
-                  Saldo que se debe
-                </span>
+                <span className="block text-xs text-[#991B1B]">Saldo que se debe</span>
                 <strong className="mt-0.5 block text-base text-[#B91C1C]">
                   {formatPen(detailAp.balance_due_pen)}
                 </strong>

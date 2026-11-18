@@ -85,9 +85,7 @@ describe("Server Error, Transport & Test-session Hardening", () => {
         error: "Sin permiso",
       }
     );
-    expect(
-      resolveHttpError(new ConflictError("Conflicto"), "fallback")
-    ).toEqual(
+    expect(resolveHttpError(new ConflictError("Conflicto"), "fallback")).toEqual(
       expect.objectContaining({
         status: 409,
         error: "Conflicto",

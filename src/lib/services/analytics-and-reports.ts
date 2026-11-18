@@ -96,8 +96,7 @@ export function isReportCsvDataset(value: string): value is ReportCsvDataset {
 export function escapeCsvCell(value: unknown): string {
   if (value === null || value === undefined) return "";
   const str = String(value);
-  const isNumericPrimitive =
-    typeof value === "number" && Number.isFinite(value);
+  const isNumericPrimitive = typeof value === "number" && Number.isFinite(value);
   const isPureNumericString =
     !isNumericPrimitive && /^-?\d+(?:\.\d+)?$/.test(str.trim());
   const safeStr =
@@ -315,8 +314,7 @@ export function mapBiSummaryFromPanels(
       total_units_sold: Number(r.total_units_sold ?? 0),
       total_revenue_pen: Number(r.total_revenue_pen ?? 0),
       avg_unit_sale_price_pen:
-        r.avg_unit_sale_price_pen !== null &&
-        r.avg_unit_sale_price_pen !== undefined
+        r.avg_unit_sale_price_pen !== null && r.avg_unit_sale_price_pen !== undefined
           ? Number(r.avg_unit_sale_price_pen)
           : null,
       ref_cost_pen:
@@ -325,13 +323,11 @@ export function mapBiSummaryFromPanels(
           : null,
       known_cogs_pen: Number(r.known_cogs_pen ?? 0),
       real_gross_margin_pen:
-        r.real_gross_margin_pen !== null &&
-        r.real_gross_margin_pen !== undefined
+        r.real_gross_margin_pen !== null && r.real_gross_margin_pen !== undefined
           ? Number(r.real_gross_margin_pen)
           : null,
       real_gross_margin_pct:
-        r.real_gross_margin_pct !== null &&
-        r.real_gross_margin_pct !== undefined
+        r.real_gross_margin_pct !== null && r.real_gross_margin_pct !== undefined
           ? Number(r.real_gross_margin_pct)
           : null,
       low_margin_below_20pct_alert: Boolean(r.low_margin_below_20pct_alert),

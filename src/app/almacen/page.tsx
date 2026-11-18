@@ -458,7 +458,9 @@ export default function AlmacenPage() {
     setLoggingOut(true);
     try {
       if (currentUser?.username) {
-        await deleteOfflineSnapshotsForActor(currentUser.username).catch(() => undefined);
+        await deleteOfflineSnapshotsForActor(currentUser.username).catch(
+          () => undefined
+        );
       }
       await authClient.signOut();
     } finally {
@@ -478,26 +480,25 @@ export default function AlmacenPage() {
     return counts;
   }, [orders]);
 
-  const filtered = useMemo(
-    () => {
-      const query = warehouseSearch.trim().toLocaleLowerCase("es");
-      return orders.filter((order) => {
-        if (toWarehouseStage(order.operational_status) !== activeTab) return false;
-        if (
-          query &&
-          !`${order.order_code} ${order.customer_name} ${order.created_by_name ?? ""}`
-            .toLocaleLowerCase("es")
-            .includes(query)
-        ) {
-          return false;
-        }
-        if (activeTab !== "PREPARING" || preparingFilter === "ALL") return true;
-        const checkedCount = order.lines.filter((line) => checkedLines[line.order_line_id]).length;
-        return preparingFilter === "NOT_STARTED" ? checkedCount === 0 : checkedCount > 0;
-      });
-    },
-    [activeTab, checkedLines, orders, preparingFilter, warehouseSearch]
-  );
+  const filtered = useMemo(() => {
+    const query = warehouseSearch.trim().toLocaleLowerCase("es");
+    return orders.filter((order) => {
+      if (toWarehouseStage(order.operational_status) !== activeTab) return false;
+      if (
+        query &&
+        !`${order.order_code} ${order.customer_name} ${order.created_by_name ?? ""}`
+          .toLocaleLowerCase("es")
+          .includes(query)
+      ) {
+        return false;
+      }
+      if (activeTab !== "PREPARING" || preparingFilter === "ALL") return true;
+      const checkedCount = order.lines.filter(
+        (line) => checkedLines[line.order_line_id]
+      ).length;
+      return preparingFilter === "NOT_STARTED" ? checkedCount === 0 : checkedCount > 0;
+    });
+  }, [activeTab, checkedLines, orders, preparingFilter, warehouseSearch]);
 
   return (
     <div className="min-h-screen bg-[#FAF9F6] pb-12">
@@ -574,117 +575,145 @@ export default function AlmacenPage() {
 
         {activeTab === "PREPARING" && (
           <div className="flex flex-col gap-2 rounded-xl border border-[#E7E5E0] bg-white p-2.5 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex gap-1" role="group" aria-label="Filtrar cola de alistamiento">
-              {([
-                ["ALL", "Todos"],
-                ["NOT_STARTED", "Sin empezar"],
-                ["IN_PROGRESS", "En proceso"],
-              ] as Array<[PreparingFilter, string]>).map(([id, label]) => (
-                <button key={id} type="button" aria-pressed={preparingFilter === id} onClick={() => setPreparingFilter(id)} className={`min-h-10 rounded-lg px-3 text-xs font-semibold ${preparingFilter === id ? "bg-[var(--bht-navy)] text-white" : "text-[var(--ink-secondary)] hover:bg-[var(--bg-subtle)]"}`}>
+            <div
+              className="flex gap-1"
+              role="group"
+              aria-label="Filtrar cola de alistamiento"
+            >
+              {(
+                [
+                  ["ALL", "Todos"],
+                  ["NOT_STARTED", "Sin empezar"],
+                  ["IN_PROGRESS", "En proceso"],
+                ] as Array<[PreparingFilter, string]>
+              ).map(([id, label]) => (
+                <button
+                  key={id}
+                  type="button"
+                  aria-pressed={preparingFilter === id}
+                  onClick={() => setPreparingFilter(id)}
+                  className={`min-h-10 rounded-lg px-3 text-xs font-semibold ${preparingFilter === id ? "bg-[var(--bht-navy)] text-white" : "text-[var(--ink-secondary)] hover:bg-[var(--bg-subtle)]"}`}
+                >
                   {label}
                 </button>
               ))}
             </div>
-            <input type="search" value={warehouseSearch} onChange={(event) => setWarehouseSearch(event.target.value)} placeholder="Buscar pedido o cliente…" aria-label="Buscar en la cola de alistamiento" className={`${INPUT_CLASS} sm:max-w-xs`} />
+            <input
+              type="search"
+              value={warehouseSearch}
+              onChange={(event) => setWarehouseSearch(event.target.value)}
+              placeholder="Buscar pedido o cliente…"
+              aria-label="Buscar en la cola de alistamiento"
+              className={`${INPUT_CLASS} sm:max-w-xs`}
+            />
           </div>
         )}
 
         {activeTab === "DELIVERED" && (
-          <input type="search" value={warehouseSearch} onChange={(event) => setWarehouseSearch(event.target.value)} placeholder="Buscar pedido, cliente o responsable…" aria-label="Buscar pedidos entregados" className={`${INPUT_CLASS} bg-white`} />
+          <input
+            type="search"
+            value={warehouseSearch}
+            onChange={(event) => setWarehouseSearch(event.target.value)}
+            placeholder="Buscar pedido, cliente o responsable…"
+            aria-label="Buscar pedidos entregados"
+            className={`${INPUT_CLASS} bg-white`}
+          />
         )}
 
-        {activeTab === "READY" && <Card id="route-control" padding="sm" className="space-y-2.5">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div>
-              <span className="text-xs font-semibold text-[#18181B]">
-                Rutas de Reparto ({openTrips.length} activa
-                {openTrips.length === 1 ? "" : "s"})
-              </span>
-              <p className="text-xs text-[#5C5A55]">
-                Asigna pedidos listos a una salida en ruta antes de entregar.
-              </p>
-            </div>
-            <Button
-              type="button"
-              variant={showNewTrip ? "ghost" : "outline"}
-              size="sm"
-              onClick={() => setShowNewTrip((v) => !v)}
-            >
-              {showNewTrip ? "Cancelar" : "+ Abrir Ruta"}
-            </Button>
-          </div>
-
-          {showNewTrip && (
-            <form
-              onSubmit={handleCreateTrip}
-              className="grid grid-cols-1 gap-2 rounded-xl border border-[#E7E5E0] bg-[#FAF9F6] p-3 sm:grid-cols-4"
-            >
-              <input
-                type="text"
-                value={newTripZone}
-                onChange={(e) => setNewTripZone(e.target.value)}
-                aria-label="Zona de ruta"
-                placeholder="Zona (ej. RUTA NORTE)"
-                className={`${INPUT_CLASS} py-1.5 text-xs`}
-              />
-              <input
-                type="text"
-                value={newTripDriver}
-                onChange={(e) => setNewTripDriver(e.target.value)}
-                aria-label="Repartidor"
-                placeholder="Repartidor (opcional)"
-                className={`${INPUT_CLASS} py-1.5 text-xs`}
-              />
-              <input
-                type="text"
-                value={newTripNotes}
-                onChange={(e) => setNewTripNotes(e.target.value)}
-                aria-label="Notas de ruta"
-                placeholder="Placa / notas (opcional)"
-                className={`${INPUT_CLASS} py-1.5 text-xs`}
-              />
+        {activeTab === "READY" && (
+          <Card id="route-control" padding="sm" className="space-y-2.5">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <span className="text-xs font-semibold text-[#18181B]">
+                  Rutas de Reparto ({openTrips.length} activa
+                  {openTrips.length === 1 ? "" : "s"})
+                </span>
+                <p className="text-xs text-[#5C5A55]">
+                  Asigna pedidos listos a una salida en ruta antes de entregar.
+                </p>
+              </div>
               <Button
-                type="submit"
-                variant="primary"
+                type="button"
+                variant={showNewTrip ? "ghost" : "outline"}
                 size="sm"
-                disabled={busyTripAction}
+                onClick={() => setShowNewTrip((v) => !v)}
               >
-                {busyTripAction ? "Abriendo..." : "Confirmar Ruta"}
+                {showNewTrip ? "Cancelar" : "+ Abrir Ruta"}
               </Button>
-            </form>
-          )}
-
-          {openTrips.length > 0 && (
-            <div className="flex flex-wrap gap-2">
-              {openTrips.map((trip) => (
-                <div
-                  key={trip.trip_id}
-                  className="flex flex-wrap items-center gap-2 rounded-xl border border-[#D4E0EC] bg-[#F2F6FA] px-3 py-1.5 text-xs"
-                >
-                  <span className="font-semibold text-[#0F2942] tabular-nums">
-                    {trip.trip_code}
-                  </span>
-                  <span className="text-[#5C5A55]">
-                    {trip.zone_name || "Ruta"} · {trip.driver_name || "Reparto"}
-                  </span>
-                  <Badge tone="horizon" className="tabular-nums">
-                    {trip.in_route_count} en ruta · {trip.delivered_count} entregados
-                  </Badge>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    data-compact="true"
-                    disabled={busyTripAction}
-                    onClick={() => setConfirmCloseTrip(trip)}
-                  >
-                    Cerrar Ruta
-                  </Button>
-                </div>
-              ))}
             </div>
-          )}
-        </Card>}
+
+            {showNewTrip && (
+              <form
+                onSubmit={handleCreateTrip}
+                className="grid grid-cols-1 gap-2 rounded-xl border border-[#E7E5E0] bg-[#FAF9F6] p-3 sm:grid-cols-4"
+              >
+                <input
+                  type="text"
+                  value={newTripZone}
+                  onChange={(e) => setNewTripZone(e.target.value)}
+                  aria-label="Zona de ruta"
+                  placeholder="Zona (ej. RUTA NORTE)"
+                  className={`${INPUT_CLASS} py-1.5 text-xs`}
+                />
+                <input
+                  type="text"
+                  value={newTripDriver}
+                  onChange={(e) => setNewTripDriver(e.target.value)}
+                  aria-label="Repartidor"
+                  placeholder="Repartidor (opcional)"
+                  className={`${INPUT_CLASS} py-1.5 text-xs`}
+                />
+                <input
+                  type="text"
+                  value={newTripNotes}
+                  onChange={(e) => setNewTripNotes(e.target.value)}
+                  aria-label="Notas de ruta"
+                  placeholder="Placa / notas (opcional)"
+                  className={`${INPUT_CLASS} py-1.5 text-xs`}
+                />
+                <Button
+                  type="submit"
+                  variant="primary"
+                  size="sm"
+                  disabled={busyTripAction}
+                >
+                  {busyTripAction ? "Abriendo..." : "Confirmar Ruta"}
+                </Button>
+              </form>
+            )}
+
+            {openTrips.length > 0 && (
+              <div className="flex flex-wrap gap-2">
+                {openTrips.map((trip) => (
+                  <div
+                    key={trip.trip_id}
+                    className="flex flex-wrap items-center gap-2 rounded-xl border border-[#D4E0EC] bg-[#F2F6FA] px-3 py-1.5 text-xs"
+                  >
+                    <span className="font-semibold text-[#0F2942] tabular-nums">
+                      {trip.trip_code}
+                    </span>
+                    <span className="text-[#5C5A55]">
+                      {trip.zone_name || "Ruta"} · {trip.driver_name || "Reparto"}
+                    </span>
+                    <Badge tone="horizon" className="tabular-nums">
+                      {trip.in_route_count} en ruta · {trip.delivered_count} entregados
+                    </Badge>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      data-compact="true"
+                      disabled={busyTripAction}
+                      onClick={() => setConfirmCloseTrip(trip)}
+                    >
+                      Cerrar Ruta
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </Card>
+        )}
 
         {loading && orders.length === 0 ? (
           <Card className="p-8 text-center text-sm text-[#5C5A55]">

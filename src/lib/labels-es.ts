@@ -282,7 +282,9 @@ export function formatCashDirectionEs(
   isInternalTransfer?: boolean
 ): string {
   if (isInternalTransfer) return "Traslado Interno";
-  const key = String(direction ?? "").trim().toUpperCase();
+  const key = String(direction ?? "")
+    .trim()
+    .toUpperCase();
   if (key === "IN") return "Ingreso";
   if (key === "OUT") return "Salida";
   return key || "Movimiento";
@@ -319,12 +321,16 @@ const UNIT_MEASURE_NAMES_ES: Record<string, string> = {
 };
 
 export function formatUnitCode(uom: unknown, fallback = "NIU"): string {
-  const code = String(uom ?? "").trim().toUpperCase();
+  const code = String(uom ?? "")
+    .trim()
+    .toUpperCase();
   return code || fallback;
 }
 
 export function formatUnitTitleEs(uom: unknown): string {
-  const code = String(uom ?? "").trim().toUpperCase();
+  const code = String(uom ?? "")
+    .trim()
+    .toUpperCase();
   if (!code) return "Unidad";
   return UNIT_MEASURE_NAMES_ES[code] ?? code;
 }

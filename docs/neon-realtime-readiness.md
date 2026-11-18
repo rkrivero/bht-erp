@@ -17,13 +17,16 @@ Because Realtime is not provisioned yet, `bht_neon` now runs a **zero-dependency
 ## 2. Package & Environment Audit
 
 ### NPM Package Ecosystem (`npm view`, not installed)
+
 - `@neon/realtime`: `0.2.1`
 - `@neon/realtime-react`: `0.2.0`
 - `@neon/realtime-drizzle`: `0.2.0` (not needed; `bht_neon` uses `pg` raw SQL)
 - `@neon/realtime-tanstack`: `0.3.1` (optional)
 
 ### Environment Variable Names Audit (values never printed)
+
 Checked `../bht_data/.env` (no `.env*` files exist in `bht_neon/`):
+
 - Configured: `DATABASE_URL`, `DATABASE_URL_UNPOOLED`, `DEV_DATABASE_URL`, `DEV_DATABASE_URL_UNPOOLED`, `NEON_PROJECT_ID`, `NEON_ORG_ID`, `NEON_DEFAULT_BRANCH`
 - Missing for Neon Realtime:
   - `NEON_REALTIME_URL`
@@ -35,35 +38,36 @@ Checked `../bht_data/.env` (no `.env*` files exist in `bht_neon/`):
 ## 3. Database Schema & Requirements Audit (`BHT_DB_BRANCH=dev`)
 
 From `.neon-realtime` requirements (`references/queries.md`, `references/ssr.md`, `SKILL.md`):
+
 1. **Stable Replica Identity:** Every table read by a live query must have a stable replica identity (a Primary Key satisfies `DEFAULT`).
 2. **Row-Level Security (RLS) Disabled:** Neon Realtime currently rejects queries on tables with RLS enabled (`unsupported query: row security`).
 3. **Deterministic Read-Only Queries:** Live queries must be single `SELECT` statements with no `;` and no non-deterministic functions (`now()`, `CURRENT_DATE`, `gen_random_uuid()`).
 
 ### Base Tables Readiness (`erp` & `public`)
 
-| Table | Primary Key | Replica Identity | RLS Enabled / Forced | `@neon/realtime` Ready |
-|---|---|---|---|---|
-| `erp.sales_orders` | `order_id` | `default` | `false / false` | Ready |
-| `erp.sales_order_lines` | `order_line_id` | `default` | `false / false` | Ready |
-| `erp.sales_order_events` | `event_id` | `default` | `false / false` | Ready |
-| `erp.products` | `product_id` | `default` | `false / false` | Ready |
-| `erp.inventory_movements` | `movement_id` | `default` | `false / false` | Ready |
-| `erp.ar_payments` | `ar_payment_id` | `default` | `false / false` | Ready |
-| `erp.cash_ledger` | `ledger_id` | `default` | `false / false` | Ready |
-| `erp.cash_accounts` | `account_id` | `default` | `false / false` | Ready |
-| `erp.ap_obligations` | `ap_id` | `default` | `false / false` | Ready |
-| `erp.purchase_invoices` | `purchase_id` | `default` | `false / false` | Ready |
-| `erp.purchase_invoice_lines` | `purchase_line_id` | `default` | `false / false` | Ready |
-| `erp.parties` | `party_id` | `default` | `false / false` | Ready |
-| `erp.party_aliases` | `alias_id` | `default` | `false / false` | Ready |
-| `erp.product_aliases` | `alias_id` | `default` | `false / false` | Ready |
-| `erp.quotes` | `quote_id` | `default` | `false / false` | Ready |
-| `erp.quote_lines` | `quote_line_id` | `default` | `false / false` | Ready |
-| `erp.route_trips` | `trip_id` | `default` | `false / false` | Ready |
-| `erp.warehouses` | `warehouse_id` | `default` | `false / false` | Ready |
-| `erp.app_users` | `user_id` | `default` | `false / false` | Ready (never expose `pin_hash` in sealed queries) |
-| `erp.audit_flags` | `flag_id` | `default` | `false / false` | Ready |
-| `public.schema_migrations` | `version` | `default` | `false / false` | Ready |
+| Table                        | Primary Key        | Replica Identity | RLS Enabled / Forced | `@neon/realtime` Ready                            |
+| ---------------------------- | ------------------ | ---------------- | -------------------- | ------------------------------------------------- |
+| `erp.sales_orders`           | `order_id`         | `default`        | `false / false`      | Ready                                             |
+| `erp.sales_order_lines`      | `order_line_id`    | `default`        | `false / false`      | Ready                                             |
+| `erp.sales_order_events`     | `event_id`         | `default`        | `false / false`      | Ready                                             |
+| `erp.products`               | `product_id`       | `default`        | `false / false`      | Ready                                             |
+| `erp.inventory_movements`    | `movement_id`      | `default`        | `false / false`      | Ready                                             |
+| `erp.ar_payments`            | `ar_payment_id`    | `default`        | `false / false`      | Ready                                             |
+| `erp.cash_ledger`            | `ledger_id`        | `default`        | `false / false`      | Ready                                             |
+| `erp.cash_accounts`          | `account_id`       | `default`        | `false / false`      | Ready                                             |
+| `erp.ap_obligations`         | `ap_id`            | `default`        | `false / false`      | Ready                                             |
+| `erp.purchase_invoices`      | `purchase_id`      | `default`        | `false / false`      | Ready                                             |
+| `erp.purchase_invoice_lines` | `purchase_line_id` | `default`        | `false / false`      | Ready                                             |
+| `erp.parties`                | `party_id`         | `default`        | `false / false`      | Ready                                             |
+| `erp.party_aliases`          | `alias_id`         | `default`        | `false / false`      | Ready                                             |
+| `erp.product_aliases`        | `alias_id`         | `default`        | `false / false`      | Ready                                             |
+| `erp.quotes`                 | `quote_id`         | `default`        | `false / false`      | Ready                                             |
+| `erp.quote_lines`            | `quote_line_id`    | `default`        | `false / false`      | Ready                                             |
+| `erp.route_trips`            | `trip_id`          | `default`        | `false / false`      | Ready                                             |
+| `erp.warehouses`             | `warehouse_id`     | `default`        | `false / false`      | Ready                                             |
+| `erp.app_users`              | `user_id`          | `default`        | `false / false`      | Ready (never expose `pin_hash` in sealed queries) |
+| `erp.audit_flags`            | `flag_id`          | `default`        | `false / false`      | Ready                                             |
+| `public.schema_migrations`   | `version`          | `default`        | `false / false`      | Ready                                             |
 
 **Optional optimization later:** For write-heavy tables (`erp.sales_orders`, `erp.inventory_movements`), `ALTER TABLE ... REPLICA IDENTITY FULL;` can be benchmarked if update lookup latency matters.
 
@@ -80,6 +84,7 @@ From `.neon-realtime` requirements (`references/queries.md`, `references/ssr.md`
 ## 4. Exact Activation Steps for `@neon/realtime`
 
 ### Step 1: Enable Realtime in Neon Console (or Neon CLI)
+
 1. Open the Neon Console for project `NEON_PROJECT_ID` (ensure project is claimed and in a supported Realtime region).
 2. Enable **Realtime** on `main` (and `dev` branch as needed), adding your app origins to **Allowed Origins**:
    - Local dev: `http://localhost:3000`
@@ -93,12 +98,15 @@ From `.neon-realtime` requirements (`references/queries.md`, `references/ssr.md`
    ```
 
 ### Step 2: Install Packages
+
 ```bash
 npm install @neon/realtime @neon/realtime-react
 ```
 
 ### Step 3: Initialize Server Sealing (`src/lib/realtime/neon-server.ts`)
+
 Because `bht_neon` uses raw `pg` (`current_database() = 'bht_erp'`), use `createRealtime` with `rawSql` and `pgParam`:
+
 ```ts
 import "server-only";
 import { createRealtime } from "@neon/realtime/server";
@@ -108,10 +116,12 @@ export const neonRealtime = createRealtime({
   db: "bht_erp",
 });
 ```
+
 - Authenticate every sealing Route Handler (`POST /api/sync/seal`) via `getSessionUser(req)`, verify `body.userId === actor.userId` (per `ssr.md#when-the-session-changes`), build role-scoped `rawSql` queries, and return `Response.json(sealedQuery, { headers: { "Cache-Control": "no-store" } })`.
 - Note: Use Route Handlers (not Next.js Server Actions) for `refreshQuery`, because Server Actions execute sequentially (`references/subscribing.md`).
 
 ### Step 4: Wire Client Provider & Optimistic `txid`
+
 1. Wrap the client tree with `<RealtimeProvider client={client}>` using a `useState(() => createRealtimeClient({ url: process.env.NEXT_PUBLIC_NEON_REALTIME_URL! }))` initializer (never at module scope during SSR, per `references/ssr.md`).
 2. Add `pg_current_xact_id()::text AS txid` to the `RETURNING` clause of the primary `INSERT`/`UPDATE` in `src/lib/services/*.ts` mutations so clients can call `await utils.awaitTxId(txid, 10_000)`.
 3. Keep `useLiveSync.ts` as the clean abstraction: when `getNeonRealtimeConfig().enabled` becomes `true`, `useLiveSync` can internally switch from `/api/sync` SSE to `@neon/realtime` `client.subscribe()` while preserving the exact `{ liveStatus, lastSyncedAt, triggerSync }` contract across `/socios`, `/vendedor`, and `/almacen`.

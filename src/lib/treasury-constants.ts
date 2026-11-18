@@ -1,7 +1,4 @@
-export type OutflowBucket =
-  | "ROUTE_OPEX"
-  | "MERCHANDISE_PAYMENT"
-  | "NON_OPEX_OR_CAPEX";
+export type OutflowBucket = "ROUTE_OPEX" | "MERCHANDISE_PAYMENT" | "NON_OPEX_OR_CAPEX";
 
 export interface OutflowCategoryOption {
   value: string;
@@ -52,7 +49,5 @@ export function isCategoryAllowedForBucket(
   category: string
 ): boolean {
   const normalized = category.trim().toUpperCase();
-  return OUTFLOW_CATEGORIES_BY_BUCKET[bucket].some(
-    (opt) => opt.value === normalized
-  );
+  return OUTFLOW_CATEGORIES_BY_BUCKET[bucket].some((opt) => opt.value === normalized);
 }

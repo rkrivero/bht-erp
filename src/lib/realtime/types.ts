@@ -1,10 +1,5 @@
 export type SyncScope =
-  | "orders"
-  | "inventory"
-  | "collections"
-  | "treasury"
-  | "purchases"
-  | "partners";
+  "orders" | "inventory" | "collections" | "treasury" | "purchases" | "partners";
 
 export type LiveStatus = "live" | "syncing" | "paused" | "offline";
 

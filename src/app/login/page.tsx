@@ -27,7 +27,9 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [errorScope, setErrorScope] = useState<"email" | "password" | "form" | null>(null);
+  const [errorScope, setErrorScope] = useState<"email" | "password" | "form" | null>(
+    null
+  );
   const [loading, setLoading] = useState(false);
 
   async function handleLogin(event: React.FormEvent<HTMLFormElement>) {
@@ -60,7 +62,9 @@ export default function LoginPage() {
       }
       router.replace(routeForRole(data.session.role));
     } catch {
-      setError("No pudimos conectar con el ERP. Revisa tu conexión y vuelve a intentar.");
+      setError(
+        "No pudimos conectar con el ERP. Revisa tu conexión y vuelve a intentar."
+      );
       setErrorScope("form");
     } finally {
       setLoading(false);
@@ -136,20 +140,33 @@ export default function LoginPage() {
             </div>
           </div>
 
-          {error && <div id="login-error"><ToastBanner type="err" message={error} /></div>}
+          {error && (
+            <div id="login-error">
+              <ToastBanner type="err" message={error} />
+            </div>
+          )}
 
           <p className="text-xs leading-relaxed text-[#64748B]">
-            Tu correo debe estar habilitado por un socio administrador. Tu sesión
-            y permisos son personales.
+            Tu correo debe estar habilitado por un socio administrador. Tu sesión y
+            permisos son personales.
           </p>
           <div className="flex flex-wrap justify-between gap-3 text-xs font-medium">
-            <Link href="/signup" className="text-[#16324A] underline-offset-4 hover:text-[#075EE8] hover:underline">
+            <Link
+              href="/signup"
+              className="text-[#16324A] underline-offset-4 hover:text-[#075EE8] hover:underline"
+            >
               Crear cuenta
             </Link>
-            <Link href="/verify-email" className="text-[#16324A] underline-offset-4 hover:text-[#075EE8] hover:underline">
+            <Link
+              href="/verify-email"
+              className="text-[#16324A] underline-offset-4 hover:text-[#075EE8] hover:underline"
+            >
               Verificar correo
             </Link>
-            <Link href="/forgot-password" className="text-[#16324A] underline-offset-4 hover:text-[#075EE8] hover:underline">
+            <Link
+              href="/forgot-password"
+              className="text-[#16324A] underline-offset-4 hover:text-[#075EE8] hover:underline"
+            >
               Olvidé mi contraseña
             </Link>
           </div>

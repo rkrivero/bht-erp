@@ -501,10 +501,16 @@ export async function getPurchasesDashboard(
     suppliers: (bundle.suppliers ?? []).map((r) => ({
       party_id: Number(r.party_id),
       legal_name: String(r.legal_name),
-      trade_name: r.trade_name !== null && r.trade_name !== undefined ? String(r.trade_name) : null,
+      trade_name:
+        r.trade_name !== null && r.trade_name !== undefined
+          ? String(r.trade_name)
+          : null,
       display_name: String(r.display_name),
       doc_type: String(r.doc_type),
-      doc_number: r.doc_number !== null && r.doc_number !== undefined ? String(r.doc_number) : null,
+      doc_number:
+        r.doc_number !== null && r.doc_number !== undefined
+          ? String(r.doc_number)
+          : null,
       phone: r.phone !== null && r.phone !== undefined ? String(r.phone) : null,
       address: r.address !== null && r.address !== undefined ? String(r.address) : null,
       notes: r.notes !== null && r.notes !== undefined ? String(r.notes) : null,
@@ -523,14 +529,16 @@ export async function getPurchasesDashboard(
       doc_series: String(r.doc_series),
       doc_number: String(r.doc_number),
       issue_date: String(r.issue_date),
-      due_date: r.due_date !== null && r.due_date !== undefined ? String(r.due_date) : null,
+      due_date:
+        r.due_date !== null && r.due_date !== undefined ? String(r.due_date) : null,
       total_pen: Number(r.total_pen ?? 0),
       expense_bucket: String(r.expense_bucket),
       expense_category: String(r.expense_category),
       has_itemized_lines: Boolean(r.has_itemized_lines),
       line_count: Number(r.line_count ?? 0),
       source_origin: String(r.source_origin),
-      raw_notes: r.raw_notes !== null && r.raw_notes !== undefined ? String(r.raw_notes) : null,
+      raw_notes:
+        r.raw_notes !== null && r.raw_notes !== undefined ? String(r.raw_notes) : null,
       lines: mapPurchaseLineDetails(r.lines),
     })),
     pendingOnDemand: (bundle.pending_on_demand ?? []).map((r) => ({
@@ -598,9 +606,7 @@ export async function createSupplier(
   const rawDocNumber = input.docNumber ? String(input.docNumber).trim() : "";
   const docNumber = docType === "NONE" || !rawDocNumber ? null : rawDocNumber;
   if (docType !== "NONE" && !docNumber) {
-    throw new ValidationError(
-      `Debe ingresar el número de documento para ${docType}`
-    );
+    throw new ValidationError(`Debe ingresar el número de documento para ${docType}`);
   }
   const isGenericDoc = docType === "NONE" || docNumber === null;
 
@@ -1076,7 +1082,9 @@ export async function registerSupplierPurchase(
   for (const line of preparedLines) {
     purchasedQtyByProduct.set(
       line.productId,
-      Number(((purchasedQtyByProduct.get(line.productId) ?? 0) + line.quantity).toFixed(4))
+      Number(
+        ((purchasedQtyByProduct.get(line.productId) ?? 0) + line.quantity).toFixed(4)
+      )
     );
     purchasedCostByProduct.set(line.productId, line.unitCostPen);
   }
@@ -1139,20 +1147,13 @@ export async function registerSupplierPurchase(
            updated_at = NOW()
        FROM unnest($1::bigint[], $2::numeric[]) AS u(product_id, unit_cost_pen)
        WHERE p.product_id = u.product_id`,
-      [
-        Array.from(latestCostByProduct.keys()),
-        Array.from(latestCostByProduct.values()),
-      ]
+      [Array.from(latestCostByProduct.keys()), Array.from(latestCostByProduct.values())]
     );
   }
 
   let ledgerId: number | null = null;
   if (paidNowPen > 0) {
-    const accountId = await resolvePurchaseAccountId(
-      client,
-      actor,
-      input.accountId
-    );
+    const accountId = await resolvePurchaseAccountId(client, actor, input.accountId);
     const ledgerRes = await client.query(
       `INSERT INTO erp.cash_ledger (
          tx_date, account_id, party_id, direction, amount_pen,
@@ -1208,7 +1209,10 @@ export async function registerSupplierPurchase(
   }
 
   const fulfilledOrderLineIds: number[] = [];
-  if (Array.isArray(input.fulfillOrderLineIds) && input.fulfillOrderLineIds.length > 0) {
+  if (
+    Array.isArray(input.fulfillOrderLineIds) &&
+    input.fulfillOrderLineIds.length > 0
+  ) {
     const uniqueLineIds = Array.from(
       new Set(input.fulfillOrderLineIds.map((id) => Number(id)))
     );
@@ -1279,9 +1283,7 @@ export async function registerSupplierPurchase(
         throw new ValidationError(`Línea de pedido #${orderLineId} no encontrada`);
       }
       if (ol.operational_status === "CANCELLED") {
-        throw new ValidationError(
-          `El pedido de la línea #${orderLineId} está anulado`
-        );
+        throw new ValidationError(`El pedido de la línea #${orderLineId} está anulado`);
       }
       if (ol.operational_status === "PENDING_PARTNER_APPROVAL") {
         throw new ValidationError(
@@ -1322,9 +1324,7 @@ export async function registerSupplierPurchase(
 
       const effectiveUnitCost =
         purchasedCostByProduct.get(pid) ??
-        (ol.unit_cost_snapshot_pen !== null
-          ? Number(ol.unit_cost_snapshot_pen)
-          : 0);
+        (ol.unit_cost_snapshot_pen !== null ? Number(ol.unit_cost_snapshot_pen) : 0);
 
       if (ol.fulfillment_status === "PENDING_SUPPLIER_PURCHASE") {
         pendingUpdates.push({
@@ -1507,11 +1507,7 @@ export async function payApObligation(
     );
   }
 
-  const accountId = await resolvePurchaseAccountId(
-    client,
-    actor,
-    input.accountId
-  );
+  const accountId = await resolvePurchaseAccountId(client, actor, input.accountId);
   const txDate = getLimaDateString(0);
   const cleanNote = input.notes?.trim();
   const description = cleanNote

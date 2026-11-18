@@ -48,10 +48,12 @@
 ### Task 1: Phase 2 Database Migration (`006_erp_phase2_workflow_and_rbac.sql`) & Schema Tests
 
 **Files:**
+
 - Create: `/Users/rivero/Documents/Blue_Horizon_Trade/Trade/bht_data/db/migrations/006_erp_phase2_workflow_and_rbac.sql`
 - Create: `/Users/rivero/Documents/Blue_Horizon_Trade/Trade/bht_data/tests/test_phase2_schema.py`
 
 **Interfaces:**
+
 - Consumes: Existing `erp.products`, `erp.sales_orders`, `erp.sales_order_lines`, `erp.ar_payments`, `erp.cash_accounts` from migrations `001`–`005`.
 - Produces:
   - Enum `erp.user_role`: `'PARTNER_ADMIN' | 'PARTNER_MANAGER' | 'EXTERNAL_SELLER' | 'WAREHOUSE_DELIVERY'`
@@ -120,6 +122,7 @@ Expected: `15 passed` (`0` failures).
 ### Task 2: Initialize `bht_neon` Next.js TypeScript Workspace, DB Helper, Auth & RBAC Sanitizers
 
 **Files:**
+
 - Create: `/Users/rivero/Documents/Blue_Horizon_Trade/Trade/bht_neon/package.json`
 - Create: `/Users/rivero/Documents/Blue_Horizon_Trade/Trade/bht_neon/tsconfig.json`
 - Create: `/Users/rivero/Documents/Blue_Horizon_Trade/Trade/bht_neon/vitest.config.ts`
@@ -131,6 +134,7 @@ Expected: `15 passed` (`0` failures).
 - Test: `/Users/rivero/Documents/Blue_Horizon_Trade/Trade/bht_neon/tests/rbac-and-auth.test.ts`
 
 **Interfaces:**
+
 - Produces:
   - `UserRole = 'PARTNER_ADMIN' | 'PARTNER_MANAGER' | 'EXTERNAL_SELLER' | 'WAREHOUSE_DELIVERY'`
   - `SessionUser = { userId: number; username: string; fullName: string; role: UserRole; defaultCashAccountId: number | null }`
@@ -265,10 +269,12 @@ Expected: PASS (`4 passed`).
 ### Task 3: Order Lifecycle Service (Soles Discount Floor, Partner Approval, Stock Reservation & 4-Responsible Tracking)
 
 **Files:**
+
 - Create: `/Users/rivero/Documents/Blue_Horizon_Trade/Trade/bht_neon/src/lib/services/orders.ts`
 - Test: `/Users/rivero/Documents/Blue_Horizon_Trade/Trade/bht_neon/tests/orders-service.test.ts`
 
 **Interfaces:**
+
 - Consumes: `SessionUser`, `PoolClient`, `projectOrderForRole` from Task 2.
 - Produces:
   - `CreateOrderInput = { customerPartyId?: number | null; customerNameRaw: string; paymentMode: 'CASH' | 'CREDIT' | 'TRANSFER' | 'YAPE_PLIN'; creditDays?: number; promisedPaymentDate?: string | null; initialPaidPen?: number; paymentAccountId?: number; notes?: string; lines: Array<{ productId: number; quantity: number; unitDiscountPen?: number }> }`
@@ -280,6 +286,7 @@ Expected: PASS (`4 passed`).
 - [ ] **Step 1: Write the failing transactional tests in `tests/orders-service.test.ts`**
 
 Include tests for:
+
 1. Review Focus #1: Rejecting `unitDiscountPen >= base_unit_price_pen` with `ValidationError`.
 2. Review Focus #2: `EXTERNAL_SELLER` order with `unitDiscountPen > 0` below `min_sale_price_pen` saves as `'PENDING_PARTNER_APPROVAL'` with `stock_deducted = false` and `0` inventory movements; calling `approveDiscountedOrder` as `PARTNER_ADMIN` transitions to `'REGISTERED'`, stamps `approved_by_user_id`, and deducts `SALE_OUT` stock; cancelling an unapproved order inserts `0` `RETURN_IN` movements, whereas cancelling an approved `'REGISTERED'` order restores stock via `RETURN_IN`.
 3. `ON_DEMAND` item at `0` stock creates `PENDING_SUPPLIER_PURCHASE` line and `ON_DEMAND_PENDING_PURCHASE` audit flag.
@@ -304,10 +311,12 @@ Expected: PASS.
 ### Task 4: Debtors Aging List, Partial Amortizations (`Abonos`), FIFO Customer Payment, Treasury & Day-1 Stock Reset
 
 **Files:**
+
 - Create: `/Users/rivero/Documents/Blue_Horizon_Trade/Trade/bht_neon/src/lib/services/collections-and-treasury.ts`
 - Test: `/Users/rivero/Documents/Blue_Horizon_Trade/Trade/bht_neon/tests/collections-and-treasury.test.ts`
 
 **Interfaces:**
+
 - Consumes: `SessionUser`, `PoolClient` from Task 2; `createOrder` from Task 3.
 - Produces:
   - `registerOrderPayment(client: PoolClient, actor: SessionUser, input: { orderId: number; amountPen: number; paymentMode: 'CASH' | 'YAPE_PLIN' | 'TRANSFER'; accountId?: number; notes?: string; nextCollectionDays?: number; nextPromisedPaymentDate?: string | null }): Promise<{ arPaymentId: number; newPaidPen: number; newBalanceDuePen: number; isSettled: boolean; promisedPaymentDate: string | null }>`
@@ -321,6 +330,7 @@ Expected: PASS.
 - [ ] **Step 1: Write the failing transactional tests in `tests/collections-and-treasury.test.ts`**
 
 Include tests for:
+
 1. Credit order (`total = 1000`) with initial `Adelanto = 400` at creation (`paid_pen = 400, balance_due_pen = 600, is_settled = false`), followed by partial `registerOrderPayment` of `350` (`paid_pen = 750, balance_due_pen = 250`) and final `250` (`paid_pen = 1000, balance_due_pen = 0, is_settled = true`), verifying `getOrderPaymentTimeline` returns all 3 payments with `collected_by_user_id` and timestamps.
 2. Review Focus #3: Rejecting `amountPen > balance_due_pen` with `ValidationError`.
 3. Review Focus #4: `registerCustomerFifoPayment` distributing `S/ 600` across two open credit orders (`S/ 400` older + `S/ 500` newer -> settles older order completely and leaves `S/ 300` on newer order).
@@ -346,6 +356,7 @@ Expected: PASS.
 ### Task 5: Next.js API Routes & Mobile-First Views for Login, Warehouse/Delivery (`/almacen`) and External Seller (`/vendedor`)
 
 **Files:**
+
 - Create: `/Users/rivero/Documents/Blue_Horizon_Trade/Trade/bht_neon/src/app/api/auth/route.ts`
 - Create: `/Users/rivero/Documents/Blue_Horizon_Trade/Trade/bht_neon/src/app/api/orders/route.ts`
 - Create: `/Users/rivero/Documents/Blue_Horizon_Trade/Trade/bht_neon/src/app/api/collections/route.ts`
@@ -357,6 +368,7 @@ Expected: PASS.
 - Create: `/Users/rivero/Documents/Blue_Horizon_Trade/Trade/bht_neon/src/app/vendedor/page.tsx`
 
 **Interfaces:**
+
 - Consumes: Services and RBAC sanitizers from Tasks 2–4.
 - Produces:
   - `/login`: Touch-friendly role/user selector + 4-digit PIN pad redirecting each role to its workspace (`/almacen`, `/vendedor`, `/socios`).
@@ -377,11 +389,13 @@ Expected: `0` TypeScript errors.
 ### Task 6: Partner Live Control Tower, Day-1 Stock Reset/Catalog & 7-KPI Dashboard (`/socios`)
 
 **Files:**
+
 - Create: `/Users/rivero/Documents/Blue_Horizon_Trade/Trade/bht_neon/src/app/api/partners/route.ts`
 - Create: `/Users/rivero/Documents/Blue_Horizon_Trade/Trade/bht_neon/src/app/socios/page.tsx`
 - Create: `/Users/rivero/Documents/Blue_Horizon_Trade/Trade/bht_neon/README.md`
 
 **Interfaces:**
+
 - Consumes: Services from Tasks 2–4 and `analytics.v_kpi_*` / `analytics.v_data_quality_gaps` / `analytics.v_pending_on_demand_orders` / `analytics.v_debtors_aging` in Neon.
 - Produces:
   - `/socios`: Responsive mobile + desktop workspace for `PARTNER_ADMIN` and `PARTNER_MANAGER` with 5 tabs:

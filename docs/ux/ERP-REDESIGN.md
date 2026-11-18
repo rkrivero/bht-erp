@@ -104,17 +104,17 @@ Las rutas no bloquean la cola de alistamiento. “Sin empezar” y “En proceso
 
 ## Compatibilidad de URL
 
-| Área | Alias heredado | Destino canónico |
-| --- | --- | --- |
-| Vendedor | `nuevo` | `sell` |
-| Vendedor | `cotizaciones`, `pedidos` | `sales` |
-| Vendedor | `deudores` | `collections` |
-| Vendedor | `gastos` | `more` |
-| Socios | `control` | `today` |
-| Socios | `pedidos` | `sales` |
-| Socios | `deudores` | `collections` |
-| Socios | `stock` | `inventory` |
-| Socios | `caja`, `kpis` | `finance` |
+| Área     | Alias heredado            | Destino canónico |
+| -------- | ------------------------- | ---------------- |
+| Vendedor | `nuevo`                   | `sell`           |
+| Vendedor | `cotizaciones`, `pedidos` | `sales`          |
+| Vendedor | `deudores`                | `collections`    |
+| Vendedor | `gastos`                  | `more`           |
+| Socios   | `control`                 | `today`          |
+| Socios   | `pedidos`                 | `sales`          |
+| Socios   | `deudores`                | `collections`    |
+| Socios   | `stock`                   | `inventory`      |
+| Socios   | `caja`, `kpis`            | `finance`        |
 
 La canonicalización preserva filtros y la subvista que corresponda. Los endpoints y payloads públicos no cambian.
 

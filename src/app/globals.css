@@ -68,8 +68,9 @@
   body {
     background-color: var(--bg-canvas);
     color: var(--ink-primary);
-    font-family: var(--font-plus-jakarta), "Avenir Next", Avenir,
-      "Helvetica Neue", Arial, sans-serif;
+    font-family:
+      var(--font-plus-jakarta), "Avenir Next", Avenir, "Helvetica Neue", Arial,
+      sans-serif;
     font-feature-settings: "cv02", "cv03", "cv04", "cv11";
     overflow-x: clip;
     overflow-wrap: anywhere;

@@ -50,7 +50,11 @@ describe("navigation aliases", () => {
 
   it("builds canonical URLs from the incumbent internal tabs", () => {
     const base = new URL("https://erp.test/socios?customer=42");
-    expect(partnerUrlForLegacyTab(base, "control").searchParams.get("tab")).toBe("today");
-    expect(sellerUrlForLegacyTab(base, "pedidos").searchParams.get("view")).toBe("orders");
+    expect(partnerUrlForLegacyTab(base, "control").searchParams.get("tab")).toBe(
+      "today"
+    );
+    expect(sellerUrlForLegacyTab(base, "pedidos").searchParams.get("view")).toBe(
+      "orders"
+    );
   });
 });

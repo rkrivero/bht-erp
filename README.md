@@ -29,11 +29,11 @@ Aplicación web y móvil (**10h/día en celular + 2h/día en PC**) conectada a *
    - **Conciliación Visual Integral de Efectivo:** Muestra ventas, cobros, cuentas por cobrar dinámicas, compra de mercadería, OpEx de ruta, drenaje no-OpEx, depósitos bancarios internos y la **Inversión Inicial Pre-Ruta (Jun 23–25: camión + hospedaje + comisión)**.
    - **Tableros BI (`GET /api/partners` y `/api/reports?dataset=bi_summary`):** Comparativo mensual con barras visuales CSS/Tailwind, saldos por caja/banco (`cashAccountsSummary`), Top 15 clientes (`topCustomers`), alertas de reposición de stock bajo (`<= 5` unidades `STOCKED` con enlace rápido a compra) y SKUs con margen `< 20%` o sin costo (`marginRiskSkus`).
    - **Centro de Exportación Excel / CSV (1 toque, UTF-8 BOM):** Descarga directa desde `/api/reports?dataset=<nombre>&format=csv` para:
-     * `ventas_pedidos` (Ventas y Pedidos)
-     * `deudores_cartera` (Cartera de Deudores)
-     * `margen_productos` (Stock, Costos y Márgenes)
-     * `flujo_caja_egresos` (Flujo de Caja y Egresos)
-     * `proveedores_cxp` (Cuentas por Pagar Proveedores)
+     - `ventas_pedidos` (Ventas y Pedidos)
+     - `deudores_cartera` (Cartera de Deudores)
+     - `margen_productos` (Stock, Costos y Márgenes)
+     - `flujo_caja_egresos` (Flujo de Caja y Egresos)
+     - `proveedores_cxp` (Cuentas por Pagar Proveedores)
    - **Gestión de Equipo y PINes (solo `PARTNER_ADMIN`):** Cambio de PIN en línea (`update_user_pin`) y activación/desactivación de usuarios (`toggle_user_active`) desde `/socios`.
 
 ## Comandos

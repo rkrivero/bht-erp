@@ -1,11 +1,7 @@
 "use client";
 
 import React, { useEffect, useId, useRef } from "react";
-import {
-  AlertTriangleIcon,
-  CheckIcon,
-  CloseIcon,
-} from "./Icons";
+import { AlertTriangleIcon, CheckIcon, CloseIcon } from "./Icons";
 
 export type Tone =
   | "default"
@@ -46,10 +42,10 @@ export function Card({
     padding === "none"
       ? ""
       : padding === "sm"
-      ? "p-3"
-      : padding === "lg"
-      ? "p-5 sm:p-6"
-      : "p-4";
+        ? "p-3"
+        : padding === "lg"
+          ? "p-5 sm:p-6"
+          : "p-4";
   const accentClass =
     accent === "horizon"
       ? "border-[#CBD9E7] shadow-[0_2px_10px_rgba(15,41,66,0.05)]"
@@ -106,10 +102,7 @@ export function Badge({
       } ${BADGE_CLASSES[tone]} ${className}`}
     >
       {dotColor && (
-        <span
-          className={`h-1.5 w-1.5 rounded-full ${dotColor}`}
-          aria-hidden="true"
-        />
+        <span className={`h-1.5 w-1.5 rounded-full ${dotColor}`} aria-hidden="true" />
       )}
       {children}
     </span>
@@ -117,21 +110,14 @@ export function Badge({
 }
 
 export type ButtonVariant =
-  | "primary"
-  | "brand"
-  | "secondary"
-  | "outline"
-  | "ghost"
-  | "success"
-  | "danger";
+  "primary" | "brand" | "secondary" | "outline" | "ghost" | "success" | "danger";
 
 const BUTTON_VARIANTS: Record<ButtonVariant, string> = {
   primary:
     "bg-[#075EE8] text-white hover:bg-[#064FC3] shadow-[0_1px_2px_rgba(7,94,232,0.18)]",
   brand:
     "bg-[#16324A] text-white hover:bg-[#0B192C] shadow-[0_1px_2px_rgba(11,25,44,0.16)]",
-  secondary:
-    "bg-[#F8FAFC] text-[#0B192C] border border-[#E2E8F0] hover:bg-[#EAF2FF]",
+  secondary: "bg-[#F8FAFC] text-[#0B192C] border border-[#E2E8F0] hover:bg-[#EAF2FF]",
   outline:
     "bg-white text-[#0B192C] border border-[#E2E8F0] hover:bg-[#F8FAFC] shadow-[0_1px_2px_rgba(11,25,44,0.03)]",
   ghost: "bg-transparent text-[#475569] hover:bg-[#F8FAFC] hover:text-[#0B192C]",
@@ -277,9 +263,7 @@ export function SegmentedControl<T extends string>({
             {opt.count !== undefined && (
               <span
                 className={`ml-1.5 inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] tabular-nums ${
-                  active
-                    ? "bg-[#0F2942] text-white"
-                    : "bg-[#E7E5E0] text-[#5C5A55]"
+                  active ? "bg-[#0F2942] text-white" : "bg-[#E7E5E0] text-[#5C5A55]"
                 }`}
               >
                 {opt.count}
@@ -307,8 +291,8 @@ export function ToastBanner({
     type === "ok"
       ? "border-[#BBF7D0] bg-[#F0FDF4] text-[#14532D]"
       : type === "warn"
-      ? "border-[#FDE68A] bg-[#FFFBEB] text-[#78350F]"
-      : "border-[#FECACA] bg-[#FEF2F2] text-[#7F1D1D]";
+        ? "border-[#FDE68A] bg-[#FFFBEB] text-[#78350F]"
+        : "border-[#FECACA] bg-[#FEF2F2] text-[#7F1D1D]";
   const isError = type === "err";
 
   return (
@@ -373,9 +357,7 @@ export function ModalSheet({
     if (!open) return;
 
     previousFocusRef.current =
-      document.activeElement instanceof HTMLElement
-        ? document.activeElement
-        : null;
+      document.activeElement instanceof HTMLElement ? document.activeElement : null;
 
     const prevOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
@@ -399,9 +381,7 @@ export function ModalSheet({
           panelRef.current.querySelectorAll<HTMLElement>(
             'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), [tabindex]:not([tabindex="-1"])'
           )
-        ).filter(
-          (el) => el.offsetParent !== null || el === document.activeElement
-        );
+        ).filter((el) => el.offsetParent !== null || el === document.activeElement);
 
         if (focusables.length === 0) {
           e.preventDefault();
@@ -451,8 +431,8 @@ export function ModalSheet({
     maxWidth === "md"
       ? "sm:max-w-md"
       : maxWidth === "2xl"
-      ? "sm:max-w-2xl"
-      : "sm:max-w-lg";
+        ? "sm:max-w-2xl"
+        : "sm:max-w-lg";
 
   return (
     <div

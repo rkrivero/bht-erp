@@ -1,13 +1,21 @@
 export type SellerSection = "sell" | "sales" | "collections" | "more";
-export type PartnerSection = "today" | "sales" | "collections" | "inventory" | "finance";
+export type PartnerSection =
+  "today" | "sales" | "collections" | "inventory" | "finance";
 
-export type LegacySellerTab = "nuevo" | "cotizaciones" | "deudores" | "pedidos" | "gastos";
-export type LegacyPartnerTab = "control" | "pedidos" | "deudores" | "stock" | "caja" | "kpis";
+export type LegacySellerTab =
+  "nuevo" | "cotizaciones" | "deudores" | "pedidos" | "gastos";
+export type LegacyPartnerTab =
+  "control" | "pedidos" | "deudores" | "stock" | "caja" | "kpis";
 
 export type SellerSubView = "orders" | "quotes" | "expenses";
 export type PartnerSubView = "operations" | "analytics";
 
-const SELLER_SECTIONS = new Set<SellerSection>(["sell", "sales", "collections", "more"]);
+const SELLER_SECTIONS = new Set<SellerSection>([
+  "sell",
+  "sales",
+  "collections",
+  "more",
+]);
 const PARTNER_SECTIONS = new Set<PartnerSection>([
   "today",
   "sales",
@@ -41,10 +49,11 @@ export function resolveSellerNavigation(params: URLSearchParams): {
   const raw = params.get("tab") ?? "sell";
   const section = SELLER_SECTIONS.has(raw as SellerSection)
     ? (raw as SellerSection)
-    : SELLER_ALIASES[raw as LegacySellerTab] ?? "sell";
+    : (SELLER_ALIASES[raw as LegacySellerTab] ?? "sell");
 
   if (section === "sales") {
-    const view = params.get("view") === "quotes" || raw === "cotizaciones" ? "quotes" : "orders";
+    const view =
+      params.get("view") === "quotes" || raw === "cotizaciones" ? "quotes" : "orders";
     return { section, legacyTab: view === "quotes" ? "cotizaciones" : "pedidos", view };
   }
   if (section === "collections") return { section, legacyTab: "deudores" };
@@ -60,10 +69,11 @@ export function resolvePartnerNavigation(params: URLSearchParams): {
   const raw = params.get("tab") ?? "today";
   const section = PARTNER_SECTIONS.has(raw as PartnerSection)
     ? (raw as PartnerSection)
-    : PARTNER_ALIASES[raw as LegacyPartnerTab] ?? "today";
+    : (PARTNER_ALIASES[raw as LegacyPartnerTab] ?? "today");
 
   if (section === "finance") {
-    const view = params.get("view") === "analytics" || raw === "kpis" ? "analytics" : "operations";
+    const view =
+      params.get("view") === "analytics" || raw === "kpis" ? "analytics" : "operations";
     return { section, legacyTab: view === "analytics" ? "kpis" : "caja", view };
   }
   if (section === "sales") return { section, legacyTab: "pedidos" };
@@ -94,9 +104,15 @@ export function partnerUrlForLegacyTab(url: URL, tab: LegacyPartnerTab): URL {
 }
 
 export function canonicalSellerUrl(url: URL): URL {
-  return sellerUrlForLegacyTab(url, resolveSellerNavigation(url.searchParams).legacyTab);
+  return sellerUrlForLegacyTab(
+    url,
+    resolveSellerNavigation(url.searchParams).legacyTab
+  );
 }
 
 export function canonicalPartnerUrl(url: URL): URL {
-  return partnerUrlForLegacyTab(url, resolvePartnerNavigation(url.searchParams).legacyTab);
+  return partnerUrlForLegacyTab(
+    url,
+    resolvePartnerNavigation(url.searchParams).legacyTab
+  );
 }

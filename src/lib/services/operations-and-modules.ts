@@ -9,15 +9,14 @@ import {
   type PaymentMode,
   type SessionUser,
 } from "../types";
-import {
-  advanceWarehouseStatus,
-  createOrder,
-  getLimaDateString,
-} from "./orders";
+import { advanceWarehouseStatus, createOrder, getLimaDateString } from "./orders";
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
-function assertOptionalDate(val: string | null | undefined, label: string): string | null {
+function assertOptionalDate(
+  val: string | null | undefined,
+  label: string
+): string | null {
   if (val === undefined || val === null || val.trim() === "") return null;
   const trimmed = val.trim();
   if (!DATE_RE.test(trimmed)) {
@@ -54,7 +53,9 @@ export async function listAuditFlags(
 }> {
   assertRole(actor, ["PARTNER_ADMIN", "PARTNER_MANAGER"]);
 
-  const rawStatus = String(options.status || "ALL").trim().toUpperCase();
+  const rawStatus = String(options.status || "ALL")
+    .trim()
+    .toUpperCase();
   if (!["ALL", "OPEN", "ACKNOWLEDGED", "RESOLVED"].includes(rawStatus)) {
     throw new ValidationError("Estado de alerta inválido");
   }
@@ -140,9 +141,13 @@ export async function updateAuditFlagStatus(
 ): Promise<{ flagId: number; status: "OPEN" | "ACKNOWLEDGED" | "RESOLVED" }> {
   assertRole(actor, ["PARTNER_ADMIN", "PARTNER_MANAGER"]);
   const flagId = parsePositiveInt(input.flagId, "Alerta");
-  const nextStatus = String(input.nextStatus || "").trim().toUpperCase();
+  const nextStatus = String(input.nextStatus || "")
+    .trim()
+    .toUpperCase();
   if (!["OPEN", "ACKNOWLEDGED", "RESOLVED"].includes(nextStatus)) {
-    throw new ValidationError("Estado destino inválido (OPEN, ACKNOWLEDGED o RESOLVED)");
+    throw new ValidationError(
+      "Estado destino inválido (OPEN, ACKNOWLEDGED o RESOLVED)"
+    );
   }
   const note = input.resolutionNote?.trim() || null;
 
@@ -330,8 +335,13 @@ export async function createRouteTrip(
     if (accRes.rowCount === 0 || !accRes.rows[0].is_active) {
       throw new ValidationError("Cuenta de caja inválida o inactiva");
     }
-    if (!isPartnerRole(actor.role) && accRes.rows[0].account_type === "PARTNER_CUSTODY") {
-      throw new AuthorizationError("No autorizado para usar cuenta de custodia de socio");
+    if (
+      !isPartnerRole(actor.role) &&
+      accRes.rows[0].account_type === "PARTNER_CUSTODY"
+    ) {
+      throw new AuthorizationError(
+        "No autorizado para usar cuenta de custodia de socio"
+      );
     }
   }
 
@@ -407,10 +417,10 @@ export async function assignOrderToTrip(
     );
   }
 
-  await client.query(
-    `UPDATE erp.sales_orders SET trip_id = $1 WHERE order_id = $2`,
-    [tripId, orderId]
-  );
+  await client.query(`UPDATE erp.sales_orders SET trip_id = $1 WHERE order_id = $2`, [
+    tripId,
+    orderId,
+  ]);
 
   if (input.advanceToInRoute) {
     if (opStatus !== "READY") {
@@ -438,9 +448,13 @@ export async function closeRouteTrip(
   }
 ): Promise<{ tripId: number; status: "CLOSED" | "RECONCILED" }> {
   const tripId = parsePositiveInt(input.tripId, "Ruta");
-  const nextStatus = String(input.nextStatus || "CLOSED").trim().toUpperCase();
+  const nextStatus = String(input.nextStatus || "CLOSED")
+    .trim()
+    .toUpperCase();
   if (nextStatus !== "CLOSED" && nextStatus !== "RECONCILED") {
-    throw new ValidationError("Estado inválido para cierre de ruta (use CLOSED o RECONCILED)");
+    throw new ValidationError(
+      "Estado inválido para cierre de ruta (use CLOSED o RECONCILED)"
+    );
   }
 
   if (nextStatus === "RECONCILED") {
@@ -456,19 +470,27 @@ export async function closeRouteTrip(
       input.declaredRouteOpexPen !== undefined ||
       input.declaredNetCashPen !== undefined)
   ) {
-    throw new AuthorizationError("Solo Socios pueden declarar liquidación financiera de ruta");
+    throw new AuthorizationError(
+      "Solo Socios pueden declarar liquidación financiera de ruta"
+    );
   }
 
   const gross =
-    partnerView && input.declaredGrossSalesPen !== undefined && input.declaredGrossSalesPen !== null
+    partnerView &&
+    input.declaredGrossSalesPen !== undefined &&
+    input.declaredGrossSalesPen !== null
       ? parseNonNegativeNumber(input.declaredGrossSalesPen, "Venta declarada")
       : null;
   const opex =
-    partnerView && input.declaredRouteOpexPen !== undefined && input.declaredRouteOpexPen !== null
+    partnerView &&
+    input.declaredRouteOpexPen !== undefined &&
+    input.declaredRouteOpexPen !== null
       ? parseNonNegativeNumber(input.declaredRouteOpexPen, "Gasto declarado")
       : null;
   const net =
-    partnerView && input.declaredNetCashPen !== undefined && input.declaredNetCashPen !== null
+    partnerView &&
+    input.declaredNetCashPen !== undefined &&
+    input.declaredNetCashPen !== null
       ? parseNonNegativeNumber(input.declaredNetCashPen, "Neto caja declarado")
       : null;
 
@@ -643,7 +665,9 @@ export async function createQuote(
     throw new ValidationError("El nombre del cliente es obligatorio en la cotización");
   }
 
-  const currencyRaw = String(input.currency || "PEN").trim().toUpperCase();
+  const currencyRaw = String(input.currency || "PEN")
+    .trim()
+    .toUpperCase();
   if (currencyRaw !== "PEN" && currencyRaw !== "USD") {
     throw new ValidationError("Moneda inválida en cotización (use PEN o USD)");
   }
@@ -656,10 +680,7 @@ export async function createQuote(
         .filter((id): id is number => id !== null && Number.isInteger(id) && id > 0)
     )
   );
-  const productById = new Map<
-    number,
-    { name: string; listSalePricePen: number }
-  >();
+  const productById = new Map<number, { name: string; listSalePricePen: number }>();
   if (productIds.length > 0) {
     const pRes = await client.query<{
       product_id: number;
@@ -700,8 +721,7 @@ export async function createQuote(
     if (pid && !prod) {
       throw new ValidationError(`Producto ID ${pid} no encontrado o inactivo`);
     }
-    const rawDescription =
-      line.rawDescription?.trim() || prod?.name || "";
+    const rawDescription = line.rawDescription?.trim() || prod?.name || "";
     if (!rawDescription) {
       throw new ValidationError(`Descripción obligatoria en línea ${i + 1}`);
     }
@@ -709,10 +729,12 @@ export async function createQuote(
       line.unitPricePen !== undefined && line.unitPricePen !== null
         ? parseNonNegativeNumber(line.unitPricePen, `Precio línea ${i + 1}`)
         : prod
-        ? prod.listSalePricePen
-        : 0;
+          ? prod.listSalePricePen
+          : 0;
     if (unitPricePen <= 0) {
-      throw new ValidationError(`El precio unitario debe ser mayor a 0 en línea ${i + 1}`);
+      throw new ValidationError(
+        `El precio unitario debe ser mayor a 0 en línea ${i + 1}`
+      );
     }
     const lineTotalPen = Number((quantity * unitPricePen).toFixed(2));
     totalPen = Number((totalPen + lineTotalPen).toFixed(2));
@@ -796,7 +818,9 @@ export async function updateQuoteStatus(
 ): Promise<{ quoteId: number; status: "OPEN" | "EXPIRED" | "CANCELLED" }> {
   assertRole(actor, ["PARTNER_ADMIN", "PARTNER_MANAGER", "EXTERNAL_SELLER"]);
   const quoteId = parsePositiveInt(input.quoteId, "Cotización");
-  const nextStatus = String(input.nextStatus || "").trim().toUpperCase();
+  const nextStatus = String(input.nextStatus || "")
+    .trim()
+    .toUpperCase();
   if (!["OPEN", "EXPIRED", "CANCELLED"].includes(nextStatus)) {
     throw new ValidationError("Estado destino inválido (OPEN, EXPIRED o CANCELLED)");
   }
@@ -913,7 +937,9 @@ export async function convertQuoteToOrder(
     const quantity = Number(row.quantity);
     const quotedUnitPrice = Number(row.unit_price_pen);
     const listPrice =
-      row.list_sale_price_pen !== null ? Number(row.list_sale_price_pen) : quotedUnitPrice;
+      row.list_sale_price_pen !== null
+        ? Number(row.list_sale_price_pen)
+        : quotedUnitPrice;
 
     if (isPartnerRole(actor.role)) {
       orderLines.push({

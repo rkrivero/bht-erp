@@ -156,9 +156,7 @@ describe("Purchases, Suppliers, ON_DEMAND Fulfillment, AP Payments & BI Reports"
         [order.orderId]
       );
       const onDemandOrderLineId = Number(olBeforeRes.rows[0].order_line_id);
-      expect(olBeforeRes.rows[0].fulfillment_status).toBe(
-        "PENDING_SUPPLIER_PURCHASE"
-      );
+      expect(olBeforeRes.rows[0].fulfillment_status).toBe("PENDING_SUPPLIER_PURCHASE");
 
       const flagBeforeRes = await client.query(
         `SELECT status FROM erp.audit_flags
@@ -303,9 +301,7 @@ describe("Purchases, Suppliers, ON_DEMAND Fulfillment, AP Payments & BI Reports"
       );
 
       expect(bi.cashAccountsSummary.length).toBeGreaterThanOrEqual(5);
-      expect(bi.cashAccountsSummary.some((a) => a.code === "CAJA_RUTA")).toBe(
-        true
-      );
+      expect(bi.cashAccountsSummary.some((a) => a.code === "CAJA_RUTA")).toBe(true);
       expect(bi.topCustomers.length).toBeGreaterThan(0);
       expect(bi.topCustomers.length).toBeLessThanOrEqual(15);
       expect(bi.lowStockAlerts.length).toBeLessThanOrEqual(25);
@@ -314,9 +310,7 @@ describe("Purchases, Suppliers, ON_DEMAND Fulfillment, AP Payments & BI Reports"
       }
       expect(bi.marginRiskSkus.length).toBeLessThanOrEqual(25);
       for (const sku of bi.marginRiskSkus) {
-        expect(
-          sku.missing_cost_alert || sku.low_margin_below_20pct_alert
-        ).toBe(true);
+        expect(sku.missing_cost_alert || sku.low_margin_below_20pct_alert).toBe(true);
       }
       expect(bi.apSummaryBySupplier.length).toBeGreaterThan(0);
       const totalOpenAp = bi.apSummaryBySupplier.reduce(
@@ -328,7 +322,7 @@ describe("Purchases, Suppliers, ON_DEMAND Fulfillment, AP Payments & BI Reports"
       // RFC-4180 escaping + UTF-8 BOM test
       const csvSample = buildCsvWithBom(
         ["sku", "description"],
-        [{ sku: 'A"1', description: "Perno, 1/2\"\nLínea 2" }]
+        [{ sku: 'A"1', description: 'Perno, 1/2"\nLínea 2' }]
       );
       expect(csvSample.startsWith("\uFEFF")).toBe(true);
       expect(csvSample).toBe(
@@ -436,7 +430,10 @@ describe("Purchases, Suppliers, ON_DEMAND Fulfillment, AP Payments & BI Reports"
       const unitCostExcl = Number(movExclRes.rows[0].unit_cost_pen);
       expect(unitCostExcl).toBeGreaterThan(37);
       const expectedAvgExcl = Number(((4 * 40 + 2 * unitCostExcl) / 6).toFixed(4));
-      expect(Number(prodAfterExclRes.rows[0].ref_cost_pen)).toBeCloseTo(expectedAvgExcl, 3);
+      expect(Number(prodAfterExclRes.rows[0].ref_cost_pen)).toBeCloseTo(
+        expectedAvgExcl,
+        3
+      );
       expect(prodAfterExclRes.rows[0].cost_source).toBe("PURCHASE_APP");
 
       // Purchase B: USD, IGV INCLUDED -> 4 units * 11.80 USD = 47.20 USD * 3.75 = 177.00 PEN total => 150.00 subtotal + 27.00 IGV

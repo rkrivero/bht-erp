@@ -221,10 +221,10 @@ export function useLiveSync({
           data.changedScopes.length > 0
             ? data.changedScopes
             : forceNotify
-            ? scopesRef.current && scopesRef.current.length > 0
-              ? data.allowedScopes.filter((s) => scopesRef.current!.includes(s))
-              : data.allowedScopes
-            : [];
+              ? scopesRef.current && scopesRef.current.length > 0
+                ? data.allowedScopes.filter((s) => scopesRef.current!.includes(s))
+                : data.allowedScopes
+              : [];
 
         if (toDeliver.length > 0) {
           await deliverScopes(

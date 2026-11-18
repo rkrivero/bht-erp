@@ -1,9 +1,6 @@
 import type { PoolClient } from "pg";
 import { assertRole, isPartnerRole } from "../rbac";
-import {
-  isCategoryAllowedForBucket,
-  type OutflowBucket,
-} from "../treasury-constants";
+import { isCategoryAllowedForBucket, type OutflowBucket } from "../treasury-constants";
 import { getLimaDateString } from "./orders";
 import {
   AuthorizationError,
@@ -47,10 +44,7 @@ export interface OrderDebtItem {
   agingBucket: "GREEN_0_7" | "AMBER_8_29" | "RED_30_PLUS";
   promisedPaymentDate: string | null;
   promiseStatus:
-    | "DUE_TODAY_OR_TOMORROW"
-    | "PROMISE_BROKEN"
-    | "ON_SCHEDULE"
-    | "NO_PROMISE_DATE";
+    "DUE_TODAY_OR_TOMORROW" | "PROMISE_BROKEN" | "ON_SCHEDULE" | "NO_PROMISE_DATE";
   paymentCount: number;
   lastPaymentDate: string | null;
   createdByName: string | null;
@@ -69,10 +63,7 @@ export interface CustomerDebtSummary {
   agingBucket: "GREEN_0_7" | "AMBER_8_29" | "RED_30_PLUS";
   earliestPromisedPaymentDate: string | null;
   promiseStatus:
-    | "DUE_TODAY_OR_TOMORROW"
-    | "PROMISE_BROKEN"
-    | "ON_SCHEDULE"
-    | "NO_PROMISE_DATE";
+    "DUE_TODAY_OR_TOMORROW" | "PROMISE_BROKEN" | "ON_SCHEDULE" | "NO_PROMISE_DATE";
 }
 
 export interface PaymentTimelineEntry {
@@ -109,10 +100,7 @@ async function resolveCashAccountId(
       throw new ValidationError("Cuenta de caja inválida o inactiva");
     }
     const row = res.rows[0];
-    if (
-      actor.role === "EXTERNAL_SELLER" &&
-      row.account_type === "PARTNER_CUSTODY"
-    ) {
+    if (actor.role === "EXTERNAL_SELLER" && row.account_type === "PARTNER_CUSTODY") {
       throw new AuthorizationError(
         "El Vendedor Externo no puede operar sobre cuentas de custodia de socio"
       );
@@ -367,9 +355,7 @@ export async function registerCustomerFifoPayment(
       accountId: input.accountId,
       notes: input.notes ?? "Abono general FIFO por cliente",
       nextCollectionDays: settlesOrder ? null : input.nextCollectionDays,
-      nextPromisedPaymentDate: settlesOrder
-        ? null
-        : input.nextPromisedPaymentDate,
+      nextPromisedPaymentDate: settlesOrder ? null : input.nextPromisedPaymentDate,
     });
 
     allocations.push({

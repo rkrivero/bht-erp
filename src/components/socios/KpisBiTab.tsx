@@ -503,9 +503,7 @@ export default function KpisBiTab({
                 <p className="mt-1 text-base font-semibold text-[#18181B] tabular-nums">
                   {item.value}
                 </p>
-                <span className="mt-0.5 block text-xs text-[#5C5A55]">
-                  {item.sub}
-                </span>
+                <span className="mt-0.5 block text-xs text-[#5C5A55]">{item.sub}</span>
               </div>
             ))}
           </div>
@@ -917,17 +915,13 @@ export default function KpisBiTab({
                     </div>
                     <div className="grid grid-cols-3 gap-2 border-t border-[#E7E5E0]/80 pt-1.5 tabular-nums">
                       <div>
-                        <span className="block text-xs text-[#5C5A55]">
-                          Vendido
-                        </span>
+                        <span className="block text-xs text-[#5C5A55]">Vendido</span>
                         <strong className="text-[#18181B]">
                           {formatPen(c.total_sold_pen)}
                         </strong>
                       </div>
                       <div>
-                        <span className="block text-xs text-[#5C5A55]">
-                          Cobrado
-                        </span>
+                        <span className="block text-xs text-[#5C5A55]">Cobrado</span>
                         <strong className="text-[#15803D]">
                           {formatPen(c.total_paid_pen)}
                         </strong>
@@ -1075,9 +1069,7 @@ export default function KpisBiTab({
                     </div>
                     <div className="grid grid-cols-3 gap-2 border-t border-[#E7E5E0]/80 pt-2 tabular-nums">
                       <div>
-                        <span className="block text-xs text-[#5C5A55]">
-                          Ingresos
-                        </span>
+                        <span className="block text-xs text-[#5C5A55]">Ingresos</span>
                         <strong className="text-[#18181B]">
                           {formatPen(sku.total_revenue_pen)}
                         </strong>
@@ -1091,9 +1083,7 @@ export default function KpisBiTab({
                         </strong>
                       </div>
                       <div>
-                        <span className="block text-xs text-[#5C5A55]">
-                          Margen %
-                        </span>
+                        <span className="block text-xs text-[#5C5A55]">Margen %</span>
                         <strong className={marginCls}>
                           {sku.gross_margin_pct !== null
                             ? `${Number(sku.gross_margin_pct).toFixed(1)}%`
