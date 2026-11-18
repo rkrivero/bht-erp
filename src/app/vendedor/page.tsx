@@ -8,6 +8,7 @@ import React, {
   useRef,
   useState,
 } from "react";
+import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import { authClient } from "@/lib/auth/client";
 import {
@@ -33,7 +34,6 @@ import {
   MinusIcon,
   PackageIcon,
   PlusIcon,
-  ReceiptIcon,
   SearchIcon,
   ShoppingBagIcon,
   TrashIcon,
@@ -52,11 +52,9 @@ import {
 } from "@/components/ui/Primitives";
 import {
   formatFulfillmentModeEs,
-  formatOperationalStatusEs,
   formatPaymentModeEs,
   formatUnitTitleEs,
 } from "@/lib/labels-es";
-import { OUTFLOW_CATEGORIES_BY_BUCKET } from "@/lib/treasury-constants";
 import {
   notifyLocalSync,
   useLiveSync,
@@ -75,6 +73,24 @@ import {
   saveOfflineSnapshot,
   submitOfflineCapable,
 } from "@/lib/offline/outbox";
+import { useSellerOrderDraftState } from "@/features/seller/order-draft-reducer";
+import type {
+  SellerCatalogItemDto,
+  SellerCartLine,
+  SellerCustomerDto,
+  SellerOrderDraft,
+  SellerOrderDto,
+  SellerOrderMutationResultDto,
+  SellerOrderStep,
+  SellerCollectionMutationResultDto,
+  SellerExpenseMutationResultDto,
+  SellerPaymentTimelineEntryDto,
+  SellerQuoteDto,
+} from "@/features/seller/types";
+
+const SellerQuotesTab = dynamic(() => import("@/features/seller/SellerQuotesTab"));
+const SellerOrdersTab = dynamic(() => import("@/features/seller/SellerOrdersTab"));
+const SellerMoreTab = dynamic(() => import("@/features/seller/SellerMoreTab"));
 
 const SELLER_SYNC_SCOPES: SyncScope[] = [
   "orders",
@@ -93,25 +109,7 @@ interface SellerOfflineReferenceSnapshot {
   savedAt: string;
 }
 
-interface SellerOrderDraft {
-  customerNameRaw: string;
-  selectedCustomer: CustomerOption | null;
-  paymentMode: "CASH" | "CREDIT" | "YAPE_PLIN" | "TRANSFER";
-  collectOnDelivery: boolean;
-  creditDays: number;
-  customPromiseDate: string;
-  initialPaidPen: string;
-  notes: string;
-  cart: CartLine[];
-}
-
-interface CustomerOption {
-  party_id: number;
-  name: string;
-  doc_number?: string | null;
-  phone?: string | null;
-  address?: string | null;
-}
+type CustomerOption = SellerCustomerDto;
 
 const CANCEL_DRAFT_REASONS = [
   { code: "PRICE_TOO_HIGH", label: "Precio alto o competencia" },
@@ -151,23 +149,8 @@ function normalizeOrderQuantity(qty: number, fractional: boolean): number {
   return fractional ? Math.round(qty * 1000) / 1000 : Math.floor(qty);
 }
 
-interface CatalogItem {
-  product_id: number;
-  sku: string;
-  name: string;
-  unit_of_measure: string;
-  fulfillment_mode: "STOCKED" | "ON_DEMAND";
-  stock_on_hand: number;
-  list_sale_price_pen: number | null;
-  min_sale_price_pen: number | null;
-}
-
-interface CartLine {
-  product: CatalogItem;
-  quantity: number;
-  quantityInput: string;
-  unitDiscountPen: number;
-}
+type CatalogItem = SellerCatalogItemDto;
+type CartLine = SellerCartLine;
 
 interface OrderDebtItem {
   orderId: number;
@@ -206,43 +189,38 @@ interface CustomerDebtSummary {
   promiseStatus: string;
 }
 
-interface QuoteLineItem {
-  quote_line_id: number;
-  line_no: number;
-  product_id: number | null;
-  sku: string | null;
-  unit_of_measure: string;
-  raw_description: string;
-  quantity: number;
-  unit_price_pen: number;
-  line_total_pen: number;
-}
-
-interface QuoteItem {
-  quote_id: number;
-  quote_code: string;
-  issue_date: string;
-  customer_party_id: number | null;
-  customer_name: string;
-  currency: string;
-  tax_regime: string;
-  total_pen: number;
-  status: "OPEN" | "CONVERTED" | "EXPIRED" | "CANCELLED";
-  related_cpe: string | null;
-  seller_name: string | null;
-  notes: string | null;
-  converted_order_code: string | null;
-  lines: QuoteLineItem[];
-}
-
 type SellerTab = LegacySellerTab;
-type SellerOrderStep = "client" | "products" | "payment" | "confirmation";
 
 export default function VendedorPage() {
   const router = useRouter();
   const [tab, setTab] = useState<SellerTab>("nuevo");
-  const [orderStep, setOrderStep] = useState<SellerOrderStep>("client");
-  const [showCustomPromiseDate, setShowCustomPromiseDate] = useState(false);
+  const {
+    state: orderDraft,
+    setOrderStep,
+    setShowCustomPromiseDate,
+    setCustomerNameRaw,
+    setSelectedCustomer,
+    setPaymentMode,
+    setCollectOnDelivery,
+    setCreditDays,
+    setCustomPromiseDate,
+    setInitialPaidPen,
+    setNotes,
+    setCart,
+  } = useSellerOrderDraftState();
+  const {
+    orderStep,
+    showCustomPromiseDate,
+    customerNameRaw,
+    selectedCustomer,
+    paymentMode,
+    collectOnDelivery,
+    creditDays,
+    customPromiseDate,
+    initialPaidPen,
+    notes,
+    cart,
+  } = orderDraft;
   useEffect(() => {
     const syncFromUrl = () => {
       const current = new URL(window.location.href);
@@ -250,7 +228,9 @@ export default function VendedorPage() {
       setTab(resolved.legacyTab);
       const canonical = canonicalSellerUrl(current);
       if (canonical.search !== current.search) {
-        router.replace(canonical.pathname + canonical.search + canonical.hash, { scroll: false });
+        router.replace(canonical.pathname + canonical.search + canonical.hash, {
+          scroll: false,
+        });
       }
     };
     syncFromUrl();
@@ -265,16 +245,19 @@ export default function VendedorPage() {
       window.history.pushState(null, "", url.pathname + url.search + url.hash);
     }
   }, []);
-  const openOrderStep = useCallback((step: SellerOrderStep) => {
-    setOrderStep(step);
-    window.requestAnimationFrame(() => {
-      document.getElementById(`seller-step-${step}`)?.scrollIntoView({
-        behavior: "smooth",
-        block: "start",
+  const openOrderStep = useCallback(
+    (step: SellerOrderStep) => {
+      setOrderStep(step);
+      window.requestAnimationFrame(() => {
+        document.getElementById(`seller-step-${step}`)?.scrollIntoView({
+          behavior: "smooth",
+          block: "start",
+        });
       });
-    });
-  }, []);
-  const [quotes, setQuotes] = useState<QuoteItem[]>([]);
+    },
+    [setOrderStep]
+  );
+  const [quotes, setQuotes] = useState<SellerQuoteDto[]>([]);
   const [busyQuoteId, setBusyQuoteId] = useState<number | null>(null);
   const [busyCreateQuote, setBusyCreateQuote] = useState(false);
   const [currentUser, setCurrentUser] = useState<{
@@ -286,7 +269,7 @@ export default function VendedorPage() {
   const [catalog, setCatalog] = useState<CatalogItem[]>([]);
   const [customers, setCustomers] = useState<CustomerOption[]>([]);
   const [sellerAccounts, setSellerAccounts] = useState<AbonoCashAccountOption[]>([]);
-  const [orders, setOrders] = useState<Record<string, unknown>[]>([]);
+  const [orders, setOrders] = useState<SellerOrderDto[]>([]);
   const [debtorsByOrder, setDebtorsByOrder] = useState<OrderDebtItem[]>([]);
   const [debtorsByCustomer, setDebtorsByCustomer] = useState<CustomerDebtSummary[]>([]);
   const [initialLoading, setInitialLoading] = useState(true);
@@ -294,8 +277,6 @@ export default function VendedorPage() {
   const deferredSearchProduct = useDeferredValue(searchProduct);
   const [showAllCatalog, setShowAllCatalog] = useState(false);
 
-  const [customerNameRaw, setCustomerNameRaw] = useState("");
-  const [selectedCustomer, setSelectedCustomer] = useState<CustomerOption | null>(null);
   const deferredCustomerQuery = useDeferredValue(customerNameRaw);
   const [customerDropdownOpen, setCustomerDropdownOpen] = useState(false);
   const customerBoxRef = useRef<HTMLDivElement | null>(null);
@@ -311,15 +292,6 @@ export default function VendedorPage() {
   const [cancelReasonCode, setCancelReasonCode] = useState<string>("CHANGED_MIND");
   const [cancelCustomNote, setCancelCustomNote] = useState("");
   const [busyCancelDraft, setBusyCancelDraft] = useState(false);
-  const [paymentMode, setPaymentMode] = useState<
-    "CASH" | "CREDIT" | "YAPE_PLIN" | "TRANSFER"
-  >("CASH");
-  const [collectOnDelivery, setCollectOnDelivery] = useState<boolean>(true);
-  const [creditDays, setCreditDays] = useState<number>(7);
-  const [customPromiseDate, setCustomPromiseDate] = useState<string>("");
-  const [initialPaidPen, setInitialPaidPen] = useState<string>("");
-  const [notes, setNotes] = useState("");
-  const [cart, setCart] = useState<CartLine[]>([]);
   const [busyOrder, setBusyOrder] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
   const [feedback, setFeedback] = useState<{
@@ -353,7 +325,7 @@ export default function VendedorPage() {
   const [busyAbono, setBusyAbono] = useState(false);
   const [timelineOrderId, setTimelineOrderId] = useState<number | null>(null);
   const [timelineEntries, setTimelineEntries] = useState<
-    Array<Record<string, unknown>>
+    SellerPaymentTimelineEntryDto[]
   >([]);
   const [timelineLoadingId, setTimelineLoadingId] = useState<number | null>(null);
 
@@ -437,6 +409,17 @@ export default function VendedorPage() {
           setInitialPaidPen(savedDraft.initialPaidPen);
         if (typeof savedDraft.notes === "string") setNotes(savedDraft.notes);
         if (Array.isArray(savedDraft.cart)) setCart(savedDraft.cart);
+        if (
+          savedDraft.orderStep === "client" ||
+          savedDraft.orderStep === "products" ||
+          savedDraft.orderStep === "payment" ||
+          savedDraft.orderStep === "confirmation"
+        ) {
+          setOrderStep(savedDraft.orderStep);
+        }
+        if (typeof savedDraft.showCustomPromiseDate === "boolean") {
+          setShowCustomPromiseDate(savedDraft.showCustomPromiseDate);
+        }
       }
       if (active) draftHydratedRef.current = true;
     };
@@ -444,7 +427,19 @@ export default function VendedorPage() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [
+    setCart,
+    setCollectOnDelivery,
+    setCreditDays,
+    setCustomPromiseDate,
+    setCustomerNameRaw,
+    setInitialPaidPen,
+    setNotes,
+    setPaymentMode,
+    setSelectedCustomer,
+    setOrderStep,
+    setShowCustomPromiseDate,
+  ]);
 
   useEffect(() => {
     if (!draftHydratedRef.current) return;
@@ -458,6 +453,8 @@ export default function VendedorPage() {
       initialPaidPen,
       notes,
       cart,
+      orderStep,
+      showCustomPromiseDate,
     };
     const hasDraft = Boolean(cart.length || customerNameRaw.trim() || notes.trim());
     let actor = currentUser?.username || null;
@@ -493,6 +490,8 @@ export default function VendedorPage() {
     initialPaidPen,
     notes,
     cart,
+    orderStep,
+    showCustomPromiseDate,
   ]);
 
   const loadOrdersAndCatalog = useCallback(
@@ -690,36 +689,39 @@ export default function VendedorPage() {
     onAuthError: handleSyncAuthError,
   });
 
-  const addToCart = useCallback((prod: CatalogItem) => {
-    const fractional = isFractionalUom(prod.unit_of_measure);
-    setCart((prev) => {
-      const existing = prev.find((c) => c.product.product_id === prod.product_id);
-      if (existing) {
-        const nextQty = normalizeOrderQuantity(
-          Math.max(0, existing.quantity) + 1,
-          fractional
-        );
-        return prev.map((c) =>
-          c.product.product_id === prod.product_id
-            ? {
-                ...c,
-                quantity: nextQty,
-                quantityInput: String(nextQty),
-              }
-            : c
-        );
-      }
-      return [
-        ...prev,
-        {
-          product: prod,
-          quantity: 1,
-          quantityInput: "1",
-          unitDiscountPen: 0,
-        },
-      ];
-    });
-  }, []);
+  const addToCart = useCallback(
+    (prod: CatalogItem) => {
+      const fractional = isFractionalUom(prod.unit_of_measure);
+      setCart((prev) => {
+        const existing = prev.find((c) => c.product.product_id === prod.product_id);
+        if (existing) {
+          const nextQty = normalizeOrderQuantity(
+            Math.max(0, existing.quantity) + 1,
+            fractional
+          );
+          return prev.map((c) =>
+            c.product.product_id === prod.product_id
+              ? {
+                  ...c,
+                  quantity: nextQty,
+                  quantityInput: String(nextQty),
+                }
+              : c
+          );
+        }
+        return [
+          ...prev,
+          {
+            product: prod,
+            quantity: 1,
+            quantityInput: "1",
+            unitDiscountPen: 0,
+          },
+        ];
+      });
+    },
+    [setCart]
+  );
 
   const isPartnerControlUser =
     currentUser?.role === "PARTNER_ADMIN" || currentUser?.role === "PARTNER_MANAGER";
@@ -824,10 +826,8 @@ export default function VendedorPage() {
     }
   }
 
-  function beginEditingOrder(order: Record<string, unknown>) {
-    const orderLines = Array.isArray(order.lines)
-      ? (order.lines as Array<Record<string, unknown>>)
-      : [];
+  function beginEditingOrder(order: SellerOrderDto) {
+    const orderLines = order.lines;
     const nextCart: CartLine[] = [];
     for (const line of orderLines) {
       const product = catalog.find(
@@ -1023,7 +1023,7 @@ export default function VendedorPage() {
       };
       const result =
         editingOrderId === null
-          ? await submitOfflineCapable<Record<string, unknown>>({
+          ? await submitOfflineCapable<SellerOrderMutationResultDto>({
               kind: "ORDER_CREATE",
               actorUsername: currentUser?.username || "",
               url: "/api/orders",
@@ -1115,7 +1115,7 @@ export default function VendedorPage() {
             nextCollectionDays: isFullSettlement ? null : abonoNextDays,
             notes: "Abono registrado por Vendedor",
           };
-      const result = await submitOfflineCapable<Record<string, unknown>>({
+      const result = await submitOfflineCapable<SellerCollectionMutationResultDto>({
         kind: "COLLECTION",
         actorUsername: currentUser?.username || "",
         url: "/api/collections",
@@ -1206,7 +1206,7 @@ export default function VendedorPage() {
     setFeedback(null);
     setBusyExpense(true);
     try {
-      const result = await submitOfflineCapable<Record<string, unknown>>({
+      const result = await submitOfflineCapable<SellerExpenseMutationResultDto>({
         kind: "ROUTE_EXPENSE",
         actorUsername: currentUser?.username || "",
         url: "/api/treasury",
@@ -1530,7 +1530,8 @@ export default function VendedorPage() {
   );
 
   const activeTabLabel =
-    navItems.find((item) => item.id === (tab === "cotizaciones" ? "pedidos" : tab))?.label ?? "Vender";
+    navItems.find((item) => item.id === (tab === "cotizaciones" ? "pedidos" : tab))
+      ?.label ?? "Vender";
   const navActiveTab: SellerTab = tab === "cotizaciones" ? "pedidos" : tab;
 
   async function handleLogout() {
@@ -1538,7 +1539,9 @@ export default function VendedorPage() {
     setLoggingOut(true);
     try {
       if (currentUser?.username) {
-        await deleteOfflineSnapshotsForActor(currentUser.username).catch(() => undefined);
+        await deleteOfflineSnapshotsForActor(currentUser.username).catch(
+          () => undefined
+        );
       }
       await authClient.signOut();
     } finally {
@@ -1637,13 +1640,22 @@ export default function VendedorPage() {
 
         {tab === "nuevo" && (
           <section aria-label="Nuevo pedido" className="space-y-4">
-            <nav aria-label="Progreso del pedido" className="grid grid-cols-4 gap-1 rounded-2xl border border-[var(--border-hairline)] bg-white p-1.5">
-              {([
-                ["client", "Cliente", Boolean(customerNameRaw.trim())],
-                ["products", "Productos", cart.length > 0],
-                ["payment", "Pago", cart.length > 0],
-                ["confirmation", "Confirmación", cart.length > 0 && Boolean(customerNameRaw.trim())],
-              ] as Array<[SellerOrderStep, string, boolean]>).map(([id, label, complete]) => (
+            <nav
+              aria-label="Progreso del pedido"
+              className="grid grid-cols-4 gap-1 rounded-2xl border border-[var(--border-hairline)] bg-white p-1.5"
+            >
+              {(
+                [
+                  ["client", "Cliente", Boolean(customerNameRaw.trim())],
+                  ["products", "Productos", cart.length > 0],
+                  ["payment", "Pago", cart.length > 0],
+                  [
+                    "confirmation",
+                    "Confirmación",
+                    cart.length > 0 && Boolean(customerNameRaw.trim()),
+                  ],
+                ] as Array<[SellerOrderStep, string, boolean]>
+              ).map(([id, label, complete]) => (
                 <button
                   key={id}
                   type="button"
@@ -1727,7 +1739,10 @@ export default function VendedorPage() {
               )}
               <div className="min-w-0 space-y-4 lg:col-span-7">
                 {/* Step 1: Client Identification */}
-                <Card id="seller-step-client" className={`scroll-mt-24 space-y-3 ${orderStep !== "client" && customerNameRaw.trim() ? "hidden" : ""}`}>
+                <Card
+                  id="seller-step-client"
+                  className={`scroll-mt-24 space-y-3 ${orderStep !== "client" && customerNameRaw.trim() ? "hidden" : ""}`}
+                >
                   <div ref={customerBoxRef} className="relative">
                     <FieldLabel htmlFor="seller-customer-name" required>
                       1. Cliente o ferretería
@@ -1833,7 +1848,10 @@ export default function VendedorPage() {
                 </Card>
 
                 {/* Step 2: Product Search & Add */}
-                <Card id="seller-step-products" className={`scroll-mt-24 space-y-3 ${orderStep !== "products" && cart.length > 0 ? "hidden" : ""}`}>
+                <Card
+                  id="seller-step-products"
+                  className={`scroll-mt-24 space-y-3 ${orderStep !== "products" && cart.length > 0 ? "hidden" : ""}`}
+                >
                   <div className="flex items-center justify-between gap-2">
                     <FieldLabel htmlFor="seller-search-product">
                       2. Buscar y agregar productos
@@ -2393,7 +2411,10 @@ export default function VendedorPage() {
                     </div>
 
                     {/* Step 3b: Payment Condition decided once total is known */}
-                    <div id="seller-step-payment" className={`scroll-mt-24 space-y-3 rounded-xl border border-[#E7E5E0] bg-[#FAF9F6]/70 p-3.5 ${orderStep === "confirmation" ? "hidden" : ""}`}>
+                    <div
+                      id="seller-step-payment"
+                      className={`scroll-mt-24 space-y-3 rounded-xl border border-[#E7E5E0] bg-[#FAF9F6]/70 p-3.5 ${orderStep === "confirmation" ? "hidden" : ""}`}
+                    >
                       <div>
                         <p
                           id="seller-payment-mode-label"
@@ -2492,21 +2513,23 @@ export default function VendedorPage() {
                                 Otra fecha
                               </button>
                             </div>
-                            {showCustomPromiseDate && <div className="mt-2 flex flex-wrap items-center gap-2">
-                              <label
-                                htmlFor="seller-custom-date"
-                                className="text-xs font-medium text-[#78350F]"
-                              >
-                                O fecha:
-                              </label>
-                              <input
-                                id="seller-custom-date"
-                                type="date"
-                                value={customPromiseDate}
-                                onChange={(e) => setCustomPromiseDate(e.target.value)}
-                                className="min-h-[36px] rounded-lg border border-[#E7D3B1] bg-white px-2.5 py-1 text-xs font-medium text-[#18181B] focus:border-[#0F2942] focus:outline-none focus:ring-2 focus:ring-[#0F2942]/15"
-                              />
-                            </div>}
+                            {showCustomPromiseDate && (
+                              <div className="mt-2 flex flex-wrap items-center gap-2">
+                                <label
+                                  htmlFor="seller-custom-date"
+                                  className="text-xs font-medium text-[#78350F]"
+                                >
+                                  O fecha:
+                                </label>
+                                <input
+                                  id="seller-custom-date"
+                                  type="date"
+                                  value={customPromiseDate}
+                                  onChange={(e) => setCustomPromiseDate(e.target.value)}
+                                  className="min-h-[36px] rounded-lg border border-[#E7D3B1] bg-white px-2.5 py-1 text-xs font-medium text-[#18181B] focus:border-[#0F2942] focus:outline-none focus:ring-2 focus:ring-[#0F2942]/15"
+                                />
+                              </div>
+                            )}
                           </div>
 
                           <div>
@@ -2529,7 +2552,13 @@ export default function VendedorPage() {
                           </div>
                         </div>
                       )}
-                      <Button type="button" variant="primary" size="sm" onClick={() => openOrderStep("confirmation")} className="w-full">
+                      <Button
+                        type="button"
+                        variant="primary"
+                        size="sm"
+                        onClick={() => openOrderStep("confirmation")}
+                        className="w-full"
+                      >
                         Revisar confirmación
                       </Button>
                     </div>
@@ -2587,7 +2616,11 @@ export default function VendedorPage() {
                           {notes.trim() || "Almacén para alistamiento"}
                         </dd>
                       </dl>
-                      <button type="button" onClick={() => openOrderStep("payment")} className="mt-3 text-xs font-semibold text-[var(--bht-cobalt)] underline decoration-1 underline-offset-4">
+                      <button
+                        type="button"
+                        onClick={() => openOrderStep("payment")}
+                        className="mt-3 text-xs font-semibold text-[var(--bht-cobalt)] underline decoration-1 underline-offset-4"
+                      >
                         Editar pago
                       </button>
                     </section>
@@ -2669,132 +2702,14 @@ export default function VendedorPage() {
         )}
 
         {tab === "cotizaciones" && (
-          <section aria-label="Cotizaciones" className="space-y-3">
-            <Card
-              padding="sm"
-              className="flex flex-wrap items-center justify-between gap-2"
-            >
-              <div>
-                <h2 className="text-sm sm:text-base font-semibold text-[#18181B]">
-                  Cotizaciones ({quotes.length})
-                </h2>
-                <p className="text-xs text-[#5C5A55]">
-                  Arma ítems en Pedido y usa “Cotizar”, o convierte una cotización
-                  abierta en pedido real.
-                </p>
-              </div>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => handleTabChange("nuevo")}
-              >
-                + Nueva Cotización
-              </Button>
-            </Card>
-            {quotes.length === 0 ? (
-              <EmptyState
-                icon={<ReceiptIcon className="h-5 w-5" />}
-                title="Sin cotizaciones registradas"
-                description="Arma un pedido y presiona Cotizar para guardar una propuesta."
-              />
-            ) : (
-              <div className="grid grid-cols-1 gap-3 lg:grid-cols-2 lg:items-start">
-                {quotes.map((q) => {
-                  const isBusy = busyQuoteId === q.quote_id;
-                  const tone =
-                    q.status === "CONVERTED"
-                      ? "success"
-                      : q.status === "OPEN"
-                        ? "brand"
-                        : "neutral";
-                  return (
-                    <Card key={q.quote_id} padding="md" className="space-y-2.5">
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="min-w-0">
-                          <span className="text-xs font-semibold text-[#1E446B] tabular-nums">
-                            {q.quote_code} · {q.issue_date}
-                          </span>
-                          <h3 className="text-sm sm:text-base font-semibold text-[#18181B]">
-                            {q.customer_name}
-                          </h3>
-                        </div>
-                        <Badge tone={tone}>
-                          {q.status === "OPEN"
-                            ? "Abierta"
-                            : q.status === "CONVERTED"
-                              ? `Pedido ${q.converted_order_code || q.related_cpe || ""}`.trim()
-                              : q.status === "EXPIRED"
-                                ? "Vencida"
-                                : "Anulada"}
-                        </Badge>
-                      </div>
-
-                      <div className="divide-y divide-[#E7E5E0] rounded-lg border border-[#E7E5E0] bg-[#FAF9F6] px-2.5 py-1 text-xs">
-                        {q.lines.map((ln) => (
-                          <div
-                            key={ln.quote_line_id}
-                            className="flex items-center justify-between gap-2 py-1.5"
-                          >
-                            <span className="min-w-0 truncate text-[#18181B]">
-                              {ln.quantity} {ln.unit_of_measure} × {ln.raw_description}
-                            </span>
-                            <span className="flex-shrink-0 font-semibold tabular-nums">
-                              S/ {Number(ln.line_total_pen).toFixed(2)}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-
-                      <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
-                        <span className="font-semibold text-[#0F2942] tabular-nums">
-                          Total: S/ {Number(q.total_pen).toFixed(2)}
-                        </span>
-                        {q.status === "OPEN" && (
-                          <div className="flex flex-wrap gap-1.5">
-                            <Button
-                              type="button"
-                              variant="success"
-                              size="sm"
-                              data-compact="true"
-                              disabled={isBusy}
-                              onClick={() => handleConvertQuote(q.quote_id, "CASH")}
-                            >
-                              Convertir Contado
-                            </Button>
-                            <Button
-                              type="button"
-                              variant="primary"
-                              size="sm"
-                              data-compact="true"
-                              disabled={isBusy}
-                              onClick={() => handleConvertQuote(q.quote_id, "CREDIT")}
-                            >
-                              A Crédito 7d
-                            </Button>
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="sm"
-                              data-compact="true"
-                              disabled={isBusy}
-                              onClick={() =>
-                                handleUpdateQuoteStatus(q.quote_id, "CANCELLED")
-                              }
-                            >
-                              Anular
-                            </Button>
-                          </div>
-                        )}
-                      </div>
-                    </Card>
-                  );
-                })}
-              </div>
-            )}
-          </section>
+          <SellerQuotesTab
+            quotes={quotes}
+            busyQuoteId={busyQuoteId}
+            onCreate={() => handleTabChange("nuevo")}
+            onConvert={handleConvertQuote}
+            onCancel={(quoteId) => handleUpdateQuoteStatus(quoteId, "CANCELLED")}
+          />
         )}
-
         {tab === "deudores" && (
           <section aria-label="Cobros y deudores" className="space-y-3.5">
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
@@ -3103,306 +3018,32 @@ export default function VendedorPage() {
         )}
 
         {tab === "pedidos" && (
-          <section aria-label="Mis pedidos" className="space-y-3">
-            {orders.length === 0 ? (
-              <EmptyState
-                icon={<PackageIcon className="h-5 w-5" />}
-                title="Aún no hay pedidos registrados"
-              />
-            ) : (
-              <div className="grid grid-cols-1 gap-3 lg:grid-cols-2 lg:items-start">
-                {orders.map((o) => {
-                  const orderId = Number(o.order_id);
-                  const isExpanded = expandedOrderId === orderId;
-                  const orderLines = Array.isArray(o.lines)
-                    ? (o.lines as Array<Record<string, unknown>>)
-                    : [];
-                  const auditHistory = Array.isArray(o.audit_history)
-                    ? (o.audit_history as Array<Record<string, unknown>>)
-                    : [];
-                  const wasModified = auditHistory.some(
-                    (entry) => String(entry.action) === "EDIT"
-                  );
-                  return (
-                    <Card key={String(o.order_id)} padding="md" className="space-y-2.5">
-                      <button
-                        type="button"
-                        aria-expanded={isExpanded}
-                        onClick={() =>
-                          setExpandedOrderId((prev) =>
-                            prev === orderId ? null : orderId
-                          )
-                        }
-                        className="w-full space-y-2 text-left cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0F2942]/45 rounded-lg"
-                      >
-                        <div className="flex items-center justify-between gap-2">
-                          <span className="text-xs font-semibold text-[#1E446B] tabular-nums">
-                            {String(o.order_code)} · {String(o.order_date)}
-                          </span>
-                          <div className="flex flex-wrap items-center gap-1.5">
-                            {Boolean(o.trip_code) && (
-                              <Badge tone="brand">{String(o.trip_code)}</Badge>
-                            )}
-                            {wasModified && <Badge tone="warning">Modificado</Badge>}
-                            <Badge tone="neutral">
-                              {formatOperationalStatusEs(o.operational_status)}
-                            </Badge>
-                            <ChevronRightIcon
-                              className={`h-4 w-4 text-[#5C5A55] transition-transform ${
-                                isExpanded ? "rotate-90 text-[#0F2942]" : ""
-                              }`}
-                            />
-                          </div>
-                        </div>
-                        <h2 className="text-sm sm:text-base font-semibold text-[#18181B]">
-                          {String(o.customer_name)}
-                        </h2>
-                        <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-[#5C5A55] tabular-nums">
-                          <span>
-                            Total:{" "}
-                            <strong className="text-[#18181B]">
-                              S/ {Number(o.total_pen).toFixed(2)}
-                            </strong>
-                          </span>
-                          <span>
-                            Pagado:{" "}
-                            <strong className="text-[#15803D]">
-                              S/ {Number(o.paid_pen).toFixed(2)}
-                            </strong>
-                          </span>
-                          <span>
-                            Saldo:{" "}
-                            <strong
-                              className={
-                                Number(o.balance_due_pen) > 0.05
-                                  ? "text-[#B91C1C]"
-                                  : "text-[#15803D]"
-                              }
-                            >
-                              S/ {Number(o.balance_due_pen).toFixed(2)}
-                            </strong>
-                          </span>
-                        </div>
-                        <p className="rounded-lg bg-[#F2F6FA]/70 px-2.5 py-1.5 text-xs text-[#1E446B]">
-                          Tomó: {String(o.created_by_name || "-")} · Preparó:{" "}
-                          {String(o.picked_by_name || "Pendiente")} · Entregó:{" "}
-                          {String(o.delivered_by_name || "Pendiente")}
-                        </p>
-                      </button>
-
-                      {isExpanded && (
-                        <div className="space-y-2 border-t border-[#E7E5E0] pt-2.5 text-xs">
-                          <div className="flex items-center justify-between text-xs font-semibold uppercase tracking-wide text-[#5C5A55]">
-                            <span>
-                              Detalle comprado ({orderLines.length}{" "}
-                              {orderLines.length === 1 ? "ítem" : "ítems"})
-                            </span>
-                            <span>{formatPaymentModeEs(o.payment_mode)}</span>
-                          </div>
-                          {orderLines.length === 0 ? (
-                            <p className="text-[#5C5A55]">
-                              Sin líneas de producto registradas.
-                            </p>
-                          ) : (
-                            <div className="space-y-1.5">
-                              {orderLines.map((ln) => (
-                                <div
-                                  key={String(ln.order_line_id)}
-                                  className="flex items-start justify-between gap-2 rounded-lg border border-[#E7E5E0] bg-[#FAF9F6] px-2.5 py-2"
-                                >
-                                  <div className="min-w-0 flex-1">
-                                    <p className="font-medium text-[#18181B]">
-                                      {String(ln.raw_description || ln.sku)}
-                                    </p>
-                                    <p className="text-xs text-[#5C5A55] tabular-nums">
-                                      {Number(ln.quantity)}{" "}
-                                      {String(ln.unit_of_measure || "NIU")} × S/{" "}
-                                      {Number(ln.unit_price_pen).toFixed(2)}
-                                      {Number(ln.unit_discount_pen || 0) > 0
-                                        ? ` (desc. S/ ${Number(
-                                            ln.unit_discount_pen
-                                          ).toFixed(2)}/u)`
-                                        : ""}{" "}
-                                      · {formatFulfillmentModeEs(ln.fulfillment_mode)}
-                                    </p>
-                                  </div>
-                                  <span className="flex-shrink-0 font-semibold text-[#18181B] tabular-nums">
-                                    S/ {Number(ln.line_total_pen).toFixed(2)}
-                                  </span>
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                          {o.notes ? (
-                            <p className="rounded-lg bg-[#FAF9F6] px-2.5 py-1.5 text-xs text-[#5C5A55]">
-                              Nota: {String(o.notes)}
-                            </p>
-                          ) : null}
-                          {auditHistory.length > 0 && (
-                            <details className="rounded-lg border border-[#D4E0EC] bg-[#F2F6FA]/60 p-2.5">
-                              <summary className="cursor-pointer font-semibold text-[#0F2942]">
-                                Historial de cambios ({auditHistory.length})
-                              </summary>
-                              <div className="mt-2 space-y-2">
-                                {auditHistory.map((entry) => (
-                                  <div
-                                    key={String(entry.audit_id)}
-                                    className="border-t border-[#D4E0EC] pt-2 text-xs text-[#5C5A55]"
-                                  >
-                                    <p className="font-medium text-[#18181B]">
-                                      {String(entry.action) === "CANCEL"
-                                        ? "Anulación"
-                                        : "Modificación"}{" "}
-                                      · {String(entry.reason)}
-                                    </p>
-                                    <p>
-                                      {String(entry.actor_name || "Usuario")} ·{" "}
-                                      {new Date(
-                                        String(entry.created_at)
-                                      ).toLocaleString("es-PE")}
-                                    </p>
-                                  </div>
-                                ))}
-                              </div>
-                            </details>
-                          )}
-                          {!["DELIVERED", "CANCELLED"].includes(
-                            String(o.operational_status)
-                          ) &&
-                            Number(o.created_by_user_id) === currentUser?.userId && (
-                              <Button
-                                type="button"
-                                variant="outline"
-                                size="sm"
-                                onClick={() => beginEditingOrder(o)}
-                                className="w-full"
-                              >
-                                Modificar pedido
-                              </Button>
-                            )}
-                        </div>
-                      )}
-                    </Card>
-                  );
-                })}
-              </div>
-            )}
-          </section>
+          <SellerOrdersTab
+            orders={orders}
+            expandedOrderId={expandedOrderId}
+            setExpandedOrderId={setExpandedOrderId}
+            currentUserId={currentUser?.userId}
+            onEdit={beginEditingOrder}
+          />
         )}
-
         {tab === "gastos" && (
-          <section aria-label="Más opciones" className="mx-auto max-w-2xl space-y-4">
-            <Card padding="sm" className="grid gap-3 sm:grid-cols-2">
-              <div className="rounded-xl bg-[var(--bg-subtle)] p-3">
-                <p className="text-xs font-semibold text-[var(--bht-navy)]">Sincronización</p>
-                <p className="mt-1 text-xs text-[var(--ink-secondary)]">
-                  Estado: {liveStatus === "live" ? "en vivo" : liveStatus === "syncing" ? "sincronizando" : liveStatus === "offline" ? "sin conexión" : "en pausa"}.
-                </p>
-                <Button type="button" variant="outline" size="sm" onClick={() => void triggerSync({ force: true })} className="mt-3 w-full">
-                  Sincronizar ahora
-                </Button>
-              </div>
-              <div className="rounded-xl bg-[var(--bg-subtle)] p-3">
-                <p className="text-xs font-semibold text-[var(--bht-navy)]">Datos personales</p>
-                <p className="mt-1 text-xs text-[var(--ink-secondary)]">
-                  {currentUser?.fullName || currentUser?.username || "Usuario vendedor"}
-                </p>
-              </div>
-            </Card>
-            <Card accent="horizon" padding="lg">
-              <form onSubmit={handleSubmitExpense} className="space-y-4">
-                <div className="flex items-center gap-2.5 border-b border-[#E7E5E0] pb-3">
-                  <div
-                    aria-hidden="true"
-                    className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#F2F6FA] text-[#0F2942]"
-                  >
-                    <ReceiptIcon className="h-4 w-4" />
-                  </div>
-                  <div>
-                    <h2 className="text-base font-semibold text-[#18181B]">
-                      Registrar Gasto Diario
-                    </h2>
-                    <p className="text-xs text-[#5C5A55]">
-                      Registra combustible, peajes y otros gastos diarios de ruta. Puedes
-                      elegir una fecha anterior si olvidaste registrarlo.
-                    </p>
-                  </div>
-                </div>
-
-                <div>
-                  <FieldLabel htmlFor="expense-date" required>
-                    Fecha del gasto
-                  </FieldLabel>
-                  <input
-                    id="expense-date"
-                    type="date"
-                    required
-                    value={expenseDate}
-                    onChange={(e) => setExpenseDate(e.target.value)}
-                    className={`${INPUT_CLASS} mt-1.5 font-medium`}
-                  />
-                </div>
-
-                <div>
-                  <FieldLabel htmlFor="expense-category">Categoría</FieldLabel>
-                  <select
-                    id="expense-category"
-                    value={expenseCategory}
-                    onChange={(e) => setExpenseCategory(e.target.value)}
-                    className={`${INPUT_CLASS} mt-1.5 font-medium`}
-                  >
-                    {OUTFLOW_CATEGORIES_BY_BUCKET.ROUTE_OPEX.map((category) => (
-                      <option key={category.value} value={category.value}>
-                        {category.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <FieldLabel htmlFor="expense-amount" required>
-                    Monto en Soles (S/)
-                  </FieldLabel>
-                  <input
-                    id="expense-amount"
-                    type="number"
-                    step="0.01"
-                    min="0.10"
-                    required
-                    value={expenseAmount}
-                    onChange={(e) => setExpenseAmount(e.target.value)}
-                    placeholder="0.00"
-                    className={`${INPUT_CLASS} mt-1.5 font-semibold tabular-nums`}
-                  />
-                </div>
-
-                <div>
-                  <FieldLabel htmlFor="expense-desc" required>
-                    Detalle breve
-                  </FieldLabel>
-                  <input
-                    id="expense-desc"
-                    type="text"
-                    required
-                    value={expenseDesc}
-                    onChange={(e) => setExpenseDesc(e.target.value)}
-                    placeholder="Ej. Gasolina unidad placa X"
-                    className={`${INPUT_CLASS} mt-1.5`}
-                  />
-                </div>
-
-                <Button
-                  type="submit"
-                  variant="primary"
-                  size="lg"
-                  disabled={busyExpense}
-                  className="w-full"
-                >
-                  {busyExpense ? "Guardando..." : "Guardar Gasto Diario"}
-                </Button>
-              </form>
-            </Card>
-          </section>
+          <SellerMoreTab
+            liveStatus={liveStatus}
+            userName={
+              currentUser?.fullName || currentUser?.username || "Usuario vendedor"
+            }
+            onSync={() => void triggerSync({ force: true })}
+            expenseDate={expenseDate}
+            setExpenseDate={setExpenseDate}
+            expenseCategory={expenseCategory}
+            setExpenseCategory={setExpenseCategory}
+            expenseAmount={expenseAmount}
+            setExpenseAmount={setExpenseAmount}
+            expenseDesc={expenseDesc}
+            setExpenseDesc={setExpenseDesc}
+            busyExpense={busyExpense}
+            onSubmitExpense={handleSubmitExpense}
+          />
         )}
       </main>
 
