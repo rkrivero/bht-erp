@@ -51,6 +51,22 @@ function getDefaultBranch(): "dev" | "main" {
   throw new Error(`Unsupported BHT_DB_BRANCH: ${process.env.BHT_DB_BRANCH}`);
 }
 
+export function normalizeDatabaseUrl(rawUrl: string): string {
+  try {
+    const url = new URL(rawUrl);
+    if (
+      (url.protocol === "postgres:" || url.protocol === "postgresql:") &&
+      (url.hostname === "neon.tech" || url.hostname.endsWith(".neon.tech"))
+    ) {
+      url.searchParams.set("sslmode", "verify-full");
+      return url.toString();
+    }
+  } catch {
+    // Let pg report malformed connection strings with its normal error semantics.
+  }
+  return rawUrl;
+}
+
 export function resolveDatabaseUrl(
   branch: "dev" | "main" = getDefaultBranch()
 ): string {
@@ -66,7 +82,7 @@ export function resolveDatabaseUrl(
         "Missing database URL for branch dev (NEON_DATABASE_URL_DEV or DEV_DATABASE_URL)"
       );
     }
-    return url;
+    return normalizeDatabaseUrl(url);
   }
 
   const url =
@@ -79,7 +95,7 @@ export function resolveDatabaseUrl(
       "Missing database URL for branch main (NEON_DATABASE_URL_MAIN or DATABASE_URL)"
     );
   }
-  return url;
+  return normalizeDatabaseUrl(url);
 }
 
 export function getPool(branch: "dev" | "main" = getDefaultBranch()): Pool {
@@ -170,6 +186,9 @@ export async function withTransaction<T>(
     await client.query("COMMIT");
     return result;
   } catch (err) {
+    if (shouldDestroyClientOnError(err)) {
+      releaseErr = err instanceof Error ? err : new Error(String(err));
+    }
     try {
       await client.query("ROLLBACK");
     } catch (rbErr) {

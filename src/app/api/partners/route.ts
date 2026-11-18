@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import type { PoolClient } from "pg";
 import { getAuthenticatedERPActor, requireActiveSession } from "@/lib/auth";
 import { withClient, withTransaction } from "@/lib/db";
+import { resolveHttpError } from "@/lib/http-errors";
 import { assertRole } from "@/lib/rbac";
 import {
   BI_NON_MONTHLY_SELECTS,
@@ -15,7 +16,7 @@ import {
   updateProductStockAndPricing,
 } from "@/lib/services/collections-and-treasury";
 import { listAuditFlags } from "@/lib/services/operations-and-modules";
-import { resolveHttpError, type UserRole, ValidationError } from "@/lib/types";
+import { type UserRole, ValidationError } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
@@ -524,8 +525,12 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json(data, { headers: NO_STORE_HEADERS });
   } catch (err) {
-    const { status, error } = resolveHttpError(err, "Error cargando datos de socios");
-    return NextResponse.json({ error }, { status, headers: NO_STORE_HEADERS });
+    const { status, ...payload } = resolveHttpError(
+      err,
+      "Error cargando datos de socios",
+      "GET /api/partners"
+    );
+    return NextResponse.json(payload, { status, headers: NO_STORE_HEADERS });
   }
 }
 
@@ -773,7 +778,11 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json(result, { headers: NO_STORE_HEADERS });
   } catch (err) {
-    const { status, error } = resolveHttpError(err, "Error en acción de socio");
-    return NextResponse.json({ error }, { status, headers: NO_STORE_HEADERS });
+    const { status, ...payload } = resolveHttpError(
+      err,
+      "Error en acción de socio",
+      "POST /api/partners"
+    );
+    return NextResponse.json(payload, { status, headers: NO_STORE_HEADERS });
   }
 }

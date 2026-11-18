@@ -1,7 +1,7 @@
 import { beforeAll, describe, expect, it } from "vitest";
 import { NextRequest } from "next/server";
 import { GET as getSync } from "../src/app/api/sync/route";
-import { signSessionToken } from "../src/lib/auth";
+import { signTestSessionToken } from "../src/lib/auth/test-session";
 import { getPool } from "../src/lib/db";
 import { computeSyncSnapshot } from "../src/lib/realtime/sync-engine";
 import type { SessionUser } from "../src/lib/types";
@@ -34,15 +34,13 @@ const warehouseUser: SessionUser = {
   defaultCashAccountId: null,
 };
 
-const partnerAdminToken = signSessionToken(partnerAdminUser);
-const sellerToken = signSessionToken(sellerUser);
-const whToken = signSessionToken(warehouseUser);
+const partnerAdminToken = signTestSessionToken(partnerAdminUser);
+const sellerToken = signTestSessionToken(sellerUser);
+const whToken = signTestSessionToken(warehouseUser);
 
 describe("/api/sync Live Sync Engine, Auth & RBAC", () => {
   it("rejects unauthenticated and invalid-token requests with 401 and Cache-Control: no-store", async () => {
-    const unauthJson = await getSync(
-      new NextRequest("http://localhost:3000/api/sync")
-    );
+    const unauthJson = await getSync(new NextRequest("http://localhost:3000/api/sync"));
     expect(unauthJson.status).toBe(401);
     expect(unauthJson.headers.get("cache-control")).toContain("no-store");
 
@@ -91,10 +89,7 @@ describe("/api/sync Live Sync Engine, Auth & RBAC", () => {
     );
     expect(whDisallowedScopeOnlyRes.status).toBe(200);
     const whDisallowedScopeOnlyBody = await whDisallowedScopeOnlyRes.json();
-    expect(whDisallowedScopeOnlyBody.allowedScopes).toEqual([
-      "orders",
-      "inventory",
-    ]);
+    expect(whDisallowedScopeOnlyBody.allowedScopes).toEqual(["orders", "inventory"]);
     expect(whDisallowedScopeOnlyBody.changedScopes).toEqual([]);
 
     const sellerRes = await getSync(
@@ -198,11 +193,7 @@ describe("/api/sync Live Sync Engine, Auth & RBAC", () => {
          WHERE product_id = (SELECT product_id FROM erp.products ORDER BY product_id ASC LIMIT 1)`
       );
 
-      const whAfterCost = await computeSyncSnapshot(
-        client,
-        warehouseUser,
-        wh0.version
-      );
+      const whAfterCost = await computeSyncSnapshot(client, warehouseUser, wh0.version);
       const sellerAfterCost = await computeSyncSnapshot(
         client,
         sellerUser,

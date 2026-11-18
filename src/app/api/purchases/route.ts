@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAuthenticatedERPActor, requireActiveSession } from "@/lib/auth";
 import { withClient, withTransaction } from "@/lib/db";
+import { resolveHttpError } from "@/lib/http-errors";
 import { assertRole } from "@/lib/rbac";
 import {
   createSupplier,
@@ -8,7 +9,7 @@ import {
   payApObligation,
   registerSupplierPurchase,
 } from "@/lib/services/purchases-and-suppliers";
-import { resolveHttpError, ValidationError } from "@/lib/types";
+import { ValidationError } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
@@ -31,11 +32,12 @@ export async function GET(req: NextRequest) {
     });
     return NextResponse.json(data, { headers: NO_STORE_HEADERS });
   } catch (err) {
-    const { status, error } = resolveHttpError(
+    const { status, ...payload } = resolveHttpError(
       err,
-      "Error cargando compras y proveedores"
+      "Error cargando compras y proveedores",
+      "GET /api/purchases"
     );
-    return NextResponse.json({ error }, { status, headers: NO_STORE_HEADERS });
+    return NextResponse.json(payload, { status, headers: NO_STORE_HEADERS });
   }
 }
 
@@ -118,10 +120,11 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json(result, { headers: NO_STORE_HEADERS });
   } catch (err) {
-    const { status, error } = resolveHttpError(
+    const { status, ...payload } = resolveHttpError(
       err,
-      "Error procesando compra o proveedor"
+      "Error procesando compra o proveedor",
+      "POST /api/purchases"
     );
-    return NextResponse.json({ error }, { status, headers: NO_STORE_HEADERS });
+    return NextResponse.json(payload, { status, headers: NO_STORE_HEADERS });
   }
 }

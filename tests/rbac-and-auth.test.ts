@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { projectOrderForRole, projectProductForRole } from "../src/lib/rbac";
-import { signSessionToken, verifySessionToken } from "../src/lib/auth";
+import {
+  signTestSessionToken,
+  verifyTestSessionToken,
+} from "../src/lib/auth/test-session";
 import { shouldDestroyClientOnError } from "../src/lib/db";
 import {
   formatAuditFlagCodeEs,
@@ -107,15 +110,15 @@ describe("RBAC Financial Isolation & Session Signing", () => {
   });
 
   it("signs and verifies session tokens tamper-proof", () => {
-    const token = signSessionToken({
+    const token = signTestSessionToken({
       userId: 1,
       username: "socio_admin",
       fullName: "Socio Operativo",
       role: "PARTNER_ADMIN",
       defaultCashAccountId: 1,
     });
-    expect(verifySessionToken(token)?.role).toBe("PARTNER_ADMIN");
-    expect(verifySessionToken(token + "tampered")).toBeNull();
+    expect(verifyTestSessionToken(token)?.role).toBe("PARTNER_ADMIN");
+    expect(verifyTestSessionToken(token + "tampered")).toBeNull();
   });
 
   it("maps operational, trip, quote, audit-flag, entity, and treasury labels cleanly to Spanish", () => {
@@ -146,29 +149,47 @@ describe("RBAC Financial Isolation & Session Signing", () => {
     }
     expect(formatExpenseCategoryEs("PAGO_CXP")).toBe("Pago a Proveedor (CxP)");
     expect(formatExpenseCategoryEs("FLETE_MERCADERIA")).toBe("Flete de Mercadería");
-    expect(formatExpenseCategoryEs("ESTACIONAMIENTO")).toBe("Estacionamiento / Cochera");
+    expect(formatExpenseCategoryEs("ESTACIONAMIENTO")).toBe(
+      "Estacionamiento / Cochera"
+    );
     expect(formatExpenseCategoryEs("GASTO_RUTA")).toBe("Gasto General de Ruta");
     expect(formatExpenseCategoryEs("RETIRO")).toBe("Retiro de Socio");
     expect(formatExpenseCategoryEs("LEGAL_NOTARIA")).toBe("Notaría / Trámite Legal");
-    expect(formatExpenseCategoryEs("OTRO_NO_OPERATIVO")).toBe("Otro Egreso No Operativo");
+    expect(formatExpenseCategoryEs("OTRO_NO_OPERATIVO")).toBe(
+      "Otro Egreso No Operativo"
+    );
     expect(formatExpenseCategoryEs("MERCADERIA")).toBe("Compra de Mercadería");
   });
 
   it("only destroys pooled DB clients on connection/shutdown errors, never on domain errors", () => {
-    expect(shouldDestroyClientOnError(new ValidationError("Cantidad inválida"))).toBe(false);
-    expect(shouldDestroyClientOnError(new AuthorizationError("Sin permiso"))).toBe(false);
-    expect(shouldDestroyClientOnError(Object.assign(new Error("duplicate"), { code: "23505" }))).toBe(
+    expect(shouldDestroyClientOnError(new ValidationError("Cantidad inválida"))).toBe(
       false
     );
-    expect(shouldDestroyClientOnError(Object.assign(new Error("conn lost"), { code: "08006" }))).toBe(
-      true
-    );
-    expect(shouldDestroyClientOnError(Object.assign(new Error("admin shutdown"), { code: "57P01" }))).toBe(
-      true
+    expect(shouldDestroyClientOnError(new AuthorizationError("Sin permiso"))).toBe(
+      false
     );
     expect(
-      shouldDestroyClientOnError(Object.assign(new Error("socket reset"), { code: "ECONNRESET" }))
+      shouldDestroyClientOnError(
+        Object.assign(new Error("duplicate"), { code: "23505" })
+      )
+    ).toBe(false);
+    expect(
+      shouldDestroyClientOnError(
+        Object.assign(new Error("conn lost"), { code: "08006" })
+      )
     ).toBe(true);
-    expect(shouldDestroyClientOnError(new Error("Connection terminated unexpectedly"))).toBe(true);
+    expect(
+      shouldDestroyClientOnError(
+        Object.assign(new Error("admin shutdown"), { code: "57P01" })
+      )
+    ).toBe(true);
+    expect(
+      shouldDestroyClientOnError(
+        Object.assign(new Error("socket reset"), { code: "ECONNRESET" })
+      )
+    ).toBe(true);
+    expect(
+      shouldDestroyClientOnError(new Error("Connection terminated unexpectedly"))
+    ).toBe(true);
   });
 });

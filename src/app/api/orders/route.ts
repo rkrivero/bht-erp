@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAuthenticatedERPActor, requireActiveSession } from "@/lib/auth";
 import { withClient, withTransaction } from "@/lib/db";
+import { resolveHttpError } from "@/lib/http-errors";
 import { runIdempotentMutation } from "@/lib/idempotency";
 import { assertRole } from "@/lib/rbac";
 import {
@@ -12,7 +13,7 @@ import {
   listOrdersPaginatedForRole,
   updateOrder,
 } from "@/lib/services/orders";
-import { parsePositiveInt, resolveHttpError, ValidationError } from "@/lib/types";
+import { parsePositiveInt, ValidationError } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
@@ -118,8 +119,12 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json(data, { headers: NO_STORE_HEADERS });
   } catch (err) {
-    const { status, error } = resolveHttpError(err, "Error cargando pedidos");
-    return NextResponse.json({ error }, { status, headers: NO_STORE_HEADERS });
+    const { status, ...payload } = resolveHttpError(
+      err,
+      "Error cargando pedidos",
+      "GET /api/orders"
+    );
+    return NextResponse.json(payload, { status, headers: NO_STORE_HEADERS });
   }
 }
 
@@ -237,13 +242,11 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json(result, { headers: NO_STORE_HEADERS });
   } catch (err) {
-    const { status, error, code, entityRef } = resolveHttpError(
+    const { status, ...payload } = resolveHttpError(
       err,
-      "Error procesando pedido"
+      "Error procesando pedido",
+      "POST /api/orders"
     );
-    return NextResponse.json(
-      { error, ...(code ? { code } : {}), ...(entityRef ? { entityRef } : {}) },
-      { status, headers: NO_STORE_HEADERS }
-    );
+    return NextResponse.json(payload, { status, headers: NO_STORE_HEADERS });
   }
 }

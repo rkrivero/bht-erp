@@ -1,155 +1,114 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import crypto from "crypto";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
-  checkAuthRateLimit,
-  clearAuthFailures,
-  computeSessionVersion,
-  hashPin,
-  hashPinLegacySha256,
-  recordAuthFailure,
-  resetAuthRateLimitStore,
-  signSessionToken,
-  verifyPin,
-  verifySessionToken,
-  validatePersonalPassword,
-} from "../src/lib/auth";
+  signTestSessionToken,
+  verifyTestSessionToken,
+} from "../src/lib/auth/test-session";
+import { normalizeDatabaseUrl } from "../src/lib/db";
+import { resolveHttpError } from "../src/lib/http-errors";
 import type { SessionUser } from "../src/lib/types";
+import { AuthorizationError, ConflictError, ValidationError } from "../src/lib/types";
 
-describe("Auth Hardening (scrypt PINs, Session TTL, Rate Limiter, Production Secret)", () => {
+describe("Server Error, Transport & Test-session Hardening", () => {
   const prevNodeEnv = process.env.NODE_ENV;
-  const prevSecret = process.env.BHT_SESSION_SECRET;
-
-  beforeEach(() => {
-    resetAuthRateLimitStore();
-  });
 
   afterEach(() => {
-    resetAuthRateLimitStore();
     vi.unstubAllEnvs();
-    if (prevSecret === undefined) {
-      delete process.env.BHT_SESSION_SECRET;
-    } else {
-      process.env.BHT_SESSION_SECRET = prevSecret;
-    }
     if (prevNodeEnv !== undefined) {
       vi.stubEnv("NODE_ENV", prevNodeEnv);
     }
+    vi.restoreAllMocks();
   });
 
-  it("hashes PINs with random scrypt salts while staying compatible with legacy SHA-256 hashes", () => {
-    const h1 = hashPin("1234");
-    const h2 = hashPin("1234");
-    expect(h1).toMatch(/^scrypt\$[a-f0-9]{32}\$[a-f0-9]{64}$/);
-    expect(h2).toMatch(/^scrypt\$[a-f0-9]{32}\$[a-f0-9]{64}$/);
-    expect(h1).not.toBe(h2);
-    expect(verifyPin("1234", h1)).toBe(true);
-    expect(verifyPin("9999", h1)).toBe(false);
-
-    const legacy = hashPinLegacySha256("5678");
-    expect(verifyPin("5678", legacy)).toBe(true);
-    expect(verifyPin("5679", legacy)).toBe(false);
-    expect(verifyPin("1234", "invalid-format")).toBe(false);
-    expect(verifyPin("1234", "")).toBe(false);
-  });
-
-  it("requires a usable personal password with a letter and number", () => {
-    expect(validatePersonalPassword("corta1")).toMatch(/10/);
-    expect(validatePersonalPassword("solamentetexto")).toMatch(/letra y un número/);
-    expect(validatePersonalPassword("12345678901")).toMatch(/letra y un número/);
-    expect(validatePersonalPassword("Horizonte2026")).toBeNull();
-  });
-
-  it("rejects expired session tokens and invalidates sessionVersion when PIN or role changes", () => {
+  it("signs test fixtures, rejects tampering, and rejects expiration", () => {
     const baseUser: SessionUser = {
       userId: 10,
       username: "socio_test",
       fullName: "Socio Test",
       role: "PARTNER_ADMIN",
       defaultCashAccountId: 1,
-      sessionVersion: computeSessionVersion(hashPin("1111"), "PARTNER_ADMIN"),
     };
 
-    const validToken = signSessionToken(baseUser, 600);
-    const verified = verifySessionToken(validToken);
+    const validToken = signTestSessionToken(baseUser, 600);
+    const verified = verifyTestSessionToken(validToken);
     expect(verified).not.toBeNull();
     expect(verified?.userId).toBe(10);
-    expect(verified?.sessionVersion).toBe(baseUser.sessionVersion);
+    expect(verifyTestSessionToken(`${validToken}tampered`)).toBeNull();
 
-    // Already-expired token (exp in past) must be rejected
-    const expiredToken = signSessionToken({
+    const expiredToken = signTestSessionToken({
       ...baseUser,
       exp: Math.floor(Date.now() / 1000) - 5,
     });
-    expect(verifySessionToken(expiredToken)).toBeNull();
-
-    // Tampered payload rejected
-    const [, sig] = validToken.split(".");
-    const fakePayload = Buffer.from(
-      JSON.stringify({ ...baseUser, role: "PARTNER_MANAGER", exp: 9999999999 }),
-      "utf8"
-    ).toString("base64url");
-    expect(verifySessionToken(`${fakePayload}.${sig}`)).toBeNull();
-
-    // Session version changes when PIN hash or role changes
-    const svPin1 = computeSessionVersion("hashA", "EXTERNAL_SELLER");
-    const svPin2 = computeSessionVersion("hashB", "EXTERNAL_SELLER");
-    const svRole = computeSessionVersion("hashA", "PARTNER_ADMIN");
-    expect(svPin1).not.toBe(svPin2);
-    expect(svPin1).not.toBe(svRole);
+    expect(verifyTestSessionToken(expiredToken)).toBeNull();
   });
 
-  it("requires >=16 char BHT_SESSION_SECRET in production", () => {
+  it("does not make test-session helpers usable in production", () => {
     vi.stubEnv("NODE_ENV", "production");
-    delete process.env.BHT_SESSION_SECRET;
-
-    const user: SessionUser = {
-      userId: 1,
-      username: "admin",
-      fullName: "Admin",
-      role: "PARTNER_ADMIN",
-      defaultCashAccountId: 1,
-    };
-
-    expect(() => signSessionToken(user)).toThrow(
-      /BHT_SESSION_SECRET environment variable is required in production/
+    expect(() =>
+      signTestSessionToken({
+        userId: 1,
+        username: "fixture",
+        fullName: "Fixture",
+        role: "PARTNER_ADMIN",
+        defaultCashAccountId: null,
+      })
+    ).toThrow(/unavailable outside the test runtime/);
+    expect(() => verifyTestSessionToken("fixture.token")).toThrow(
+      /unavailable outside the test runtime/
     );
-
-    process.env.BHT_SESSION_SECRET = "too-short";
-    expect(() => signSessionToken(user)).toThrow(/at least 16 characters/);
-
-    process.env.BHT_SESSION_SECRET = crypto.randomBytes(24).toString("hex");
-    const tok = signSessionToken(user);
-    expect(verifySessionToken(tok)?.username).toBe("admin");
   });
 
-  it("enforces sliding-window per-user+IP and per-IP brute-force rate limits and resets after window/clear", () => {
-    const t0 = 1_700_000_000_000;
-    for (let i = 0; i < 8; i++) {
-      expect(checkAuthRateLimit("10.0.0.5", "renzo", t0 + i * 1000).allowed).toBe(true);
-      recordAuthFailure("10.0.0.5", "renzo", t0 + i * 1000);
-    }
-    const blockedUser = checkAuthRateLimit("10.0.0.5", "renzo", t0 + 10_000);
-    expect(blockedUser.allowed).toBe(false);
-    expect(blockedUser.retryAfterSec).toBeGreaterThan(0);
+  it("sanitizes unexpected errors and emits a traceable errorId", () => {
+    const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const result = resolveHttpError(
+      new Error("postgres password is secret-123"),
+      "No se pudo completar la operación",
+      "unit-test"
+    );
+    expect(result.status).toBe(500);
+    expect(result.error).toBe("No se pudo completar la operación");
+    expect(result.error).not.toContain("secret-123");
+    expect(result.errorId).toMatch(/^[0-9a-f-]{36}$/i);
+    expect(consoleSpy).toHaveBeenCalledWith(
+      expect.stringContaining(result.errorId!),
+      expect.any(Error)
+    );
+  });
 
-    // Different username from same IP stays allowed until IP cap (25)
-    expect(checkAuthRateLimit("10.0.0.5", "almacen", t0 + 10_000).allowed).toBe(true);
-
-    // Clear per-user lock works
-    clearAuthFailures("10.0.0.5", "renzo");
-    expect(checkAuthRateLimit("10.0.0.5", "renzo", t0 + 11_000).allowed).toBe(true);
-
-    // Per-IP cap across 25 failures blocks all usernames on that IP
-    for (let i = 0; i < 18; i++) {
-      recordAuthFailure("10.0.0.5", `user_${i}`, t0 + 20_000 + i * 100);
-    }
-    const blockedIp = checkAuthRateLimit("10.0.0.5", "other_user", t0 + 25_000);
-    expect(blockedIp.allowed).toBe(false);
-
-    // After 15 minutes window passes, entries prune cleanly
+  it("preserves known domain status codes and messages", () => {
+    expect(resolveHttpError(new ValidationError("Dato inválido"), "fallback")).toEqual({
+      status: 400,
+      error: "Dato inválido",
+    });
+    expect(resolveHttpError(new AuthorizationError("Sin permiso"), "fallback")).toEqual(
+      {
+        status: 403,
+        error: "Sin permiso",
+      }
+    );
     expect(
-      checkAuthRateLimit("10.0.0.5", "other_user", t0 + 16 * 60 * 1000).allowed
-    ).toBe(true);
+      resolveHttpError(new ConflictError("Conflicto"), "fallback")
+    ).toEqual(
+      expect.objectContaining({
+        status: 409,
+        error: "Conflicto",
+      })
+    );
+  });
+
+  it("upgrades Neon connections to verify-full", () => {
+    expect(
+      normalizeDatabaseUrl(
+        "postgresql://user:pass@ep-example.us-east-2.aws.neon.tech/db?sslmode=require"
+      )
+    ).toBe(
+      "postgresql://user:pass@ep-example.us-east-2.aws.neon.tech/db?sslmode=verify-full"
+    );
+  });
+
+  it("leaves local and malformed database URLs untouched", () => {
+    const local = "postgresql://postgres:postgres@127.0.0.1:5432/bht?sslmode=disable";
+    expect(normalizeDatabaseUrl(local)).toBe(local);
+    expect(normalizeDatabaseUrl("not-a-url")).toBe("not-a-url");
   });
 });
 
@@ -171,10 +130,13 @@ describe("useLiveSync Hook Unit Tests (heartbeat, failed refresh retry, Broadcas
       useState: (init: unknown) => {
         const idx = stateIdx++;
         if (stateSlotsNotInitialized(idx)) {
-          stateValues[idx] = typeof init === "function" ? (init as () => unknown)() : init;
+          stateValues[idx] =
+            typeof init === "function" ? (init as () => unknown)() : init;
           stateSetters[idx] = (next: unknown) => {
             stateValues[idx] =
-              typeof next === "function" ? (next as (prev: unknown) => unknown)(stateValues[idx]) : next;
+              typeof next === "function"
+                ? (next as (prev: unknown) => unknown)(stateValues[idx])
+                : next;
           };
         }
         return [stateValues[idx], stateSetters[idx]];

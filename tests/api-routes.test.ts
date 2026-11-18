@@ -1,6 +1,6 @@
 import { beforeAll, describe, expect, it } from "vitest";
 import { NextRequest } from "next/server";
-import { signSessionToken } from "../src/lib/auth";
+import { signTestSessionToken } from "../src/lib/auth/test-session";
 import { getPool, resolveDatabaseUrl } from "../src/lib/db";
 import { GET as getOrders } from "../src/app/api/orders/route";
 import { GET as getCollections } from "../src/app/api/collections/route";
@@ -19,7 +19,7 @@ beforeAll(() => {
   process.env.BHT_DB_BRANCH = "dev";
 });
 
-const sellerToken = signSessionToken({
+const sellerToken = signTestSessionToken({
   userId: 3,
   username: "vendedor1",
   fullName: "Vendedor Externo Ruta",
@@ -27,7 +27,7 @@ const sellerToken = signSessionToken({
   defaultCashAccountId: 1,
 });
 
-const partnerAdminToken = signSessionToken({
+const partnerAdminToken = signTestSessionToken({
   userId: 1,
   username: "socio_admin",
   fullName: "Socio Operativo y Admin",
@@ -35,7 +35,7 @@ const partnerAdminToken = signSessionToken({
   defaultCashAccountId: 1,
 });
 
-const partnerManagerToken = signSessionToken({
+const partnerManagerToken = signTestSessionToken({
   userId: 2,
   username: "socio_gerente",
   fullName: "Socio Gerente",
@@ -43,7 +43,7 @@ const partnerManagerToken = signSessionToken({
   defaultCashAccountId: 1,
 });
 
-const whToken = signSessionToken({
+const whToken = signTestSessionToken({
   userId: 4,
   username: "almacen1",
   fullName: "Encargado de Almacén",
@@ -393,8 +393,7 @@ describe("API Route Role Enforcement, DB Branch Isolation & Endpoint Contracts",
 
     const { vi } = await import("vitest");
     const dbMod = await import("../src/lib/db");
-    const authMod = await import("../src/lib/auth");
-    const { resolveHttpError } = await import("../src/lib/types");
+    const { resolveHttpError } = await import("../src/lib/http-errors");
     const ordersRoute = await import("../src/app/api/orders/route");
     const collectionsRoute = await import("../src/app/api/collections/route");
     const treasuryRoute = await import("../src/app/api/treasury/route");
@@ -504,14 +503,13 @@ describe("API Route Role Enforcement, DB Branch Isolation & Endpoint Contracts",
           | "EXTERNAL_SELLER"
           | "WAREHOUSE_DELIVERY";
         default_cash_account_id: number | null;
-        pin_hash: string;
       }>(
-        `SELECT user_id, username, full_name, role::text AS role, default_cash_account_id, pin_hash
+        `SELECT user_id, username, full_name, role::text AS role, default_cash_account_id
          FROM erp.app_users WHERE user_id IN (1, 2, 3, 4)`
       );
       const tokenFor = (uid: number) => {
         const u = usersRes.rows.find((r) => Number(r.user_id) === uid)!;
-        return authMod.signSessionToken({
+        return signTestSessionToken({
           userId: Number(u.user_id),
           username: String(u.username),
           fullName: String(u.full_name),
@@ -520,7 +518,6 @@ describe("API Route Role Enforcement, DB Branch Isolation & Endpoint Contracts",
             u.default_cash_account_id !== null
               ? Number(u.default_cash_account_id)
               : null,
-          sessionVersion: authMod.computeSessionVersion(String(u.pin_hash), u.role),
         });
       };
       const adminTok = tokenFor(1);
@@ -1095,7 +1092,6 @@ describe("API Route Role Enforcement, DB Branch Isolation & Endpoint Contracts",
       }
       expect(resolveHttpError(pgCheckCaught, "fallback").status).toBe(400);
     } finally {
-      authMod.resetAuthRateLimitStore();
       spyTx.mockRestore();
       spyClient.mockRestore();
       await client.query("ROLLBACK").catch(() => {});

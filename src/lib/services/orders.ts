@@ -16,6 +16,17 @@ import {
   type SessionUser,
 } from "../types";
 
+const SALES_ORDER_COLUMNS = `
+  order_id, order_code, order_date, trip_id, warehouse_id,
+  customer_party_id, customer_name_raw, quote_id, payment_mode,
+  historical_status_assumed, payment_status_raw, doc_ref, total_pen,
+  paid_pen, balance_due_pen, is_settled, due_date, source_origin,
+  source_file, source_sheet, source_row_num, source_row_hash, notes,
+  created_at, operational_status, created_by_user_id, approved_by_user_id,
+  approved_at, picked_by_user_id, picked_at, delivered_by_user_id,
+  delivered_at, stock_deducted, promised_payment_date, updated_at,
+  ops_seq, fin_seq`;
+
 export interface CreateOrderInput {
   customerPartyId?: number | null;
   customerNameRaw: string;
@@ -528,7 +539,7 @@ export async function approveDiscountedOrder(
   assertRole(actor, ["PARTNER_ADMIN", "PARTNER_MANAGER"]);
 
   const res = await client.query(
-    `SELECT *, operational_status::text AS status
+    `SELECT ${SALES_ORDER_COLUMNS}, operational_status::text AS status
      FROM erp.sales_orders
      WHERE order_id = $1
      FOR UPDATE`,
@@ -793,7 +804,7 @@ export async function updateOrder(
   }
 
   const orderRes = await client.query(
-    `SELECT *, operational_status::text AS status
+    `SELECT ${SALES_ORDER_COLUMNS}, operational_status::text AS status
      FROM erp.sales_orders
      WHERE order_id = $1
      FOR UPDATE`,
@@ -1008,7 +1019,8 @@ export async function updateOrder(
     [orderId, order.status, nextStatus, actor.userId, `Modificación: ${reason}`]
   );
   const afterOrder = await client.query(
-    `SELECT * FROM erp.sales_orders WHERE order_id = $1`,
+    `SELECT ${SALES_ORDER_COLUMNS}
+     FROM erp.sales_orders WHERE order_id = $1`,
     [orderId]
   );
   const afterLines = await client.query(
@@ -1049,7 +1061,7 @@ export async function cancelOrder(
   assertRole(actor, ["PARTNER_ADMIN", "PARTNER_MANAGER"]);
 
   const res = await client.query(
-    `SELECT *, operational_status::text AS status
+    `SELECT ${SALES_ORDER_COLUMNS}, operational_status::text AS status
      FROM erp.sales_orders
      WHERE order_id = $1
      FOR UPDATE`,
@@ -1218,7 +1230,8 @@ export async function cancelOrder(
   );
 
   const afterOrder = await client.query(
-    `SELECT * FROM erp.sales_orders WHERE order_id = $1`,
+    `SELECT ${SALES_ORDER_COLUMNS}
+     FROM erp.sales_orders WHERE order_id = $1`,
     [orderId]
   );
   const afterLines = await client.query(

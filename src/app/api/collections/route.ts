@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAuthenticatedERPActor, requireActiveSession } from "@/lib/auth";
 import { withClient, withTransaction } from "@/lib/db";
+import { resolveHttpError } from "@/lib/http-errors";
 import { runIdempotentMutation } from "@/lib/idempotency";
 import { assertRole } from "@/lib/rbac";
 import {
@@ -9,7 +10,7 @@ import {
   registerCustomerFifoPayment,
   registerOrderPayment,
 } from "@/lib/services/collections-and-treasury";
-import { parsePositiveInt, resolveHttpError } from "@/lib/types";
+import { parsePositiveInt } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
@@ -40,8 +41,12 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json(data, { headers: NO_STORE_HEADERS });
   } catch (err) {
-    const { status, error } = resolveHttpError(err, "Error en cobranzas");
-    return NextResponse.json({ error }, { status, headers: NO_STORE_HEADERS });
+    const { status, ...payload } = resolveHttpError(
+      err,
+      "Error en cobranzas",
+      "GET /api/collections"
+    );
+    return NextResponse.json(payload, { status, headers: NO_STORE_HEADERS });
   }
 }
 
@@ -107,13 +112,11 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json(result, { headers: NO_STORE_HEADERS });
   } catch (err) {
-    const { status, error, code, entityRef } = resolveHttpError(
+    const { status, ...payload } = resolveHttpError(
       err,
-      "Error registrando abono"
+      "Error registrando abono",
+      "POST /api/collections"
     );
-    return NextResponse.json(
-      { error, ...(code ? { code } : {}), ...(entityRef ? { entityRef } : {}) },
-      { status, headers: NO_STORE_HEADERS }
-    );
+    return NextResponse.json(payload, { status, headers: NO_STORE_HEADERS });
   }
 }

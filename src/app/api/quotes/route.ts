@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAuthenticatedERPActor, requireActiveSession } from "@/lib/auth";
 import { withClient, withTransaction } from "@/lib/db";
+import { resolveHttpError } from "@/lib/http-errors";
 import { assertRole } from "@/lib/rbac";
 import {
   convertQuoteToOrder,
@@ -8,7 +9,7 @@ import {
   listQuotes,
   updateQuoteStatus,
 } from "@/lib/services/operations-and-modules";
-import { resolveHttpError, ValidationError } from "@/lib/types";
+import { ValidationError } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
@@ -36,8 +37,12 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json(data, { headers: NO_STORE_HEADERS });
   } catch (err) {
-    const { status, error } = resolveHttpError(err, "Error cargando cotizaciones");
-    return NextResponse.json({ error }, { status, headers: NO_STORE_HEADERS });
+    const { status, ...payload } = resolveHttpError(
+      err,
+      "Error cargando cotizaciones",
+      "GET /api/quotes"
+    );
+    return NextResponse.json(payload, { status, headers: NO_STORE_HEADERS });
   }
 }
 
@@ -107,7 +112,11 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json(result, { headers: NO_STORE_HEADERS });
   } catch (err) {
-    const { status, error } = resolveHttpError(err, "Error procesando cotización");
-    return NextResponse.json({ error }, { status, headers: NO_STORE_HEADERS });
+    const { status, ...payload } = resolveHttpError(
+      err,
+      "Error procesando cotización",
+      "POST /api/quotes"
+    );
+    return NextResponse.json(payload, { status, headers: NO_STORE_HEADERS });
   }
 }
