@@ -65,4 +65,12 @@ describe("navigation aliases", () => {
       resolvePartnerNavigation(new URLSearchParams({ tab: "accesos" })).section
     ).toBe("access");
   });
+
+  it("resolves the partner directory section", () => {
+    const result = resolvePartnerNavigation(new URLSearchParams({ tab: "directory" }));
+    expect(result.legacyTab).toBe("directorio");
+    expect(
+      resolvePartnerNavigation(new URLSearchParams({ tab: "directorio" })).section
+    ).toBe("directory");
+  });
 });

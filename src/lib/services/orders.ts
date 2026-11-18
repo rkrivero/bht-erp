@@ -1305,6 +1305,13 @@ export async function listOrdersPaginatedForRole(
        so.order_date::text AS order_date,
        so.customer_party_id,
        COALESCE(pa.trade_name, pa.legal_name, so.customer_name_raw, 'CLIENTE') AS customer_name,
+       pa.legal_name AS customer_legal_name,
+       pa.trade_name AS customer_trade_name,
+       pa.city_zone AS customer_zone,
+       pa.address AS customer_address,
+       pa.phone AS customer_phone,
+       pa.geo_lat AS customer_geo_lat,
+       pa.geo_lng AS customer_geo_lng,
        so.operational_status::text AS operational_status,
        so.trip_id,
        rt.trip_code,
@@ -1437,6 +1444,19 @@ export async function listOrdersPaginatedForRole(
       customer_party_id:
         row.customer_party_id !== null ? Number(row.customer_party_id) : null,
       customer_name: String(row.customer_name),
+      customer_legal_name: row.customer_legal_name ?? null,
+      customer_trade_name: row.customer_trade_name ?? null,
+      customer_zone: row.customer_zone ?? null,
+      customer_address: row.customer_address ?? null,
+      customer_phone: row.customer_phone ?? null,
+      customer_geo_lat:
+        row.customer_geo_lat !== null && row.customer_geo_lat !== undefined
+          ? Number(row.customer_geo_lat)
+          : null,
+      customer_geo_lng:
+        row.customer_geo_lng !== null && row.customer_geo_lng !== undefined
+          ? Number(row.customer_geo_lng)
+          : null,
       operational_status: row.operational_status,
       trip_id:
         row.trip_id !== null && row.trip_id !== undefined ? Number(row.trip_id) : null,

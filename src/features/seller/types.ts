@@ -8,9 +8,20 @@ export type SellerOrderStep = "client" | "products" | "payment" | "confirmation"
 export interface SellerCustomerDto {
   party_id: number;
   name: string;
+  legal_name?: string | null;
+  trade_name?: string | null;
+  doc_type?: string | null;
   doc_number?: string | null;
+  is_generic_doc?: boolean;
   phone?: string | null;
+  email?: string | null;
   address?: string | null;
+  city_zone?: string | null;
+  notes?: string | null;
+  geo_lat?: number | null;
+  geo_lng?: number | null;
+  has_orders?: boolean;
+  aliases?: string[];
 }
 
 export interface SellerCatalogItemDto {

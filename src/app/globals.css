@@ -299,3 +299,42 @@
 :root {
   --glow-cobalt: rgba(7, 94, 232, 0.07);
 }
+
+.bht-map-container {
+  position: relative;
+  z-index: 0;
+}
+
+.bht-map-container .leaflet-pane,
+.bht-map-container .leaflet-top,
+.bht-map-container .leaflet-bottom {
+  z-index: 1;
+}
+
+.bht-map-pin-wrap {
+  background: transparent;
+  border: 0;
+}
+
+.bht-map-pin {
+  display: block;
+  width: 22px;
+  height: 22px;
+  border-radius: 9999px;
+  background: var(--bht-cobalt);
+  border: 3px solid var(--bg-surface);
+  box-shadow: var(--shadow-bht-elev-11);
+}
+
+.bht-map-pin--debt {
+  background: var(--color-bht-danger);
+}
+
+.bht-map-pin--inactive {
+  background: var(--ink-muted);
+}
+
+.bht-map-pin--selected {
+  transform: scale(1.2);
+  box-shadow: var(--shadow-bht-elev-12);
+}

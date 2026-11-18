@@ -28,6 +28,7 @@ import type {
   SellerQuoteCreatePayload,
   SellerQuoteCreateResultDto,
 } from "@/features/seller/types";
+import type { CustomerDirectoryItem } from "@/lib/services/customers";
 import type { LegacySellerTab } from "@/lib/navigation";
 import {
   CANCEL_DRAFT_REASONS,
@@ -35,6 +36,11 @@ import {
   SELLER_DRAFT_ACTOR_STORAGE_KEY,
   SELLER_DRAFT_STORAGE_KEY,
   apiErrorMessage,
+  buildNormalizedCatalog,
+  directoryItemToSellerCustomer,
+  extractKnownZones,
+  filterCatalogProducts,
+  filterSellerCustomers,
   isAuthError,
   isFractionalUom,
   normalizeOrderQuantity,
@@ -186,17 +192,42 @@ export function useSellerOrderFlow({
   // a final price is below cost and therefore needs approval.
   const requiresPartnerApproval = false;
 
-  const filteredCustomerSuggestions = useMemo(() => {
-    const q = normalizeSearchText(deferredCustomerQuery);
-    if (!q) return customers.slice(0, 8);
-    const tokens = q.split(/\s+/).filter(Boolean);
-    return customers
-      .filter((c) => {
-        const haystack = normalizeSearchText(`${c.name} ${c.doc_number ?? ""}`);
-        return tokens.every((tok) => haystack.includes(tok));
-      })
-      .slice(0, 8);
-  }, [customers, deferredCustomerQuery]);
+  const filteredCustomerSuggestions = useMemo(
+    () => filterSellerCustomers(customers, deferredCustomerQuery, 8),
+    [customers, deferredCustomerQuery]
+  );
+
+  const knownZones = useMemo(() => extractKnownZones(customers), [customers]);
+
+  const handleCustomerSaved = useCallback(
+    (saved: CustomerDirectoryItem, mode: "create" | "edit") => {
+      const dto = directoryItemToSellerCustomer(saved);
+      data.upsertCustomer(dto);
+      setSelectedCustomer(dto);
+      setCustomerNameRaw(dto.name);
+      setCustomerDropdownOpen(false);
+      if (dto.address?.trim() && !notes.trim()) {
+        setNotes(dto.address.trim());
+      }
+      setFeedback({
+        type: "ok",
+        msg:
+          mode === "create"
+            ? `Cliente "${dto.name}" creado y seleccionado.`
+            : `Datos de "${dto.name}" actualizados.`,
+      });
+      void loadOrdersAndCatalog({ silent: true });
+    },
+    [
+      data,
+      loadOrdersAndCatalog,
+      notes,
+      setCustomerNameRaw,
+      setFeedback,
+      setNotes,
+      setSelectedCustomer,
+    ]
+  );
 
   useEffect(() => {
     function handleOutsideClick(e: MouseEvent) {
@@ -502,44 +533,12 @@ export function useSellerOrderFlow({
     }
   }
 
-  const normalizedCatalog = useMemo(
-    () =>
-      catalog.map((item) => ({
-        item,
-        normName: normalizeSearchText(item.name),
-        normSku: normalizeSearchText(item.sku),
-        searchText: normalizeSearchText(`${item.name} ${item.sku}`),
-      })),
-    [catalog]
-  );
+  const normalizedCatalog = useMemo(() => buildNormalizedCatalog(catalog), [catalog]);
 
-  const filteredCatalog = useMemo(() => {
-    const query = normalizeSearchText(deferredSearchProduct);
-    if (!query) {
-      return [...catalog].sort((a, b) => {
-        const aInStock = a.stock_on_hand > 0 ? 0 : 1;
-        const bInStock = b.stock_on_hand > 0 ? 0 : 1;
-        if (aInStock !== bInStock) return aInStock - bInStock;
-        return a.name.localeCompare(b.name, "es");
-      });
-    }
-    const tokens = query.split(/\s+/).filter(Boolean);
-    const scored: Array<{ item: SellerCatalogItemDto; score: number }> = [];
-    for (const entry of normalizedCatalog) {
-      if (!tokens.every((tok) => entry.searchText.includes(tok))) continue;
-      let score = 0;
-      if (entry.normSku === query) score += 100;
-      else if (entry.normSku.startsWith(query)) score += 60;
-      if (entry.normName.startsWith(query)) score += 50;
-      else if (entry.normName.includes(query)) score += 25;
-      if (entry.item.stock_on_hand > 0) score += 15;
-      scored.push({ item: entry.item, score });
-    }
-    scored.sort(
-      (a, b) => b.score - a.score || a.item.name.localeCompare(b.item.name, "es")
-    );
-    return scored.map((s) => s.item);
-  }, [catalog, deferredSearchProduct, normalizedCatalog]);
+  const filteredCatalog = useMemo(
+    () => filterCatalogProducts(catalog, normalizedCatalog, deferredSearchProduct),
+    [catalog, deferredSearchProduct, normalizedCatalog]
+  );
 
   const catalogPreviewLimit = normalizeSearchText(deferredSearchProduct) ? 24 : 12;
   const visibleCatalog = useMemo(() => {
@@ -670,6 +669,8 @@ export function useSellerOrderFlow({
     cartQtyByProductId,
     cartTotalPen,
     filteredCustomerSuggestions,
+    knownZones,
+    actorRole: currentUser?.role || "EXTERNAL_SELLER",
     filteredCatalog,
     catalogPreviewLimit,
     visibleCatalog,
@@ -678,6 +679,7 @@ export function useSellerOrderFlow({
     openOrderStep,
     addToCart,
     handleSelectCustomer,
+    handleCustomerSaved,
     handleSelectPaymentMode,
     resetOrderDraft,
     beginEditingOrder,

@@ -1,8 +1,15 @@
 "use client";
 
-import { CheckIcon, PackageIcon } from "@/components/ui/Icons";
+import {
+  CheckIcon,
+  MapPinIcon,
+  NavigationIcon,
+  PackageIcon,
+  PhoneIcon,
+} from "@/components/ui/Icons";
 import { Badge, Button, Card, INPUT_CLASS } from "@/components/ui/Primitives";
 import type { WarehouseOrderDto, WarehouseTripDto } from "@/lib/contracts";
+import { buildGoogleMapsUrl } from "@/lib/geo";
 import type { CheckedLines, NextOrderStatus } from "./types";
 import { toWarehouseStage } from "./warehouse-utils";
 
@@ -10,6 +17,7 @@ interface WarehouseOrderCardProps {
   order: WarehouseOrderDto;
   checkedLines: CheckedLines;
   isBusy: boolean;
+  isPinningGeo: boolean;
   openTrips: WarehouseTripDto[];
   selectedTripId: string | undefined;
   onSelectTrip: (orderId: number, tripId: string) => void;
@@ -17,6 +25,7 @@ interface WarehouseOrderCardProps {
   onAdvance: (orderId: number, nextStatus: NextOrderStatus) => void;
   onDispatch: (order: WarehouseOrderDto) => void;
   onRequestDeliver: (order: WarehouseOrderDto) => void;
+  onPinCustomerGps: (order: WarehouseOrderDto) => void;
   onOpenNewTrip: () => void;
 }
 
@@ -24,6 +33,7 @@ export function WarehouseOrderCard({
   order,
   checkedLines,
   isBusy,
+  isPinningGeo,
   openTrips,
   selectedTripId,
   onSelectTrip,
@@ -31,6 +41,7 @@ export function WarehouseOrderCard({
   onAdvance,
   onDispatch,
   onRequestDeliver,
+  onPinCustomerGps,
   onOpenNewTrip,
 }: WarehouseOrderCardProps) {
   const checkedCount = order.lines.filter((l) => checkedLines[l.order_line_id]).length;
@@ -66,6 +77,61 @@ export function WarehouseOrderCard({
           <h2 className="mt-0.5 text-base font-semibold text-bht-ink-strong">
             {order.customer_name}
           </h2>
+          {(order.customer_zone ||
+            order.customer_address ||
+            order.customer_phone ||
+            order.customer_party_id) && (
+            <div className="mt-1.5 flex flex-wrap items-center gap-2 text-xs text-bht-ink-soft">
+              {order.customer_zone && (
+                <Badge tone="horizon">{order.customer_zone}</Badge>
+              )}
+              {order.customer_address && (
+                <span className="truncate max-w-full text-bht-ink-warm">
+                  {order.customer_address}
+                </span>
+              )}
+              {order.customer_phone && (
+                <a
+                  href={`tel:${order.customer_phone}`}
+                  className="inline-flex items-center gap-1 font-medium text-bht-cobalt hover:underline"
+                >
+                  <PhoneIcon className="h-3 w-3" />
+                  {order.customer_phone}
+                </a>
+              )}
+              {order.customer_geo_lat != null && order.customer_geo_lng != null && (
+                <a
+                  href={buildGoogleMapsUrl(
+                    order.customer_geo_lat,
+                    order.customer_geo_lng
+                  )}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 rounded-lg border border-bht-slate-line bg-bht-surface-cool px-2 py-0.5 text-[11px] font-semibold text-bht-cobalt hover:bg-bht-cobalt-bg"
+                >
+                  <NavigationIcon className="h-3 w-3" />
+                  Abrir en Maps
+                </a>
+              )}
+              {order.customer_party_id != null && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  compact
+                  disabled={isPinningGeo}
+                  onClick={() => onPinCustomerGps(order)}
+                >
+                  <MapPinIcon className="h-3 w-3" />
+                  {isPinningGeo
+                    ? "Ubicando..."
+                    : order.customer_geo_lat != null
+                      ? "Actualizar GPS"
+                      : "Fijar GPS aquí"}
+                </Button>
+              )}
+            </div>
+          )}
           {order.notes && (
             <p className="mt-1.5 rounded-lg border border-bht-amber-line bg-bht-amber-bg px-2.5 py-1.5 text-xs font-medium text-bht-warning-strong">
               Destino / Nota: {order.notes}

@@ -298,6 +298,7 @@ export default function WarehouseWorkspace() {
                 order={order}
                 checkedLines={checkedLines}
                 isBusy={actions.busyOrderId === order.order_id}
+                isPinningGeo={actions.busyGeoOrderId === order.order_id}
                 openTrips={openTrips}
                 selectedTripId={actions.selectedTripByOrder[order.order_id]}
                 onSelectTrip={(orderId, tripId) =>
@@ -310,6 +311,7 @@ export default function WarehouseWorkspace() {
                 onAdvance={actions.handleAdvance}
                 onDispatch={actions.handleDispatchToRoute}
                 onRequestDeliver={setConfirmDeliverOrder}
+                onPinCustomerGps={actions.handlePinCustomerGps}
                 onOpenNewTrip={() => {
                   actions.setShowNewTrip(true);
                   requestAnimationFrame(() =>

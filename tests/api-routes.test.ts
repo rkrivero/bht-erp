@@ -1128,4 +1128,354 @@ describe("API Route Role Enforcement, DB Branch Isolation & Endpoint Contracts",
       client.release();
     }
   });
+
+  it("supports customer dual-naming search, geolocation, RBAC, and supplier directory", async () => {
+    const { vi } = await import("vitest");
+    const dbMod = await import("../src/lib/db");
+    const customersRoute = await import("../src/app/api/customers/route");
+    const suppliersRoute = await import("../src/app/api/suppliers/route");
+
+    const pool = dbMod.getPool("dev");
+    const client = await pool.connect();
+    let spCounter = 0;
+    const spyClient = vi
+      .spyOn(dbMod, "withClient")
+      .mockImplementation(async (fn) => await fn(client));
+    const spyTx = vi.spyOn(dbMod, "withTransaction").mockImplementation(async (fn) => {
+      const sp = `sp_dir_${++spCounter}`;
+      await client.query(`SAVEPOINT ${sp}`);
+      try {
+        const out = await fn(client);
+        await client.query(`RELEASE SAVEPOINT ${sp}`);
+        return out;
+      } catch (err) {
+        await client.query(`ROLLBACK TO SAVEPOINT ${sp}`);
+        throw err;
+      }
+    });
+
+    try {
+      await client.query("BEGIN");
+
+      const usersRes = await client.query<{
+        user_id: number;
+        username: string;
+        full_name: string;
+        role:
+          | "PARTNER_ADMIN"
+          | "PARTNER_MANAGER"
+          | "EXTERNAL_SELLER"
+          | "WAREHOUSE_DELIVERY";
+        default_cash_account_id: number | null;
+      }>(
+        `SELECT user_id, username, full_name, role::text AS role, default_cash_account_id
+         FROM erp.app_users WHERE user_id IN (1, 3, 4)`
+      );
+      const tokenFor = (uid: number) => {
+        const u = usersRes.rows.find((r) => Number(r.user_id) === uid)!;
+        return signTestSessionToken({
+          userId: Number(u.user_id),
+          username: String(u.username),
+          fullName: String(u.full_name),
+          role: u.role,
+          defaultCashAccountId:
+            u.default_cash_account_id !== null
+              ? Number(u.default_cash_account_id)
+              : null,
+        });
+      };
+      const adminTok = tokenFor(1);
+      const sellerTok = tokenFor(3);
+      const whTok = tokenFor(4);
+
+      // 1. Alias-only customer create by EXTERNAL_SELLER
+      const aliasCreateRes = await customersRoute.POST(
+        new NextRequest("http://localhost:3000/api/customers", {
+          method: "POST",
+          headers: {
+            cookie: `bht_session=${sellerTok}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            tradeName: "Ferretería El Pato Test",
+            cityZone: "laberinto",
+          }),
+        })
+      );
+      expect(aliasCreateRes.status).toBe(201);
+      const aliasJson = await aliasCreateRes.json();
+      expect(aliasJson.customer.trade_name).toBe("FERRETERÍA EL PATO TEST");
+      expect(aliasJson.customer.legal_name).toBe("FERRETERÍA EL PATO TEST");
+      expect(aliasJson.customer.city_zone).toBe("LABERINTO");
+
+      // 2. Dual-name + normalized zone + GPS coordinates
+      const dualCreateRes = await customersRoute.POST(
+        new NextRequest("http://localhost:3000/api/customers", {
+          method: "POST",
+          headers: {
+            cookie: `bht_session=${sellerTok}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            tradeName: "Ferretería Ruta Sur Test",
+            legalName: "Inversiones Águila EIRL Test",
+            docType: "RUC",
+            docNumber: "20554433221",
+            cityZone: "  km   110 ",
+            phone: "982000999",
+            geoLat: -12.7123456,
+            geoLng: -69.5841234,
+            geoAccuracyM: 12.4,
+          }),
+        })
+      );
+      expect(dualCreateRes.status).toBe(201);
+      const dualJson = await dualCreateRes.json();
+      const dualId = dualJson.customer.party_id;
+      expect(dualJson.customer.city_zone).toBe("KM 110");
+      expect(dualJson.customer.geo_lat).toBe(-12.712346);
+      expect(dualJson.customer.geo_lng).toBe(-69.584123);
+      expect(dualJson.customer.geo_accuracy_m).toBe(12);
+      expect(dualJson.customer.geo_updated_at).toBeTruthy();
+
+      // Warehouse cannot create customers or list directory
+      const whCreateRes = await customersRoute.POST(
+        new NextRequest("http://localhost:3000/api/customers", {
+          method: "POST",
+          headers: {
+            cookie: `bht_session=${whTok}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ tradeName: "Bloqueado" }),
+        })
+      );
+      expect(whCreateRes.status).toBe(403);
+
+      const whListRes = await customersRoute.GET(
+        new NextRequest("http://localhost:3000/api/customers", {
+          headers: { cookie: `bht_session=${whTok}` },
+        })
+      );
+      expect(whListRes.status).toBe(403);
+
+      // 3. Accent-insensitive search across alias, legal_name, and zone
+      const byLegal = await customersRoute.GET(
+        new NextRequest("http://localhost:3000/api/customers?q=aguila", {
+          headers: { cookie: `bht_session=${sellerTok}` },
+        })
+      );
+      expect(byLegal.status).toBe(200);
+      const byLegalJson = await byLegal.json();
+      expect(
+        byLegalJson.customers.some((c: { party_id: number }) => c.party_id === dualId)
+      ).toBe(true);
+
+      const byAliasAndZone = await customersRoute.GET(
+        new NextRequest(
+          "http://localhost:3000/api/customers?q=ruta%20sur&zone=KM%20110&hasGeo=WITH_GEO",
+          { headers: { cookie: `bht_session=${sellerTok}` } }
+        )
+      );
+      expect(byAliasAndZone.status).toBe(200);
+      const byAliasJson = await byAliasAndZone.json();
+      expect(
+        byAliasJson.customers.some((c: { party_id: number }) => c.party_id === dualId)
+      ).toBe(true);
+
+      // 4. Attach a real sales_order to dualId and test RBAC PATCH rules
+      await client.query(
+        `INSERT INTO erp.sales_orders (
+           order_code, order_date, warehouse_id, customer_party_id, customer_name_raw,
+           operational_status, payment_mode, total_pen, paid_pen, source_origin
+         ) VALUES (
+           'SO-TEST-DIR-001', CURRENT_DATE,
+           (SELECT warehouse_id FROM erp.warehouses WHERE code = 'MAIN' LIMIT 1),
+           $1, 'FERRETERIA RUTA SUR TEST',
+           'REGISTERED', 'CASH', 100, 100, 'ERP_APP'
+         )`,
+        [dualId]
+      );
+
+      // Seller CAN update field contact/zone/alias/GPS
+      const sellerPatchOk = await customersRoute.PATCH(
+        new NextRequest("http://localhost:3000/api/customers", {
+          method: "PATCH",
+          headers: {
+            cookie: `bht_session=${sellerTok}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            partyId: dualId,
+            phone: "982111333",
+            tradeName: "Ferretería Ruta Sur Renovada",
+          }),
+        })
+      );
+      expect(sellerPatchOk.status).toBe(200);
+      const sellerPatchJson = await sellerPatchOk.json();
+      expect(sellerPatchJson.customer.phone).toBe("982111333");
+      expect(sellerPatchJson.customer.trade_name).toBe("FERRETERÍA RUTA SUR RENOVADA");
+
+      // Seller CANNOT change isActive, legalName (with orders), or genuine RUC (with orders)
+      const sellerForbiddenActive = await customersRoute.PATCH(
+        new NextRequest("http://localhost:3000/api/customers", {
+          method: "PATCH",
+          headers: {
+            cookie: `bht_session=${sellerTok}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ partyId: dualId, isActive: false }),
+        })
+      );
+      expect(sellerForbiddenActive.status).toBe(403);
+
+      const sellerForbiddenLegal = await customersRoute.PATCH(
+        new NextRequest("http://localhost:3000/api/customers", {
+          method: "PATCH",
+          headers: {
+            cookie: `bht_session=${sellerTok}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ partyId: dualId, legalName: "Otro Nombre SAC" }),
+        })
+      );
+      expect(sellerForbiddenLegal.status).toBe(403);
+
+      const sellerForbiddenDoc = await customersRoute.PATCH(
+        new NextRequest("http://localhost:3000/api/customers", {
+          method: "PATCH",
+          headers: {
+            cookie: `bht_session=${sellerTok}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            partyId: dualId,
+            docType: "RUC",
+            docNumber: "20999888777",
+          }),
+        })
+      );
+      expect(sellerForbiddenDoc.status).toBe(403);
+
+      // Warehouse CAN update GPS/notes, CANNOT update phone/cityZone
+      const whGeoOk = await customersRoute.PATCH(
+        new NextRequest("http://localhost:3000/api/customers", {
+          method: "PATCH",
+          headers: {
+            cookie: `bht_session=${whTok}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            partyId: dualId,
+            geoLat: -12.6,
+            geoLng: -69.2,
+            geoAccuracyM: 8,
+            notes: "Frente al grifo Primax",
+          }),
+        })
+      );
+      expect(whGeoOk.status).toBe(200);
+      const whGeoJson = await whGeoOk.json();
+      expect(whGeoJson.customer.geo_lat).toBe(-12.6);
+      expect(whGeoJson.customer.notes).toBe("Frente al grifo Primax");
+
+      const whForbiddenZone = await customersRoute.PATCH(
+        new NextRequest("http://localhost:3000/api/customers", {
+          method: "PATCH",
+          headers: {
+            cookie: `bht_session=${whTok}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ partyId: dualId, cityZone: "OTRA" }),
+        })
+      );
+      expect(whForbiddenZone.status).toBe(403);
+
+      // Partner CAN deactivate and rename
+      const partnerPatchOk = await customersRoute.PATCH(
+        new NextRequest("http://localhost:3000/api/customers", {
+          method: "PATCH",
+          headers: {
+            cookie: `bht_session=${adminTok}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            partyId: dualId,
+            legalName: "INVERSIONES AGUILA RENOVADA SAC",
+            isActive: false,
+          }),
+        })
+      );
+      expect(partnerPatchOk.status).toBe(200);
+      const partnerPatchJson = await partnerPatchOk.json();
+      expect(partnerPatchJson.customer.is_active).toBe(false);
+      expect(partnerPatchJson.customer.legal_name).toBe(
+        "INVERSIONES AGUILA RENOVADA SAC"
+      );
+
+      // 5. Suppliers directory endpoints (/api/suppliers)
+      const sellerSuppForbidden = await suppliersRoute.GET(
+        new NextRequest("http://localhost:3000/api/suppliers", {
+          headers: { cookie: `bht_session=${sellerTok}` },
+        })
+      );
+      expect(sellerSuppForbidden.status).toBe(403);
+
+      const suppCreate = await suppliersRoute.POST(
+        new NextRequest("http://localhost:3000/api/suppliers", {
+          method: "POST",
+          headers: {
+            cookie: `bht_session=${adminTok}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            tradeName: "Proveedor Andino Test",
+            legalName: "Distribuidora Andina SAC Test",
+            docType: "RUC",
+            docNumber: "20441122334",
+            cityZone: "LIMA",
+            phone: "014445555",
+          }),
+        })
+      );
+      expect(suppCreate.status).toBe(201);
+      const suppCreateJson = await suppCreate.json();
+      const suppId = suppCreateJson.supplier.party_id;
+
+      const suppGet = await suppliersRoute.GET(
+        new NextRequest("http://localhost:3000/api/suppliers?q=andino", {
+          headers: { cookie: `bht_session=${adminTok}` },
+        })
+      );
+      expect(suppGet.status).toBe(200);
+      const suppGetJson = await suppGet.json();
+      expect(
+        suppGetJson.suppliers.some((s: { party_id: number }) => s.party_id === suppId)
+      ).toBe(true);
+
+      const suppPatch = await suppliersRoute.PATCH(
+        new NextRequest("http://localhost:3000/api/suppliers", {
+          method: "PATCH",
+          headers: {
+            cookie: `bht_session=${adminTok}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            partyId: suppId,
+            cityZone: "CUSCO",
+            isActive: false,
+          }),
+        })
+      );
+      expect(suppPatch.status).toBe(200);
+      const suppPatchJson = await suppPatch.json();
+      expect(suppPatchJson.supplier.city_zone).toBe("CUSCO");
+      expect(suppPatchJson.supplier.is_active).toBe(false);
+    } finally {
+      spyTx.mockRestore();
+      spyClient.mockRestore();
+      await client.query("ROLLBACK").catch(() => {});
+      client.release();
+    }
+  });
 });

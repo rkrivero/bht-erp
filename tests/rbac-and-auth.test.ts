@@ -34,7 +34,13 @@ describe("RBAC Financial Isolation & Session Signing", () => {
     order_id: 10,
     order_code: "SO-2026-11-14-001",
     order_date: "2026-11-14",
+    customer_party_id: 77,
     customer_name: "FERRETERIA EL SOL",
+    customer_zone: "LABERINTO",
+    customer_address: "AV. INTEROCEANICA S/N",
+    customer_phone: "982000111",
+    customer_geo_lat: -12.7123,
+    customer_geo_lng: -69.5841,
     operational_status: "REGISTERED" as const,
     payment_mode: "CREDIT" as const,
     promised_payment_date: "2026-11-24",
@@ -70,6 +76,10 @@ describe("RBAC Financial Isolation & Session Signing", () => {
     expect(whProd).not.toHaveProperty("ref_cost_pen");
 
     const whOrder = projectOrderForRole(sampleOrder, "WAREHOUSE_DELIVERY");
+    expect(whOrder.customer_party_id).toBe(77);
+    expect(whOrder.customer_zone).toBe("LABERINTO");
+    expect(whOrder.customer_geo_lat).toBe(-12.7123);
+    expect(whOrder.customer_geo_lng).toBe(-69.5841);
     expect(whOrder).not.toHaveProperty("total_pen");
     expect(whOrder).not.toHaveProperty("paid_pen");
     expect(whOrder).not.toHaveProperty("balance_due_pen");

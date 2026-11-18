@@ -142,7 +142,13 @@ export interface WarehouseOrderDto {
   order_id: number;
   order_code: string;
   order_date: string;
+  customer_party_id?: number | null;
   customer_name: string;
+  customer_zone?: string | null;
+  customer_address?: string | null;
+  customer_phone?: string | null;
+  customer_geo_lat?: number | null;
+  customer_geo_lng?: number | null;
   was_modified?: boolean;
   trip_id?: number | null;
   trip_code?: string | null;

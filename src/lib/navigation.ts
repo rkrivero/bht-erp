@@ -1,11 +1,18 @@
 export type SellerSection = "sell" | "sales" | "collections" | "more";
 export type PartnerSection =
-  "today" | "sales" | "collections" | "inventory" | "finance" | "access";
+  "today" | "sales" | "collections" | "inventory" | "directory" | "finance" | "access";
 
 export type LegacySellerTab =
   "nuevo" | "cotizaciones" | "deudores" | "pedidos" | "gastos";
 export type LegacyPartnerTab =
-  "control" | "pedidos" | "deudores" | "stock" | "caja" | "kpis" | "accesos";
+  | "control"
+  | "pedidos"
+  | "deudores"
+  | "stock"
+  | "directorio"
+  | "caja"
+  | "kpis"
+  | "accesos";
 
 export type SellerSubView = "orders" | "quotes" | "expenses";
 export type PartnerSubView = "operations" | "analytics";
@@ -21,6 +28,7 @@ const PARTNER_SECTIONS = new Set<PartnerSection>([
   "sales",
   "collections",
   "inventory",
+  "directory",
   "finance",
   "access",
 ]);
@@ -38,6 +46,7 @@ const PARTNER_ALIASES: Record<LegacyPartnerTab, PartnerSection> = {
   pedidos: "sales",
   deudores: "collections",
   stock: "inventory",
+  directorio: "directory",
   caja: "finance",
   kpis: "finance",
   accesos: "access",
@@ -81,6 +90,7 @@ export function resolvePartnerNavigation(params: URLSearchParams): {
   if (section === "sales") return { section, legacyTab: "pedidos" };
   if (section === "collections") return { section, legacyTab: "deudores" };
   if (section === "inventory") return { section, legacyTab: "stock" };
+  if (section === "directory") return { section, legacyTab: "directorio" };
   if (section === "access") return { section, legacyTab: "accesos" };
   return { section: "today", legacyTab: "control" };
 }

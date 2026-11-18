@@ -4,6 +4,7 @@ import { withClient, withTransaction } from "@/lib/db";
 import { resolveHttpError } from "@/lib/http-errors";
 import { runIdempotentMutation } from "@/lib/idempotency";
 import { assertRole } from "@/lib/rbac";
+import { createCustomer } from "@/lib/services/customers";
 import {
   advanceWarehouseStatus,
   approveDiscountedOrder,
@@ -81,11 +82,33 @@ export async function GET(req: NextRequest) {
            COALESCE((
              SELECT json_agg(t)
              FROM (
-               SELECT party_id, COALESCE(trade_name, legal_name) AS name, doc_number, phone, address
-               FROM erp.parties
-               WHERE party_type IN ('CUSTOMER', 'BOTH') AND is_active = TRUE
-               ORDER BY COALESCE(trade_name, legal_name) ASC
-               LIMIT 250
+               SELECT
+                 pa.party_id,
+                 COALESCE(pa.trade_name, pa.legal_name) AS name,
+                 pa.legal_name,
+                 pa.trade_name,
+                 pa.doc_type::text AS doc_type,
+                 pa.doc_number,
+                 pa.is_generic_doc,
+                 pa.phone,
+                 pa.email,
+                 pa.address,
+                 pa.city_zone,
+                 pa.notes,
+                 pa.geo_lat,
+                 pa.geo_lng,
+                 EXISTS(
+                   SELECT 1 FROM erp.sales_orders so WHERE so.customer_party_id = pa.party_id
+                 ) AS has_orders,
+                 COALESCE((
+                   SELECT array_agg(al.alias_raw ORDER BY al.alias_id)
+                   FROM erp.party_aliases al
+                   WHERE al.party_id = pa.party_id
+                 ), ARRAY[]::text[]) AS aliases
+               FROM erp.parties pa
+               WHERE pa.party_type IN ('CUSTOMER', 'BOTH') AND pa.is_active = TRUE
+               ORDER BY COALESCE(pa.trade_name, pa.legal_name) ASC
+               LIMIT 1000
              ) t
            ), '[]'::json) AS customers,
            COALESCE((
@@ -215,25 +238,36 @@ export async function POST(req: NextRequest) {
             return { ok: true, flagId: flagRes.rows[0]?.flag_id ?? null };
           }
           if (action === "create_customer") {
-            assertRole(actor, ["PARTNER_ADMIN", "PARTNER_MANAGER", "EXTERNAL_SELLER"]);
-            const name = String(body.legalName || "")
-              .trim()
-              .toUpperCase();
-            if (!name) throw new ValidationError("Nombre de cliente obligatorio");
-            const key = `CUST_${name.replace(/[^A-Z0-9]+/g, "_").slice(0, 36)}_${Date.now() % 10000}`;
-            const res = await client.query(
-              `INSERT INTO erp.parties (canonical_key, party_type, doc_type, doc_number, legal_name, trade_name, phone, address, source_origin)
-           VALUES ($1, 'CUSTOMER', 'NONE', $2, $3, $3, $4, $5, 'ERP_APP')
-           RETURNING party_id, legal_name AS name`,
-              [
-                key,
-                body.docNumber || null,
-                name,
-                body.phone || null,
-                body.address || null,
-              ]
-            );
-            return res.rows[0];
+            const { customer } = await createCustomer(client, actor, {
+              tradeName: body.tradeName ?? null,
+              legalName: body.legalName ?? null,
+              docType: body.docType ?? null,
+              docNumber: body.docNumber ?? null,
+              phone: body.phone ?? null,
+              email: body.email ?? null,
+              address: body.address ?? null,
+              cityZone: body.cityZone ?? null,
+              notes: body.notes ?? null,
+              geoLat:
+                body.geoLat !== undefined && body.geoLat !== null && body.geoLat !== ""
+                  ? Number(body.geoLat)
+                  : null,
+              geoLng:
+                body.geoLng !== undefined && body.geoLng !== null && body.geoLng !== ""
+                  ? Number(body.geoLng)
+                  : null,
+              geoAccuracyM:
+                body.geoAccuracyM !== undefined &&
+                body.geoAccuracyM !== null &&
+                body.geoAccuracyM !== ""
+                  ? Number(body.geoAccuracyM)
+                  : null,
+            });
+            return {
+              party_id: customer.party_id,
+              name: customer.display_name,
+              customer,
+            };
           }
           throw new ValidationError(`Acción desconocida: ${action}`);
         }

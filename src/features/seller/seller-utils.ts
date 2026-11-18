@@ -1,5 +1,8 @@
 import { ApiClientError, fetchJson, type ResponseValidator } from "@/lib/api-client";
+import { normalizeZone } from "@/lib/geo";
 import type { SyncScope } from "@/lib/realtime/useLiveSync";
+import type { CustomerDirectoryItem } from "@/lib/services/customers";
+import type { SellerCatalogItemDto, SellerCustomerDto } from "./types";
 
 export const SELLER_SYNC_SCOPES: SyncScope[] = [
   "orders",
@@ -82,4 +85,121 @@ export function postJson<T>(
 /** Server-provided message for API failures; `fallback` for network errors. */
 export function apiErrorMessage(error: unknown, fallback: string): string {
   return error instanceof ApiClientError ? error.message : fallback;
+}
+
+export function directoryItemToSellerCustomer(
+  item: CustomerDirectoryItem
+): SellerCustomerDto {
+  return {
+    party_id: item.party_id,
+    name: item.display_name,
+    legal_name: item.legal_name,
+    trade_name: item.trade_name,
+    doc_type: item.doc_type,
+    doc_number: item.doc_number,
+    is_generic_doc: item.is_generic_doc,
+    phone: item.phone,
+    email: item.email,
+    address: item.address,
+    city_zone: item.city_zone,
+    notes: item.notes,
+    geo_lat: item.geo_lat,
+    geo_lng: item.geo_lng,
+    has_orders: item.has_orders,
+    aliases: item.aliases,
+  };
+}
+
+/**
+ * Filter customers matching all space-separated tokens across alias/trade_name,
+ * legal_name, aliases, RUC/DNI, phone, and city_zone.
+ */
+export function filterSellerCustomers(
+  customers: SellerCustomerDto[],
+  query: string,
+  limit = 8
+): SellerCustomerDto[] {
+  const q = normalizeSearchText(query);
+  if (!q) return customers.slice(0, limit);
+  const tokens = q.split(/\s+/).filter(Boolean);
+  return customers
+    .filter((c) => {
+      const haystack = normalizeSearchText(
+        [
+          c.name,
+          c.trade_name ?? "",
+          c.legal_name ?? "",
+          c.doc_number ?? "",
+          c.phone ?? "",
+          c.city_zone ?? "",
+          ...(c.aliases ?? []),
+        ].join(" ")
+      );
+      return tokens.every((tok) => haystack.includes(tok));
+    })
+    .slice(0, limit);
+}
+
+/**
+ * Collect distinct customer zones ordered by frequency in the customer list.
+ */
+export function extractKnownZones(customers: SellerCustomerDto[]): string[] {
+  const counts = new Map<string, number>();
+  for (const c of customers) {
+    const z = normalizeZone(c.city_zone);
+    if (z) counts.set(z, (counts.get(z) ?? 0) + 1);
+  }
+  return Array.from(counts.entries())
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .map(([zone]) => zone);
+}
+
+export interface NormalizedCatalogEntry {
+  item: SellerCatalogItemDto;
+  normName: string;
+  normSku: string;
+  searchText: string;
+}
+
+export function buildNormalizedCatalog(
+  catalog: SellerCatalogItemDto[]
+): NormalizedCatalogEntry[] {
+  return catalog.map((item) => ({
+    item,
+    normName: normalizeSearchText(item.name),
+    normSku: normalizeSearchText(item.sku),
+    searchText: normalizeSearchText(`${item.name} ${item.sku}`),
+  }));
+}
+
+export function filterCatalogProducts(
+  catalog: SellerCatalogItemDto[],
+  normalizedCatalog: NormalizedCatalogEntry[],
+  searchProduct: string
+): SellerCatalogItemDto[] {
+  const query = normalizeSearchText(searchProduct);
+  if (!query) {
+    return [...catalog].sort((a, b) => {
+      const aInStock = a.stock_on_hand > 0 ? 0 : 1;
+      const bInStock = b.stock_on_hand > 0 ? 0 : 1;
+      if (aInStock !== bInStock) return aInStock - bInStock;
+      return a.name.localeCompare(b.name, "es");
+    });
+  }
+  const tokens = query.split(/\s+/).filter(Boolean);
+  const scored: Array<{ item: SellerCatalogItemDto; score: number }> = [];
+  for (const entry of normalizedCatalog) {
+    if (!tokens.every((tok) => entry.searchText.includes(tok))) continue;
+    let score = 0;
+    if (entry.normSku === query) score += 100;
+    else if (entry.normSku.startsWith(query)) score += 60;
+    if (entry.normName.startsWith(query)) score += 50;
+    else if (entry.normName.includes(query)) score += 25;
+    if (entry.item.stock_on_hand > 0) score += 15;
+    scored.push({ item: entry.item, score });
+  }
+  scored.sort(
+    (a, b) => b.score - a.score || a.item.name.localeCompare(b.item.name, "es")
+  );
+  return scored.map((s) => s.item);
 }

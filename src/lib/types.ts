@@ -82,6 +82,13 @@ export interface RawOrderWithLines {
   quote_id?: number | null;
   customer_party_id?: number | null;
   customer_name: string;
+  customer_legal_name?: string | null;
+  customer_trade_name?: string | null;
+  customer_zone?: string | null;
+  customer_address?: string | null;
+  customer_phone?: string | null;
+  customer_geo_lat?: number | null;
+  customer_geo_lng?: number | null;
   operational_status: OrderOperationalStatus;
   payment_mode: PaymentMode;
   promised_payment_date?: string | null;

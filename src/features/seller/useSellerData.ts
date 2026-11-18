@@ -221,11 +221,21 @@ export function useSellerData(setFeedback: SellerFeedbackSetter) {
     [loadAll, loadCollections, loadOrdersAndCatalog]
   );
 
+  const upsertCustomer = useCallback((saved: SellerCustomerDto) => {
+    setCustomers((prev) => {
+      const next = prev.some((c) => c.party_id === saved.party_id)
+        ? prev.map((c) => (c.party_id === saved.party_id ? saved : c))
+        : [...prev, saved];
+      return next.sort((a, b) => a.name.localeCompare(b.name));
+    });
+  }, []);
+
   return {
     currentUser,
     quotes,
     catalog,
     customers,
+    upsertCustomer,
     sellerAccounts,
     orders,
     debtorsByOrder,

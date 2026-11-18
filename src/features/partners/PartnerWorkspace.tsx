@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
+import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import { signOutFromERP } from "@/lib/auth/logout-client";
 import {
@@ -19,6 +20,7 @@ import {
   PlusIcon,
   SearchIcon,
   ShoppingBagIcon,
+  UsersIcon,
   WalletIcon,
 } from "@/components/ui/Icons";
 import { Button, Card, INPUT_CLASS, ToastBanner } from "@/components/ui/Primitives";
@@ -46,6 +48,8 @@ import { useCollectionsFlow } from "./useCollectionsFlow";
 import { useInventoryFlow } from "./useInventoryFlow";
 import { useOrderFlow } from "./useOrderFlow";
 import { usePartnerData } from "./usePartnerData";
+
+const Directorio = dynamic(() => import("./Directorio"));
 
 export default function PartnerWorkspace() {
   const router = useRouter();
@@ -240,6 +244,12 @@ export default function PartnerWorkspace() {
         mobileLabel: "Inventario",
         icon: <PackageIcon className="h-4 w-4" />,
         badgeCount: negStockCount,
+      },
+      {
+        id: "directorio",
+        label: "Directorio",
+        mobileLabel: "Directorio",
+        icon: <UsersIcon className="h-4 w-4" />,
       },
       {
         id: "caja",
@@ -452,6 +462,18 @@ export default function PartnerWorkspace() {
 
         {tab === "stock" && (
           <Inventario negStockCount={negStockCount} flow={inventoryFlow} />
+        )}
+
+        {tab === "directorio" && (
+          <Directorio
+            actorRole={currentUser?.role || "PARTNER_MANAGER"}
+            showFeedback={showFeedback}
+            handleTabChange={handleTabChange}
+            onDataChanged={() =>
+              void refreshDashboard(["orders", "purchases", "partners"])
+            }
+            setSubTabEditing={setSubTabEditing}
+          />
         )}
 
         {tab === "accesos" && (
