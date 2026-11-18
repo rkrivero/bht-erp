@@ -49,6 +49,7 @@ type UserAccessSnapshot = {
   email: string | null;
   role: UserRole;
   is_active: boolean;
+  deleted?: boolean;
 };
 
 function parseUserRole(value: unknown): UserRole {
@@ -284,6 +285,7 @@ export async function GET(req: NextRequest) {
                  is_active,
                  email
                FROM erp.app_users
+               WHERE username NOT LIKE '%\\_\\_deleted\\_%' ESCAPE '\\'
                ORDER BY user_id ASC
              ) t
            ), '[]'::json) AS users,
@@ -772,6 +774,56 @@ export async function POST(req: NextRequest) {
           after
         );
         return { ok: true, user: after };
+      }
+      if (action === "delete_user") {
+        assertRole(actor, ["PARTNER_ADMIN"]);
+        const targetUserId = Number(body.userId);
+        if (!Number.isInteger(targetUserId) || targetUserId <= 0) {
+          throw new ValidationError("ID de usuario inválido");
+        }
+        if (targetUserId === actor.userId) {
+          throw new ValidationError("No puedes eliminar tu propia cuenta de usuario");
+        }
+        const userRes = await client.query(
+          `SELECT user_id, username, full_name, email, role::text AS role, is_active
+           FROM erp.app_users
+           WHERE user_id = $1
+             AND username NOT LIKE '%\\_\\_deleted\\_%' ESCAPE '\\'
+           FOR UPDATE`,
+          [targetUserId]
+        );
+        if (userRes.rowCount === 0) {
+          throw new ValidationError("Usuario no encontrado");
+        }
+        const before = toUserSnapshot(userRes.rows[0]);
+        if (before.role === "PARTNER_ADMIN" && before.is_active) {
+          const admins = await client.query<{ count: string }>(
+            `SELECT COUNT(*)::text AS count
+             FROM erp.app_users
+             WHERE role = 'PARTNER_ADMIN' AND is_active = TRUE`
+          );
+          if (Number(admins.rows[0]?.count ?? 0) <= 1) {
+            throw new ValidationError(
+              "Debe permanecer al menos un administrador activo"
+            );
+          }
+        }
+        await client.query(
+          `UPDATE erp.app_users
+           SET is_active = FALSE,
+               email = NULL,
+               neon_auth_user_id = NULL,
+               username = username || '__deleted_' || user_id::text
+           WHERE user_id = $1`,
+          [targetUserId]
+        );
+        await recordUserAccessAudit(client, actor.userId, "USER_DEACTIVATED", before, {
+          ...before,
+          email: null,
+          is_active: false,
+          deleted: true,
+        });
+        return { ok: true, deletedUserId: targetUserId };
       }
       throw new ValidationError(`Acción desconocida: ${action}`);
     });

@@ -480,6 +480,35 @@ describe("API Route Role Enforcement, DB Branch Isolation & Endpoint Contracts",
       expect(roleRes.status).toBe(200);
       expect((await roleRes.json()).user.role).toBe("WAREHOUSE_DELIVERY");
 
+      const deleteRes = await postPartners(
+        new NextRequest("http://localhost:3000/api/partners", {
+          method: "POST",
+          headers: {
+            cookie: `bht_session=${partnerAdminToken}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            action: "delete_user",
+            userId: created.user_id,
+          }),
+        })
+      );
+      expect(deleteRes.status).toBe(200);
+      expect((await deleteRes.json()).deletedUserId).toBe(created.user_id);
+      const deletedRow = await client.query<{
+        is_active: boolean;
+        email: string | null;
+        username: string;
+      }>(
+        `SELECT is_active, email, username
+         FROM erp.app_users
+         WHERE user_id = $1`,
+        [created.user_id]
+      );
+      expect(deletedRow.rows[0].is_active).toBe(false);
+      expect(deletedRow.rows[0].email).toBeNull();
+      expect(deletedRow.rows[0].username).toContain("__deleted_");
+
       const accessAudit = await client.query<{ action: string }>(
         `SELECT action
          FROM erp.user_access_audit_log
@@ -490,6 +519,7 @@ describe("API Route Role Enforcement, DB Branch Isolation & Endpoint Contracts",
       expect(accessAudit.rows.map((row) => row.action)).toEqual([
         "USER_CREATED",
         "USER_ROLE_CHANGED",
+        "USER_DEACTIVATED",
       ]);
 
       // Sign fresh version-bound tokens from DB state inside this transaction

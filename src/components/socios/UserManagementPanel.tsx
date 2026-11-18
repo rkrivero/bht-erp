@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { EditIcon, PlusIcon } from "@/components/ui/Icons";
+import { EditIcon, PlusIcon, TrashIcon } from "@/components/ui/Icons";
 import {
   Badge,
   Button,
@@ -54,7 +54,10 @@ function roleDescription(role: string): string {
   return ROLE_OPTIONS.find((option) => option.value === role)?.description ?? "";
 }
 
-function auditActionLabel(action: string): string {
+function auditActionLabel(action: string, afterData?: Record<string, unknown>): string {
+  if (action === "USER_DEACTIVATED" && afterData?.deleted === true) {
+    return "eliminó la cuenta";
+  }
   const labels: Record<string, string> = {
     USER_CREATED: "creó la cuenta",
     USER_NAME_CHANGED: "actualizó el nombre",
@@ -64,6 +67,109 @@ function auditActionLabel(action: string): string {
     USER_DEACTIVATED: "desactivó la cuenta",
   };
   return labels[action] ?? "actualizó el acceso";
+}
+
+const CREATE_TEXT_FIELDS = [
+  {
+    key: "fullName",
+    id: "new-user-name",
+    label: "Nombre completo",
+    type: "text",
+    minLength: 2,
+    maxLength: 60,
+    autoComplete: "name",
+    placeholder: "Ej. María López",
+    lowercase: false,
+  },
+  {
+    key: "username",
+    id: "new-user-username",
+    label: "Usuario interno",
+    type: "text",
+    minLength: 3,
+    maxLength: 32,
+    autoComplete: "off",
+    placeholder: "Ej. maria.lopez",
+    hint: "Se usa en auditorías y responsables; no es la contraseña.",
+    lowercase: true,
+  },
+  {
+    key: "email",
+    id: "new-user-email",
+    label: "Correo autorizado",
+    type: "email",
+    maxLength: 254,
+    autoComplete: "email",
+    placeholder: "persona@empresa.com",
+    lowercase: true,
+  },
+] as const;
+
+function RoleSelect({
+  id,
+  value,
+  disabled,
+  onChange,
+  className = "w-full",
+}: {
+  id: string;
+  value: string;
+  disabled?: boolean;
+  onChange: (role: RoleValue) => void;
+  className?: string;
+}) {
+  return (
+    <>
+      <select
+        id={id}
+        value={value}
+        disabled={disabled}
+        onChange={(event) => onChange(event.target.value as RoleValue)}
+        className={`${INPUT_CLASS} min-h-11 ${className}`}
+      >
+        {ROLE_OPTIONS.map((option) => (
+          <option key={option.value} value={option.value}>
+            {option.label}
+          </option>
+        ))}
+      </select>
+      <p className="mt-1 text-xs leading-4 text-bht-ink-muted">
+        {roleDescription(value)}
+      </p>
+    </>
+  );
+}
+
+function ModalFooter({
+  busy,
+  onCancel,
+  confirmLabel,
+  busyLabel,
+  confirmVariant = "primary",
+  onConfirm,
+}: {
+  busy: boolean;
+  onCancel: () => void;
+  confirmLabel: string;
+  busyLabel: string;
+  confirmVariant?: "primary" | "danger";
+  onConfirm?: () => void;
+}) {
+  return (
+    <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+      <Button type="button" variant="outline" disabled={busy} onClick={onCancel}>
+        Cancelar
+      </Button>
+      <Button
+        type={onConfirm ? "button" : "submit"}
+        variant={confirmVariant}
+        disabled={busy}
+        onClick={onConfirm}
+      >
+        {busy ? busyLabel : confirmLabel}
+      </Button>
+    </div>
+  );
 }
 
 function formatAuditDate(value: string): string {
@@ -92,15 +198,19 @@ export default function UserManagementPanel({
     email: "",
     role: "EXTERNAL_SELLER" as RoleValue,
   });
-  const [editingNameUserId, setEditingNameUserId] = useState<number | null>(null);
-  const [editingEmailUserId, setEditingEmailUserId] = useState<number | null>(null);
-  const [newFullNameValue, setNewFullNameValue] = useState("");
-  const [newEmailValue, setNewEmailValue] = useState("");
+  const [editingField, setEditingField] = useState<{
+    userId: number;
+    kind: "name" | "email";
+    value: string;
+  } | null>(null);
   const [busyUserActionId, setBusyUserActionId] = useState<number | "create" | null>(
     null
   );
-  const [confirmToggleUser, setConfirmToggleUser] = useState<AppUserItem | null>(null);
-  const [pendingRoleChange, setPendingRoleChange] = useState<{
+  const [confirmUserAction, setConfirmUserAction] = useState<{
+    kind: "deactivate" | "delete";
+    user: AppUserItem;
+  } | null>(null);
+  const [roleModalUser, setRoleModalUser] = useState<{
     user: AppUserItem;
     role: RoleValue;
   } | null>(null);
@@ -110,10 +220,9 @@ export default function UserManagementPanel({
 
   const editing =
     createOpen ||
-    editingNameUserId !== null ||
-    editingEmailUserId !== null ||
-    confirmToggleUser !== null ||
-    pendingRoleChange !== null;
+    editingField !== null ||
+    confirmUserAction !== null ||
+    roleModalUser !== null;
 
   useEffect(() => {
     onEditingChange?.(editing);
@@ -151,110 +260,102 @@ export default function UserManagementPanel({
     return data;
   }
 
+  async function runUserMutation(
+    actionKey: number | "create",
+    payload: Record<string, unknown>,
+    successMessage: string,
+    fallbackMessage: string,
+    onSuccess?: () => void
+  ) {
+    if (busyUserActionId !== null) return;
+    setBusyUserActionId(actionKey);
+    try {
+      await postUserAction(payload);
+      onFeedback(successMessage);
+      onSuccess?.();
+    } catch (error) {
+      onFeedback(error instanceof Error ? error.message : fallbackMessage, true);
+    } finally {
+      setBusyUserActionId(null);
+    }
+  }
+
   async function handleCreateUser(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (busyUserActionId !== null) return;
-    setBusyUserActionId("create");
-    try {
-      await postUserAction({ action: "create_user", ...createForm });
-      onFeedback(
-        "Usuario creado. La persona ya puede crear su contraseña con el correo autorizado."
-      );
-      setCreateOpen(false);
-      setCreateForm({ fullName: "", username: "", email: "", role: "EXTERNAL_SELLER" });
-    } catch (error) {
-      onFeedback(
-        error instanceof Error ? error.message : "No se pudo crear el usuario",
-        true
-      );
-    } finally {
-      setBusyUserActionId(null);
-    }
+    await runUserMutation(
+      "create",
+      { action: "create_user", ...createForm },
+      "Usuario creado. La persona ya puede crear su contraseña con el correo autorizado.",
+      "No se pudo crear el usuario",
+      () => {
+        setCreateOpen(false);
+        setCreateForm({
+          fullName: "",
+          username: "",
+          email: "",
+          role: "EXTERNAL_SELLER",
+        });
+      }
+    );
   }
 
-  async function handleUpdateName(user: AppUserItem) {
-    if (busyUserActionId !== null) return;
-    setBusyUserActionId(user.user_id);
-    try {
-      await postUserAction({
-        action: "update_user_name",
-        userId: user.user_id,
-        fullName: newFullNameValue,
-      });
-      onFeedback(`Nombre actualizado para @${user.username}.`);
-      setEditingNameUserId(null);
-    } catch (error) {
-      onFeedback(
-        error instanceof Error ? error.message : "No se pudo actualizar el nombre",
-        true
+  async function handleSaveEditingField(user: AppUserItem) {
+    if (!editingField || editingField.userId !== user.user_id) return;
+    if (editingField.kind === "name") {
+      await runUserMutation(
+        user.user_id,
+        {
+          action: "update_user_name",
+          userId: user.user_id,
+          fullName: editingField.value,
+        },
+        `Nombre actualizado para @${user.username}.`,
+        "No se pudo actualizar el nombre",
+        () => setEditingField(null)
       );
-    } finally {
-      setBusyUserActionId(null);
+      return;
     }
+    await runUserMutation(
+      user.user_id,
+      { action: "update_user_email", userId: user.user_id, email: editingField.value },
+      "Correo actualizado. La persona deberá verificar ese correo para volver a ingresar.",
+      "No se pudo actualizar el correo",
+      () => setEditingField(null)
+    );
   }
 
-  async function handleUpdateEmail(user: AppUserItem) {
-    if (busyUserActionId !== null) return;
-    setBusyUserActionId(user.user_id);
-    try {
-      await postUserAction({
-        action: "update_user_email",
-        userId: user.user_id,
-        email: newEmailValue,
-      });
-      onFeedback(
-        "Correo actualizado. La persona deberá verificar ese correo para volver a ingresar."
-      );
-      setEditingEmailUserId(null);
-    } catch (error) {
-      onFeedback(
-        error instanceof Error ? error.message : "No se pudo actualizar el correo",
-        true
-      );
-    } finally {
-      setBusyUserActionId(null);
-    }
-  }
-
-  async function handleRoleChange() {
-    if (!pendingRoleChange || busyUserActionId !== null) return;
-    const { user, role } = pendingRoleChange;
-    setBusyUserActionId(user.user_id);
-    try {
-      await postUserAction({ action: "update_user_role", userId: user.user_id, role });
-      onFeedback(`Rol de ${user.full_name} actualizado a ${formatRoleEs(role)}.`);
-      setPendingRoleChange(null);
-    } catch (error) {
-      onFeedback(
-        error instanceof Error ? error.message : "No se pudo cambiar el rol",
-        true
-      );
-    } finally {
-      setBusyUserActionId(null);
-    }
+  async function submitRoleChange(
+    user: AppUserItem,
+    role: RoleValue,
+    onDone: () => void
+  ) {
+    await runUserMutation(
+      user.user_id,
+      { action: "update_user_role", userId: user.user_id, role },
+      `Rol de ${user.full_name} actualizado a ${formatRoleEs(role)}.`,
+      "No se pudo cambiar el rol",
+      onDone
+    );
   }
 
   async function handleToggleUserActive(user: AppUserItem) {
-    if (busyUserActionId !== null) return;
-    setBusyUserActionId(user.user_id);
-    try {
-      await postUserAction({
-        action: "toggle_user_active",
-        userId: user.user_id,
-        isActive: !user.is_active,
-      });
-      onFeedback(
-        `Usuario ${user.username} ${user.is_active ? "desactivado" : "activado"}.`
-      );
-      setConfirmToggleUser(null);
-    } catch (error) {
-      onFeedback(
-        error instanceof Error ? error.message : "No se pudo cambiar el estado",
-        true
-      );
-    } finally {
-      setBusyUserActionId(null);
-    }
+    await runUserMutation(
+      user.user_id,
+      { action: "toggle_user_active", userId: user.user_id, isActive: !user.is_active },
+      `Usuario ${user.username} ${user.is_active ? "desactivado" : "activado"}.`,
+      "No se pudo cambiar el estado",
+      () => setConfirmUserAction(null)
+    );
+  }
+
+  async function handleDeleteUser(user: AppUserItem) {
+    await runUserMutation(
+      user.user_id,
+      { action: "delete_user", userId: user.user_id },
+      "Usuario eliminado. Su correo y usuario quedaron liberados.",
+      "No se pudo eliminar el usuario",
+      () => setConfirmUserAction(null)
+    );
   }
 
   return (
@@ -315,8 +416,10 @@ export default function UserManagementPanel({
           ) : (
             filteredUsers.map((user) => {
               const isSelf = user.user_id === currentUser.userId;
-              const isEditingName = editingNameUserId === user.user_id;
-              const isEditingEmail = editingEmailUserId === user.user_id;
+              const isEditingName =
+                editingField?.userId === user.user_id && editingField.kind === "name";
+              const isEditingEmail =
+                editingField?.userId === user.user_id && editingField.kind === "email";
               const isBusy = busyUserActionId !== null;
               return (
                 <article
@@ -344,34 +447,19 @@ export default function UserManagementPanel({
                       </p>
                     </div>
 
-                    <div className="flex w-full flex-col gap-2 lg:w-auto lg:min-w-[280px]">
+                    <div className="flex w-full flex-col gap-1 lg:w-auto lg:min-w-[280px]">
                       <label
-                        className="text-xs font-semibold text-bht-ink-soft"
+                        className="mb-1 text-xs font-semibold text-bht-ink-soft"
                         htmlFor={`role-${user.user_id}`}
                       >
                         Cargo / Rol asignado
                       </label>
-                      <select
+                      <RoleSelect
                         id={`role-${user.user_id}`}
                         value={user.role}
                         disabled={!isAdmin || isSelf || isBusy}
-                        onChange={(event) =>
-                          setPendingRoleChange({
-                            user,
-                            role: event.target.value as RoleValue,
-                          })
-                        }
-                        className={`${INPUT_CLASS} min-h-11 w-full`}
-                      >
-                        {ROLE_OPTIONS.map((option) => (
-                          <option key={option.value} value={option.value}>
-                            {option.label}
-                          </option>
-                        ))}
-                      </select>
-                      <p className="text-xs leading-4 text-bht-ink-muted">
-                        {roleDescription(user.role)}
-                      </p>
+                        onChange={(role) => setRoleModalUser({ user, role })}
+                      />
                     </div>
                   </div>
 
@@ -383,11 +471,17 @@ export default function UserManagementPanel({
                         size="sm"
                         disabled={isBusy}
                         aria-expanded={isEditingName}
-                        onClick={() => {
-                          setEditingEmailUserId(null);
-                          setEditingNameUserId(isEditingName ? null : user.user_id);
-                          setNewFullNameValue(isEditingName ? "" : user.full_name);
-                        }}
+                        onClick={() =>
+                          setEditingField(
+                            isEditingName
+                              ? null
+                              : {
+                                  userId: user.user_id,
+                                  kind: "name",
+                                  value: user.full_name,
+                                }
+                          )
+                        }
                       >
                         <EditIcon className="h-3.5 w-3.5" />
                         Editar nombre
@@ -398,77 +492,101 @@ export default function UserManagementPanel({
                         size="sm"
                         disabled={isBusy}
                         aria-expanded={isEditingEmail}
-                        onClick={() => {
-                          setEditingNameUserId(null);
-                          setEditingEmailUserId(isEditingEmail ? null : user.user_id);
-                          setNewEmailValue(isEditingEmail ? "" : user.email || "");
-                        }}
+                        onClick={() =>
+                          setEditingField(
+                            isEditingEmail
+                              ? null
+                              : {
+                                  userId: user.user_id,
+                                  kind: "email",
+                                  value: user.email || "",
+                                }
+                          )
+                        }
                       >
                         <EditIcon className="h-3.5 w-3.5" />
                         Editar correo
                       </Button>
                       {!isSelf && (
-                        <Button
-                          type="button"
-                          variant={user.is_active ? "danger" : "success"}
-                          size="sm"
-                          disabled={isBusy}
-                          onClick={() =>
-                            user.is_active
-                              ? setConfirmToggleUser(user)
-                              : void handleToggleUserActive(user)
-                          }
-                        >
-                          {user.is_active
-                            ? "Dar de baja / Desactivar"
-                            : "Reactivar acceso"}
-                        </Button>
+                        <>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            disabled={isBusy}
+                            onClick={() =>
+                              setRoleModalUser({
+                                user,
+                                role: (ROLE_OPTIONS.some(
+                                  (option) => option.value === user.role
+                                )
+                                  ? user.role
+                                  : "EXTERNAL_SELLER") as RoleValue,
+                              })
+                            }
+                          >
+                            Cambiar rol
+                          </Button>
+                          <Button
+                            type="button"
+                            variant={user.is_active ? "outline" : "success"}
+                            size="sm"
+                            disabled={isBusy}
+                            onClick={() =>
+                              user.is_active
+                                ? setConfirmUserAction({ kind: "deactivate", user })
+                                : void handleToggleUserActive(user)
+                            }
+                          >
+                            {user.is_active ? "Desactivar" : "Reactivar acceso"}
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="danger"
+                            size="sm"
+                            disabled={isBusy}
+                            onClick={() =>
+                              setConfirmUserAction({ kind: "delete", user })
+                            }
+                          >
+                            <TrashIcon className="h-3.5 w-3.5" />
+                            Eliminar
+                          </Button>
+                        </>
                       )}
                     </div>
                   )}
 
-                  {isEditingName && (
+                  {editingField?.userId === user.user_id && (
                     <form
                       className="mt-3 flex flex-col gap-2 border-t border-bht-tone-eeece7 pt-3 sm:flex-row"
                       onSubmit={(event) => {
                         event.preventDefault();
-                        void handleUpdateName(user);
+                        void handleSaveEditingField(user);
                       }}
                     >
                       <input
                         required
-                        minLength={2}
-                        maxLength={60}
-                        value={newFullNameValue}
-                        onChange={(event) => setNewFullNameValue(event.target.value)}
-                        aria-label={`Nombre visible para ${user.username}`}
+                        type={editingField.kind === "email" ? "email" : "text"}
+                        minLength={editingField.kind === "name" ? 2 : undefined}
+                        maxLength={editingField.kind === "email" ? 254 : 60}
+                        value={editingField.value}
+                        onChange={(event) =>
+                          setEditingField((prev) =>
+                            prev ? { ...prev, value: event.target.value } : null
+                          )
+                        }
+                        aria-label={
+                          editingField.kind === "email"
+                            ? `Correo de acceso para ${user.username}`
+                            : `Nombre visible para ${user.username}`
+                        }
                         className={`${INPUT_CLASS} min-h-11 flex-1`}
                       />
                       <Button type="submit" variant="primary" disabled={isBusy}>
-                        Guardar nombre
-                      </Button>
-                    </form>
-                  )}
-
-                  {isEditingEmail && (
-                    <form
-                      className="mt-3 flex flex-col gap-2 border-t border-bht-tone-eeece7 pt-3 sm:flex-row"
-                      onSubmit={(event) => {
-                        event.preventDefault();
-                        void handleUpdateEmail(user);
-                      }}
-                    >
-                      <input
-                        required
-                        type="email"
-                        maxLength={254}
-                        value={newEmailValue}
-                        onChange={(event) => setNewEmailValue(event.target.value)}
-                        aria-label={`Correo de acceso para ${user.username}`}
-                        className={`${INPUT_CLASS} min-h-11 flex-1`}
-                      />
-                      <Button type="submit" variant="primary" disabled={isBusy}>
-                        Guardar correo
+                        {editingField.kind === "email"
+                          ? "Guardar correo"
+                          : "Guardar nombre"}
                       </Button>
                     </form>
                   )}
@@ -495,7 +613,7 @@ export default function UserManagementPanel({
                 >
                   <p>
                     <strong className="text-bht-ink-strong">{entry.actor_name}</strong>{" "}
-                    {auditActionLabel(entry.action)} de{" "}
+                    {auditActionLabel(entry.action, entry.after_data)} de{" "}
                     <strong className="text-bht-ink-strong">{entry.target_name}</strong>
                     .
                   </p>
@@ -516,190 +634,168 @@ export default function UserManagementPanel({
         subtitle="Autoriza primero su correo y define exactamente qué podrá hacer"
       >
         <form className="space-y-4" onSubmit={handleCreateUser}>
-          <div>
-            <FieldLabel htmlFor="new-user-name" required>
-              Nombre completo
-            </FieldLabel>
-            <input
-              id="new-user-name"
-              required
-              minLength={2}
-              maxLength={60}
-              autoComplete="name"
-              value={createForm.fullName}
-              onChange={(event) =>
-                setCreateForm((prev) => ({ ...prev, fullName: event.target.value }))
-              }
-              className={`${INPUT_CLASS} mt-1.5 min-h-11 w-full`}
-              placeholder="Ej. María López"
-            />
-          </div>
-          <div>
-            <FieldLabel htmlFor="new-user-username" required>
-              Usuario interno
-            </FieldLabel>
-            <input
-              id="new-user-username"
-              required
-              minLength={3}
-              maxLength={32}
-              autoCapitalize="none"
-              value={createForm.username}
-              onChange={(event) =>
-                setCreateForm((prev) => ({
-                  ...prev,
-                  username: event.target.value.toLowerCase(),
-                }))
-              }
-              className={`${INPUT_CLASS} mt-1.5 min-h-11 w-full`}
-              placeholder="Ej. maria.lopez"
-            />
-            <p className="mt-1 text-xs text-bht-ink-muted">
-              Se usa en auditorías y responsables; no es la contraseña.
-            </p>
-          </div>
-          <div>
-            <FieldLabel htmlFor="new-user-email" required>
-              Correo autorizado
-            </FieldLabel>
-            <input
-              id="new-user-email"
-              required
-              type="email"
-              maxLength={254}
-              autoCapitalize="none"
-              autoComplete="email"
-              value={createForm.email}
-              onChange={(event) =>
-                setCreateForm((prev) => ({
-                  ...prev,
-                  email: event.target.value.toLowerCase(),
-                }))
-              }
-              className={`${INPUT_CLASS} mt-1.5 min-h-11 w-full`}
-              placeholder="persona@empresa.com"
-            />
-          </div>
+          {CREATE_TEXT_FIELDS.map((field) => (
+            <div key={field.key}>
+              <FieldLabel htmlFor={field.id} required>
+                {field.label}
+              </FieldLabel>
+              <input
+                id={field.id}
+                required
+                type={field.type}
+                minLength={"minLength" in field ? field.minLength : undefined}
+                maxLength={field.maxLength}
+                autoCapitalize={field.lowercase ? "none" : undefined}
+                autoComplete={field.autoComplete}
+                value={createForm[field.key]}
+                onChange={(event) =>
+                  setCreateForm((prev) => ({
+                    ...prev,
+                    [field.key]: field.lowercase
+                      ? event.target.value.toLowerCase()
+                      : event.target.value,
+                  }))
+                }
+                className={`${INPUT_CLASS} mt-1.5 min-h-11 w-full`}
+                placeholder={field.placeholder}
+              />
+              {"hint" in field && (
+                <p className="mt-1 text-xs text-bht-ink-muted">{field.hint}</p>
+              )}
+            </div>
+          ))}
           <div>
             <FieldLabel htmlFor="new-user-role" required>
               Rol
             </FieldLabel>
-            <select
+            <RoleSelect
               id="new-user-role"
               value={createForm.role}
-              onChange={(event) =>
-                setCreateForm((prev) => ({
-                  ...prev,
-                  role: event.target.value as RoleValue,
-                }))
-              }
-              className={`${INPUT_CLASS} mt-1.5 min-h-11 w-full`}
-            >
-              {ROLE_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-            <p className="mt-1 text-xs leading-4 text-bht-ink-muted">
-              {roleDescription(createForm.role)}
-            </p>
+              onChange={(role) => setCreateForm((prev) => ({ ...prev, role }))}
+              className="mt-1.5 w-full"
+            />
           </div>
           <div className="rounded-lg border border-bht-tone-cfe0f0 bg-bht-tone-f2f7fb p-3 text-xs leading-5 text-bht-navy-mid">
             No se envía una contraseña. La persona usará “Crear cuenta” con este mismo
             correo y Neon Auth verificará su identidad.
           </div>
-          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-            <Button
-              type="button"
-              variant="outline"
-              disabled={busyUserActionId !== null}
-              onClick={() => setCreateOpen(false)}
-            >
-              Cancelar
-            </Button>
-            <Button
-              type="submit"
-              variant="primary"
-              disabled={busyUserActionId !== null}
-            >
-              {busyUserActionId === "create" ? "Creando..." : "Crear usuario"}
-            </Button>
-          </div>
+          <ModalFooter
+            busy={busyUserActionId !== null}
+            onCancel={() => setCreateOpen(false)}
+            confirmLabel="Crear usuario"
+            busyLabel="Creando..."
+          />
         </form>
       </ModalSheet>
 
       <ModalSheet
-        open={Boolean(pendingRoleChange)}
-        onClose={() => busyUserActionId === null && setPendingRoleChange(null)}
-        title="Confirmar cambio de rol"
-        subtitle={pendingRoleChange?.user.full_name}
+        open={Boolean(roleModalUser)}
+        onClose={() => busyUserActionId === null && setRoleModalUser(null)}
+        title="Asignar cargo o rol"
+        subtitle={roleModalUser?.user.full_name}
       >
-        {pendingRoleChange && (
-          <div className="space-y-4 text-sm text-bht-ink-soft">
-            <p>
-              Cambiarás el acceso de{" "}
+        {roleModalUser && (
+          <div className="space-y-3 text-sm text-bht-ink-soft">
+            <p className="text-xs">
+              Actual:{" "}
               <strong className="text-bht-ink-strong">
-                {formatRoleEs(pendingRoleChange.user.role)}
+                {formatRoleEs(roleModalUser.user.role)}
               </strong>{" "}
-              a{" "}
+              → Nuevo:{" "}
               <strong className="text-bht-ink-strong">
-                {formatRoleEs(pendingRoleChange.role)}
+                {formatRoleEs(roleModalUser.role)}
               </strong>
-              . El cambio se aplicará en su siguiente solicitud y quedará auditado.
             </p>
-            <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-              <Button
-                type="button"
-                variant="outline"
-                disabled={busyUserActionId !== null}
-                onClick={() => setPendingRoleChange(null)}
-              >
-                Cancelar
-              </Button>
-              <Button
-                type="button"
-                variant="primary"
-                disabled={busyUserActionId !== null}
-                onClick={() => void handleRoleChange()}
-              >
-                {busyUserActionId !== null ? "Guardando..." : "Confirmar rol"}
-              </Button>
+            <div className="space-y-2" role="radiogroup" aria-label="Roles disponibles">
+              {ROLE_OPTIONS.map((option) => {
+                const selected = roleModalUser.role === option.value;
+                return (
+                  <button
+                    key={option.value}
+                    type="button"
+                    role="radio"
+                    aria-checked={selected}
+                    onClick={() =>
+                      setRoleModalUser((prev) =>
+                        prev ? { ...prev, role: option.value } : null
+                      )
+                    }
+                    className={`w-full rounded-xl border p-3 text-left transition cursor-pointer ${
+                      selected
+                        ? "border-bht-cobalt bg-bht-cobalt-bg"
+                        : "border-bht-line bg-white hover:bg-bht-paper"
+                    }`}
+                  >
+                    <p className="text-xs font-semibold text-bht-ink-strong">
+                      {option.label}
+                    </p>
+                    <p className="mt-0.5 text-xs text-bht-ink-soft">
+                      {option.description}
+                    </p>
+                  </button>
+                );
+              })}
             </div>
+            <ModalFooter
+              busy={busyUserActionId !== null}
+              onCancel={() => setRoleModalUser(null)}
+              confirmLabel="Asignar rol"
+              busyLabel="Guardando..."
+              onConfirm={() =>
+                void submitRoleChange(roleModalUser.user, roleModalUser.role, () =>
+                  setRoleModalUser(null)
+                )
+              }
+            />
           </div>
         )}
       </ModalSheet>
 
       <ModalSheet
-        open={Boolean(confirmToggleUser)}
-        onClose={() => busyUserActionId === null && setConfirmToggleUser(null)}
-        title="Confirmar desactivación"
-        subtitle={confirmToggleUser?.full_name}
+        open={Boolean(confirmUserAction)}
+        onClose={() => busyUserActionId === null && setConfirmUserAction(null)}
+        title={
+          confirmUserAction?.kind === "delete"
+            ? "Confirmar eliminación de usuario"
+            : "Confirmar desactivación"
+        }
+        subtitle={confirmUserAction?.user.full_name}
       >
-        {confirmToggleUser && (
+        {confirmUserAction && (
           <div className="space-y-4 text-sm text-bht-ink-soft">
-            <p>
-              La persona perderá acceso inmediatamente. Su historial no se elimina y
-              podrás reactivar la cuenta después.
-            </p>
-            <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-              <Button
-                type="button"
-                variant="outline"
-                disabled={busyUserActionId !== null}
-                onClick={() => setConfirmToggleUser(null)}
-              >
-                Cancelar
-              </Button>
-              <Button
-                type="button"
-                variant="danger"
-                disabled={busyUserActionId !== null}
-                onClick={() => void handleToggleUserActive(confirmToggleUser)}
-              >
-                {busyUserActionId !== null ? "Desactivando..." : "Sí, desactivar"}
-              </Button>
-            </div>
+            {confirmUserAction.kind === "delete" ? (
+              <p>
+                Se revocará el acceso y se liberarán el usuario{" "}
+                <strong className="text-bht-ink-strong">
+                  @{confirmUserAction.user.username}
+                </strong>{" "}
+                y su correo para poder reutilizarlos, conservando la auditoría
+                histórica.
+              </p>
+            ) : (
+              <p>
+                La persona perderá acceso inmediatamente. Su historial no se elimina y
+                podrás reactivar la cuenta después.
+              </p>
+            )}
+            <ModalFooter
+              busy={busyUserActionId !== null}
+              onCancel={() => setConfirmUserAction(null)}
+              confirmVariant="danger"
+              confirmLabel={
+                confirmUserAction.kind === "delete" ? "Sí, eliminar" : "Sí, desactivar"
+              }
+              busyLabel={
+                confirmUserAction.kind === "delete"
+                  ? "Eliminando..."
+                  : "Desactivando..."
+              }
+              onConfirm={() =>
+                void (confirmUserAction.kind === "delete"
+                  ? handleDeleteUser(confirmUserAction.user)
+                  : handleToggleUserActive(confirmUserAction.user))
+              }
+            />
           </div>
         )}
       </ModalSheet>
