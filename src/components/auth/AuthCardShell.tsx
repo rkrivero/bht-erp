@@ -23,7 +23,7 @@ export default function AuthCardShell({
       >
         <section className="flex min-h-[100dvh] flex-1 flex-col overflow-hidden bg-white sm:min-h-0 sm:flex-none sm:rounded-2xl sm:border sm:border-[#E2E8F0] sm:shadow-[0_18px_46px_-18px_rgba(11,25,44,0.14)]">
           <header className="flex min-h-[31dvh] flex-col items-center justify-end border-b border-[#D9E7FA] bg-[#EAF2FE] px-6 pb-8 pt-[max(2rem,env(safe-area-inset-top))] text-center sm:min-h-0 sm:justify-center sm:px-8 sm:py-8">
-            <span className="flex h-20 w-20 items-center justify-center rounded-2xl bg-white p-2 shadow-[0_2px_10px_rgba(15,41,66,0.08)]">
+            <span className="flex h-20 w-20 items-center justify-center">
               <HorizonLogo className="h-full w-full" />
             </span>
             <h1 className="mt-4 text-xl font-semibold tracking-tight text-[#0B192C]">

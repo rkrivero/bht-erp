@@ -30,7 +30,7 @@ export function DesktopSidebar<T extends string>({
   return (
     <aside className="fixed inset-y-0 left-0 z-40 hidden w-[232px] flex-col bg-[var(--bht-navy)] px-3.5 py-5 text-white md:flex">
       <div className="flex items-center gap-3 px-2 pb-6">
-        <span className="flex h-11 w-11 flex-none items-center justify-center rounded-xl bg-white p-1 shadow-[0_2px_10px_rgba(11,25,44,0.18)]">
+        <span className="flex h-11 w-11 flex-none items-center justify-center rounded-xl bg-[var(--bht-paper)] p-1">
           <HorizonLogo className="h-full w-full" />
         </span>
         <div className="min-w-0">
@@ -154,7 +154,7 @@ export function AppHeader({
         className={`mx-auto grid ${widthClass} grid-cols-[minmax(0,1fr)_auto] items-start gap-x-2 gap-y-2 px-3.5 py-3 sm:flex sm:flex-wrap sm:items-center sm:justify-between sm:gap-3 sm:px-5`}
       >
         <div className="flex min-w-0 flex-1 items-center gap-3">
-          <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-[var(--bht-paper)] p-1 ring-1 ring-[var(--border-hairline)]">
+          <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center">
             <HorizonLogo className="h-full w-full" />
           </span>
           <div className="min-w-0 flex-1">
