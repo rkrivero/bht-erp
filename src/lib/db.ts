@@ -5,7 +5,6 @@ import { assertRequiredSchema } from "./schema-version";
 
 declare global {
   // `var` is required for augmenting a global shared across Next.js reloads.
-  // eslint-disable-next-line no-var
   var __bhtPgPools: Partial<Record<"dev" | "main", Pool>> | undefined;
 }
 
