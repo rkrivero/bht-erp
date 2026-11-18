@@ -177,3 +177,77 @@ test("partner today view keeps the priority queue visible and accessible", async
     )
   ).toEqual([]);
 });
+
+test("seller guided flow exposes four steps without overflow", async ({ page }) => {
+  await page.addInitScript(() => {
+    Object.defineProperty(window, "EventSource", {
+      configurable: true,
+      value: undefined,
+    });
+  });
+
+  await page.route("**/api/orders", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        orders: [],
+        catalog: [],
+        customers: [],
+        accounts: [],
+        currentUser: {
+          userId: 2,
+          username: "seller-e2e",
+          fullName: "Vendedor de prueba",
+          role: "EXTERNAL_SELLER",
+        },
+      }),
+    });
+  });
+  await page.route("**/api/quotes", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ quotes: [] }),
+    });
+  });
+  await page.route("**/api/collections", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ byOrder: [], byCustomer: [] }),
+    });
+  });
+  await page.route("**/api/sync**", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        version: "e2e-static",
+        changedScopes: [],
+        allowedScopes: ["orders", "inventory", "collections", "treasury", "partners"],
+      }),
+    });
+  });
+
+  await page.goto("/vendedor?tab=nuevo");
+  await expect(page.getByRole("navigation", { name: "Progreso del pedido" })).toBeVisible();
+  for (const label of ["Cliente", "Productos", "Pago", "Confirmación"]) {
+    await expect(page.getByRole("button", { name: label, exact: true })).toBeVisible();
+  }
+  await expect(page).toHaveURL(/tab=sell/);
+
+  const overflow = await page.evaluate(
+    () => document.documentElement.scrollWidth > document.documentElement.clientWidth
+  );
+  expect(overflow).toBe(false);
+
+  const results = await new AxeBuilder({ page })
+    .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"])
+    .analyze();
+  expect(
+    results.violations.filter((violation) =>
+      ["critical", "serious"].includes(violation.impact || "")
+    )
+  ).toEqual([]);
+});

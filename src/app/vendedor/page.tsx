@@ -235,10 +235,13 @@ interface QuoteItem {
 }
 
 type SellerTab = LegacySellerTab;
+type SellerOrderStep = "client" | "products" | "payment" | "confirmation";
 
 export default function VendedorPage() {
   const router = useRouter();
   const [tab, setTab] = useState<SellerTab>("nuevo");
+  const [orderStep, setOrderStep] = useState<SellerOrderStep>("client");
+  const [showCustomPromiseDate, setShowCustomPromiseDate] = useState(false);
   useEffect(() => {
     const syncFromUrl = () => {
       const current = new URL(window.location.href);
@@ -260,6 +263,15 @@ export default function VendedorPage() {
     if (url.search !== current.search) {
       window.history.pushState(null, "", url.pathname + url.search + url.hash);
     }
+  }, []);
+  const openOrderStep = useCallback((step: SellerOrderStep) => {
+    setOrderStep(step);
+    window.requestAnimationFrame(() => {
+      document.getElementById(`seller-step-${step}`)?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    });
   }, []);
   const [quotes, setQuotes] = useState<QuoteItem[]>([]);
   const [busyQuoteId, setBusyQuoteId] = useState<number | null>(null);
@@ -788,6 +800,8 @@ export default function VendedorPage() {
     setCollectOnDelivery(true);
     setCreditDays(7);
     setCustomPromiseDate("");
+    setShowCustomPromiseDate(false);
+    setOrderStep("client");
     setInitialPaidPen("");
     setExpandedDiscountIds({});
     setSearchProduct("");
@@ -1033,7 +1047,7 @@ export default function VendedorPage() {
       if (result.queued) {
         setFeedback({
           type: "warn",
-          msg: "Pedido guardado en este dispositivo. Se enviará automáticamente cuando vuelva Internet.",
+          msg: "Pedido guardado en este dispositivo. Estado: pendiente de sincronización. Siguiente acción: mantener la sesión hasta recuperar Internet.",
         });
         return;
       }
@@ -1043,10 +1057,10 @@ export default function VendedorPage() {
         msg: wasEditing
           ? data.requiresApproval
             ? `Pedido ${data.orderCode} modificado y enviado a aprobación por precio bajo costo.`
-            : `Pedido ${data.orderCode} modificado; el cambio quedó registrado.`
+            : `Pedido ${data.orderCode} modificado; el cambio quedó registrado. Siguiente estado: alistamiento.`
           : data.requiresApproval
-            ? `Pedido ${data.orderCode} guardado pendiente de aprobación de Socio o Gerencia (precio bajo costo).`
-            : `Pedido ${data.orderCode} registrado y enviado a Almacén.`,
+            ? `Pedido ${data.orderCode} registrado. Estado: pendiente de aprobación de Socio o Gerencia. Siguiente acción: esperar la decisión autorizada.`
+            : `Pedido ${data.orderCode} registrado. Estado: enviado a Almacén. Siguiente acción: consultar su avance en Ventas.`,
       });
       notifyLocalSync(["orders", "inventory", "collections", "treasury", "partners"]);
       await loadAll({ silent: true });
@@ -1485,35 +1499,29 @@ export default function VendedorPage() {
     () => [
       {
         id: "nuevo",
-        label: "Pedido",
-        mobileLabel: "Pedido",
+        label: "Vender",
+        mobileLabel: "Vender",
         icon: <ShoppingBagIcon className="h-4 w-4" />,
         badgeCount: cart.length > 0 ? cart.length : undefined,
       },
       {
-        id: "cotizaciones",
-        label: "Cotizaciones",
-        mobileLabel: "Cotizar",
-        icon: <ReceiptIcon className="h-4 w-4" />,
+        id: "pedidos",
+        label: "Ventas",
+        mobileLabel: "Ventas",
+        icon: <PackageIcon className="h-4 w-4" />,
         badgeCount: openQuotesCount > 0 ? openQuotesCount : undefined,
       },
       {
         id: "deudores",
-        label: "Cobros",
-        mobileLabel: "Cobros",
+        label: "Cobrar",
+        mobileLabel: "Cobrar",
         icon: <WalletIcon className="h-4 w-4" />,
         badgeCount: debtorsByOrder.length > 0 ? debtorsByOrder.length : undefined,
       },
       {
-        id: "pedidos",
-        label: "Mis Pedidos",
-        mobileLabel: "Pedidos",
-        icon: <PackageIcon className="h-4 w-4" />,
-      },
-      {
         id: "gastos",
-        label: "Gastos",
-        mobileLabel: "Gastos",
+        label: "Más",
+        mobileLabel: "Más",
         icon: <ClockIcon className="h-4 w-4" />,
       },
     ],
@@ -1521,7 +1529,8 @@ export default function VendedorPage() {
   );
 
   const activeTabLabel =
-    navItems.find((item) => item.id === tab)?.label ?? "Pedido";
+    navItems.find((item) => item.id === (tab === "cotizaciones" ? "pedidos" : tab))?.label ?? "Vender";
+  const navActiveTab: SellerTab = tab === "cotizaciones" ? "pedidos" : tab;
 
   async function handleLogout() {
     if (loggingOut) return;
@@ -1578,7 +1587,7 @@ export default function VendedorPage() {
 
       <DesktopSidebar
         items={navItems}
-        activeId={tab}
+        activeId={navActiveTab}
         onChange={handleTabChange}
         areaLabel="Vendedor · Campo"
       />
@@ -1623,7 +1632,25 @@ export default function VendedorPage() {
         )}
 
         {tab === "nuevo" && (
-          <section aria-label="Nuevo pedido">
+          <section aria-label="Nuevo pedido" className="space-y-4">
+            <nav aria-label="Progreso del pedido" className="grid grid-cols-4 gap-1 rounded-2xl border border-[var(--border-hairline)] bg-white p-1.5">
+              {([
+                ["client", "Cliente", Boolean(customerNameRaw.trim())],
+                ["products", "Productos", cart.length > 0],
+                ["payment", "Pago", cart.length > 0],
+                ["confirmation", "Confirmación", cart.length > 0 && Boolean(customerNameRaw.trim())],
+              ] as Array<[SellerOrderStep, string, boolean]>).map(([id, label, complete]) => (
+                <button
+                  key={id}
+                  type="button"
+                  aria-current={orderStep === id ? "step" : undefined}
+                  onClick={() => openOrderStep(id)}
+                  className={`min-h-11 rounded-xl px-1.5 text-[11px] font-semibold transition-colors sm:text-xs ${orderStep === id ? "bg-[var(--bht-cobalt)] text-white" : complete ? "bg-[var(--bht-sky)] text-[var(--bht-navy)]" : "text-[var(--ink-secondary)] hover:bg-[var(--bg-subtle)]"}`}
+                >
+                  {label}
+                </button>
+              ))}
+            </nav>
             <form
               onSubmit={handleSubmitOrder}
               className="grid grid-cols-1 gap-4 lg:grid-cols-12 lg:items-start lg:gap-5"
@@ -1682,11 +1709,21 @@ export default function VendedorPage() {
                       </div>
                     )}
                   </div>
+                  <Button
+                    type="button"
+                    variant="primary"
+                    size="sm"
+                    disabled={!customerNameRaw.trim()}
+                    onClick={() => openOrderStep("products")}
+                    className="w-full sm:w-auto"
+                  >
+                    Continuar a productos
+                  </Button>
                 </Card>
               )}
               <div className="min-w-0 space-y-4 lg:col-span-7">
                 {/* Step 1: Client Identification */}
-                <Card className="space-y-3">
+                <Card id="seller-step-client" className={`scroll-mt-24 space-y-3 ${orderStep !== "client" && customerNameRaw.trim() ? "hidden" : ""}`}>
                   <div ref={customerBoxRef} className="relative">
                     <FieldLabel htmlFor="seller-customer-name" required>
                       1. Cliente o ferretería
@@ -1792,7 +1829,7 @@ export default function VendedorPage() {
                 </Card>
 
                 {/* Step 2: Product Search & Add */}
-                <Card className="space-y-3">
+                <Card id="seller-step-products" className={`scroll-mt-24 space-y-3 ${orderStep !== "products" && cart.length > 0 ? "hidden" : ""}`}>
                   <div className="flex items-center justify-between gap-2">
                     <FieldLabel htmlFor="seller-search-product">
                       2. Buscar y agregar productos
@@ -1933,6 +1970,17 @@ export default function VendedorPage() {
                       </>
                     )}
                   </div>
+                  {cart.length > 0 && (
+                    <Button
+                      type="button"
+                      variant="primary"
+                      size="sm"
+                      onClick={() => openOrderStep("payment")}
+                      className="w-full sm:w-auto"
+                    >
+                      Continuar al pago ({cart.length})
+                    </Button>
+                  )}
                 </Card>
               </div>
 
@@ -2341,7 +2389,7 @@ export default function VendedorPage() {
                     </div>
 
                     {/* Step 3b: Payment Condition decided once total is known */}
-                    <div className="space-y-3 rounded-xl border border-[#E7E5E0] bg-[#FAF9F6]/70 p-3.5">
+                    <div id="seller-step-payment" className={`scroll-mt-24 space-y-3 rounded-xl border border-[#E7E5E0] bg-[#FAF9F6]/70 p-3.5 ${orderStep === "confirmation" ? "hidden" : ""}`}>
                       <div>
                         <p
                           id="seller-payment-mode-label"
@@ -2408,7 +2456,7 @@ export default function VendedorPage() {
                               aria-labelledby="seller-credit-days-label"
                               className="mt-1.5 flex flex-wrap gap-1.5"
                             >
-                              {CREDIT_DAY_CHIPS.map((chip) => {
+                              {CREDIT_DAY_CHIPS.slice(0, 3).map((chip) => {
                                 const active =
                                   creditDays === chip.days && !customPromiseDate;
                                 return (
@@ -2419,6 +2467,7 @@ export default function VendedorPage() {
                                     onClick={() => {
                                       setCreditDays(chip.days);
                                       setCustomPromiseDate("");
+                                      setShowCustomPromiseDate(false);
                                     }}
                                     className={`min-h-[34px] rounded-full border px-2.5 py-1 text-xs font-medium transition cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0F2942]/45 ${
                                       active
@@ -2430,8 +2479,16 @@ export default function VendedorPage() {
                                   </button>
                                 );
                               })}
+                              <button
+                                type="button"
+                                aria-pressed={showCustomPromiseDate}
+                                onClick={() => setShowCustomPromiseDate(true)}
+                                className={`min-h-[34px] rounded-full border px-2.5 py-1 text-xs font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0F2942]/45 ${showCustomPromiseDate ? "border-[#0F2942] bg-[#0F2942] text-white" : "border-[#E7D3B1] bg-white text-[#78350F]"}`}
+                              >
+                                Otra fecha
+                              </button>
                             </div>
-                            <div className="mt-2 flex flex-wrap items-center gap-2">
+                            {showCustomPromiseDate && <div className="mt-2 flex flex-wrap items-center gap-2">
                               <label
                                 htmlFor="seller-custom-date"
                                 className="text-xs font-medium text-[#78350F]"
@@ -2445,7 +2502,7 @@ export default function VendedorPage() {
                                 onChange={(e) => setCustomPromiseDate(e.target.value)}
                                 className="min-h-[36px] rounded-lg border border-[#E7D3B1] bg-white px-2.5 py-1 text-xs font-medium text-[#18181B] focus:border-[#0F2942] focus:outline-none focus:ring-2 focus:ring-[#0F2942]/15"
                               />
-                            </div>
+                            </div>}
                           </div>
 
                           <div>
@@ -2468,6 +2525,9 @@ export default function VendedorPage() {
                           </div>
                         </div>
                       )}
+                      <Button type="button" variant="primary" size="sm" onClick={() => openOrderStep("confirmation")} className="w-full">
+                        Revisar confirmación
+                      </Button>
                     </div>
 
                     <div>
@@ -2485,8 +2545,9 @@ export default function VendedorPage() {
                     </div>
 
                     <section
+                      id="seller-step-confirmation"
                       aria-labelledby="seller-confirmation-heading"
-                      className="rounded-xl border border-[#D4E0EC] bg-white p-3"
+                      className={`scroll-mt-24 rounded-xl border border-[#D4E0EC] bg-white p-3 ${orderStep !== "confirmation" ? "hidden" : ""}`}
                     >
                       <h3
                         id="seller-confirmation-heading"
@@ -2522,6 +2583,9 @@ export default function VendedorPage() {
                           {notes.trim() || "Almacén para alistamiento"}
                         </dd>
                       </dl>
+                      <button type="button" onClick={() => openOrderStep("payment")} className="mt-3 text-xs font-semibold text-[var(--bht-cobalt)] underline decoration-1 underline-offset-4">
+                        Editar pago
+                      </button>
                     </section>
 
                     <div className="flex flex-col gap-2 sm:flex-row">
@@ -2562,7 +2626,7 @@ export default function VendedorPage() {
                         onClick={() => setCancelDraftOpen(true)}
                         className="border-[#E7E5E0] bg-[#FAF9F6] text-[#5C5A55] hover:border-[#E8C5C5] hover:bg-[#FEF2F2]/65 hover:text-[#991B1B] sm:w-auto"
                       >
-                        Cancelado
+                        Descartar pedido
                       </Button>
                     </div>
                   </Card>
@@ -2579,13 +2643,25 @@ export default function VendedorPage() {
                         onClick={() => setCancelDraftOpen(true)}
                         className="border-[#E7E5E0] bg-[#FAF9F6] text-[#5C5A55] hover:border-[#E8C5C5] hover:bg-[#FEF2F2]/65 hover:text-[#991B1B]"
                       >
-                        Cancelado
+                        Descartar pedido
                       </Button>
                     </div>
                   )}
               </div>
             </form>
           </section>
+        )}
+
+        {(tab === "cotizaciones" || tab === "pedidos") && (
+          <SegmentedControl
+            ariaLabel="Vista de ventas"
+            value={tab === "cotizaciones" ? "cotizaciones" : "pedidos"}
+            onChange={(value) => handleTabChange(value as SellerTab)}
+            options={[
+              { id: "pedidos", label: "Pedidos" },
+              { id: "cotizaciones", label: "Cotizaciones", count: openQuotesCount },
+            ]}
+          />
         )}
 
         {tab === "cotizaciones" && (
@@ -3211,7 +3287,24 @@ export default function VendedorPage() {
         )}
 
         {tab === "gastos" && (
-          <section aria-label="Registrar gasto diario" className="mx-auto max-w-2xl">
+          <section aria-label="Más opciones" className="mx-auto max-w-2xl space-y-4">
+            <Card padding="sm" className="grid gap-3 sm:grid-cols-2">
+              <div className="rounded-xl bg-[var(--bg-subtle)] p-3">
+                <p className="text-xs font-semibold text-[var(--bht-navy)]">Sincronización</p>
+                <p className="mt-1 text-xs text-[var(--ink-secondary)]">
+                  Estado: {liveStatus === "live" ? "en vivo" : liveStatus === "syncing" ? "sincronizando" : liveStatus === "offline" ? "sin conexión" : "en pausa"}.
+                </p>
+                <Button type="button" variant="outline" size="sm" onClick={() => void triggerSync({ force: true })} className="mt-3 w-full">
+                  Sincronizar ahora
+                </Button>
+              </div>
+              <div className="rounded-xl bg-[var(--bg-subtle)] p-3">
+                <p className="text-xs font-semibold text-[var(--bht-navy)]">Datos personales</p>
+                <p className="mt-1 text-xs text-[var(--ink-secondary)]">
+                  {currentUser?.fullName || currentUser?.username || "Usuario vendedor"}
+                </p>
+              </div>
+            </Card>
             <Card accent="horizon" padding="lg">
               <form onSubmit={handleSubmitExpense} className="space-y-4">
                 <div className="flex items-center gap-2.5 border-b border-[#E7E5E0] pb-3">
@@ -3507,7 +3600,7 @@ export default function VendedorPage() {
 
       <BottomNav
         items={navItems}
-        activeId={tab}
+        activeId={navActiveTab}
         onChange={handleTabChange}
         maxWidth="2xl"
         className="md:hidden"
