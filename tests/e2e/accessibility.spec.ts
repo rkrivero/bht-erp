@@ -91,6 +91,11 @@ test("authenticated warehouse header remains usable without clipping", async ({
   ).toBeVisible();
   await expect(page.getByRole("button", { name: /Por alistar 0/ })).toBeVisible();
   await expect(page.getByRole("button", { name: /Listos \/ En ruta 0/ })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Sin empezar" })).toBeVisible();
+  await expect(page.locator("#route-control")).toHaveCount(0);
+  await page.getByRole("button", { name: /Listos \/ En ruta 0/ }).click();
+  await expect(page.locator("#route-control")).toBeVisible();
+  await page.waitForTimeout(200);
   const overflow = await page.evaluate(
     () => document.documentElement.scrollWidth > document.documentElement.clientWidth
   );

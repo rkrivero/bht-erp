@@ -77,6 +77,7 @@ const STATUS_TABS = [
 ] as const;
 
 type WarehouseStage = (typeof STATUS_TABS)[number]["id"];
+type PreparingFilter = "ALL" | "NOT_STARTED" | "IN_PROGRESS";
 
 function toWarehouseStage(
   status: WarehouseOrder["operational_status"]
@@ -120,6 +121,8 @@ export default function AlmacenPage() {
   const [newTripNotes, setNewTripNotes] = useState("");
   const [busyTripAction, setBusyTripAction] = useState(false);
   const [activeTab, setActiveTab] = useState<WarehouseStage>("PREPARING");
+  const [preparingFilter, setPreparingFilter] = useState<PreparingFilter>("ALL");
+  const [warehouseSearch, setWarehouseSearch] = useState("");
   const [checkedLines, setCheckedLines] = useState<Record<number, boolean>>({});
   const [loading, setLoading] = useState(true);
   const [busyOrderId, setBusyOrderId] = useState<number | null>(null);
@@ -472,8 +475,24 @@ export default function AlmacenPage() {
   }, [orders]);
 
   const filtered = useMemo(
-    () => orders.filter((o) => toWarehouseStage(o.operational_status) === activeTab),
-    [orders, activeTab]
+    () => {
+      const query = warehouseSearch.trim().toLocaleLowerCase("es");
+      return orders.filter((order) => {
+        if (toWarehouseStage(order.operational_status) !== activeTab) return false;
+        if (
+          query &&
+          !`${order.order_code} ${order.customer_name} ${order.created_by_name ?? ""}`
+            .toLocaleLowerCase("es")
+            .includes(query)
+        ) {
+          return false;
+        }
+        if (activeTab !== "PREPARING" || preparingFilter === "ALL") return true;
+        const checkedCount = order.lines.filter((line) => checkedLines[line.order_line_id]).length;
+        return preparingFilter === "NOT_STARTED" ? checkedCount === 0 : checkedCount > 0;
+      });
+    },
+    [activeTab, checkedLines, orders, preparingFilter, warehouseSearch]
   );
 
   return (
@@ -549,7 +568,28 @@ export default function AlmacenPage() {
           />
         )}
 
-        <Card id="route-control" padding="sm" className="space-y-2.5">
+        {activeTab === "PREPARING" && (
+          <div className="flex flex-col gap-2 rounded-xl border border-[#E7E5E0] bg-white p-2.5 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex gap-1" role="group" aria-label="Filtrar cola de alistamiento">
+              {([
+                ["ALL", "Todos"],
+                ["NOT_STARTED", "Sin empezar"],
+                ["IN_PROGRESS", "En proceso"],
+              ] as Array<[PreparingFilter, string]>).map(([id, label]) => (
+                <button key={id} type="button" aria-pressed={preparingFilter === id} onClick={() => setPreparingFilter(id)} className={`min-h-10 rounded-lg px-3 text-xs font-semibold ${preparingFilter === id ? "bg-[var(--bht-navy)] text-white" : "text-[var(--ink-secondary)] hover:bg-[var(--bg-subtle)]"}`}>
+                  {label}
+                </button>
+              ))}
+            </div>
+            <input type="search" value={warehouseSearch} onChange={(event) => setWarehouseSearch(event.target.value)} placeholder="Buscar pedido o cliente…" aria-label="Buscar en la cola de alistamiento" className={`${INPUT_CLASS} sm:max-w-xs`} />
+          </div>
+        )}
+
+        {activeTab === "DELIVERED" && (
+          <input type="search" value={warehouseSearch} onChange={(event) => setWarehouseSearch(event.target.value)} placeholder="Buscar pedido, cliente o responsable…" aria-label="Buscar pedidos entregados" className={`${INPUT_CLASS} bg-white`} />
+        )}
+
+        {activeTab === "READY" && <Card id="route-control" padding="sm" className="space-y-2.5">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
               <span className="text-xs font-semibold text-[#18181B]">
@@ -640,7 +680,7 @@ export default function AlmacenPage() {
               ))}
             </div>
           )}
-        </Card>
+        </Card>}
 
         {loading && orders.length === 0 ? (
           <Card className="p-8 text-center text-sm text-[#5C5A55]">
