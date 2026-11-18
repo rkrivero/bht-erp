@@ -1,4 +1,5 @@
 import type { Dispatch, SetStateAction } from "react";
+import type { CashAccountItem } from "@/components/socios/types";
 import type { RawOrderWithLines } from "@/lib/types";
 
 export type SellerPaymentMode = "CASH" | "CREDIT" | "YAPE_PLIN" | "TRANSFER";
@@ -99,3 +100,124 @@ export interface SellerExpenseMutationResultDto {
 }
 
 export type StateSetter<T> = Dispatch<SetStateAction<T>>;
+
+export type SellerCollectionPaymentMode = "CASH" | "YAPE_PLIN" | "TRANSFER";
+
+export interface SellerFeedback {
+  type: "ok" | "warn" | "err";
+  msg: string;
+}
+
+export type SellerFeedbackSetter = (feedback: SellerFeedback | null) => void;
+
+export interface SellerOfflineReferenceSnapshot {
+  catalog: SellerCatalogItemDto[];
+  customers: SellerCustomerDto[];
+  accounts: CashAccountItem[];
+  savedAt: string;
+}
+
+export interface SellerQuoteCreateResultDto {
+  quoteCode: string;
+  totalPen?: number;
+}
+
+export interface SellerQuoteConvertResultDto {
+  order?: { orderCode: string; requiresApproval?: boolean };
+}
+
+export interface SellerPaymentTimelineResponseDto {
+  timeline?: SellerPaymentTimelineEntryDto[];
+}
+
+export interface SellerCancelledDraftItemPayload {
+  productId: number;
+  sku: string;
+  name: string;
+  quantity: number;
+  unitDiscountPen: number;
+}
+
+export type SellerCancelledDraftPayload = {
+  action: "log_cancelled_draft";
+  customerPartyId: number | null;
+  customerName: string;
+  paymentMode: SellerPaymentMode;
+  estimatedTotalPen: number;
+  itemCount: number;
+  items: SellerCancelledDraftItemPayload[];
+  reasonCode: string;
+  reasonLabel: string;
+  notes: string | null;
+};
+
+export type SellerOrderLinePayload = {
+  productId: number;
+  quantity: number;
+  unitDiscountPen: number;
+};
+
+export type SellerOrderPayload = {
+  action: "create" | "update";
+  orderId: number | undefined;
+  reason: string | undefined;
+  customerPartyId: number | null;
+  customerNameRaw: string;
+  paymentMode: SellerPaymentMode;
+  collectOnDelivery: boolean | undefined;
+  creditDays: number | undefined;
+  promisedPaymentDate: string | null;
+  initialPaidPen: number | undefined;
+  notes: string;
+  lines: SellerOrderLinePayload[];
+};
+
+export type SellerQuoteCreatePayload = {
+  action: "create_quote";
+  customerPartyId: number | null;
+  customerNameRaw: string | undefined;
+  notes: string | undefined;
+  lines: Array<{
+    productId: number;
+    rawDescription: string;
+    quantity: number;
+    unitPricePen: number;
+  }>;
+};
+
+export type SellerCollectionPayload =
+  | {
+      mode: "fifo_customer";
+      customerPartyId: number | null;
+      totalAmountPen: number;
+      paymentMode: SellerCollectionPaymentMode;
+      accountId: number | undefined;
+      nextCollectionDays: number | null;
+      notes: string;
+    }
+  | {
+      mode: "single_order";
+      orderId: number;
+      amountPen: number;
+      paymentMode: SellerCollectionPaymentMode;
+      accountId: number | undefined;
+      nextCollectionDays: number | null;
+      notes: string;
+    };
+
+export type SellerExpensePayload = {
+  amountPen: number;
+  expenseBucket: "ROUTE_OPEX";
+  expenseCategory: string;
+  txDate: string;
+  description: string;
+};
+
+export type SellerDebtDetailTarget =
+  | {
+      mode: "customer";
+      customerKey: string;
+      customerName: string;
+      customerPartyId: number | null;
+    }
+  | { mode: "order"; orderId: number };

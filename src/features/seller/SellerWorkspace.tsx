@@ -1,0 +1,328 @@
+"use client";
+
+import React, { useCallback, useEffect, useMemo, useState } from "react";
+import dynamic from "next/dynamic";
+import { useRouter } from "next/navigation";
+import { signOutFromERP } from "@/lib/auth/logout-client";
+import {
+  AppHeader,
+  BottomNav,
+  DesktopSidebar,
+  type NavTabItem,
+} from "@/components/ui/AppShell";
+import {
+  ChevronRightIcon,
+  ClockIcon,
+  PackageIcon,
+  ShoppingBagIcon,
+  WalletIcon,
+} from "@/components/ui/Icons";
+import {
+  Button,
+  Card,
+  SegmentedControl,
+  ToastBanner,
+} from "@/components/ui/Primitives";
+import { useLiveSync } from "@/lib/realtime/useLiveSync";
+import { deleteOfflineSnapshotsForActor } from "@/lib/offline/outbox";
+import {
+  canonicalSellerUrl,
+  resolveSellerNavigation,
+  sellerUrlForLegacyTab,
+  type LegacySellerTab,
+} from "@/lib/navigation";
+import SellerCollectionModals from "@/features/seller/SellerCollectionModals";
+import SellerCollectionsTab from "@/features/seller/SellerCollectionsTab";
+import {
+  SellerCancelDraftModal,
+  SellerMobileCartBar,
+} from "@/features/seller/SellerOrderOverlays";
+import SellerProgressiveOrder from "@/features/seller/SellerProgressiveOrder";
+import { SELLER_SYNC_SCOPES } from "@/features/seller/seller-utils";
+import type { SellerFeedback } from "@/features/seller/types";
+import { useSellerCollections } from "@/features/seller/useSellerCollections";
+import { useSellerData } from "@/features/seller/useSellerData";
+import { useSellerExpense } from "@/features/seller/useSellerExpense";
+import { useSellerOrderFlow } from "@/features/seller/useSellerOrderFlow";
+import { useSellerQuotes } from "@/features/seller/useSellerQuotes";
+
+const SellerQuotesTab = dynamic(() => import("@/features/seller/SellerQuotesTab"));
+const SellerOrdersTab = dynamic(() => import("@/features/seller/SellerOrdersTab"));
+const SellerMoreTab = dynamic(() => import("@/features/seller/SellerMoreTab"));
+
+type SellerTab = LegacySellerTab;
+
+export default function SellerWorkspace() {
+  const router = useRouter();
+  const [tab, setTab] = useState<SellerTab>("nuevo");
+  const [feedback, setFeedback] = useState<SellerFeedback | null>(null);
+  const [loggingOut, setLoggingOut] = useState(false);
+  const [expandedOrderId, setExpandedOrderId] = useState<number | null>(null);
+
+  useEffect(() => {
+    const syncFromUrl = () => {
+      const current = new URL(window.location.href);
+      const resolved = resolveSellerNavigation(current.searchParams);
+      setTab(resolved.legacyTab);
+      const canonical = canonicalSellerUrl(current);
+      if (canonical.search !== current.search) {
+        router.replace(canonical.pathname + canonical.search + canonical.hash, {
+          scroll: false,
+        });
+      }
+    };
+    syncFromUrl();
+    window.addEventListener("popstate", syncFromUrl);
+    return () => window.removeEventListener("popstate", syncFromUrl);
+  }, [router]);
+  const handleTabChange = useCallback((nextTab: SellerTab) => {
+    setTab(nextTab);
+    const current = new URL(window.location.href);
+    const url = sellerUrlForLegacyTab(current, nextTab);
+    if (url.search !== current.search) {
+      window.history.pushState(null, "", url.pathname + url.search + url.hash);
+    }
+  }, []);
+
+  const data = useSellerData(setFeedback);
+  const { currentUser, quotes, orders, debtorsByOrder } = data;
+  const clearExpandedOrder = useCallback(() => setExpandedOrderId(null), []);
+  const flow = useSellerOrderFlow({
+    data,
+    setFeedback,
+    handleTabChange,
+    clearExpandedOrder,
+  });
+  const collections = useSellerCollections(data, setFeedback);
+  const quoteActions = useSellerQuotes(data, setFeedback);
+  const expense = useSellerExpense(currentUser?.username, setFeedback);
+  const { cart, isPartnerControlUser, hasOrderDraft } = flow;
+
+  const handleSyncAuthError = useCallback(() => {
+    router.push("/login");
+  }, [router]);
+
+  const { liveStatus, triggerSync } = useLiveSync({
+    scopes: SELLER_SYNC_SCOPES,
+    enabled: !loggingOut && !collections.isAbonoModalOpen,
+    onRemoteChange: data.handleRemoteChange,
+    onAuthError: handleSyncAuthError,
+  });
+
+  const openQuotesCount = useMemo(
+    () => quotes.filter((q) => q.status === "OPEN").length,
+    [quotes]
+  );
+
+  const navItems: NavTabItem<SellerTab>[] = useMemo(
+    () => [
+      {
+        id: "nuevo",
+        label: "Vender",
+        mobileLabel: "Vender",
+        icon: <ShoppingBagIcon className="h-4 w-4" />,
+        badgeCount: cart.length > 0 ? cart.length : undefined,
+      },
+      {
+        id: "pedidos",
+        label: "Ventas",
+        mobileLabel: "Ventas",
+        icon: <PackageIcon className="h-4 w-4" />,
+        badgeCount: openQuotesCount > 0 ? openQuotesCount : undefined,
+      },
+      {
+        id: "deudores",
+        label: "Cobrar",
+        mobileLabel: "Cobrar",
+        icon: <WalletIcon className="h-4 w-4" />,
+        badgeCount: debtorsByOrder.length > 0 ? debtorsByOrder.length : undefined,
+      },
+      {
+        id: "gastos",
+        label: "Más",
+        mobileLabel: "Más",
+        icon: <ClockIcon className="h-4 w-4" />,
+      },
+    ],
+    [cart.length, openQuotesCount, debtorsByOrder.length]
+  );
+
+  const activeTabLabel =
+    navItems.find((item) => item.id === (tab === "cotizaciones" ? "pedidos" : tab))
+      ?.label ?? "Vender";
+  const navActiveTab: SellerTab = tab === "cotizaciones" ? "pedidos" : tab;
+
+  async function handleLogout() {
+    if (loggingOut) return;
+    setLoggingOut(true);
+    try {
+      if (currentUser?.username) {
+        await deleteOfflineSnapshotsForActor(currentUser.username).catch(
+          () => undefined
+        );
+      }
+      await signOutFromERP();
+    } finally {
+      router.push("/login");
+    }
+  }
+
+  const cleanSellerName =
+    currentUser?.fullName &&
+    !/vendedor\s+externo|socio\s+operativo|socio\s+gerente/i.test(currentUser.fullName)
+      ? currentUser.fullName
+      : currentUser?.username === "socio_admin"
+        ? "Renzo"
+        : null;
+  const sellerHeaderRoleLabel =
+    currentUser?.role === "PARTNER_ADMIN"
+      ? `${cleanSellerName || "Renzo"} · Ventas y Control`
+      : currentUser?.role === "PARTNER_MANAGER"
+        ? `${cleanSellerName || "Samuel"} · Gerencia`
+        : cleanSellerName
+          ? `${cleanSellerName} · Vendedor S/`
+          : "Vendedor · S/";
+  return (
+    <div className="min-h-screen bg-[#F8FAFC] pb-40 md:pb-12">
+      <AppHeader
+        title="Ventas y Cobranzas"
+        roleLabel={sellerHeaderRoleLabel}
+        roleTone="horizon"
+        roleDotColor="bg-[#075EE8]"
+        syncStatus={liveStatus}
+        onSyncClick={() => void triggerSync({ force: true })}
+        maxWidth="6xl"
+        withSidebar
+        actions={
+          isPartnerControlUser ? (
+            <Button
+              variant="outline"
+              size="md"
+              onClick={() => router.push("/socios")}
+              className="min-h-[38px] sm:min-h-[40px] px-3.5 text-xs sm:text-sm"
+            >
+              Control Operativo
+            </Button>
+          ) : undefined
+        }
+        onLogout={handleLogout}
+      />
+
+      <DesktopSidebar
+        items={navItems}
+        activeId={navActiveTab}
+        onChange={handleTabChange}
+        areaLabel="Vendedor · Campo"
+      />
+
+      <main
+        id="main-content"
+        tabIndex={-1}
+        className="mx-auto max-w-6xl space-y-4 px-3.5 pt-4 sm:px-5 outline-none md:ml-[232px] md:max-w-none md:px-6 lg:px-8"
+      >
+        <div
+          className="flex items-center gap-2 rounded-xl border border-[#E2E8F0] bg-white px-3.5 py-3 text-xs"
+          aria-label={`Ubicación actual: ${activeTabLabel}`}
+        >
+          <span className="font-medium text-[#6D6A64]">Ventas y Cobranzas</span>
+          <ChevronRightIcon className="h-3.5 w-3.5 text-[#A8A49C]" aria-hidden="true" />
+          <span className="font-semibold text-[#0F2942]">{activeTabLabel}</span>
+        </div>
+
+        {feedback && (
+          <ToastBanner
+            type={feedback.type}
+            message={feedback.msg}
+            onDismiss={() => setFeedback(null)}
+          />
+        )}
+
+        {liveStatus === "offline" && (
+          <Card
+            tone="warning"
+            padding="sm"
+            className="text-xs leading-relaxed text-[#78350F]"
+            role="status"
+          >
+            Sin conexión. Puedes guardar pedidos, cobros y gastos; se enviarán al
+            recuperar Internet. Precio, stock y crédito se validarán al sincronizar.
+          </Card>
+        )}
+        {tab === "nuevo" && hasOrderDraft && (
+          <p className="-mt-2 px-1 text-xs text-[#5C5A55]" role="status">
+            Borrador guardado automáticamente en este dispositivo para tu usuario.
+          </p>
+        )}
+
+        {tab === "nuevo" && <SellerProgressiveOrder flow={flow} />}
+
+        {(tab === "cotizaciones" || tab === "pedidos") && (
+          <SegmentedControl
+            ariaLabel="Vista de ventas"
+            value={tab === "cotizaciones" ? "cotizaciones" : "pedidos"}
+            onChange={(value) => handleTabChange(value as SellerTab)}
+            options={[
+              { id: "pedidos", label: "Pedidos" },
+              { id: "cotizaciones", label: "Cotizaciones", count: openQuotesCount },
+            ]}
+          />
+        )}
+
+        {tab === "cotizaciones" && (
+          <SellerQuotesTab
+            quotes={quotes}
+            busyQuoteId={quoteActions.busyQuoteId}
+            onCreate={() => handleTabChange("nuevo")}
+            onConvert={quoteActions.handleConvertQuote}
+            onCancel={(quoteId) =>
+              quoteActions.handleUpdateQuoteStatus(quoteId, "CANCELLED")
+            }
+          />
+        )}
+        {tab === "deudores" && <SellerCollectionsTab collections={collections} />}
+
+        {tab === "pedidos" && (
+          <SellerOrdersTab
+            orders={orders}
+            expandedOrderId={expandedOrderId}
+            setExpandedOrderId={setExpandedOrderId}
+            currentUserId={currentUser?.userId}
+            onEdit={flow.beginEditingOrder}
+          />
+        )}
+        {tab === "gastos" && (
+          <SellerMoreTab
+            liveStatus={liveStatus}
+            userName={
+              currentUser?.fullName || currentUser?.username || "Usuario vendedor"
+            }
+            onSync={() => void triggerSync({ force: true })}
+            expenseDate={expense.expenseDate}
+            setExpenseDate={expense.setExpenseDate}
+            expenseCategory={expense.expenseCategory}
+            setExpenseCategory={expense.setExpenseCategory}
+            expenseAmount={expense.expenseAmount}
+            setExpenseAmount={expense.setExpenseAmount}
+            expenseDesc={expense.expenseDesc}
+            setExpenseDesc={expense.setExpenseDesc}
+            busyExpense={expense.busyExpense}
+            onSubmitExpense={expense.handleSubmitExpense}
+          />
+        )}
+      </main>
+
+      <SellerCancelDraftModal flow={flow} />
+      <SellerCollectionModals collections={collections} />
+
+      {tab === "nuevo" && cart.length > 0 && <SellerMobileCartBar flow={flow} />}
+
+      <BottomNav
+        items={navItems}
+        activeId={navActiveTab}
+        onChange={handleTabChange}
+        maxWidth="2xl"
+        className="md:hidden"
+      />
+    </div>
+  );
+}

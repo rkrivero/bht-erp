@@ -69,6 +69,8 @@ export interface RawOrderLineRow {
   fulfillment_status: LineFulfillmentStatus;
   pack_factor_applied?: number;
   below_min_price_flag?: boolean;
+  is_below_min_floor?: boolean;
+  line_margin_pen?: number | null;
 }
 
 export interface RawOrderWithLines {
@@ -86,6 +88,7 @@ export interface RawOrderWithLines {
   total_pen: number;
   paid_pen: number;
   balance_due_pen: number;
+  order_margin_pen?: number;
   is_settled?: boolean;
   notes?: string | null;
   created_by_user_id?: number | null;

@@ -23,6 +23,7 @@ import {
   formatMarginStatusEs,
   formatQualityGapEs,
 } from "@/lib/labels-es";
+import type { PartnerQualityGapDto, PartnerTopSkuDto } from "@/lib/contracts";
 import { notifyLocalSync } from "@/lib/realtime/useLiveSync";
 import {
   type AppUserItem,
@@ -41,8 +42,8 @@ interface KpisBiTabProps {
   currentUser: CurrentUserInfo | null;
   kpiQ1: KpiQ1Summary;
   openDebtorsCount: number;
-  kpiQ2TopSkus: Array<Record<string, unknown>>;
-  qualityGaps: Array<Record<string, unknown>>;
+  kpiQ2TopSkus: PartnerTopSkuDto[];
+  qualityGaps: PartnerQualityGapDto[];
   auditFlags?: AuditFlagItem[];
   auditFlagCounts?: AuditFlagCounts;
   biSummary: BiSummary | null;
