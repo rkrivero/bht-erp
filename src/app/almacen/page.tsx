@@ -2,7 +2,7 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { authClient } from "@/lib/auth/client";
+import { signOutFromERP } from "@/lib/auth/logout-client";
 import { AppHeader } from "@/components/ui/AppShell";
 import { CheckIcon, PackageIcon } from "@/components/ui/Icons";
 import {
@@ -462,7 +462,7 @@ export default function AlmacenPage() {
           () => undefined
         );
       }
-      await authClient.signOut();
+      await signOutFromERP();
     } finally {
       router.push("/login");
     }

@@ -13,3 +13,4 @@ test-results/
 .playwright-mcp/
 .vscode/
 interface-login.png
+public/sw.js

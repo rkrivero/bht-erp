@@ -10,7 +10,7 @@ import React, {
 } from "react";
 import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
-import { authClient } from "@/lib/auth/client";
+import { signOutFromERP } from "@/lib/auth/logout-client";
 import {
   type ApObligationItem,
   type AppUserItem,
@@ -1261,7 +1261,7 @@ export default function SociosPage() {
                 () => undefined
               );
             }
-            await authClient.signOut();
+            await signOutFromERP();
           } finally {
             setBusyLogout(false);
             router.push("/login");

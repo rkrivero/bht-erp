@@ -17,3 +17,113 @@ test("publishes an installable manifest and an offline fallback", async ({
     page.getByRole("heading", { name: "Sin conexión", exact: true })
   ).toBeVisible();
 });
+
+test("recovers the seller shell offline without deleting a pending outbox", async ({
+  page,
+  context,
+}) => {
+  await page.addInitScript(() => {
+    Object.defineProperty(window, "EventSource", {
+      configurable: true,
+      value: undefined,
+    });
+  });
+  await page.route("**/api/orders", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        orders: [],
+        catalog: [],
+        customers: [],
+        accounts: [],
+        currentUser: {
+          userId: 2,
+          username: "seller-pwa",
+          fullName: "Vendedor PWA",
+          role: "EXTERNAL_SELLER",
+        },
+      }),
+    });
+  });
+  for (const endpoint of ["quotes", "collections", "sync"]) {
+    await page.route(`**/api/${endpoint}**`, async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(
+          endpoint === "sync"
+            ? { version: "pwa", changedScopes: [], allowedScopes: ["orders"] }
+            : endpoint === "collections"
+              ? { byOrder: [], byCustomer: [] }
+              : { quotes: [] }
+        ),
+      });
+    });
+  }
+
+  await page.goto("/vendedor");
+  await page.evaluate(async () => {
+    await navigator.serviceWorker.ready;
+    if (!navigator.serviceWorker.controller) location.reload();
+  });
+  await page.waitForLoadState("domcontentloaded");
+  await context.setOffline(true);
+  await page.evaluate(async () => {
+    await new Promise<void>((resolve, reject) => {
+      const request = indexedDB.open("bht-erp-offline-v1", 1);
+      request.onupgradeneeded = () => {
+        const db = request.result;
+        if (!db.objectStoreNames.contains("outbox")) {
+          db.createObjectStore("outbox", { keyPath: "id" });
+        }
+        if (!db.objectStoreNames.contains("snapshots")) {
+          db.createObjectStore("snapshots", { keyPath: "key" });
+        }
+      };
+      request.onerror = () => reject(request.error);
+      request.onsuccess = () => {
+        const db = request.result;
+        const tx = db.transaction("outbox", "readwrite");
+        tx.objectStore("outbox").put({
+          id: "pwa-pending",
+          kind: "ORDER_CREATE",
+          actorUsername: "seller-pwa",
+          url: "/api/orders",
+          body: { customerNameRaw: "Cliente offline" },
+          createdAt: new Date().toISOString(),
+          status: "pending",
+        });
+        tx.oncomplete = () => {
+          db.close();
+          resolve();
+        };
+        tx.onerror = () => reject(tx.error);
+      };
+    });
+  });
+
+  const offlineResponse = await page.goto("/vendedor");
+  expect(offlineResponse?.ok()).toBe(true);
+  const pendingStillExists = await page.evaluate(
+    () =>
+      new Promise<boolean>((resolve, reject) => {
+        const request = indexedDB.open("bht-erp-offline-v1", 1);
+        request.onerror = () => reject(request.error);
+        request.onsuccess = () => {
+          const db = request.result;
+          const get = db
+            .transaction("outbox", "readonly")
+            .objectStore("outbox")
+            .get("pwa-pending");
+          get.onsuccess = () => {
+            resolve(get.result?.status === "pending");
+            db.close();
+          };
+          get.onerror = () => reject(get.error);
+        };
+      })
+  );
+  expect(pendingStillExists).toBe(true);
+  await context.setOffline(false);
+});

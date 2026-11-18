@@ -50,7 +50,7 @@ export default defineConfig({
   webServer: externalBaseURL
     ? undefined
     : {
-        command: "npx next dev --hostname 127.0.0.1 --port 3011",
+        command: "npm run dev -- --hostname 127.0.0.1 --port 3011",
         url: "http://127.0.0.1:3011/login",
         reuseExistingServer: !process.env.CI,
         timeout: 120_000,

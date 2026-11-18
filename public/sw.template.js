@@ -1,4 +1,4 @@
-const CACHE_NAME = "bht-shell-v2";
+const CACHE_NAME = "bht-shell-__BHT_CACHE_HASH__";
 const SHELL = ["/offline", "/login", "/icon.svg", "/manifest.webmanifest"];
 
 self.addEventListener("install", (event) => {
@@ -11,7 +11,9 @@ self.addEventListener("activate", (event) => {
     caches
       .keys()
       .then((keys) =>
-        Promise.all(keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key)))
+        Promise.all(
+          keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key))
+        )
       )
   );
   self.clients.claim();
@@ -28,8 +30,6 @@ self.addEventListener("fetch", (event) => {
       (async () => {
         try {
           const response = await fetch(request);
-          // /vendedor is a client-rendered shell; sensitive records still come
-          // from no-store APIs and are loaded from the user's scoped IndexedDB snapshot.
           if (response.ok && url.pathname === "/vendedor") {
             const cache = await caches.open(CACHE_NAME);
             await cache.put(`${url.origin}/vendedor`, response.clone());
@@ -48,26 +48,10 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  if (
-    url.pathname === "/vendedor" &&
-    request.headers.get("accept")?.includes("text/html")
-  ) {
-    event.respondWith(
-      fetch(request).then(async (response) => {
-        if (
-          response.ok &&
-          response.headers.get("content-type")?.includes("text/html")
-        ) {
-          const cache = await caches.open(CACHE_NAME);
-          await cache.put(`${url.origin}/vendedor`, response.clone());
-        }
-        return response;
-      })
-    );
-    return;
-  }
-
-  if (url.pathname.startsWith("/_next/static/") || url.pathname === "/icon.svg") {
+  const isHashedStaticAsset =
+    url.pathname.startsWith("/_next/static/") &&
+    /(?:[./_-])[a-f0-9]{8,}(?:[./_-]|$)/i.test(url.pathname);
+  if (isHashedStaticAsset) {
     event.respondWith(
       caches.open(CACHE_NAME).then(async (cache) => {
         const cached = await cache.match(request);

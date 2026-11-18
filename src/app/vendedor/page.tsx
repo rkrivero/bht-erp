@@ -10,7 +10,7 @@ import React, {
 } from "react";
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
-import { authClient } from "@/lib/auth/client";
+import { signOutFromERP } from "@/lib/auth/logout-client";
 import {
   AbonoModal,
   type AbonoCashAccountOption,
@@ -1543,7 +1543,7 @@ export default function VendedorPage() {
           () => undefined
         );
       }
-      await authClient.signOut();
+      await signOutFromERP();
     } finally {
       router.push("/login");
     }
