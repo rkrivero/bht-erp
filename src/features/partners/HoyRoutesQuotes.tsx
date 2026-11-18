@@ -29,19 +29,24 @@ export function HoyRoutesQuotes({
     handlePartnerConvertQuote,
     handlePartnerCancelQuote,
   } = flow;
+  const openTripsCount = routeTrips.filter((tr) => String(tr.status) === "OPEN").length;
   return (
     <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
       <Card padding="md" className="space-y-3">
-        <div className="flex items-center justify-between gap-2">
+        <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
             <h2 className="text-sm sm:text-base font-semibold text-bht-ink-strong">
-              Rutas y Despachos ({routeTrips.length})
+              Rutas y Despachos
             </h2>
             <p className="text-xs text-bht-ink-soft">
-              Cierra la ruta al terminar el día; lo cobrado equivale a las ventas
-              registradas.
+              Seguimiento de salidas de reparto y entregas registradas por almacén.
             </p>
           </div>
+          <Badge tone={openTripsCount > 0 ? "warning" : "neutral"}>
+            {openTripsCount > 0
+              ? `${openTripsCount} en ruta`
+              : `${routeTrips.length} registradas`}
+          </Badge>
         </div>
         {routeTrips.length === 0 ? (
           <EmptyState title="Sin rutas registradas" />
@@ -75,19 +80,11 @@ export function HoyRoutesQuotes({
                         </strong>
                       </p>
                     </div>
-                    <Badge
-                      tone={
-                        status === "RECONCILED"
-                          ? "success"
-                          : status === "CLOSED"
-                            ? "brand"
-                            : "warning"
-                      }
-                    >
+                    <Badge tone={status === "OPEN" ? "warning" : "success"}>
                       {formatRouteTripStatusEs(status)}
                     </Badge>
                   </div>
-                  {status !== "RECONCILED" && (
+                  {status === "OPEN" && (
                     <div className="flex flex-wrap items-center gap-2">
                       <Button
                         type="button"

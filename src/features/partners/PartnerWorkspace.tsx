@@ -11,8 +11,10 @@ import {
 } from "@/components/ui/AppShell";
 import {
   ActivityIcon,
+  BarChartIcon,
   BuildingIcon,
   ChevronRightIcon,
+  LockIcon,
   PackageIcon,
   PlusIcon,
   SearchIcon,
@@ -29,6 +31,7 @@ import {
 } from "@/lib/navigation";
 import { deleteOfflineSnapshotsForActor } from "@/lib/offline/outbox";
 import { Cobranza, CobranzaModals } from "./Cobranza";
+import { Accesos } from "./Accesos";
 import { Finanzas } from "./Finanzas";
 import { Hoy } from "./Hoy";
 import { Inventario, InventarioModals } from "./Inventario";
@@ -72,6 +75,7 @@ export default function PartnerWorkspace() {
     negStockCount,
     openApCount,
     currentUser,
+    appUsers,
   } = data;
 
   const orderFlow = useOrderFlow({
@@ -202,18 +206,23 @@ export default function PartnerWorkspace() {
     return operationalArea;
   }, [currentUser]);
 
+  const activeUsersCount = useMemo(
+    () => appUsers.filter((u) => u.is_active).length,
+    [appUsers]
+  );
+
   const navItems: NavTabItem<PartnerTab>[] = useMemo(
     () => [
       {
         id: "control",
-        label: "Hoy",
+        label: "Hoy · Control",
         mobileLabel: "Hoy",
         icon: <ActivityIcon className="h-4 w-4" />,
         badgeCount: pendingApprovals.length,
       },
       {
         id: "pedidos",
-        label: "Ventas",
+        label: "Ventas y pedidos",
         mobileLabel: "Ventas",
         icon: <ShoppingBagIcon className="h-4 w-4" />,
         badgeCount: ordersPagination?.totalCount,
@@ -227,17 +236,30 @@ export default function PartnerWorkspace() {
       },
       {
         id: "stock",
-        label: "Inventario",
+        label: "Inventario y precios",
         mobileLabel: "Inventario",
         icon: <PackageIcon className="h-4 w-4" />,
         badgeCount: negStockCount,
       },
       {
         id: "caja",
-        label: "Finanzas y análisis",
-        mobileLabel: "Finanzas",
+        label: "Caja y proveedores",
+        mobileLabel: "Caja",
         icon: <BuildingIcon className="h-4 w-4" />,
         badgeCount: openApCount,
+      },
+      {
+        id: "kpis",
+        label: "Indicadores y BI",
+        mobileLabel: "KPIs",
+        icon: <BarChartIcon className="h-4 w-4" />,
+      },
+      {
+        id: "accesos",
+        label: "Accesos y usuarios",
+        mobileLabel: "Accesos",
+        icon: <LockIcon className="h-4 w-4" />,
+        badgeCount: activeUsersCount || undefined,
       },
     ],
     [
@@ -246,13 +268,13 @@ export default function PartnerWorkspace() {
       debtorsByOrder.length,
       negStockCount,
       openApCount,
+      activeUsersCount,
     ]
   );
 
   const activeTabLabel =
-    navItems.find((item) => item.id === (tab === "kpis" ? "caja" : tab))?.label ??
-    "Hoy";
-  const navActiveTab: PartnerTab = tab === "kpis" ? "caja" : tab;
+    navItems.find((item) => item.id === tab)?.label ?? "Hoy · Control";
+  const navActiveTab: PartnerTab = tab;
 
   function handleGlobalSearchSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -321,7 +343,29 @@ export default function PartnerWorkspace() {
         activeId={navActiveTab}
         onChange={handleTabChange}
         areaLabel="Socios · Control"
-        footer="Equipo y acceso se mantiene en administración."
+        footer={
+          <div className="space-y-1.5">
+            <p className="px-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--bht-sky)]">
+              Otros módulos
+            </p>
+            <button
+              type="button"
+              onClick={() => router.push("/vendedor")}
+              className="flex min-h-9 w-full items-center gap-2 rounded-lg px-2 text-left text-xs font-semibold text-[var(--bht-sky)] transition-colors hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white cursor-pointer"
+            >
+              <PlusIcon className="h-3.5 w-3.5" aria-hidden="true" />
+              <span>Tomar Pedido (Vendedor)</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => router.push("/almacen")}
+              className="flex min-h-9 w-full items-center gap-2 rounded-lg px-2 text-left text-xs font-semibold text-[var(--bht-sky)] transition-colors hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white cursor-pointer"
+            >
+              <PackageIcon className="h-3.5 w-3.5" aria-hidden="true" />
+              <span>Almacén y Reparto</span>
+            </button>
+          </div>
+        }
       />
 
       <main
@@ -429,6 +473,14 @@ export default function PartnerWorkspace() {
 
         {tab === "stock" && (
           <Inventario negStockCount={negStockCount} flow={inventoryFlow} />
+        )}
+
+        {tab === "accesos" && (
+          <Accesos
+            data={data}
+            setSubTabEditing={setSubTabEditing}
+            showFeedback={showFeedback}
+          />
         )}
 
         {(tab === "caja" || tab === "kpis") && (

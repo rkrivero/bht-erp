@@ -54,14 +54,11 @@ export function Finanzas({
     suppliers,
     recentPurchases,
     pendingOnDemand,
-    currentUser,
     kpiQ1,
     openDebtorsCount,
     kpiQ2TopSkus,
     qualityGaps,
     biSummary,
-    appUsers,
-    userAccessHistory,
     loadDashboard,
   } = data;
   return (
@@ -94,7 +91,6 @@ export function Finanzas({
 
       {tab === "kpis" && kpiQ1 && (
         <KpisBiTab
-          currentUser={currentUser}
           kpiQ1={kpiQ1}
           openDebtorsCount={openDebtorsCount}
           kpiQ2TopSkus={kpiQ2TopSkus}
@@ -102,8 +98,6 @@ export function Finanzas({
           auditFlags={partnerData?.auditFlags}
           auditFlagCounts={partnerData?.auditFlagCounts}
           biSummary={biSummary}
-          users={appUsers}
-          userAccessHistory={userAccessHistory}
           onGoToPurchaseProduct={handleGoToPurchaseProduct}
           onGoToEditProduct={handleGoToEditProduct}
           onRefresh={loadDashboard}

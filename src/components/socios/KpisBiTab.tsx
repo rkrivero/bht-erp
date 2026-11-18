@@ -26,20 +26,15 @@ import {
 import type { PartnerQualityGapDto, PartnerTopSkuDto } from "@/lib/contracts";
 import { notifyLocalSync } from "@/lib/realtime/useLiveSync";
 import {
-  type AppUserItem,
   type AuditFlagCounts,
   type AuditFlagItem,
   type BiSummary,
-  type CurrentUserInfo,
   type KpiQ1Summary,
-  type UserAccessAuditItem,
   formatMonthLabel,
   formatPen,
 } from "./types";
-import UserManagementPanel from "./UserManagementPanel";
 
 interface KpisBiTabProps {
-  currentUser: CurrentUserInfo | null;
   kpiQ1: KpiQ1Summary;
   openDebtorsCount: number;
   kpiQ2TopSkus: PartnerTopSkuDto[];
@@ -47,8 +42,6 @@ interface KpisBiTabProps {
   auditFlags?: AuditFlagItem[];
   auditFlagCounts?: AuditFlagCounts;
   biSummary: BiSummary | null;
-  users: AppUserItem[];
-  userAccessHistory: UserAccessAuditItem[];
   onGoToPurchaseProduct: (productId: number) => void;
   onGoToEditProduct: (sku: string) => void;
   onRefresh: () => Promise<void>;
@@ -93,7 +86,6 @@ function getBiMarginClass(marginPen: unknown, pct: unknown): string {
 }
 
 export default function KpisBiTab({
-  currentUser,
   kpiQ1,
   openDebtorsCount,
   kpiQ2TopSkus,
@@ -101,8 +93,6 @@ export default function KpisBiTab({
   auditFlags = [],
   auditFlagCounts,
   biSummary,
-  users,
-  userAccessHistory,
   onGoToPurchaseProduct,
   onGoToEditProduct,
   onRefresh,
@@ -407,7 +397,7 @@ export default function KpisBiTab({
       </section>
 
       {/* Cash breakdown */}
-      <details className="rounded-2xl border border-bht-line bg-white p-3 sm:p-4">
+      <details open className="rounded-2xl border border-bht-line bg-white p-3 sm:p-4">
         <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bht-navy-deep">
           <div>
             <h2 className="text-sm font-semibold text-bht-ink-strong sm:text-base">
@@ -1388,17 +1378,6 @@ export default function KpisBiTab({
           );
         })()}
       </Card>
-
-      {currentUser && (
-        <UserManagementPanel
-          currentUser={currentUser}
-          users={users}
-          userAccessHistory={userAccessHistory}
-          onRefresh={onRefresh}
-          onFeedback={onFeedback}
-          onEditingChange={onEditingChange}
-        />
-      )}
     </div>
   );
 }

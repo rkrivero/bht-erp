@@ -9,6 +9,7 @@ import {
   FieldLabel,
   INPUT_CLASS,
   ModalSheet,
+  SegmentedControl,
 } from "@/components/ui/Primitives";
 import { formatRoleEs } from "@/lib/labels-es";
 import { notifyLocalSync } from "@/lib/realtime/useLiveSync";
@@ -103,6 +104,9 @@ export default function UserManagementPanel({
     user: AppUserItem;
     role: RoleValue;
   } | null>(null);
+  const [statusFilter, setStatusFilter] = useState<"ALL" | "ACTIVE" | "INACTIVE">(
+    "ALL"
+  );
 
   const editing =
     createOpen ||
@@ -125,6 +129,14 @@ export default function UserManagementPanel({
       ),
     [users]
   );
+
+  const activeCount = useMemo(() => users.filter((u) => u.is_active).length, [users]);
+  const inactiveCount = users.length - activeCount;
+  const filteredUsers = useMemo(() => {
+    if (statusFilter === "ACTIVE") return sortedUsers.filter((u) => u.is_active);
+    if (statusFilter === "INACTIVE") return sortedUsers.filter((u) => !u.is_active);
+    return sortedUsers;
+  }, [sortedUsers, statusFilter]);
 
   async function postUserAction(payload: Record<string, unknown>) {
     const response = await fetch("/api/partners", {
@@ -282,167 +294,188 @@ export default function UserManagementPanel({
           </div>
         )}
 
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <SegmentedControl<"ALL" | "ACTIVE" | "INACTIVE">
+            ariaLabel="Filtrar usuarios por estado"
+            value={statusFilter}
+            onChange={setStatusFilter}
+            options={[
+              { id: "ALL", label: "Todos", count: users.length },
+              { id: "ACTIVE", label: "Activos", count: activeCount },
+              { id: "INACTIVE", label: "De baja", count: inactiveCount },
+            ]}
+          />
+        </div>
+
         <div className="space-y-2.5">
-          {sortedUsers.map((user) => {
-            const isSelf = user.user_id === currentUser.userId;
-            const isEditingName = editingNameUserId === user.user_id;
-            const isEditingEmail = editingEmailUserId === user.user_id;
-            const isBusy = busyUserActionId !== null;
-            return (
-              <article
-                key={user.user_id}
-                className={`rounded-xl border p-3.5 ${
-                  user.is_active
-                    ? "border-bht-line bg-white"
-                    : "border-bht-line bg-bht-paper"
-                }`}
-              >
-                <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-                  <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-1.5">
-                      <span className="text-sm font-semibold text-bht-ink-strong">
-                        {user.full_name}
-                      </span>
-                      <Badge tone="neutral">@{user.username}</Badge>
-                      <Badge tone={user.is_active ? "success" : "danger"}>
-                        {user.is_active ? "Activo" : "Inactivo"}
-                      </Badge>
-                      {isSelf && <Badge tone="neutral">Tu cuenta</Badge>}
+          {filteredUsers.length === 0 ? (
+            <div className="rounded-xl border border-bht-line bg-bht-paper p-4 text-center text-xs text-bht-ink-muted">
+              No hay usuarios en este estado.
+            </div>
+          ) : (
+            filteredUsers.map((user) => {
+              const isSelf = user.user_id === currentUser.userId;
+              const isEditingName = editingNameUserId === user.user_id;
+              const isEditingEmail = editingEmailUserId === user.user_id;
+              const isBusy = busyUserActionId !== null;
+              return (
+                <article
+                  key={user.user_id}
+                  className={`rounded-xl border p-3.5 ${
+                    user.is_active
+                      ? "border-bht-line bg-white"
+                      : "border-bht-line bg-bht-paper"
+                  }`}
+                >
+                  <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <span className="text-sm font-semibold text-bht-ink-strong">
+                          {user.full_name}
+                        </span>
+                        <Badge tone="neutral">@{user.username}</Badge>
+                        <Badge tone={user.is_active ? "success" : "danger"}>
+                          {user.is_active ? "Activo" : "De baja"}
+                        </Badge>
+                        {isSelf && <Badge tone="neutral">Tu cuenta</Badge>}
+                      </div>
+                      <p className="mt-1.5 break-all text-xs text-bht-ink-soft">
+                        {user.email || "Sin correo autorizado"}
+                      </p>
                     </div>
-                    <p className="mt-1.5 break-all text-xs text-bht-ink-soft">
-                      {user.email || "Sin correo autorizado"}
-                    </p>
+
+                    <div className="flex w-full flex-col gap-2 lg:w-auto lg:min-w-[280px]">
+                      <label
+                        className="text-xs font-semibold text-bht-ink-soft"
+                        htmlFor={`role-${user.user_id}`}
+                      >
+                        Cargo / Rol asignado
+                      </label>
+                      <select
+                        id={`role-${user.user_id}`}
+                        value={user.role}
+                        disabled={!isAdmin || isSelf || isBusy}
+                        onChange={(event) =>
+                          setPendingRoleChange({
+                            user,
+                            role: event.target.value as RoleValue,
+                          })
+                        }
+                        className={`${INPUT_CLASS} min-h-11 w-full`}
+                      >
+                        {ROLE_OPTIONS.map((option) => (
+                          <option key={option.value} value={option.value}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </select>
+                      <p className="text-xs leading-4 text-bht-ink-muted">
+                        {roleDescription(user.role)}
+                      </p>
+                    </div>
                   </div>
 
-                  <div className="flex w-full flex-col gap-2 lg:w-auto lg:min-w-[280px]">
-                    <label
-                      className="text-xs font-semibold text-bht-ink-soft"
-                      htmlFor={`role-${user.user_id}`}
-                    >
-                      Rol y alcance
-                    </label>
-                    <select
-                      id={`role-${user.user_id}`}
-                      value={user.role}
-                      disabled={!isAdmin || isSelf || isBusy}
-                      onChange={(event) =>
-                        setPendingRoleChange({
-                          user,
-                          role: event.target.value as RoleValue,
-                        })
-                      }
-                      className={`${INPUT_CLASS} min-h-11 w-full`}
-                    >
-                      {ROLE_OPTIONS.map((option) => (
-                        <option key={option.value} value={option.value}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </select>
-                    <p className="text-xs leading-4 text-bht-ink-muted">
-                      {roleDescription(user.role)}
-                    </p>
-                  </div>
-                </div>
-
-                {isAdmin && (
-                  <div className="mt-3 flex flex-wrap gap-2 border-t border-bht-tone-eeece7 pt-3">
-                    <Button
-                      type="button"
-                      variant={isEditingName ? "secondary" : "outline"}
-                      size="sm"
-                      disabled={isBusy}
-                      aria-expanded={isEditingName}
-                      onClick={() => {
-                        setEditingEmailUserId(null);
-                        setEditingNameUserId(isEditingName ? null : user.user_id);
-                        setNewFullNameValue(isEditingName ? "" : user.full_name);
-                      }}
-                    >
-                      <EditIcon className="h-3.5 w-3.5" />
-                      Nombre
-                    </Button>
-                    <Button
-                      type="button"
-                      variant={isEditingEmail ? "secondary" : "outline"}
-                      size="sm"
-                      disabled={isBusy}
-                      aria-expanded={isEditingEmail}
-                      onClick={() => {
-                        setEditingNameUserId(null);
-                        setEditingEmailUserId(isEditingEmail ? null : user.user_id);
-                        setNewEmailValue(isEditingEmail ? "" : user.email || "");
-                      }}
-                    >
-                      <EditIcon className="h-3.5 w-3.5" />
-                      Correo
-                    </Button>
-                    {!isSelf && (
+                  {isAdmin && (
+                    <div className="mt-3 flex flex-wrap gap-2 border-t border-bht-tone-eeece7 pt-3">
                       <Button
                         type="button"
-                        variant={user.is_active ? "danger" : "success"}
+                        variant={isEditingName ? "secondary" : "outline"}
                         size="sm"
                         disabled={isBusy}
-                        onClick={() =>
-                          user.is_active
-                            ? setConfirmToggleUser(user)
-                            : void handleToggleUserActive(user)
-                        }
+                        aria-expanded={isEditingName}
+                        onClick={() => {
+                          setEditingEmailUserId(null);
+                          setEditingNameUserId(isEditingName ? null : user.user_id);
+                          setNewFullNameValue(isEditingName ? "" : user.full_name);
+                        }}
                       >
-                        {user.is_active ? "Desactivar" : "Activar"}
+                        <EditIcon className="h-3.5 w-3.5" />
+                        Editar nombre
                       </Button>
-                    )}
-                  </div>
-                )}
+                      <Button
+                        type="button"
+                        variant={isEditingEmail ? "secondary" : "outline"}
+                        size="sm"
+                        disabled={isBusy}
+                        aria-expanded={isEditingEmail}
+                        onClick={() => {
+                          setEditingNameUserId(null);
+                          setEditingEmailUserId(isEditingEmail ? null : user.user_id);
+                          setNewEmailValue(isEditingEmail ? "" : user.email || "");
+                        }}
+                      >
+                        <EditIcon className="h-3.5 w-3.5" />
+                        Editar correo
+                      </Button>
+                      {!isSelf && (
+                        <Button
+                          type="button"
+                          variant={user.is_active ? "danger" : "success"}
+                          size="sm"
+                          disabled={isBusy}
+                          onClick={() =>
+                            user.is_active
+                              ? setConfirmToggleUser(user)
+                              : void handleToggleUserActive(user)
+                          }
+                        >
+                          {user.is_active
+                            ? "Dar de baja / Desactivar"
+                            : "Reactivar acceso"}
+                        </Button>
+                      )}
+                    </div>
+                  )}
 
-                {isEditingName && (
-                  <form
-                    className="mt-3 flex flex-col gap-2 border-t border-bht-tone-eeece7 pt-3 sm:flex-row"
-                    onSubmit={(event) => {
-                      event.preventDefault();
-                      void handleUpdateName(user);
-                    }}
-                  >
-                    <input
-                      required
-                      minLength={2}
-                      maxLength={60}
-                      value={newFullNameValue}
-                      onChange={(event) => setNewFullNameValue(event.target.value)}
-                      aria-label={`Nombre visible para ${user.username}`}
-                      className={`${INPUT_CLASS} min-h-11 flex-1`}
-                    />
-                    <Button type="submit" variant="primary" disabled={isBusy}>
-                      Guardar nombre
-                    </Button>
-                  </form>
-                )}
+                  {isEditingName && (
+                    <form
+                      className="mt-3 flex flex-col gap-2 border-t border-bht-tone-eeece7 pt-3 sm:flex-row"
+                      onSubmit={(event) => {
+                        event.preventDefault();
+                        void handleUpdateName(user);
+                      }}
+                    >
+                      <input
+                        required
+                        minLength={2}
+                        maxLength={60}
+                        value={newFullNameValue}
+                        onChange={(event) => setNewFullNameValue(event.target.value)}
+                        aria-label={`Nombre visible para ${user.username}`}
+                        className={`${INPUT_CLASS} min-h-11 flex-1`}
+                      />
+                      <Button type="submit" variant="primary" disabled={isBusy}>
+                        Guardar nombre
+                      </Button>
+                    </form>
+                  )}
 
-                {isEditingEmail && (
-                  <form
-                    className="mt-3 flex flex-col gap-2 border-t border-bht-tone-eeece7 pt-3 sm:flex-row"
-                    onSubmit={(event) => {
-                      event.preventDefault();
-                      void handleUpdateEmail(user);
-                    }}
-                  >
-                    <input
-                      required
-                      type="email"
-                      maxLength={254}
-                      value={newEmailValue}
-                      onChange={(event) => setNewEmailValue(event.target.value)}
-                      aria-label={`Correo de acceso para ${user.username}`}
-                      className={`${INPUT_CLASS} min-h-11 flex-1`}
-                    />
-                    <Button type="submit" variant="primary" disabled={isBusy}>
-                      Guardar correo
-                    </Button>
-                  </form>
-                )}
-              </article>
-            );
-          })}
+                  {isEditingEmail && (
+                    <form
+                      className="mt-3 flex flex-col gap-2 border-t border-bht-tone-eeece7 pt-3 sm:flex-row"
+                      onSubmit={(event) => {
+                        event.preventDefault();
+                        void handleUpdateEmail(user);
+                      }}
+                    >
+                      <input
+                        required
+                        type="email"
+                        maxLength={254}
+                        value={newEmailValue}
+                        onChange={(event) => setNewEmailValue(event.target.value)}
+                        aria-label={`Correo de acceso para ${user.username}`}
+                        className={`${INPUT_CLASS} min-h-11 flex-1`}
+                      />
+                      <Button type="submit" variant="primary" disabled={isBusy}>
+                        Guardar correo
+                      </Button>
+                    </form>
+                  )}
+                </article>
+              );
+            })
+          )}
         </div>
 
         <details className="rounded-xl border border-bht-line bg-bht-paper p-3.5">

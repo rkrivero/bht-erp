@@ -3,7 +3,6 @@
 import React from "react";
 import { useRouter } from "next/navigation";
 import { formatPen } from "@/components/socios/types";
-import {} from "@/components/shared/CollectionControls";
 import {
   ActivityIcon,
   AlertTriangleIcon,
@@ -13,7 +12,6 @@ import {
   WalletIcon,
 } from "@/components/ui/Icons";
 import { Badge, Button, Card } from "@/components/ui/Primitives";
-import {} from "@/lib/labels-es";
 import { formatActorName, getMarginTone, type PartnerTab } from "./partnerShared";
 import type { PartnerData } from "./usePartnerData";
 import type { OrderFlow } from "./useOrderFlow";
@@ -52,7 +50,37 @@ export function Hoy({
     pendingOnDemand,
     negStockCount,
     brokenPromisesCount,
+    kpiQ1,
+    biSummary,
+    accounts,
+    apObligations,
+    openApCount,
   } = data;
+
+  const totalReceivablePen = React.useMemo(
+    () =>
+      debtorsByOrder.length > 0
+        ? debtorsByOrder.reduce((sum, item) => sum + Number(item.balanceDuePen ?? 0), 0)
+        : Number(kpiQ1?.accounts_receivable_pen ?? 0),
+    [debtorsByOrder, kpiQ1?.accounts_receivable_pen]
+  );
+
+  const totalCashPen = React.useMemo(
+    () => accounts.reduce((sum, acc) => sum + Number(acc.current_balance_pen ?? 0), 0),
+    [accounts]
+  );
+
+  const totalApPen = React.useMemo(
+    () =>
+      apObligations
+        .filter((ap) => ap.status === "OPEN" || ap.status === "PARTIAL")
+        .reduce((sum, ap) => sum + Number(ap.balance_due_pen ?? 0), 0),
+    [apObligations]
+  );
+
+  const lowStockCount = biSummary?.lowStockAlerts?.length ?? 0;
+  const marginRiskCount = biSummary?.marginRiskSkus?.length ?? 0;
+  const totalOrdersCount = ordersPagination?.totalCount ?? orders.length;
   const {
     busyApproveOrderId,
     busyCancelOrderId,
@@ -139,23 +167,164 @@ export function Hoy({
 
   return (
     <div className="flex flex-col gap-5">
-      <div className="order-0 flex flex-col gap-1 px-1 sm:flex-row sm:items-end sm:justify-between">
+      <div className="flex flex-col gap-1 px-1 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h2 className="text-xl font-bold text-[var(--bht-navy)] sm:text-2xl">
             Primero, resuelve lo que bloquea la operación
           </h2>
           <p className="mt-1 text-sm text-[var(--ink-secondary)]">
-            Decisiones, caja, operación y riesgos ordenados por acción.
+            Resumen financiero del negocio, alertas prioritarias y monitor en vivo.
           </p>
         </div>
         <span className="mt-2 text-xs font-medium text-[var(--ink-secondary)] sm:mt-0">
           Hoy · America/Lima
         </span>
       </div>
+
+      {/* Primary Order Intake Action Hub */}
       <Card
-        padding="none"
-        className="order-1 overflow-hidden border-[var(--border-strong)]"
+        accent="horizon"
+        padding="md"
+        className="border-[var(--border-hairline)] bg-white"
       >
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-start gap-3">
+            <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-bht-navy-deep text-white shadow-bht-elev-11">
+              <ShoppingBagIcon className="h-5 w-5" />
+            </div>
+            <div className="min-w-0">
+              <h2 className="text-sm sm:text-base font-semibold text-bht-navy-deep">
+                Toma Rápida de Pedidos y Ventas
+              </h2>
+              <p className="mt-0.5 text-xs text-bht-ink-soft">
+                Registra pedidos nuevos, busca clientes y cobra en ruta directamente.
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 sm:flex-shrink-0">
+            <Button
+              variant="primary"
+              size="md"
+              onClick={() => router.push("/vendedor")}
+              className="flex-1 sm:flex-initial min-h-[44px] px-5 shadow-bht-elev-12"
+            >
+              <PlusIcon className="h-4 w-4" />
+              <span>Tomar Nuevo Pedido</span>
+            </Button>
+            <Button
+              variant="outline"
+              size="md"
+              onClick={() => router.push("/almacen")}
+              className="sm:hidden min-h-[44px]"
+            >
+              Almacén
+            </Button>
+          </div>
+        </div>
+      </Card>
+
+      {/* Executive Business Summary (financial + operational metrics) */}
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <button
+          type="button"
+          onClick={() => handleTabChange("kpis")}
+          className="group rounded-2xl border border-bht-line bg-white p-4 text-left shadow-bht-elev-13 transition hover:border-bht-navy-mid/45 hover:shadow-bht-elev-14 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bht-navy-deep"
+        >
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-xs font-medium text-bht-ink-warm">
+              Ventas y Cobranza
+            </span>
+            <span
+              className="text-xs text-bht-ink-muted transition group-hover:translate-x-0.5 group-hover:text-bht-navy-deep"
+              aria-hidden="true"
+            >
+              →
+            </span>
+          </div>
+          <p className="mt-2 text-2xl font-semibold tracking-tight text-bht-navy-deep tabular-nums">
+            {formatPen(kpiQ1?.total_sales_pen ?? 0)}
+          </p>
+          <p className="mt-1 text-xs text-bht-ink-soft tabular-nums">
+            Cobrado: {formatPen(kpiQ1?.collected_sales_pen ?? 0)} · {totalOrdersCount}{" "}
+            pedidos
+          </p>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => handleTabChange("deudores")}
+          className="group rounded-2xl border border-bht-line bg-white p-4 text-left shadow-bht-elev-13 transition hover:border-bht-navy-mid/45 hover:shadow-bht-elev-14 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bht-navy-deep"
+        >
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-xs font-medium text-bht-ink-warm">
+              Cartera por Cobrar
+            </span>
+            <span
+              className="text-xs text-bht-ink-muted transition group-hover:translate-x-0.5 group-hover:text-bht-navy-deep"
+              aria-hidden="true"
+            >
+              →
+            </span>
+          </div>
+          <p className="mt-2 text-2xl font-semibold tracking-tight text-bht-danger tabular-nums">
+            {formatPen(totalReceivablePen)}
+          </p>
+          <p className="mt-1 text-xs text-bht-ink-soft tabular-nums">
+            {debtorsByOrder.length} pedido(s) · {brokenPromisesCount} vencida(s)
+          </p>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => handleTabChange("caja")}
+          className="group rounded-2xl border border-bht-line bg-white p-4 text-left shadow-bht-elev-13 transition hover:border-bht-navy-mid/45 hover:shadow-bht-elev-14 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bht-navy-deep"
+        >
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-xs font-medium text-bht-ink-warm">
+              Caja y Proveedores (CxP)
+            </span>
+            <span
+              className="text-xs text-bht-ink-muted transition group-hover:translate-x-0.5 group-hover:text-bht-navy-deep"
+              aria-hidden="true"
+            >
+              →
+            </span>
+          </div>
+          <p className="mt-2 text-2xl font-semibold tracking-tight text-bht-navy-mid tabular-nums">
+            {formatPen(totalCashPen)}
+          </p>
+          <p className="mt-1 text-xs text-bht-ink-soft tabular-nums">
+            Por pagar: {formatPen(totalApPen)} ({openApCount} obl.)
+          </p>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => handleTabChange("stock")}
+          className="group rounded-2xl border border-bht-line bg-white p-4 text-left shadow-bht-elev-13 transition hover:border-bht-navy-mid/45 hover:shadow-bht-elev-14 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bht-navy-deep"
+        >
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-xs font-medium text-bht-ink-warm">
+              Inventario y Alertas
+            </span>
+            <span
+              className="text-xs text-bht-ink-muted transition group-hover:translate-x-0.5 group-hover:text-bht-navy-deep"
+              aria-hidden="true"
+            >
+              →
+            </span>
+          </div>
+          <p className="mt-2 text-2xl font-semibold tracking-tight text-bht-warning tabular-nums">
+            {lowStockCount + marginRiskCount + negStockCount}
+          </p>
+          <p className="mt-1 text-xs text-bht-ink-soft tabular-nums">
+            {lowStockCount} stock bajo · {marginRiskCount} margen · {negStockCount} neg.
+          </p>
+        </button>
+      </div>
+
+      {/* Priority Queue */}
+      <Card padding="none" className="overflow-hidden border-[var(--border-strong)]">
         <div className="flex items-center justify-between gap-3 border-b border-[var(--border-hairline)] px-4 py-3.5 sm:px-5">
           <div>
             <h3 className="text-base font-bold text-[var(--bht-navy)]">
@@ -222,137 +391,12 @@ export function Hoy({
           })}
         </div>
       </Card>
-      {/* Primary Order Intake Action Hub */}
-      <Card
-        accent="horizon"
-        padding="md"
-        className="order-4 border-[var(--border-hairline)] bg-white"
-      >
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-start gap-3">
-            <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-bht-navy-deep text-white shadow-bht-elev-11">
-              <ShoppingBagIcon className="h-5 w-5" />
-            </div>
-            <div className="min-w-0">
-              <h2 className="text-sm sm:text-base font-semibold text-bht-navy-deep">
-                Toma Rápida de Pedidos y Ventas
-              </h2>
-              <p className="mt-0.5 text-xs text-bht-ink-soft">
-                Registra pedidos nuevos, busca clientes y cobra en ruta directamente.
-              </p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2 sm:flex-shrink-0">
-            <Button
-              variant="primary"
-              size="md"
-              onClick={() => router.push("/vendedor")}
-              className="flex-1 sm:flex-initial min-h-[44px] px-5 shadow-bht-elev-12"
-            >
-              <PlusIcon className="h-4 w-4" />
-              <span>Tomar Nuevo Pedido</span>
-            </Button>
-            <Button
-              variant="outline"
-              size="md"
-              onClick={() => router.push("/almacen")}
-              className="sm:hidden min-h-[44px]"
-            >
-              Almacén
-            </Button>
-          </div>
-        </div>
-      </Card>
-
-      {/* Executive Quick Glance Strip ordered by operational priority */}
-      <div className="order-3 grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <button
-          type="button"
-          onClick={() => handleTabChange("control")}
-          className="group rounded-2xl border border-bht-line bg-white p-4 text-left shadow-bht-elev-13 transition hover:border-bht-navy-mid/45 hover:shadow-bht-elev-14 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bht-navy-deep"
-        >
-          <div className="flex items-center justify-between gap-2">
-            <span className="text-xs font-medium text-bht-ink-warm">
-              Pend. Aprobación
-            </span>
-            <span
-              className="text-xs text-bht-ink-muted transition group-hover:translate-x-0.5 group-hover:text-bht-navy-deep"
-              aria-hidden="true"
-            >
-              →
-            </span>
-          </div>
-          <p className="mt-2 text-2xl font-semibold tracking-tight text-bht-navy-deep tabular-nums">
-            {pendingApprovals.length}
-          </p>
-        </button>
-        <button
-          type="button"
-          onClick={() => handleTabChange("deudores")}
-          className="group rounded-2xl border border-bht-line bg-white p-4 text-left shadow-bht-elev-13 transition hover:border-bht-navy-mid/45 hover:shadow-bht-elev-14 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bht-navy-deep"
-        >
-          <div className="flex items-center justify-between gap-2">
-            <span className="text-xs font-medium text-bht-ink-warm">
-              Pedidos por cobrar
-            </span>
-            <span
-              className="text-xs text-bht-ink-muted transition group-hover:translate-x-0.5 group-hover:text-bht-navy-deep"
-              aria-hidden="true"
-            >
-              →
-            </span>
-          </div>
-          <p className="mt-2 text-2xl font-semibold tracking-tight text-bht-danger tabular-nums">
-            {debtorsByOrder.length}
-          </p>
-        </button>
-        <button
-          type="button"
-          onClick={() => handleTabChange("caja")}
-          className="group rounded-2xl border border-bht-line bg-white p-4 text-left shadow-bht-elev-13 transition hover:border-bht-navy-mid/45 hover:shadow-bht-elev-14 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bht-navy-deep"
-        >
-          <div className="flex items-center justify-between gap-2">
-            <span className="text-xs font-medium text-bht-ink-warm">
-              Bajo pedido pendientes
-            </span>
-            <span
-              className="text-xs text-bht-ink-muted transition group-hover:translate-x-0.5 group-hover:text-bht-navy-deep"
-              aria-hidden="true"
-            >
-              →
-            </span>
-          </div>
-          <p className="mt-2 text-2xl font-semibold tracking-tight text-bht-navy-mid tabular-nums">
-            {pendingOnDemand.length}
-          </p>
-        </button>
-        <button
-          type="button"
-          onClick={() => handleTabChange("stock")}
-          className="group rounded-2xl border border-bht-line bg-white p-4 text-left shadow-bht-elev-13 transition hover:border-bht-navy-mid/45 hover:shadow-bht-elev-14 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bht-navy-deep"
-        >
-          <div className="flex items-center justify-between gap-2">
-            <span className="text-xs font-medium text-bht-ink-warm">
-              Saldos negativos Día 1
-            </span>
-            <span
-              className="text-xs text-bht-ink-muted transition group-hover:translate-x-0.5 group-hover:text-bht-navy-deep"
-              aria-hidden="true"
-            >
-              →
-            </span>
-          </div>
-          <p className="mt-2 text-2xl font-semibold tracking-tight text-bht-warning tabular-nums">
-            {negStockCount}
-          </p>
-        </button>
-      </div>
 
       {/* 1-Tap Discount Approval Queue — calm slim banner when 0 pending */}
       {pendingApprovals.length === 0 ? (
         <div
           id="discount-approval-queue"
-          className="order-2 flex scroll-mt-24 items-center justify-between gap-2 rounded-2xl border border-bht-tone-d5e0e9 bg-white px-4 py-4 text-sm text-bht-steel"
+          className="flex scroll-mt-24 items-center justify-between gap-2 rounded-2xl border border-bht-tone-d5e0e9 bg-white px-4 py-4 text-sm text-bht-steel"
         >
           <span className="flex items-center gap-2">
             <CheckIcon className="h-3.5 w-3.5 text-bht-success" />
@@ -365,7 +409,7 @@ export function Hoy({
           id="discount-approval-queue"
           tone="warning"
           padding="md"
-          className="order-2 scroll-mt-24 space-y-3"
+          className="scroll-mt-24 space-y-3"
         >
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="flex items-center gap-2">
@@ -478,12 +522,7 @@ export function Hoy({
 
       {/* ON_DEMAND Pending Supplier Purchases */}
       {pendingOnDemand.length > 0 && (
-        <Card
-          tone="horizon"
-          accent="horizon"
-          padding="md"
-          className="order-5 space-y-3"
-        >
+        <Card tone="horizon" accent="horizon" padding="md" className="space-y-3">
           <div className="flex items-center justify-between gap-2">
             <h2 className="text-sm sm:text-base font-semibold text-bht-navy-deep">
               Pedidos Bajo Pedido Pendientes de Compra ({pendingOnDemand.length})

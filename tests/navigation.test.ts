@@ -57,4 +57,12 @@ describe("navigation aliases", () => {
       "orders"
     );
   });
+
+  it("resolves the partner access section", () => {
+    const result = resolvePartnerNavigation(new URLSearchParams({ tab: "access" }));
+    expect(result.legacyTab).toBe("accesos");
+    expect(
+      resolvePartnerNavigation(new URLSearchParams({ tab: "accesos" })).section
+    ).toBe("access");
+  });
 });

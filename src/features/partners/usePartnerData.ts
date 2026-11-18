@@ -26,6 +26,7 @@ import type {
   ApObligationItem,
   CashAccountItem,
   CashLedgerEntry,
+  CurrentUserInfo,
   PartnerCatalogItem,
   PendingOnDemandItem,
   RecentPurchaseItem,
@@ -51,6 +52,9 @@ export function usePartnerData() {
   const [treasuryData, setTreasuryData] = useState<TreasuryResponseDto | null>(null);
   const [purchasesData, setPurchasesData] = useState<PurchasesResponseDto | null>(null);
   const [orderAccounts, setOrderAccounts] = useState<CashAccountItem[]>([]);
+  const [orderCurrentUser, setOrderCurrentUser] = useState<CurrentUserInfo | null>(
+    null
+  );
   const [feedback, setFeedback] = useState<PartnerFeedback | null>(null);
 
   const showFeedback = useCallback((msg: string, isError = false) => {
@@ -189,6 +193,9 @@ export function usePartnerData() {
           setOrdersPagination(ordJson.pagination || null);
           setCatalog(ordJson.catalog || []);
           setOrderAccounts(ordJson.accounts || []);
+          if (ordJson.currentUser) {
+            setOrderCurrentUser(ordJson.currentUser);
+          }
         }
         if (tripsJson && Array.isArray(tripsJson.trips)) {
           setRouteTrips(tripsJson.trips);
@@ -259,7 +266,7 @@ export function usePartnerData() {
   const kpiQ2TopSkus = partnerData?.kpiQ2TopSkus ?? [];
   const qualityGaps = partnerData?.qualityGaps ?? [];
   const negStockCount = Number(partnerData?.negativeStockSkuCount ?? 0);
-  const currentUser = partnerData?.currentUser ?? null;
+  const currentUser = partnerData?.currentUser ?? orderCurrentUser ?? null;
   const biSummary = partnerData?.biSummary ?? null;
   const appUsers = partnerData?.users ?? [];
   const userAccessHistory = partnerData?.userAccessHistory ?? [];
