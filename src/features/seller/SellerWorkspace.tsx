@@ -183,12 +183,12 @@ export default function SellerWorkspace() {
           ? `${cleanSellerName} · Vendedor S/`
           : "Vendedor · S/";
   return (
-    <div className="min-h-screen bg-[#F8FAFC] pb-40 md:pb-12">
+    <div className="min-h-screen bg-bht-surface-cool pb-40 md:pb-12">
       <AppHeader
         title="Ventas y Cobranzas"
         roleLabel={sellerHeaderRoleLabel}
         roleTone="horizon"
-        roleDotColor="bg-[#075EE8]"
+        roleDotColor="bg-bht-cobalt"
         syncStatus={liveStatus}
         onSyncClick={() => void triggerSync({ force: true })}
         maxWidth="6xl"
@@ -221,12 +221,15 @@ export default function SellerWorkspace() {
         className="mx-auto max-w-6xl space-y-4 px-3.5 pt-4 sm:px-5 outline-none md:ml-[232px] md:max-w-none md:px-6 lg:px-8"
       >
         <div
-          className="flex items-center gap-2 rounded-xl border border-[#E2E8F0] bg-white px-3.5 py-3 text-xs"
+          className="flex items-center gap-2 rounded-xl border border-bht-slate-line bg-white px-3.5 py-3 text-xs"
           aria-label={`Ubicación actual: ${activeTabLabel}`}
         >
-          <span className="font-medium text-[#6D6A64]">Ventas y Cobranzas</span>
-          <ChevronRightIcon className="h-3.5 w-3.5 text-[#A8A49C]" aria-hidden="true" />
-          <span className="font-semibold text-[#0F2942]">{activeTabLabel}</span>
+          <span className="font-medium text-bht-ink-muted">Ventas y Cobranzas</span>
+          <ChevronRightIcon
+            className="h-3.5 w-3.5 text-bht-tone-a8a49c"
+            aria-hidden="true"
+          />
+          <span className="font-semibold text-bht-navy-deep">{activeTabLabel}</span>
         </div>
 
         {feedback && (
@@ -241,7 +244,7 @@ export default function SellerWorkspace() {
           <Card
             tone="warning"
             padding="sm"
-            className="text-xs leading-relaxed text-[#78350F]"
+            className="text-xs leading-relaxed text-bht-warning-text"
             role="status"
           >
             Sin conexión. Puedes guardar pedidos, cobros y gastos; se enviarán al
@@ -249,7 +252,7 @@ export default function SellerWorkspace() {
           </Card>
         )}
         {tab === "nuevo" && hasOrderDraft && (
-          <p className="-mt-2 px-1 text-xs text-[#5C5A55]" role="status">
+          <p className="-mt-2 px-1 text-xs text-bht-ink-soft" role="status">
             Borrador guardado automáticamente en este dispositivo para tu usuario.
           </p>
         )}

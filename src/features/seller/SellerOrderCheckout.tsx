@@ -51,14 +51,14 @@ export default function SellerOrderCheckout({ flow }: { flow: SellerOrderFlow })
         >
           <div
             aria-hidden="true"
-            className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#F2F6FA] text-[#0F2942]"
+            className="flex h-10 w-10 items-center justify-center rounded-xl bg-bht-mist text-bht-navy-deep"
           >
             <ShoppingBagIcon className="h-5 w-5" />
           </div>
-          <p className="mt-3 text-sm font-semibold text-[#18181B]">
+          <p className="mt-3 text-sm font-semibold text-bht-ink-strong">
             3. Resumen, pago y envío
           </p>
-          <p className="mt-1 max-w-xs text-xs text-[#5C5A55]">
+          <p className="mt-1 max-w-xs text-xs text-bht-ink-soft">
             Elige cliente y agrega productos a la izquierda; luego confirma aquí la
             forma de pago y el envío.
           </p>
@@ -68,10 +68,10 @@ export default function SellerOrderCheckout({ flow }: { flow: SellerOrderFlow })
         <Card
           id="cart-checkout-card"
           accent="horizon"
-          className="space-y-3.5 shadow-[0_4px_16px_rgba(15,41,66,0.05)]"
+          className="space-y-3.5 shadow-bht-elev-16"
         >
-          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#D4E0EC] pb-2.5">
-            <h2 className="text-sm font-semibold text-[#0F2942]">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-bht-line-blue pb-2.5">
+            <h2 className="text-sm font-semibold text-bht-navy-deep">
               3. Resumen y pago · {cart.length} producto(s)
             </h2>
           </div>
@@ -87,8 +87,10 @@ export default function SellerOrderCheckout({ flow }: { flow: SellerOrderFlow })
             ))}
           </div>
 
-          <div className="flex items-center justify-between rounded-xl bg-[#0F2942] px-4 py-3.5 text-white shadow-xs">
-            <span className="text-sm font-medium text-[#D4E0EC]">Total del pedido</span>
+          <div className="flex items-center justify-between rounded-xl bg-bht-navy-deep px-4 py-3.5 text-white shadow-xs">
+            <span className="text-sm font-medium text-bht-line-blue">
+              Total del pedido
+            </span>
             <span className="text-xl font-semibold tabular-nums">
               S/ {cartTotalPen.toFixed(2)}
             </span>
@@ -97,12 +99,12 @@ export default function SellerOrderCheckout({ flow }: { flow: SellerOrderFlow })
           {/* Step 3b: Payment Condition decided once total is known */}
           <div
             id="seller-step-payment"
-            className={`scroll-mt-24 space-y-3 rounded-xl border border-[#E7E5E0] bg-[#FAF9F6]/70 p-3.5 ${orderStep === "confirmation" ? "hidden" : ""}`}
+            className={`scroll-mt-24 space-y-3 rounded-xl border border-bht-line bg-bht-paper/70 p-3.5 ${orderStep === "confirmation" ? "hidden" : ""}`}
           >
             <div>
               <p
                 id="seller-payment-mode-label"
-                className="block text-xs font-medium text-[#5C5A55]"
+                className="block text-xs font-medium text-bht-ink-soft"
               >
                 3. Condición de pago
               </p>
@@ -126,10 +128,10 @@ export default function SellerOrderCheckout({ flow }: { flow: SellerOrderFlow })
                       type="button"
                       aria-pressed={active}
                       onClick={() => handleSelectPaymentMode(mode)}
-                      className={`min-h-[40px] rounded-xl border px-3 py-2 text-xs font-semibold transition cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0F2942]/45 ${
+                      className={`min-h-[40px] rounded-xl border px-3 py-2 text-xs font-semibold transition cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bht-navy-deep/45 ${
                         active
-                          ? "border-[#0F2942] bg-[#0F2942] text-white shadow-xs"
-                          : "border-[#E7E5E0] bg-white text-[#5C5A55] hover:border-[#D4E0EC] hover:bg-[#F2F6FA] hover:text-[#0F2942]"
+                          ? "border-bht-navy-deep bg-bht-navy-deep text-white shadow-xs"
+                          : "border-bht-line bg-white text-bht-ink-soft hover:border-bht-line-blue hover:bg-bht-mist hover:text-bht-navy-deep"
                       }`}
                     >
                       {label}
@@ -152,11 +154,11 @@ export default function SellerOrderCheckout({ flow }: { flow: SellerOrderFlow })
             )}
 
             {paymentMode === "CREDIT" && (
-              <div className="space-y-3 rounded-xl border border-[#F3D9B1] bg-[#FDF8F0] p-3">
+              <div className="space-y-3 rounded-xl border border-bht-amber-line bg-bht-amber-bg p-3">
                 <div>
                   <p
                     id="seller-credit-days-label"
-                    className="block text-xs font-medium text-[#78350F]"
+                    className="block text-xs font-medium text-bht-warning-text"
                   >
                     ¿Cuándo volvemos a cobrar?
                   </p>
@@ -177,10 +179,10 @@ export default function SellerOrderCheckout({ flow }: { flow: SellerOrderFlow })
                             setCustomPromiseDate("");
                             setShowCustomPromiseDate(false);
                           }}
-                          className={`min-h-[34px] rounded-full border px-2.5 py-1 text-xs font-medium transition cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0F2942]/45 ${
+                          className={`min-h-[34px] rounded-full border px-2.5 py-1 text-xs font-medium transition cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bht-navy-deep/45 ${
                             active
-                              ? "border-[#0F2942] bg-[#0F2942] text-white"
-                              : "border-[#E7D3B1] bg-white text-[#78350F] hover:bg-[#FAF9F6]"
+                              ? "border-bht-navy-deep bg-bht-navy-deep text-white"
+                              : "border-bht-tone-e7d3b1 bg-white text-bht-warning-text hover:bg-bht-paper"
                           }`}
                         >
                           {chip.label}
@@ -191,7 +193,7 @@ export default function SellerOrderCheckout({ flow }: { flow: SellerOrderFlow })
                       type="button"
                       aria-pressed={showCustomPromiseDate}
                       onClick={() => setShowCustomPromiseDate(true)}
-                      className={`min-h-[34px] rounded-full border px-2.5 py-1 text-xs font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0F2942]/45 ${showCustomPromiseDate ? "border-[#0F2942] bg-[#0F2942] text-white" : "border-[#E7D3B1] bg-white text-[#78350F]"}`}
+                      className={`min-h-[34px] rounded-full border px-2.5 py-1 text-xs font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bht-navy-deep/45 ${showCustomPromiseDate ? "border-bht-navy-deep bg-bht-navy-deep text-white" : "border-bht-tone-e7d3b1 bg-white text-bht-warning-text"}`}
                     >
                       Otra fecha
                     </button>
@@ -200,7 +202,7 @@ export default function SellerOrderCheckout({ flow }: { flow: SellerOrderFlow })
                     <div className="mt-2 flex flex-wrap items-center gap-2">
                       <label
                         htmlFor="seller-custom-date"
-                        className="text-xs font-medium text-[#78350F]"
+                        className="text-xs font-medium text-bht-warning-text"
                       >
                         O fecha:
                       </label>
@@ -209,14 +211,17 @@ export default function SellerOrderCheckout({ flow }: { flow: SellerOrderFlow })
                         type="date"
                         value={customPromiseDate}
                         onChange={(e) => setCustomPromiseDate(e.target.value)}
-                        className="min-h-[36px] rounded-lg border border-[#E7D3B1] bg-white px-2.5 py-1 text-xs font-medium text-[#18181B] focus:border-[#0F2942] focus:outline-none focus:ring-2 focus:ring-[#0F2942]/15"
+                        className="min-h-[36px] rounded-lg border border-bht-tone-e7d3b1 bg-white px-2.5 py-1 text-xs font-medium text-bht-ink-strong focus:border-bht-navy-deep focus:outline-none focus:ring-2 focus:ring-bht-navy-deep/15"
                       />
                     </div>
                   )}
                 </div>
 
                 <div>
-                  <FieldLabel htmlFor="seller-initial-paid" className="text-[#78350F]">
+                  <FieldLabel
+                    htmlFor="seller-initial-paid"
+                    className="text-bht-warning-text"
+                  >
                     Adelanto inicial hoy (Opcional, S/)
                   </FieldLabel>
                   <input
@@ -260,29 +265,29 @@ export default function SellerOrderCheckout({ flow }: { flow: SellerOrderFlow })
           <section
             id="seller-step-confirmation"
             aria-labelledby="seller-confirmation-heading"
-            className={`scroll-mt-24 rounded-xl border border-[#D4E0EC] bg-white p-3 ${orderStep !== "confirmation" ? "hidden" : ""}`}
+            className={`scroll-mt-24 rounded-xl border border-bht-line-blue bg-white p-3 ${orderStep !== "confirmation" ? "hidden" : ""}`}
           >
             <h3
               id="seller-confirmation-heading"
-              className="text-xs font-semibold text-[#0F2942]"
+              className="text-xs font-semibold text-bht-navy-deep"
             >
               4. Confirma el destino del pedido
             </h3>
             <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1.5 text-xs">
-              <dt className="text-[#5C5A55]">Cliente</dt>
-              <dd className="text-right font-medium text-[#18181B]">
+              <dt className="text-bht-ink-soft">Cliente</dt>
+              <dd className="text-right font-medium text-bht-ink-strong">
                 {customerNameRaw.trim() || "Pendiente"}
               </dd>
-              <dt className="text-[#5C5A55]">Total</dt>
-              <dd className="text-right font-semibold tabular-nums text-[#18181B]">
+              <dt className="text-bht-ink-soft">Total</dt>
+              <dd className="text-right font-semibold tabular-nums text-bht-ink-strong">
                 S/ {cartTotalPen.toFixed(2)}
               </dd>
-              <dt className="text-[#5C5A55]">Modalidad</dt>
-              <dd className="text-right font-medium text-[#18181B]">
+              <dt className="text-bht-ink-soft">Modalidad</dt>
+              <dd className="text-right font-medium text-bht-ink-strong">
                 {formatPaymentModeEs(paymentMode)}
               </dd>
-              <dt className="text-[#5C5A55]">Cobro inicial</dt>
-              <dd className="text-right font-medium tabular-nums text-[#18181B]">
+              <dt className="text-bht-ink-soft">Cobro inicial</dt>
+              <dd className="text-right font-medium tabular-nums text-bht-ink-strong">
                 {paymentMode === "CREDIT" && Number(initialPaidPen) > 0
                   ? `S/ ${Number(initialPaidPen).toFixed(2)}`
                   : paymentMode === "CREDIT"
@@ -291,8 +296,8 @@ export default function SellerOrderCheckout({ flow }: { flow: SellerOrderFlow })
                       ? "Contra entrega"
                       : "Pagado hoy"}
               </dd>
-              <dt className="text-[#5C5A55]">Destino</dt>
-              <dd className="text-right font-medium text-[#18181B]">
+              <dt className="text-bht-ink-soft">Destino</dt>
+              <dd className="text-right font-medium text-bht-ink-strong">
                 {notes.trim() || "Almacén para alistamiento"}
               </dd>
             </dl>
@@ -341,7 +346,7 @@ export default function SellerOrderCheckout({ flow }: { flow: SellerOrderFlow })
               size="lg"
               disabled={busyOrder || busyCancelDraft}
               onClick={() => setCancelDraftOpen(true)}
-              className="border-[#E7E5E0] bg-[#FAF9F6] text-[#5C5A55] hover:border-[#E8C5C5] hover:bg-[#FEF2F2]/65 hover:text-[#991B1B] sm:w-auto"
+              className="border-bht-line bg-bht-paper text-bht-ink-soft hover:border-bht-tone-e8c5c5 hover:bg-bht-danger-bg/65 hover:text-bht-danger-strong sm:w-auto"
             >
               Descartar pedido
             </Button>
@@ -358,7 +363,7 @@ export default function SellerOrderCheckout({ flow }: { flow: SellerOrderFlow })
               size="sm"
               disabled={busyCancelDraft}
               onClick={() => setCancelDraftOpen(true)}
-              className="border-[#E7E5E0] bg-[#FAF9F6] text-[#5C5A55] hover:border-[#E8C5C5] hover:bg-[#FEF2F2]/65 hover:text-[#991B1B]"
+              className="border-bht-line bg-bht-paper text-bht-ink-soft hover:border-bht-tone-e8c5c5 hover:bg-bht-danger-bg/65 hover:text-bht-danger-strong"
             >
               Descartar pedido
             </Button>

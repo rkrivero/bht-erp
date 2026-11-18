@@ -88,23 +88,23 @@ const SYNC_STATUS_CONFIG: Record<
 > = {
   live: {
     label: "En vivo",
-    dotClass: "bg-[#15803D]",
-    pillClass: "border-[#E2E8F0] bg-[#F8FAFC] text-[#0B192C]",
+    dotClass: "bg-bht-success",
+    pillClass: "border-bht-slate-line bg-bht-surface-cool text-bht-ink-deep",
   },
   syncing: {
     label: "Sincronizando",
-    dotClass: "bg-[#075EE8] animate-pulse",
-    pillClass: "border-[#E2E8F0] bg-[#F8FAFC] text-[#0B192C]",
+    dotClass: "bg-bht-cobalt animate-pulse",
+    pillClass: "border-bht-slate-line bg-bht-surface-cool text-bht-ink-deep",
   },
   paused: {
     label: "En pausa",
-    dotClass: "bg-[#6D6A64]",
-    pillClass: "border-[#E7E5E0] bg-[#F4F3EF] text-[#5C5A55]",
+    dotClass: "bg-bht-ink-muted",
+    pillClass: "border-bht-line bg-bht-paper-alt text-bht-ink-soft",
   },
   offline: {
     label: "Sin conexión",
-    dotClass: "bg-[#B45309]",
-    pillClass: "border-[#FDE68A] bg-[#FFFBEB] text-[#92400E]",
+    dotClass: "bg-bht-warning",
+    pillClass: "border-bht-warning-line bg-bht-warning-bg text-bht-warning-strong",
   },
 };
 
@@ -112,7 +112,7 @@ export function AppHeader({
   title,
   roleLabel,
   roleTone = "horizon",
-  roleDotColor = "bg-[#15803D]",
+  roleDotColor = "bg-bht-success",
   userSubtitle,
   syncStatus,
   onSyncClick,
@@ -158,7 +158,7 @@ export function AppHeader({
             <HorizonLogo className="h-full w-full" />
           </span>
           <div className="min-w-0 flex-1">
-            <h1 className="line-clamp-2 text-sm font-semibold leading-tight tracking-[-0.02em] text-[#0B192C] min-[380px]:text-base sm:truncate sm:text-lg">
+            <h1 className="line-clamp-2 text-sm font-semibold leading-tight tracking-[-0.02em] text-bht-ink-deep min-[380px]:text-base sm:truncate sm:text-lg">
               {title}
             </h1>
             <div className="mt-1 flex flex-wrap items-center gap-2">
@@ -172,7 +172,7 @@ export function AppHeader({
                     data-compact="true"
                     onClick={onSyncClick}
                     aria-label={`Estado de sincronización: ${syncCfg.label}. Tocar para actualizar`}
-                    className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-medium leading-4 whitespace-nowrap transition hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#075EE8] cursor-pointer ${syncCfg.pillClass}`}
+                    className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-medium leading-4 whitespace-nowrap transition hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bht-cobalt cursor-pointer ${syncCfg.pillClass}`}
                   >
                     <span
                       className={`h-1.5 w-1.5 rounded-full ${syncCfg.dotClass}`}
@@ -194,7 +194,7 @@ export function AppHeader({
                   </span>
                 ))}
               {userSubtitle && (
-                <span className="hidden truncate text-xs font-medium text-[#5C5A55] sm:inline">
+                <span className="hidden truncate text-xs font-medium text-bht-ink-soft sm:inline">
                   {userSubtitle}
                 </span>
               )}
@@ -239,7 +239,7 @@ export function DesktopTabBar<T extends string>({
   return (
     <nav
       aria-label="Secciones principales"
-      className={`${displayClass} items-center gap-1 overflow-x-auto no-scrollbar rounded-xl border border-[#E2E8F0] bg-white p-1.5 ${className}`}
+      className={`${displayClass} items-center gap-1 overflow-x-auto no-scrollbar rounded-xl border border-bht-slate-line bg-white p-1.5 ${className}`}
     >
       {items.map((item) => {
         const active = activeId === item.id;
@@ -249,14 +249,14 @@ export function DesktopTabBar<T extends string>({
             type="button"
             aria-current={active ? "page" : undefined}
             onClick={() => onChange(item.id)}
-            className={`flex flex-shrink-0 items-center gap-2 rounded-lg border px-3.5 py-2 text-xs font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#075EE8] focus-visible:ring-offset-1 cursor-pointer ${
+            className={`flex flex-shrink-0 items-center gap-2 rounded-lg border px-3.5 py-2 text-xs font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bht-cobalt focus-visible:ring-offset-1 cursor-pointer ${
               active
-                ? "border-[#B9D3FA] bg-[#EAF2FE] text-[#075EE8]"
-                : "border-transparent text-[#475569] hover:bg-[#F8FAFC] hover:text-[#0B192C]"
+                ? "border-bht-tone-b9d3fa bg-bht-tone-eaf2fe text-bht-cobalt"
+                : "border-transparent text-bht-slate-text hover:bg-bht-surface-cool hover:text-bht-ink-deep"
             }`}
           >
             <span
-              className={active ? "text-[#075EE8]" : "text-[#475569]"}
+              className={active ? "text-bht-cobalt" : "text-bht-slate-text"}
               aria-hidden="true"
             >
               {item.icon}
@@ -265,7 +265,9 @@ export function DesktopTabBar<T extends string>({
             {item.badgeCount !== undefined && item.badgeCount > 0 && (
               <span
                 className={`rounded-full px-1.5 py-0.5 text-[10px] font-semibold tabular-nums leading-none ${
-                  active ? "bg-[#075EE8] text-white" : "bg-[#F8FAFC] text-[#475569]"
+                  active
+                    ? "bg-bht-cobalt text-white"
+                    : "bg-bht-surface-cool text-bht-slate-text"
                 }`}
               >
                 {item.badgeCount}
@@ -321,7 +323,7 @@ export function BottomNav<T extends string>({
   return (
     <nav
       aria-label="Navegación inferior"
-      className={`bottom-bar fixed bottom-0 left-0 right-0 z-30 border-t border-[#E2E8F0] bg-white/95 backdrop-blur-md ${className}`}
+      className={`bottom-bar fixed bottom-0 left-0 right-0 z-30 border-t border-bht-slate-line bg-white/95 backdrop-blur-md ${className}`}
     >
       <div className={`mx-auto flex ${widthClass} items-stretch gap-1 pt-1.5`}>
         {primaryItems.map((item) => {
@@ -332,18 +334,22 @@ export function BottomNav<T extends string>({
               type="button"
               aria-current={active ? "page" : undefined}
               onClick={() => onChange(item.id)}
-              className={`relative flex min-w-0 flex-1 min-h-[44px] flex-col items-center justify-center gap-1 rounded-xl py-1.5 px-1 text-xs font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0F2942] cursor-pointer ${
-                active ? "text-[#0062FF]" : "text-[#475569] hover:text-[#0B192C]"
+              className={`relative flex min-w-0 flex-1 min-h-[44px] flex-col items-center justify-center gap-1 rounded-xl py-1.5 px-1 text-xs font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bht-navy-deep cursor-pointer ${
+                active
+                  ? "text-bht-cobalt-vivid"
+                  : "text-bht-slate-text hover:text-bht-ink-deep"
               }`}
             >
               <div
                 className={`relative flex h-7 w-12 items-center justify-center rounded-full transition ${
-                  active ? "bg-[#EAF2FF] text-[#0062FF] ring-1 ring-[#BFDBFE]" : ""
+                  active
+                    ? "bg-bht-cobalt-bg text-bht-cobalt-vivid ring-1 ring-bht-info-line"
+                    : ""
                 }`}
               >
                 <span aria-hidden="true">{item.icon}</span>
                 {item.badgeCount !== undefined && item.badgeCount > 0 && (
-                  <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-[#0F2942] px-1 text-[10px] font-bold text-white tabular-nums">
+                  <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-bht-navy-deep px-1 text-[10px] font-bold text-white tabular-nums">
                     {item.badgeCount > 99 ? "99+" : item.badgeCount}
                   </span>
                 )}
@@ -357,7 +363,7 @@ export function BottomNav<T extends string>({
         {extraItems.length > 0 && (
           <div ref={moreRef} className="relative flex min-w-0 flex-1">
             {moreOpen && (
-              <div className="absolute bottom-full right-0 mb-3 w-56 rounded-xl border border-[#E2E8F0] bg-white p-1.5 shadow-lg">
+              <div className="absolute bottom-full right-0 mb-3 w-56 rounded-xl border border-bht-slate-line bg-white p-1.5 shadow-lg">
                 {extraItems.map((item) => (
                   <button
                     key={item.id}
@@ -368,7 +374,7 @@ export function BottomNav<T extends string>({
                       setMoreOpen(false);
                       moreButtonRef.current?.focus();
                     }}
-                    className={`flex min-h-11 w-full items-center gap-3 rounded-lg px-3 text-left text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0062FF] ${activeId === item.id ? "bg-[#EAF2FF] text-[#0052D4]" : "text-[#475569] hover:bg-[#F8FAFC]"}`}
+                    className={`flex min-h-11 w-full items-center gap-3 rounded-lg px-3 text-left text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bht-cobalt-vivid ${activeId === item.id ? "bg-bht-cobalt-bg text-bht-cobalt-strong" : "text-bht-slate-text hover:bg-bht-surface-cool"}`}
                   >
                     <span aria-hidden="true">{item.icon}</span>
                     <span className="flex-1">{item.label}</span>
@@ -391,10 +397,10 @@ export function BottomNav<T extends string>({
                   : "Más secciones"
               }
               onClick={() => setMoreOpen((open) => !open)}
-              className={`flex min-h-11 w-full flex-col items-center justify-center gap-1 rounded-xl px-1 py-1.5 text-xs font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0062FF] ${selectedExtra || moreOpen ? "text-[#0052D4]" : "text-[#475569]"}`}
+              className={`flex min-h-11 w-full flex-col items-center justify-center gap-1 rounded-xl px-1 py-1.5 text-xs font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bht-cobalt-vivid ${selectedExtra || moreOpen ? "text-bht-cobalt-strong" : "text-bht-slate-text"}`}
             >
               <span
-                className={`flex h-7 w-12 items-center justify-center rounded-full text-lg leading-none ${selectedExtra || moreOpen ? "bg-[#EAF2FF] ring-1 ring-[#BFDBFE]" : ""}`}
+                className={`flex h-7 w-12 items-center justify-center rounded-full text-lg leading-none ${selectedExtra || moreOpen ? "bg-bht-cobalt-bg ring-1 ring-bht-info-line" : ""}`}
                 aria-hidden="true"
               >
                 ···

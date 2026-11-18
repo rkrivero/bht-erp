@@ -37,7 +37,10 @@ export default function SellerOrderProductsStep({ flow }: { flow: SellerOrderFlo
         <FieldLabel htmlFor="seller-search-product">
           2. Buscar y agregar productos
         </FieldLabel>
-        <span id="seller-catalog-count" className="text-xs text-[#5C5A55] tabular-nums">
+        <span
+          id="seller-catalog-count"
+          className="text-xs text-bht-ink-soft tabular-nums"
+        >
           {initialLoading
             ? "Cargando..."
             : searchProduct.trim()
@@ -49,7 +52,7 @@ export default function SellerOrderProductsStep({ flow }: { flow: SellerOrderFlo
       <div className="relative">
         <span
           aria-hidden="true"
-          className="pointer-events-none absolute inset-y-0 left-3.5 flex items-center text-[#6D6A64]"
+          className="pointer-events-none absolute inset-y-0 left-3.5 flex items-center text-bht-ink-muted"
         >
           <SearchIcon className="h-4 w-4" />
         </span>
@@ -71,7 +74,7 @@ export default function SellerOrderProductsStep({ flow }: { flow: SellerOrderFlo
             data-compact="true"
             onClick={() => setSearchProduct("")}
             aria-label="Limpiar búsqueda de productos"
-            className="absolute inset-y-1 right-1.5 flex items-center justify-center rounded-lg px-2 text-[#5C5A55] hover:bg-[#F2F6FA] hover:text-[#0F2942] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0F2942]/40 cursor-pointer"
+            className="absolute inset-y-1 right-1.5 flex items-center justify-center rounded-lg px-2 text-bht-ink-soft hover:bg-bht-mist hover:text-bht-navy-deep focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bht-navy-deep/40 cursor-pointer"
           >
             <CloseIcon className="h-4 w-4" />
           </button>
@@ -80,11 +83,11 @@ export default function SellerOrderProductsStep({ flow }: { flow: SellerOrderFlo
 
       <div className="space-y-2 lg:max-h-[32rem] lg:overflow-y-auto lg:pr-0.5">
         {initialLoading && catalog.length === 0 ? (
-          <p className="py-6 text-center text-xs text-[#5C5A55]">
+          <p className="py-6 text-center text-xs text-bht-ink-soft">
             Cargando catálogo de productos...
           </p>
         ) : filteredCatalog.length === 0 ? (
-          <p className="py-6 text-center text-xs text-[#5C5A55]">
+          <p className="py-6 text-center text-xs text-bht-ink-soft">
             No hay productos que coincidan con &ldquo;{searchProduct}
             &rdquo;.
           </p>
@@ -95,18 +98,18 @@ export default function SellerOrderProductsStep({ flow }: { flow: SellerOrderFlo
               return (
                 <div
                   key={prod.product_id}
-                  className="flex items-center justify-between gap-3 rounded-xl border border-[#E7E5E0] bg-[#FAF9F6]/60 p-3 transition hover:border-[#D4E0EC] hover:bg-white"
+                  className="flex items-center justify-between gap-3 rounded-xl border border-bht-line bg-bht-paper/60 p-3 transition hover:border-bht-line-blue hover:bg-white"
                 >
                   <div className="min-w-0">
-                    <p className="line-clamp-2 text-sm font-semibold text-[#18181B]">
+                    <p className="line-clamp-2 text-sm font-semibold text-bht-ink-strong">
                       {prod.name}
                     </p>
-                    <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-[#5C5A55] tabular-nums">
-                      <span className="font-semibold text-[#18181B]">
+                    <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-bht-ink-soft tabular-nums">
+                      <span className="font-semibold text-bht-ink-strong">
                         S/ {Number(prod.list_sale_price_pen ?? 0).toFixed(2)}{" "}
                         <span
                           title={formatUnitTitleEs(prod.unit_of_measure || "NIU")}
-                          className="text-xs font-normal text-[#6D6A64]"
+                          className="text-xs font-normal text-bht-ink-muted"
                         >
                           / {prod.unit_of_measure || "NIU"}
                         </span>

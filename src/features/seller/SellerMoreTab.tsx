@@ -57,18 +57,18 @@ export default function SellerMoreTab(props: SellerMoreTabProps) {
       </Card>
       <Card accent="horizon" padding="lg">
         <form onSubmit={props.onSubmitExpense} className="space-y-4">
-          <div className="flex items-center gap-2.5 border-b border-[#E7E5E0] pb-3">
+          <div className="flex items-center gap-2.5 border-b border-bht-line pb-3">
             <div
               aria-hidden="true"
-              className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#F2F6FA] text-[#0F2942]"
+              className="flex h-9 w-9 items-center justify-center rounded-xl bg-bht-mist text-bht-navy-deep"
             >
               <ReceiptIcon className="h-4 w-4" />
             </div>
             <div>
-              <h2 className="text-base font-semibold text-[#18181B]">
+              <h2 className="text-base font-semibold text-bht-ink-strong">
                 Registrar Gasto Diario
               </h2>
-              <p className="text-xs text-[#5C5A55]">
+              <p className="text-xs text-bht-ink-soft">
                 Registra combustible, peajes y otros gastos diarios de ruta. Puedes
                 elegir una fecha anterior si olvidaste registrarlo.
               </p>

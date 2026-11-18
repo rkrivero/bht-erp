@@ -41,13 +41,17 @@ export default function SellerCartLineCard({
     <div
       key={line.product.product_id}
       className={`space-y-3 rounded-xl border p-3.5 ${
-        belowMin ? "border-[#F3D9B1] bg-[#FDF8F0]" : "border-[#D4E0EC] bg-[#F2F6FA]/55"
+        belowMin
+          ? "border-bht-amber-line bg-bht-amber-bg"
+          : "border-bht-line-blue bg-bht-mist/55"
       }`}
     >
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div className="min-w-0 flex-1">
-          <p className="text-sm font-semibold text-[#18181B]">{line.product.name}</p>
-          <p className="text-xs text-[#5C5A55] tabular-nums">
+          <p className="text-sm font-semibold text-bht-ink-strong">
+            {line.product.name}
+          </p>
+          <p className="text-xs text-bht-ink-soft tabular-nums">
             Precio lista: S/ {base.toFixed(2)}{" "}
             <span title={formatUnitTitleEs(line.product.unit_of_measure || "NIU")}>
               / {line.product.unit_of_measure || "NIU"}
@@ -65,10 +69,10 @@ export default function SellerCartLineCard({
                 [line.product.product_id]: !discountOpen,
               }))
             }
-            className={`inline-flex min-h-[40px] items-center rounded-lg border px-3 py-1.5 text-xs font-medium transition cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0F2942]/45 ${
+            className={`inline-flex min-h-[40px] items-center rounded-lg border px-3 py-1.5 text-xs font-medium transition cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bht-navy-deep/45 ${
               discountOpen
-                ? "border-[#0F2942] bg-[#0F2942] text-white"
-                : "border-[#D4E0EC] bg-white text-[#1E446B] hover:bg-[#F2F6FA]"
+                ? "border-bht-navy-deep bg-bht-navy-deep text-white"
+                : "border-bht-line-blue bg-white text-bht-navy-mid hover:bg-bht-mist"
             }`}
           >
             {safeDisc > 0
@@ -88,7 +92,7 @@ export default function SellerCartLineCard({
               setCart((prev) => prev.filter((_, i) => i !== idx));
             }}
             aria-label={`Quitar ${line.product.name} del pedido`}
-            className="inline-flex min-h-[40px] items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-medium text-[#B91C1C] transition hover:bg-[#FEF2F2] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#B91C1C]/35 cursor-pointer"
+            className="inline-flex min-h-[40px] items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-medium text-bht-danger transition hover:bg-bht-danger-bg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bht-danger/35 cursor-pointer"
           >
             <TrashIcon className="h-3.5 w-3.5" />
             Quitar
@@ -313,21 +317,21 @@ export default function SellerCartLineCard({
         )}
       </div>
 
-      <div className="flex flex-wrap items-center justify-between gap-2 border-t border-[#E7E5E0]/80 pt-2 text-xs tabular-nums">
-        <span className="text-[#5C5A55]">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-t border-bht-line/80 pt-2 text-xs tabular-nums">
+        <span className="text-bht-ink-soft">
           Final /{" "}
           <span title={formatUnitTitleEs(line.product.unit_of_measure || "NIU")}>
             {line.product.unit_of_measure || "NIU"}
           </span>
-          : <strong className="text-[#18181B]">S/ {finalUnit.toFixed(2)}</strong>
+          : <strong className="text-bht-ink-strong">S/ {finalUnit.toFixed(2)}</strong>
         </span>
-        <span className="text-sm font-semibold text-[#18181B]">
+        <span className="text-sm font-semibold text-bht-ink-strong">
           Subtotal: S/ {(safeQty * finalUnit).toFixed(2)}
         </span>
       </div>
 
       {belowMin && !isPartnerControlUser && (
-        <p className="flex items-start gap-1.5 text-xs font-medium text-[#B45309]">
+        <p className="flex items-start gap-1.5 text-xs font-medium text-bht-warning">
           <AlertTriangleIcon className="mt-0.5 h-3.5 w-3.5 flex-shrink-0" />
           <span>
             Precio menor al mínimo comercial (S/ {min.toFixed(2)}

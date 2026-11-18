@@ -135,7 +135,7 @@ export default function ForgotPasswordPage() {
             </>
           )}
           {message && (
-            <p role="status" className="text-xs text-[#5C5A55]">
+            <p role="status" className="text-xs text-bht-ink-soft">
               {message}
             </p>
           )}
@@ -157,7 +157,7 @@ export default function ForgotPasswordPage() {
         <p className="mt-4 text-center text-xs">
           <Link
             href="/login"
-            className="font-medium text-[#1E446B] underline-offset-4 hover:underline"
+            className="font-medium text-bht-navy-mid underline-offset-4 hover:underline"
           >
             Volver a ingresar
           </Link>

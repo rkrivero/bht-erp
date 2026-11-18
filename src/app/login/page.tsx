@@ -107,7 +107,7 @@ export default function LoginPage() {
             <div className="relative mt-1.5">
               <span
                 aria-hidden="true"
-                className="pointer-events-none absolute inset-y-0 left-3.5 flex items-center text-[#64748B]"
+                className="pointer-events-none absolute inset-y-0 left-3.5 flex items-center text-bht-slate-muted"
               >
                 <LockIcon className="h-4 w-4" />
               </span>
@@ -129,7 +129,7 @@ export default function LoginPage() {
                 onClick={() => setShowPassword((visible) => !visible)}
                 aria-label={showPassword ? "Ocultar contraseña" : "Mostrar contraseña"}
                 aria-pressed={showPassword}
-                className="absolute inset-y-1 right-1.5 flex min-w-[38px] items-center justify-center rounded-lg px-2 text-[#64748B] transition hover:bg-[#F8FAFC] hover:text-[#0B192C] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#075EE8]/40"
+                className="absolute inset-y-1 right-1.5 flex min-w-[38px] items-center justify-center rounded-lg px-2 text-bht-slate-muted transition hover:bg-bht-surface-cool hover:text-bht-ink-deep focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bht-cobalt/40"
               >
                 {showPassword ? (
                   <EyeOffIcon className="h-4 w-4" />
@@ -146,26 +146,26 @@ export default function LoginPage() {
             </div>
           )}
 
-          <p className="text-xs leading-relaxed text-[#64748B]">
+          <p className="text-xs leading-relaxed text-bht-slate-muted">
             Tu correo debe estar habilitado por un socio administrador. Tu sesión y
             permisos son personales.
           </p>
           <div className="flex flex-wrap justify-between gap-3 text-xs font-medium">
             <Link
               href="/signup"
-              className="text-[#16324A] underline-offset-4 hover:text-[#075EE8] hover:underline"
+              className="text-bht-navy-soft underline-offset-4 hover:text-bht-cobalt hover:underline"
             >
               Crear cuenta
             </Link>
             <Link
               href="/verify-email"
-              className="text-[#16324A] underline-offset-4 hover:text-[#075EE8] hover:underline"
+              className="text-bht-navy-soft underline-offset-4 hover:text-bht-cobalt hover:underline"
             >
               Verificar correo
             </Link>
             <Link
               href="/forgot-password"
-              className="text-[#16324A] underline-offset-4 hover:text-[#075EE8] hover:underline"
+              className="text-bht-navy-soft underline-offset-4 hover:text-bht-cobalt hover:underline"
             >
               Olvidé mi contraseña
             </Link>

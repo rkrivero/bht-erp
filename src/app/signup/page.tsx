@@ -110,12 +110,12 @@ export default function SignUpPage() {
               onChange={(e) => setPassword(e.target.value)}
               className={`${INPUT_CLASS} mt-1.5 w-full rounded-xl`}
             />
-            <p className="mt-1.5 text-xs text-[#6D6A64]">
+            <p className="mt-1.5 text-xs text-bht-ink-muted">
               10 caracteres como mínimo, con una letra y un número.
             </p>
           </div>
           {error && <ToastBanner type="err" message={error} />}
-          <p className="text-xs leading-relaxed text-[#6D6A64]">
+          <p className="text-xs leading-relaxed text-bht-ink-muted">
             Crear una cuenta no asigna permisos. Un socio administrador debe habilitar
             tu correo en el ERP.
           </p>
@@ -129,11 +129,11 @@ export default function SignUpPage() {
         >
           {loading ? "Creando cuenta…" : "Crear cuenta"}
         </Button>
-        <p className="mt-4 text-center text-xs text-[#5C5A55]">
+        <p className="mt-4 text-center text-xs text-bht-ink-soft">
           ¿Ya tienes cuenta?{" "}
           <Link
             href="/login"
-            className="font-medium text-[#1E446B] underline-offset-4 hover:underline"
+            className="font-medium text-bht-navy-mid underline-offset-4 hover:underline"
           >
             Ingresar
           </Link>

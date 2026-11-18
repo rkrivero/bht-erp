@@ -51,10 +51,10 @@ export function Ventas({ orders, ordersPagination, flow }: VentasProps) {
     <div className="space-y-4">
       <Card padding="md" className="space-y-3">
         <div>
-          <h2 className="text-sm sm:text-base font-semibold text-[#18181B]">
+          <h2 className="text-sm sm:text-base font-semibold text-bht-ink-strong">
             Todos los Pedidos y Ventas
           </h2>
-          <p className="text-xs text-[#5C5A55]">
+          <p className="text-xs text-bht-ink-soft">
             Consulta el historial completo, filtra por estado y abre cualquier pedido
             para revisar sus productos y trazabilidad.
           </p>
@@ -62,7 +62,7 @@ export function Ventas({ orders, ordersPagination, flow }: VentasProps) {
 
         <div className="flex flex-wrap items-center gap-2">
           <div className="relative min-w-[200px] flex-1">
-            <span className="pointer-events-none absolute inset-y-0 left-3.5 flex items-center text-[#6D6A64]">
+            <span className="pointer-events-none absolute inset-y-0 left-3.5 flex items-center text-bht-ink-muted">
               <SearchIcon className="h-4 w-4" />
             </span>
             <input
@@ -96,10 +96,10 @@ export function Ventas({ orders, ordersPagination, flow }: VentasProps) {
                 key={String(order.order_id)}
                 type="button"
                 onClick={() => setSelectedMonitorOrder(order)}
-                className="flex w-full flex-col gap-2 rounded-xl border border-[#E7E5E0] bg-white p-3 text-left transition hover:border-[#D4E0EC] hover:bg-[#F2F6FA]/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0F2942]"
+                className="flex w-full flex-col gap-2 rounded-xl border border-bht-line bg-white p-3 text-left transition hover:border-bht-line-blue hover:bg-bht-mist/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bht-navy-deep"
               >
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <span className="font-semibold text-[#1E446B] tabular-nums">
+                  <span className="font-semibold text-bht-navy-mid tabular-nums">
                     {String(order.order_code)} · {String(order.order_date)}
                   </span>
                   <Badge tone={operationalStatusTone(order.operational_status)}>
@@ -107,14 +107,14 @@ export function Ventas({ orders, ordersPagination, flow }: VentasProps) {
                   </Badge>
                 </div>
                 <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
-                  <span className="font-medium text-[#18181B]">
+                  <span className="font-medium text-bht-ink-strong">
                     {String(order.customer_name)}
                   </span>
-                  <span className="font-semibold text-[#18181B] tabular-nums">
+                  <span className="font-semibold text-bht-ink-strong tabular-nums">
                     {formatPen(order.total_pen)}
                   </span>
                 </div>
-                <span className="text-xs text-[#5C5A55]">
+                <span className="text-xs text-bht-ink-soft">
                   Vendedor: {formatActorName(order.created_by_name, "-")} ·{" "}
                   {Array.isArray(order.lines) ? order.lines.length : 0} producto(s)
                 </span>
@@ -124,7 +124,7 @@ export function Ventas({ orders, ordersPagination, flow }: VentasProps) {
         )}
 
         {ordersPagination?.hasMore && (
-          <div className="flex flex-wrap items-center justify-between gap-2 border-t border-[#E7E5E0] pt-3 text-xs text-[#5C5A55]">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-t border-bht-line pt-3 text-xs text-bht-ink-soft">
             <span>
               Mostrando {orders.length} de {ordersPagination.totalCount} pedidos
             </span>
@@ -183,29 +183,29 @@ export function VentasModals({ flow, openAbonoForOrderRecord }: VentasModalsProp
       >
         {selectedPartnerQuote && (
           <div className="space-y-3 text-xs">
-            <div className="grid grid-cols-1 gap-2 rounded-xl border border-[#D4E0EC] bg-[#F2F6FA]/70 p-3 sm:grid-cols-3">
+            <div className="grid grid-cols-1 gap-2 rounded-xl border border-bht-line-blue bg-bht-mist/70 p-3 sm:grid-cols-3">
               <div>
-                <span className="block text-xs text-[#5C5A55]">Estado</span>
-                <strong className="text-sm text-[#18181B]">
+                <span className="block text-xs text-bht-ink-soft">Estado</span>
+                <strong className="text-sm text-bht-ink-strong">
                   {formatQuoteStatusEs(selectedPartnerQuote.status)}
                 </strong>
               </div>
               <div>
-                <span className="block text-xs text-[#5C5A55]">Vendedor</span>
-                <strong className="text-sm text-[#18181B]">
+                <span className="block text-xs text-bht-ink-soft">Vendedor</span>
+                <strong className="text-sm text-bht-ink-strong">
                   {String(selectedPartnerQuote.seller_name || "-")}
                 </strong>
               </div>
               <div>
-                <span className="block text-xs text-[#5C5A55]">Total</span>
-                <strong className="text-sm text-[#18181B] tabular-nums">
+                <span className="block text-xs text-bht-ink-soft">Total</span>
+                <strong className="text-sm text-bht-ink-strong tabular-nums">
                   {formatPen(selectedPartnerQuote.total_pen)}
                 </strong>
               </div>
             </div>
 
             <div className="space-y-1.5">
-              <p className="font-semibold text-[#0F2942]">
+              <p className="font-semibold text-bht-navy-deep">
                 Productos (
                 {Array.isArray(selectedPartnerQuote.lines)
                   ? selectedPartnerQuote.lines.length
@@ -217,37 +217,37 @@ export function VentasModals({ flow, openAbonoForOrderRecord }: VentasModalsProp
                 selectedPartnerQuote.lines.map((line, index) => (
                   <div
                     key={String(line.quote_line_id ?? index)}
-                    className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-[#E7E5E0] bg-[#FAF9F6] px-3 py-2"
+                    className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-bht-line bg-bht-paper px-3 py-2"
                   >
                     <div className="min-w-0 flex-1">
-                      <p className="font-medium text-[#18181B]">
+                      <p className="font-medium text-bht-ink-strong">
                         {String(line.raw_description || line.sku || "Producto")}
                       </p>
-                      <p className="text-xs text-[#5C5A55] tabular-nums">
+                      <p className="text-xs text-bht-ink-soft tabular-nums">
                         {Number(line.quantity)} {String(line.unit_of_measure || "NIU")}{" "}
                         × {formatPen(line.unit_price_pen)}
                       </p>
                     </div>
-                    <strong className="tabular-nums text-[#18181B]">
+                    <strong className="tabular-nums text-bht-ink-strong">
                       {formatPen(line.line_total_pen)}
                     </strong>
                   </div>
                 ))
               ) : (
-                <p className="text-[#5C5A55]">Sin líneas registradas.</p>
+                <p className="text-bht-ink-soft">Sin líneas registradas.</p>
               )}
             </div>
 
             {selectedPartnerQuote.converted_order_code ? (
-              <p className="rounded-lg border border-[#D4E0EC] bg-[#F2F6FA]/70 px-3 py-2 text-[#5C5A55]">
+              <p className="rounded-lg border border-bht-line-blue bg-bht-mist/70 px-3 py-2 text-bht-ink-soft">
                 Pedido generado:{" "}
-                <strong className="text-[#0F2942]">
+                <strong className="text-bht-navy-deep">
                   {String(selectedPartnerQuote.converted_order_code)}
                 </strong>
               </p>
             ) : null}
             {selectedPartnerQuote.notes ? (
-              <p className="rounded-lg border border-[#E7E5E0] bg-white px-3 py-2 text-[#5C5A55]">
+              <p className="rounded-lg border border-bht-line bg-white px-3 py-2 text-bht-ink-soft">
                 Nota: {String(selectedPartnerQuote.notes)}
               </p>
             ) : null}
@@ -287,15 +287,15 @@ export function VentasModals({ flow, openAbonoForOrderRecord }: VentasModalsProp
             const canCancel = statusStr !== "CANCELLED" && statusStr !== "DELIVERED";
             return (
               <div className="space-y-3 text-xs">
-                <div className="grid grid-cols-1 gap-2 rounded-xl border border-[#D4E0EC] bg-[#F2F6FA]/70 p-3 sm:grid-cols-3 tabular-nums">
+                <div className="grid grid-cols-1 gap-2 rounded-xl border border-bht-line-blue bg-bht-mist/70 p-3 sm:grid-cols-3 tabular-nums">
                   <div>
-                    <span className="block text-xs text-[#5C5A55]">Venta</span>
-                    <strong className="text-sm text-[#18181B]">
+                    <span className="block text-xs text-bht-ink-soft">Venta</span>
+                    <strong className="text-sm text-bht-ink-strong">
                       {formatPen(totalVal)}
                     </strong>
                   </div>
                   <div>
-                    <span className="block text-xs text-[#5C5A55]">Margen</span>
+                    <span className="block text-xs text-bht-ink-soft">Margen</span>
                     <strong
                       className={`text-sm ${getMarginTextClass(marginVal, totalVal)}`}
                     >
@@ -303,10 +303,10 @@ export function VentasModals({ flow, openAbonoForOrderRecord }: VentasModalsProp
                     </strong>
                   </div>
                   <div>
-                    <span className="block text-xs text-[#5C5A55]">Saldo</span>
+                    <span className="block text-xs text-bht-ink-soft">Saldo</span>
                     <strong
                       className={`text-sm ${
-                        debtVal > 0.05 ? "text-[#B91C1C]" : "text-[#15803D]"
+                        debtVal > 0.05 ? "text-bht-danger" : "text-bht-success"
                       }`}
                     >
                       {formatPen(debtVal)}
@@ -315,7 +315,7 @@ export function VentasModals({ flow, openAbonoForOrderRecord }: VentasModalsProp
                 </div>
 
                 <div className="space-y-1.5">
-                  <p className="font-semibold text-[#0F2942]">
+                  <p className="font-semibold text-bht-navy-deep">
                     Productos comprados (
                     {Array.isArray(selectedMonitorOrder.lines)
                       ? selectedMonitorOrder.lines.length
@@ -328,13 +328,13 @@ export function VentasModals({ flow, openAbonoForOrderRecord }: VentasModalsProp
                       selectedMonitorOrder.lines.map((ln) => (
                         <div
                           key={String(ln.order_line_id)}
-                          className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-[#E7E5E0] bg-[#FAF9F6] px-3 py-2"
+                          className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-bht-line bg-bht-paper px-3 py-2"
                         >
                           <div className="min-w-0 flex-1">
-                            <p className="font-medium text-[#18181B]">
+                            <p className="font-medium text-bht-ink-strong">
                               {String(ln.raw_description || ln.sku)}
                             </p>
-                            <p className="text-xs text-[#5C5A55] tabular-nums">
+                            <p className="text-xs text-bht-ink-soft tabular-nums">
                               {Number(ln.quantity)}{" "}
                               <span title={formatUnitTitleEs(ln.unit_of_measure)}>
                                 {String(ln.unit_of_measure || "NIU")}
@@ -347,7 +347,7 @@ export function VentasModals({ flow, openAbonoForOrderRecord }: VentasModalsProp
                             </p>
                           </div>
                           <div className="text-right tabular-nums">
-                            <span className="block font-semibold text-[#18181B]">
+                            <span className="block font-semibold text-bht-ink-strong">
                               {formatPen(ln.line_total_pen)}
                             </span>
                             {ln.line_margin_pen !== null &&
@@ -355,8 +355,8 @@ export function VentasModals({ flow, openAbonoForOrderRecord }: VentasModalsProp
                                 <span
                                   className={`block text-xs font-medium ${
                                     Number(ln.line_margin_pen) <= 0
-                                      ? "text-[#B91C1C]"
-                                      : "text-[#15803D]"
+                                      ? "text-bht-danger"
+                                      : "text-bht-success"
                                   }`}
                                 >
                                   {Number(ln.line_margin_pen) >= 0 ? "+" : ""}
@@ -367,21 +367,21 @@ export function VentasModals({ flow, openAbonoForOrderRecord }: VentasModalsProp
                         </div>
                       ))
                     ) : (
-                      <p className="text-[#5C5A55]">Sin líneas registradas.</p>
+                      <p className="text-bht-ink-soft">Sin líneas registradas.</p>
                     )}
                   </div>
                 </div>
 
                 {selectedMonitorOrder.notes ? (
-                  <p className="rounded-lg border border-[#E7E5E0] bg-white px-3 py-2 text-[#5C5A55]">
+                  <p className="rounded-lg border border-bht-line bg-white px-3 py-2 text-bht-ink-soft">
                     Nota: {String(selectedMonitorOrder.notes)}
                   </p>
                 ) : null}
 
                 {Array.isArray(selectedMonitorOrder.audit_history) &&
                   selectedMonitorOrder.audit_history.length > 0 && (
-                    <details className="rounded-lg border border-[#D4E0EC] bg-[#F2F6FA]/60 p-3">
-                      <summary className="cursor-pointer font-semibold text-[#0F2942]">
+                    <details className="rounded-lg border border-bht-line-blue bg-bht-mist/60 p-3">
+                      <summary className="cursor-pointer font-semibold text-bht-navy-deep">
                         Historial de cambios (
                         {selectedMonitorOrder.audit_history.length})
                       </summary>
@@ -389,9 +389,9 @@ export function VentasModals({ flow, openAbonoForOrderRecord }: VentasModalsProp
                         {selectedMonitorOrder.audit_history.map((entry) => (
                           <div
                             key={String(entry.audit_id)}
-                            className="border-t border-[#D4E0EC] pt-2 text-xs text-[#5C5A55]"
+                            className="border-t border-bht-line-blue pt-2 text-xs text-bht-ink-soft"
                           >
-                            <p className="font-medium text-[#18181B]">
+                            <p className="font-medium text-bht-ink-strong">
                               {String(entry.action) === "CANCEL"
                                 ? "Anulación"
                                 : "Modificación"}{" "}
@@ -410,7 +410,7 @@ export function VentasModals({ flow, openAbonoForOrderRecord }: VentasModalsProp
                   )}
 
                 {(canAbonar || canCancel) && (
-                  <div className="flex flex-col-reverse gap-2 border-t border-[#E7E5E0] pt-3 sm:flex-row sm:justify-end">
+                  <div className="flex flex-col-reverse gap-2 border-t border-bht-line pt-3 sm:flex-row sm:justify-end">
                     {canCancel && (
                       <Button
                         type="button"
@@ -421,7 +421,7 @@ export function VentasModals({ flow, openAbonoForOrderRecord }: VentasModalsProp
                           setCancelOrderReason("");
                           setConfirmCancelOrder(target);
                         }}
-                        className="border-[#FECACA] text-[#B91C1C] hover:bg-[#FEF2F2]"
+                        className="border-bht-danger-line text-bht-danger hover:bg-bht-danger-bg"
                       >
                         Anular Pedido
                       </Button>
@@ -469,7 +469,7 @@ export function VentasModals({ flow, openAbonoForOrderRecord }: VentasModalsProp
       >
         {confirmCancelOrder && (
           <form onSubmit={handleConfirmCancelOrder} className="space-y-4">
-            <p className="rounded-xl border border-[#FECACA] bg-[#FEF2F2] px-3 py-2.5 text-xs text-[#991B1B]">
+            <p className="rounded-xl border border-bht-danger-line bg-bht-danger-bg px-3 py-2.5 text-xs text-bht-danger-strong">
               Esta acción anulará el pedido, revertirá sus movimientos pendientes de
               inventario / cobros asociados y cerrará alertas pendientes.
             </p>

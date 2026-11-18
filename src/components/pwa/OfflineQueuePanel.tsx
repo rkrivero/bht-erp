@@ -54,7 +54,7 @@ export default function OfflineQueuePanel() {
 
   if (!available) {
     return (
-      <p className="mt-4 rounded-xl bg-[#FEF2F2] p-3 text-left text-xs text-[#991B1B]">
+      <p className="mt-4 rounded-xl bg-bht-danger-bg p-3 text-left text-xs text-bht-danger-strong">
         Este navegador no permite almacenamiento offline. Usa una ventana normal o
         habilita el almacenamiento del sitio.
       </p>
@@ -63,7 +63,7 @@ export default function OfflineQueuePanel() {
 
   if (items.length === 0) {
     return (
-      <p className="mt-4 rounded-xl bg-[#F0FDF4] p-3 text-xs font-medium text-[#166534]">
+      <p className="mt-4 rounded-xl bg-bht-success-bg p-3 text-xs font-medium text-bht-success-strong">
         No hay operaciones pendientes en este dispositivo.
       </p>
     );
@@ -72,10 +72,13 @@ export default function OfflineQueuePanel() {
   return (
     <section aria-labelledby="offline-queue-heading" className="mt-5 text-left">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h2 id="offline-queue-heading" className="text-sm font-semibold text-[#0F2942]">
+        <h2
+          id="offline-queue-heading"
+          className="text-sm font-semibold text-bht-navy-deep"
+        >
           Actividad de sincronización
         </h2>
-        <p className="text-xs text-[#5C5A55]">
+        <p className="text-xs text-bht-ink-soft">
           {pendingCount} pendiente(s) · {syncedCount} sincronizada(s) · {conflictCount}{" "}
           en revisión
         </p>
@@ -86,21 +89,21 @@ export default function OfflineQueuePanel() {
             key={item.id}
             className={`rounded-xl border p-3 text-xs ${
               item.status === "conflict"
-                ? "border-[#FECACA] bg-[#FEF2F2]"
+                ? "border-bht-danger-line bg-bht-danger-bg"
                 : item.status === "synced"
-                  ? "border-[#BBF7D0] bg-[#F0FDF4]"
-                  : "border-[#D4E0EC] bg-[#F8FAFC]"
+                  ? "border-bht-success-line bg-bht-success-bg"
+                  : "border-bht-line-blue bg-bht-surface-cool"
             }`}
           >
             <div className="flex items-center justify-between gap-3">
-              <strong className="text-[#18181B]">{KIND_LABEL[item.kind]}</strong>
+              <strong className="text-bht-ink-strong">{KIND_LABEL[item.kind]}</strong>
               <span
                 className={
                   item.status === "conflict"
-                    ? "text-[#991B1B]"
+                    ? "text-bht-danger-strong"
                     : item.status === "synced"
-                      ? "text-[#166534]"
-                      : "text-[#1E446B]"
+                      ? "text-bht-success-strong"
+                      : "text-bht-navy-mid"
                 }
               >
                 {item.status === "conflict"
@@ -112,7 +115,7 @@ export default function OfflineQueuePanel() {
                       : "Pendiente"}
               </span>
             </div>
-            <p className="mt-1 text-[#5C5A55]">
+            <p className="mt-1 text-bht-ink-soft">
               {new Intl.DateTimeFormat("es-PE", {
                 dateStyle: "short",
                 timeStyle: "short",
@@ -125,10 +128,12 @@ export default function OfflineQueuePanel() {
               )}
             </p>
             {item.lastError && (
-              <p className="mt-2 font-medium text-[#991B1B]">{item.lastError}</p>
+              <p className="mt-2 font-medium text-bht-danger-strong">
+                {item.lastError}
+              </p>
             )}
             {item.conflictCode && (
-              <p className="mt-1 text-xs text-[#7F1D1D]">
+              <p className="mt-1 text-xs text-bht-tone-7f1d1d">
                 Código: {item.conflictCode}
                 {item.entityRef ? ` · Referencia: ${item.entityRef}` : ""}
               </p>
@@ -136,7 +141,7 @@ export default function OfflineQueuePanel() {
           </li>
         ))}
       </ul>
-      <p className="mt-3 text-xs leading-relaxed text-[#5C5A55]">
+      <p className="mt-3 text-xs leading-relaxed text-bht-ink-soft">
         Los conflictos no modifican automáticamente dinero, precios ni stock. Permanecen
         bloqueados hasta revisar la información con conexión.
       </p>

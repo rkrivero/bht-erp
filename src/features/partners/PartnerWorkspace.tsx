@@ -268,12 +268,12 @@ export default function PartnerWorkspace() {
   }
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] pb-24 md:pb-12">
+    <div className="min-h-screen bg-bht-surface-cool pb-24 md:pb-12">
       <AppHeader
         title="Control Operativo"
         roleLabel={headerRoleBadge}
         roleTone="horizon"
-        roleDotColor="bg-[#075EE8]"
+        roleDotColor="bg-bht-cobalt"
         syncStatus={liveStatus}
         onSyncClick={() => void triggerSync({ force: true })}
         maxWidth="7xl"
@@ -284,7 +284,7 @@ export default function PartnerWorkspace() {
               variant="primary"
               size="md"
               onClick={() => router.push("/vendedor")}
-              className="min-h-[38px] sm:min-h-[40px] px-4 text-xs sm:text-sm shadow-[0_2px_8px_rgba(15,41,66,0.16)]"
+              className="min-h-[38px] sm:min-h-[40px] px-4 text-xs sm:text-sm shadow-bht-elev-15"
             >
               <PlusIcon className="h-4 w-4" />
               <span>Tomar Pedido</span>
@@ -335,7 +335,7 @@ export default function PartnerWorkspace() {
               variant="primary"
               size="md"
               onClick={() => router.push("/vendedor")}
-              className="w-full shadow-[0_2px_8px_rgba(15,41,66,0.16)]"
+              className="w-full shadow-bht-elev-15"
             >
               <ShoppingBagIcon className="h-4 w-4" />
               <span>Tomar Pedido</span>
@@ -351,14 +351,14 @@ export default function PartnerWorkspace() {
           </div>
         )}
 
-        <div className="flex flex-col gap-3 rounded-xl border border-[#E2E8F0] bg-white p-3 sm:flex-row sm:items-center sm:justify-between sm:p-3.5">
-          <div className="flex min-w-0 items-center gap-2 text-xs text-[#6D6A64]">
-            <span className="font-medium text-[#5C5A55]">Inicio</span>
+        <div className="flex flex-col gap-3 rounded-xl border border-bht-slate-line bg-white p-3 sm:flex-row sm:items-center sm:justify-between sm:p-3.5">
+          <div className="flex min-w-0 items-center gap-2 text-xs text-bht-ink-muted">
+            <span className="font-medium text-bht-ink-soft">Inicio</span>
             <ChevronRightIcon
-              className="h-3.5 w-3.5 text-[#A8A49C]"
+              className="h-3.5 w-3.5 text-bht-tone-a8a49c"
               aria-hidden="true"
             />
-            <span className="truncate font-semibold text-[#0F2942]">
+            <span className="truncate font-semibold text-bht-navy-deep">
               {activeTabLabel}
             </span>
           </div>
@@ -370,7 +370,7 @@ export default function PartnerWorkspace() {
           >
             <div className="relative min-w-0 flex-1">
               <SearchIcon
-                className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-[#6D6A64]"
+                className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-bht-ink-muted"
                 aria-hidden="true"
               />
               <input
@@ -402,7 +402,7 @@ export default function PartnerWorkspace() {
         )}
 
         {loading && !partnerData && (
-          <Card className="p-10 text-center text-sm font-medium text-[#5C5A55]">
+          <Card className="p-10 text-center text-sm font-medium text-bht-ink-soft">
             Cargando datos en vivo desde Neon PostgreSQL...
           </Card>
         )}

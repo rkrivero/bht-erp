@@ -130,7 +130,7 @@ export default function VerifyEmailPage() {
               className={`${INPUT_CLASS} mt-1.5 w-full rounded-xl`}
             />
           </div>
-          <p role="status" className="text-xs text-[#6D6A64]">
+          <p role="status" className="text-xs text-bht-ink-muted">
             {message}
           </p>
           {error && <ToastBanner type="err" message={error} />}
@@ -138,13 +138,13 @@ export default function VerifyEmailPage() {
             <p className="flex justify-between gap-3 text-xs font-medium">
               <Link
                 href="/login"
-                className="text-[#1E446B] underline-offset-4 hover:underline"
+                className="text-bht-navy-mid underline-offset-4 hover:underline"
               >
                 Ingresar
               </Link>
               <Link
                 href="/forgot-password"
-                className="text-[#1E446B] underline-offset-4 hover:underline"
+                className="text-bht-navy-mid underline-offset-4 hover:underline"
               >
                 Crear o restablecer contraseña
               </Link>
@@ -173,7 +173,7 @@ export default function VerifyEmailPage() {
         <p className="mt-4 text-center text-xs">
           <Link
             href="/login"
-            className="font-medium text-[#1E446B] underline-offset-4 hover:underline"
+            className="font-medium text-bht-navy-mid underline-offset-4 hover:underline"
           >
             Volver a ingresar
           </Link>

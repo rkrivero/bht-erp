@@ -42,10 +42,10 @@ export function HoyRoutesQuotes({
       <Card padding="md" className="space-y-3">
         <div className="flex items-center justify-between gap-2">
           <div>
-            <h2 className="text-sm sm:text-base font-semibold text-[#18181B]">
+            <h2 className="text-sm sm:text-base font-semibold text-bht-ink-strong">
               Rutas y Despachos ({routeTrips.length})
             </h2>
-            <p className="text-xs text-[#5C5A55]">
+            <p className="text-xs text-bht-ink-soft">
               Cierra la ruta y compara lo cobrado en el día con los pedidos registrados.
             </p>
           </div>
@@ -61,23 +61,23 @@ export function HoyRoutesQuotes({
               return (
                 <div
                   key={tId}
-                  className="rounded-xl border border-[#E7E5E0] bg-[#FAF9F6] p-3 text-xs space-y-2"
+                  className="rounded-xl border border-bht-line bg-bht-paper p-3 text-xs space-y-2"
                 >
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div>
-                      <span className="font-semibold text-[#0F2942] tabular-nums">
+                      <span className="font-semibold text-bht-navy-deep tabular-nums">
                         {String(tr.trip_code)} · {String(tr.trip_date)}
                       </span>
-                      <p className="text-[#5C5A55]">
+                      <p className="text-bht-ink-soft">
                         {String(tr.zone_name || "Ruta")} ·{" "}
                         {String(tr.driver_name || "Reparto")} ·{" "}
                         {Number(tr.order_count ?? 0)} pedido(s) (
                         {Number(tr.in_route_count ?? 0)} en ruta /{" "}
                         {Number(tr.delivered_count ?? 0)} entregados)
                       </p>
-                      <p className="mt-1 text-[#5C5A55] tabular-nums">
+                      <p className="mt-1 text-bht-ink-soft tabular-nums">
                         Ventas registradas:{" "}
-                        <strong className="text-[#18181B]">
+                        <strong className="text-bht-ink-strong">
                           {formatPen(tr.computed_sales_pen)}
                         </strong>
                       </p>
@@ -96,7 +96,7 @@ export function HoyRoutesQuotes({
                   </div>
                   {status !== "RECONCILED" && (
                     <div className="flex flex-wrap items-center gap-2">
-                      <label className="flex flex-col gap-1 text-xs font-medium text-[#5C5A55]">
+                      <label className="flex flex-col gap-1 text-xs font-medium text-bht-ink-soft">
                         Cobrado del día (S/)
                         <input
                           type="number"
@@ -139,7 +139,7 @@ export function HoyRoutesQuotes({
                     </div>
                   )}
                   {status !== "RECONCILED" && (
-                    <p className="text-xs text-[#6D6A64]">
+                    <p className="text-xs text-bht-ink-muted">
                       Ingresa lo cobrado por las ventas de ese día. Los gastos de ruta
                       se registran aparte, incluso retroactivamente; no se descuentan
                       aquí. El monto es opcional si solo necesitas marcar la ruta como
@@ -156,10 +156,10 @@ export function HoyRoutesQuotes({
       <Card padding="md" className="space-y-3">
         <div className="flex items-center justify-between gap-2">
           <div>
-            <h2 className="text-sm sm:text-base font-semibold text-[#18181B]">
+            <h2 className="text-sm sm:text-base font-semibold text-bht-ink-strong">
               Ventas y Cotizaciones Comerciales ({partnerQuotes.length})
             </h2>
-            <p className="text-xs text-[#5C5A55]">
+            <p className="text-xs text-bht-ink-soft">
               Revisa el detalle de cualquier venta; las abiertas también pueden
               convertirse en pedido.
             </p>
@@ -176,17 +176,17 @@ export function HoyRoutesQuotes({
               return (
                 <div
                   key={qId}
-                  className="rounded-xl border border-[#E7E5E0] bg-[#FAF9F6] p-3 text-xs space-y-2"
+                  className="rounded-xl border border-bht-line bg-bht-paper p-3 text-xs space-y-2"
                 >
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div className="min-w-0">
-                      <span className="font-semibold text-[#1E446B] tabular-nums">
+                      <span className="font-semibold text-bht-navy-mid tabular-nums">
                         {String(q.quote_code)} · {String(q.issue_date)}
                       </span>
-                      <p className="truncate font-semibold text-[#18181B]">
+                      <p className="truncate font-semibold text-bht-ink-strong">
                         {String(q.customer_name)}
                       </p>
-                      <p className="text-[#5C5A55] tabular-nums">
+                      <p className="text-bht-ink-soft tabular-nums">
                         Total: {formatPen(q.total_pen)} ·{" "}
                         {Array.isArray(q.lines) ? q.lines.length : 0} ítem(s)
                       </p>

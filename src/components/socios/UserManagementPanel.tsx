@@ -251,10 +251,10 @@ export default function UserManagementPanel({
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <Badge tone="horizon">Equipo y seguridad</Badge>
-            <h2 className="mt-2 text-base font-semibold text-[#18181B]">
+            <h2 className="mt-2 text-base font-semibold text-bht-ink-strong">
               Usuarios y permisos ({users.length})
             </h2>
-            <p className="mt-1 max-w-2xl text-xs leading-5 text-[#5C5A55]">
+            <p className="mt-1 max-w-2xl text-xs leading-5 text-bht-ink-soft">
               Neon Auth protege correo y contraseña. Aquí defines quién está autorizado,
               qué puede hacer y si su acceso continúa activo.
             </p>
@@ -275,7 +275,7 @@ export default function UserManagementPanel({
         {!isAdmin && (
           <div
             role="status"
-            className="rounded-lg border border-[#E7E5E0] bg-[#FAF9F6] p-3 text-xs text-[#5C5A55]"
+            className="rounded-lg border border-bht-line bg-bht-paper p-3 text-xs text-bht-ink-soft"
           >
             Puedes consultar el equipo. Solo un administrador puede cambiar accesos y
             roles.
@@ -293,14 +293,14 @@ export default function UserManagementPanel({
                 key={user.user_id}
                 className={`rounded-xl border p-3.5 ${
                   user.is_active
-                    ? "border-[#E7E5E0] bg-white"
-                    : "border-[#E7E5E0] bg-[#FAF9F6]"
+                    ? "border-bht-line bg-white"
+                    : "border-bht-line bg-bht-paper"
                 }`}
               >
                 <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-1.5">
-                      <span className="text-sm font-semibold text-[#18181B]">
+                      <span className="text-sm font-semibold text-bht-ink-strong">
                         {user.full_name}
                       </span>
                       <Badge tone="neutral">@{user.username}</Badge>
@@ -309,14 +309,14 @@ export default function UserManagementPanel({
                       </Badge>
                       {isSelf && <Badge tone="neutral">Tu cuenta</Badge>}
                     </div>
-                    <p className="mt-1.5 break-all text-xs text-[#5C5A55]">
+                    <p className="mt-1.5 break-all text-xs text-bht-ink-soft">
                       {user.email || "Sin correo autorizado"}
                     </p>
                   </div>
 
                   <div className="flex w-full flex-col gap-2 lg:w-auto lg:min-w-[280px]">
                     <label
-                      className="text-xs font-semibold text-[#5C5A55]"
+                      className="text-xs font-semibold text-bht-ink-soft"
                       htmlFor={`role-${user.user_id}`}
                     >
                       Rol y alcance
@@ -339,14 +339,14 @@ export default function UserManagementPanel({
                         </option>
                       ))}
                     </select>
-                    <p className="text-xs leading-4 text-[#6D6A64]">
+                    <p className="text-xs leading-4 text-bht-ink-muted">
                       {roleDescription(user.role)}
                     </p>
                   </div>
                 </div>
 
                 {isAdmin && (
-                  <div className="mt-3 flex flex-wrap gap-2 border-t border-[#EEECE7] pt-3">
+                  <div className="mt-3 flex flex-wrap gap-2 border-t border-bht-tone-eeece7 pt-3">
                     <Button
                       type="button"
                       variant={isEditingName ? "secondary" : "outline"}
@@ -397,7 +397,7 @@ export default function UserManagementPanel({
 
                 {isEditingName && (
                   <form
-                    className="mt-3 flex flex-col gap-2 border-t border-[#EEECE7] pt-3 sm:flex-row"
+                    className="mt-3 flex flex-col gap-2 border-t border-bht-tone-eeece7 pt-3 sm:flex-row"
                     onSubmit={(event) => {
                       event.preventDefault();
                       void handleUpdateName(user);
@@ -420,7 +420,7 @@ export default function UserManagementPanel({
 
                 {isEditingEmail && (
                   <form
-                    className="mt-3 flex flex-col gap-2 border-t border-[#EEECE7] pt-3 sm:flex-row"
+                    className="mt-3 flex flex-col gap-2 border-t border-bht-tone-eeece7 pt-3 sm:flex-row"
                     onSubmit={(event) => {
                       event.preventDefault();
                       void handleUpdateEmail(user);
@@ -445,27 +445,28 @@ export default function UserManagementPanel({
           })}
         </div>
 
-        <details className="rounded-xl border border-[#E7E5E0] bg-[#FAF9F6] p-3.5">
-          <summary className="min-h-11 cursor-pointer py-2 text-sm font-semibold text-[#18181B]">
+        <details className="rounded-xl border border-bht-line bg-bht-paper p-3.5">
+          <summary className="min-h-11 cursor-pointer py-2 text-sm font-semibold text-bht-ink-strong">
             Historial de cambios de acceso ({userAccessHistory.length})
           </summary>
-          <div className="mt-2 space-y-2 border-t border-[#E7E5E0] pt-3">
+          <div className="mt-2 space-y-2 border-t border-bht-line pt-3">
             {userAccessHistory.length === 0 ? (
-              <p className="text-xs text-[#6D6A64]">
+              <p className="text-xs text-bht-ink-muted">
                 Todavía no hay cambios registrados.
               </p>
             ) : (
               userAccessHistory.map((entry) => (
                 <div
                   key={entry.audit_id}
-                  className="rounded-lg bg-white p-3 text-xs text-[#5C5A55]"
+                  className="rounded-lg bg-white p-3 text-xs text-bht-ink-soft"
                 >
                   <p>
-                    <strong className="text-[#18181B]">{entry.actor_name}</strong>{" "}
+                    <strong className="text-bht-ink-strong">{entry.actor_name}</strong>{" "}
                     {auditActionLabel(entry.action)} de{" "}
-                    <strong className="text-[#18181B]">{entry.target_name}</strong>.
+                    <strong className="text-bht-ink-strong">{entry.target_name}</strong>
+                    .
                   </p>
-                  <p className="mt-1 text-xs text-[#6D6A64]">
+                  <p className="mt-1 text-xs text-bht-ink-muted">
                     {formatAuditDate(entry.created_at)}
                   </p>
                 </div>
@@ -520,7 +521,7 @@ export default function UserManagementPanel({
               className={`${INPUT_CLASS} mt-1.5 min-h-11 w-full`}
               placeholder="Ej. maria.lopez"
             />
-            <p className="mt-1 text-xs text-[#6D6A64]">
+            <p className="mt-1 text-xs text-bht-ink-muted">
               Se usa en auditorías y responsables; no es la contraseña.
             </p>
           </div>
@@ -567,11 +568,11 @@ export default function UserManagementPanel({
                 </option>
               ))}
             </select>
-            <p className="mt-1 text-xs leading-4 text-[#6D6A64]">
+            <p className="mt-1 text-xs leading-4 text-bht-ink-muted">
               {roleDescription(createForm.role)}
             </p>
           </div>
-          <div className="rounded-lg border border-[#CFE0F0] bg-[#F2F7FB] p-3 text-xs leading-5 text-[#1E446B]">
+          <div className="rounded-lg border border-bht-tone-cfe0f0 bg-bht-tone-f2f7fb p-3 text-xs leading-5 text-bht-navy-mid">
             No se envía una contraseña. La persona usará “Crear cuenta” con este mismo
             correo y Neon Auth verificará su identidad.
           </div>
@@ -602,14 +603,14 @@ export default function UserManagementPanel({
         subtitle={pendingRoleChange?.user.full_name}
       >
         {pendingRoleChange && (
-          <div className="space-y-4 text-sm text-[#5C5A55]">
+          <div className="space-y-4 text-sm text-bht-ink-soft">
             <p>
               Cambiarás el acceso de{" "}
-              <strong className="text-[#18181B]">
+              <strong className="text-bht-ink-strong">
                 {formatRoleEs(pendingRoleChange.user.role)}
               </strong>{" "}
               a{" "}
-              <strong className="text-[#18181B]">
+              <strong className="text-bht-ink-strong">
                 {formatRoleEs(pendingRoleChange.role)}
               </strong>
               . El cambio se aplicará en su siguiente solicitud y quedará auditado.
@@ -643,7 +644,7 @@ export default function UserManagementPanel({
         subtitle={confirmToggleUser?.full_name}
       >
         {confirmToggleUser && (
-          <div className="space-y-4 text-sm text-[#5C5A55]">
+          <div className="space-y-4 text-sm text-bht-ink-soft">
             <p>
               La persona perderá acceso inmediatamente. Su historial no se elimina y
               podrás reactivar la cuenta después.

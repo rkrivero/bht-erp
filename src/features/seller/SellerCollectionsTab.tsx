@@ -56,21 +56,21 @@ export default function SellerCollectionsTab({
           {
             label: "Saldo pendiente",
             amount: collectionSummary.total,
-            tone: "text-[#0F2942]",
+            tone: "text-bht-navy-deep",
           },
           {
             label: "Cobrar hoy / mañana",
             amount: collectionSummary.dueSoon,
-            tone: "text-[#B45309]",
+            tone: "text-bht-warning",
           },
           {
             label: "Promesa vencida",
             amount: collectionSummary.overdue,
-            tone: "text-[#B91C1C]",
+            tone: "text-bht-danger",
           },
         ].map((item) => (
           <Card key={item.label} padding="sm" className="space-y-1">
-            <p className="text-xs text-[#5C5A55]">{item.label}</p>
+            <p className="text-xs text-bht-ink-soft">{item.label}</p>
             <p className={`text-lg font-semibold tabular-nums ${item.tone}`}>
               S/ {item.amount.toFixed(2)}
             </p>
@@ -97,7 +97,7 @@ export default function SellerCollectionsTab({
             ]}
           />
           <div className="relative w-full sm:w-64">
-            <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-[#6D6A64]">
+            <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-bht-ink-muted">
               <SearchIcon className="h-3.5 w-3.5" />
             </span>
             <input
@@ -114,7 +114,7 @@ export default function SellerCollectionsTab({
                 data-compact="true"
                 aria-label="Limpiar búsqueda de cobros"
                 onClick={() => setDebtorSearch("")}
-                className="absolute inset-y-0 right-2 flex items-center text-[#6D6A64] hover:text-[#18181B] cursor-pointer"
+                className="absolute inset-y-0 right-2 flex items-center text-bht-ink-muted hover:text-bht-ink-strong cursor-pointer"
               >
                 <CloseIcon className="h-3.5 w-3.5" />
               </button>
@@ -153,14 +153,14 @@ export default function SellerCollectionsTab({
                       })
                     }
                     aria-label={`Ver detalle de productos del pedido ${item.orderCode} de ${item.customerName}`}
-                    className="w-full space-y-2.5 text-left rounded-xl transition hover:bg-[#F2F6FA]/45 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0F2942]/45 cursor-pointer"
+                    className="w-full space-y-2.5 text-left rounded-xl transition hover:bg-bht-mist/45 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bht-navy-deep/45 cursor-pointer"
                   >
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0">
-                        <span className="text-xs font-semibold text-[#1E446B] tabular-nums">
+                        <span className="text-xs font-semibold text-bht-navy-mid tabular-nums">
                           {item.orderCode} · {item.orderDate}
                         </span>
-                        <h2 className="mt-0.5 text-sm sm:text-base font-semibold text-[#18181B]">
+                        <h2 className="mt-0.5 text-sm sm:text-base font-semibold text-bht-ink-strong">
                           {item.customerName}
                         </h2>
                       </div>
@@ -178,41 +178,41 @@ export default function SellerCollectionsTab({
                       </Badge>
                     </div>
 
-                    <div className="grid grid-cols-3 gap-2 rounded-xl bg-[#F2F6FA]/70 p-2.5 text-xs tabular-nums">
+                    <div className="grid grid-cols-3 gap-2 rounded-xl bg-bht-mist/70 p-2.5 text-xs tabular-nums">
                       <div>
-                        <span className="block text-xs text-[#5C5A55]">Total</span>
-                        <span className="font-semibold text-[#18181B]">
+                        <span className="block text-xs text-bht-ink-soft">Total</span>
+                        <span className="font-semibold text-bht-ink-strong">
                           S/ {item.totalPen.toFixed(2)}
                         </span>
                       </div>
                       <div>
-                        <span className="block text-xs text-[#5C5A55]">
+                        <span className="block text-xs text-bht-ink-soft">
                           Abonado ({item.paymentCount})
                         </span>
-                        <span className="font-semibold text-[#15803D]">
+                        <span className="font-semibold text-bht-success">
                           S/ {item.paidPen.toFixed(2)}
                         </span>
                       </div>
                       <div className="text-right">
-                        <span className="block text-xs text-[#5C5A55]">
+                        <span className="block text-xs text-bht-ink-soft">
                           Saldo pendiente
                         </span>
-                        <span className="text-sm font-semibold text-[#B91C1C]">
+                        <span className="text-sm font-semibold text-bht-danger">
                           S/ {item.balanceDuePen.toFixed(2)}
                         </span>
                       </div>
                     </div>
 
-                    <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-[#5C5A55]">
+                    <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-bht-ink-soft">
                       <span>
                         Pactado:{" "}
-                        <strong className="text-[#18181B]">
+                        <strong className="text-bht-ink-strong">
                           {item.promisedPaymentDate || "No pactada"}
                         </strong>
                       </span>
                       <div className="flex items-center gap-2">
                         <PromiseStatusPill status={item.promiseStatus} />
-                        <span className="inline-flex items-center gap-0.5 font-medium text-[#1E446B]">
+                        <span className="inline-flex items-center gap-0.5 font-medium text-bht-navy-mid">
                           {lineCount > 0 ? `${lineCount} prod.` : "Ver detalle"}
                           <ChevronRightIcon className="h-3.5 w-3.5" />
                         </span>
@@ -247,25 +247,25 @@ export default function SellerCollectionsTab({
                   </div>
 
                   {timelineOrderId === item.orderId && (
-                    <div className="rounded-xl border border-[#D4E0EC] bg-[#F2F6FA]/60 p-3 text-xs">
-                      <p className="mb-2 font-semibold text-[#0F2942]">
+                    <div className="rounded-xl border border-bht-line-blue bg-bht-mist/60 p-3 text-xs">
+                      <p className="mb-2 font-semibold text-bht-navy-deep">
                         Historial de pagos de este pedido
                       </p>
                       {timelineEntries.length === 0 ? (
-                        <p className="text-[#5C5A55]">Sin abonos previos.</p>
+                        <p className="text-bht-ink-soft">Sin abonos previos.</p>
                       ) : (
-                        <ul className="divide-y divide-[#D4E0EC]/70">
+                        <ul className="divide-y divide-bht-line-blue/70">
                           {timelineEntries.map((t) => (
                             <li
                               key={String(t.arPaymentId)}
                               className="flex items-center justify-between gap-2 py-1.5"
                             >
-                              <span className="text-[#5C5A55]">
+                              <span className="text-bht-ink-soft">
                                 {String(t.paymentDate)} ·{" "}
                                 {formatPaymentModeEs(t.paymentMode)} (
                                 {String(t.collectedByName || "Histórico")})
                               </span>
-                              <strong className="font-semibold text-[#15803D] tabular-nums">
+                              <strong className="font-semibold text-bht-success tabular-nums">
                                 S/ {Number(t.amountPen).toFixed(2)}
                               </strong>
                             </li>
@@ -303,22 +303,22 @@ export default function SellerCollectionsTab({
                   })
                 }
                 aria-label={`Ver pedidos y productos que debe ${c.customerName}`}
-                className="w-full space-y-1.5 text-left rounded-xl transition hover:bg-[#F2F6FA]/45 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0F2942]/45 cursor-pointer"
+                className="w-full space-y-1.5 text-left rounded-xl transition hover:bg-bht-mist/45 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bht-navy-deep/45 cursor-pointer"
               >
                 <div className="flex items-start justify-between gap-2">
-                  <h2 className="text-sm sm:text-base font-semibold text-[#18181B]">
+                  <h2 className="text-sm sm:text-base font-semibold text-bht-ink-strong">
                     {c.customerName}
                   </h2>
                   <Badge tone="danger" className="tabular-nums">
                     Debe S/ {c.totalBalanceDuePen.toFixed(2)}
                   </Badge>
                 </div>
-                <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-[#5C5A55] tabular-nums">
+                <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-bht-ink-soft tabular-nums">
                   <span>
                     {c.openOrdersCount} pedido(s) · Antigüedad máx: {c.maxDaysOverdue}{" "}
                     días · Próxima visita: {c.earliestPromisedPaymentDate || "-"}
                   </span>
-                  <span className="inline-flex items-center gap-0.5 font-medium text-[#1E446B]">
+                  <span className="inline-flex items-center gap-0.5 font-medium text-bht-navy-mid">
                     Ver detalle
                     <ChevronRightIcon className="h-3.5 w-3.5" />
                   </span>

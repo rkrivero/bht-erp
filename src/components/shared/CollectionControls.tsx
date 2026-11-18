@@ -41,17 +41,17 @@ export function PromiseFilterBar({
     {
       id: "DUE_TODAY_OR_TOMORROW",
       label: "Cobrar hoy / mañana",
-      icon: <FlameIcon className="h-3.5 w-3.5 text-[#B45309]" />,
+      icon: <FlameIcon className="h-3.5 w-3.5 text-bht-warning" />,
     },
     {
       id: "PROMISE_BROKEN",
       label: "Promesa vencida",
-      icon: <AlertTriangleIcon className="h-3.5 w-3.5 text-[#B91C1C]" />,
+      icon: <AlertTriangleIcon className="h-3.5 w-3.5 text-bht-danger" />,
     },
     {
       id: "ON_SCHEDULE",
       label: "En plazo",
-      icon: <CalendarIcon className="h-3.5 w-3.5 text-[#15803D]" />,
+      icon: <CalendarIcon className="h-3.5 w-3.5 text-bht-success" />,
     },
   ];
 
@@ -69,10 +69,10 @@ export function PromiseFilterBar({
             type="button"
             aria-pressed={active}
             onClick={() => onChange(f.id)}
-            className={`inline-flex min-h-[40px] w-full sm:w-auto items-center justify-center gap-1.5 rounded-xl sm:rounded-full border px-3 py-1.5 text-xs text-center transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0F2942] focus-visible:ring-offset-1 cursor-pointer ${
+            className={`inline-flex min-h-[40px] w-full sm:w-auto items-center justify-center gap-1.5 rounded-xl sm:rounded-full border px-3 py-1.5 text-xs text-center transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bht-navy-deep focus-visible:ring-offset-1 cursor-pointer ${
               active
-                ? "border-[#0F2942]/45 bg-[#EDF3F8] font-semibold text-[#0F2942] shadow-[0_1px_2px_rgba(15,41,66,0.06)]"
-                : "border-[#E7E5E0] bg-white font-medium text-[#5C5A55] hover:border-[#D4E0EC] hover:bg-[#F2F6FA]/70 hover:text-[#0F2942]"
+                ? "border-bht-navy-deep/45 bg-bht-tone-edf3f8 font-semibold text-bht-navy-deep shadow-bht-elev-2"
+                : "border-bht-line bg-white font-medium text-bht-ink-soft hover:border-bht-line-blue hover:bg-bht-mist/70 hover:text-bht-navy-deep"
             }`}
           >
             {f.icon && <span>{f.icon}</span>}
@@ -87,7 +87,7 @@ export function PromiseFilterBar({
 export function PromiseStatusPill({ status }: { status: string }) {
   if (status === "PROMISE_BROKEN") {
     return (
-      <span className="inline-flex items-center gap-1 font-medium text-[#B91C1C]">
+      <span className="inline-flex items-center gap-1 font-medium text-bht-danger">
         <AlertTriangleIcon className="h-3.5 w-3.5" />
         Promesa vencida
       </span>
@@ -95,14 +95,14 @@ export function PromiseStatusPill({ status }: { status: string }) {
   }
   if (status === "DUE_TODAY_OR_TOMORROW") {
     return (
-      <span className="inline-flex items-center gap-1 font-medium text-[#B45309]">
+      <span className="inline-flex items-center gap-1 font-medium text-bht-warning">
         <FlameIcon className="h-3.5 w-3.5" />
         Cobrar hoy / mañana
       </span>
     );
   }
   return (
-    <span className="inline-flex items-center gap-1 font-medium text-[#5C5A55]">
+    <span className="inline-flex items-center gap-1 font-medium text-bht-ink-soft">
       <CalendarIcon className="h-3.5 w-3.5" />
       En plazo
     </span>
@@ -173,7 +173,7 @@ export function AbonoModal({
   return (
     <ModalSheet open={open} onClose={onClose} title={title}>
       <form onSubmit={onSubmit} className="space-y-4">
-        <div className="rounded-xl border border-[#D4E0EC] bg-[#F2F6FA]/85 p-3 text-xs text-[#0F2942]">
+        <div className="rounded-xl border border-bht-line-blue bg-bht-mist/85 p-3 text-xs text-bht-navy-deep">
           {summaryContent}
         </div>
 
@@ -199,7 +199,7 @@ export function AbonoModal({
               size="sm"
               aria-label={`Completar monto total pendiente: S/ ${balanceDuePen.toFixed(2)}`}
               onClick={() => onAmountChange(balanceDuePen.toFixed(2))}
-              className="border-[#D4E0EC] bg-[#F2F6FA] text-[#0F2942] hover:border-[#5B89B5]/60 hover:bg-[#E7EFF7]"
+              className="border-bht-line-blue bg-bht-mist text-bht-navy-deep hover:border-bht-tone-5b89b5/60 hover:bg-bht-tone-e7eff7"
             >
               Todo (S/ {balanceDuePen.toFixed(2)})
             </Button>
@@ -208,7 +208,7 @@ export function AbonoModal({
               size="sm"
               aria-label={`Completar mitad del saldo: S/ ${(balanceDuePen / 2).toFixed(2)}`}
               onClick={() => onAmountChange((balanceDuePen / 2).toFixed(2))}
-              className="border-[#D4E0EC] bg-[#F2F6FA] text-[#0F2942] hover:border-[#5B89B5]/60 hover:bg-[#E7EFF7]"
+              className="border-bht-line-blue bg-bht-mist text-bht-navy-deep hover:border-bht-tone-5b89b5/60 hover:bg-bht-tone-e7eff7"
             >
               Mitad
             </Button>
@@ -218,7 +218,7 @@ export function AbonoModal({
         <div>
           <span
             id={paymentLabelId}
-            className="block text-xs font-medium text-[#5C5A55]"
+            className="block text-xs font-medium text-bht-ink-soft"
           >
             Medio de pago
           </span>
@@ -236,10 +236,10 @@ export function AbonoModal({
                   role="radio"
                   aria-checked={active}
                   onClick={() => onPaymentModeChange(m)}
-                  className={`rounded-xl border px-3 py-2.5 text-xs font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0F2942] focus-visible:ring-offset-1 cursor-pointer ${
+                  className={`rounded-xl border px-3 py-2.5 text-xs font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bht-navy-deep focus-visible:ring-offset-1 cursor-pointer ${
                     active
-                      ? "border-[#0F2942] bg-[#EDF3F8] text-[#0F2942] ring-1 ring-[#0F2942]/15"
-                      : "border-[#E7E5E0] bg-white text-[#5C5A55] hover:border-[#D4E0EC] hover:bg-[#F2F6FA]/60 hover:text-[#0F2942]"
+                      ? "border-bht-navy-deep bg-bht-tone-edf3f8 text-bht-navy-deep ring-1 ring-bht-navy-deep/15"
+                      : "border-bht-line bg-white text-bht-ink-soft hover:border-bht-line-blue hover:bg-bht-mist/60 hover:text-bht-navy-deep"
                   }`}
                 >
                   {formatPaymentModeEs(m)}
@@ -280,7 +280,7 @@ export function AbonoModal({
         )}
 
         {isFullPayoff ? (
-          <div className="rounded-xl border border-[#A7F3D0] bg-[#ECFDF5] px-3 py-2.5 text-xs font-medium text-[#047857]">
+          <div className="rounded-xl border border-bht-tone-a7f3d0 bg-bht-tone-ecfdf5 px-3 py-2.5 text-xs font-medium text-bht-tone-047857">
             Este abono liquida el 100% del saldo pendiente; no se programará prórroga de
             cobranza.
           </div>
@@ -288,7 +288,7 @@ export function AbonoModal({
           <div>
             <span
               id={nextDaysLabelId}
-              className="block text-xs font-medium text-[#5C5A55]"
+              className="block text-xs font-medium text-bht-ink-soft"
             >
               Si aún queda saldo, ¿cuándo volver por el resto?
             </span>
@@ -305,10 +305,10 @@ export function AbonoModal({
                     type="button"
                     aria-pressed={active}
                     onClick={() => onNextDaysChange(c.days)}
-                    className={`min-h-[44px] rounded-full border px-3 py-1.5 text-xs font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0F2942] focus-visible:ring-offset-1 cursor-pointer ${
+                    className={`min-h-[44px] rounded-full border px-3 py-1.5 text-xs font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bht-navy-deep focus-visible:ring-offset-1 cursor-pointer ${
                       active
-                        ? "border-[#B45309] bg-[#FFFBEB] text-[#B45309]"
-                        : "border-[#E7E5E0] bg-white text-[#5C5A55] hover:border-[#D4E0EC] hover:bg-[#F2F6FA]/60 hover:text-[#0F2942]"
+                        ? "border-bht-warning bg-bht-warning-bg text-bht-warning"
+                        : "border-bht-line bg-white text-bht-ink-soft hover:border-bht-line-blue hover:bg-bht-mist/60 hover:text-bht-navy-deep"
                     }`}
                   >
                     {c.label}
@@ -464,31 +464,31 @@ export function DebtorDetailModal({
       maxWidth="lg"
     >
       <div className="space-y-3.5 text-xs">
-        <div className="grid grid-cols-1 gap-2.5 rounded-xl border border-[#D4E0EC] bg-[#F2F6FA]/85 p-3 sm:grid-cols-3 tabular-nums">
+        <div className="grid grid-cols-1 gap-2.5 rounded-xl border border-bht-line-blue bg-bht-mist/85 p-3 sm:grid-cols-3 tabular-nums">
           <div>
-            <span className="block text-xs text-[#5C5A55]">
+            <span className="block text-xs text-bht-ink-soft">
               {mode === "customer" ? "Total vendido" : "Total pedido"}
             </span>
-            <strong className="text-sm text-[#18181B]">
+            <strong className="text-sm text-bht-ink-strong">
               S/ {totalSold.toFixed(2)}
             </strong>
           </div>
           <div>
-            <span className="block text-xs text-[#5C5A55]">Abonado</span>
-            <strong className="text-sm text-[#15803D]">
+            <span className="block text-xs text-bht-ink-soft">Abonado</span>
+            <strong className="text-sm text-bht-success">
               S/ {totalPaid.toFixed(2)}
             </strong>
           </div>
           <div className="sm:text-right">
-            <span className="block text-xs text-[#5C5A55]">Saldo pendiente</span>
-            <strong className="text-sm text-[#B91C1C]">
+            <span className="block text-xs text-bht-ink-soft">Saldo pendiente</span>
+            <strong className="text-sm text-bht-danger">
               S/ {totalBalance.toFixed(2)}
             </strong>
           </div>
         </div>
 
         {orders.length === 0 ? (
-          <p className="rounded-xl border border-[#E7E5E0] bg-[#FAF9F6] p-3 text-[#5C5A55]">
+          <p className="rounded-xl border border-bht-line bg-bht-paper p-3 text-bht-ink-soft">
             No hay pedidos pendientes registrados para mostrar.
           </p>
         ) : (
@@ -500,22 +500,22 @@ export function DebtorDetailModal({
               return (
                 <div
                   key={order.orderId}
-                  className="rounded-xl border border-[#E7E5E0] bg-[#FAF9F6]/75 p-3 space-y-2.5"
+                  className="rounded-xl border border-bht-line bg-bht-paper/75 p-3 space-y-2.5"
                 >
                   <div className="flex flex-wrap items-start justify-between gap-2">
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-1.5">
-                        <span className="font-semibold text-[#1E446B] tabular-nums">
+                        <span className="font-semibold text-bht-navy-mid tabular-nums">
                           {order.orderCode} · {order.orderDate}
                         </span>
                         <Badge tone="neutral">
                           {formatOperationalStatusEs(order.operationalStatus)}
                         </Badge>
                       </div>
-                      <p className="mt-0.5 text-xs text-[#5C5A55] tabular-nums">
+                      <p className="mt-0.5 text-xs text-bht-ink-soft tabular-nums">
                         Total: S/ {order.totalPen.toFixed(2)} · Abonado: S/{" "}
                         {order.paidPen.toFixed(2)} ·{" "}
-                        <strong className="text-[#B91C1C]">
+                        <strong className="text-bht-danger">
                           Debe: S/ {order.balanceDuePen.toFixed(2)}
                         </strong>
                       </p>
@@ -534,10 +534,10 @@ export function DebtorDetailModal({
                     </Badge>
                   </div>
 
-                  <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-[#5C5A55]">
+                  <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-bht-ink-soft">
                     <span>
                       Pactado:{" "}
-                      <strong className="text-[#18181B]">
+                      <strong className="text-bht-ink-strong">
                         {order.promisedPaymentDate || "No pactada"}
                       </strong>
                       {order.createdByName ? ` · Vendedor: ${order.createdByName}` : ""}
@@ -545,12 +545,12 @@ export function DebtorDetailModal({
                     <PromiseStatusPill status={order.promiseStatus} />
                   </div>
 
-                  <div className="space-y-1.5 border-t border-[#E7E5E0] pt-2">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-[#0F2942]">
+                  <div className="space-y-1.5 border-t border-bht-line pt-2">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-bht-navy-deep">
                       Productos de este pedido ({lines.length})
                     </p>
                     {lines.length === 0 ? (
-                      <p className="rounded-lg border border-dashed border-[#DDDAD3] bg-white px-2.5 py-2 text-xs text-[#5C5A55]">
+                      <p className="rounded-lg border border-dashed border-bht-line-strong bg-white px-2.5 py-2 text-xs text-bht-ink-soft">
                         Pedido histórico sin desglose individual de productos.
                       </p>
                     ) : (
@@ -558,13 +558,13 @@ export function DebtorDetailModal({
                         {lines.map((ln) => (
                           <div
                             key={ln.orderLineId}
-                            className="flex items-start justify-between gap-2 rounded-lg border border-[#E7E5E0] bg-white px-2.5 py-2"
+                            className="flex items-start justify-between gap-2 rounded-lg border border-bht-line bg-white px-2.5 py-2"
                           >
                             <div className="min-w-0 flex-1">
-                              <p className="font-medium text-[#18181B]">
+                              <p className="font-medium text-bht-ink-strong">
                                 {ln.rawDescription || ln.sku}
                               </p>
-                              <p className="mt-0.5 text-xs text-[#5C5A55] tabular-nums">
+                              <p className="mt-0.5 text-xs text-bht-ink-soft tabular-nums">
                                 {ln.quantity} {ln.unitOfMeasure || "NIU"} × S/{" "}
                                 {ln.unitPricePen.toFixed(2)}
                                 {ln.unitDiscountPen > 0
@@ -573,7 +573,7 @@ export function DebtorDetailModal({
                                 · {formatFulfillmentModeEs(ln.fulfillmentMode)}
                               </p>
                             </div>
-                            <span className="flex-shrink-0 font-semibold text-[#18181B] tabular-nums">
+                            <span className="flex-shrink-0 font-semibold text-bht-ink-strong tabular-nums">
                               S/ {ln.lineTotalPen.toFixed(2)}
                             </span>
                           </div>
@@ -609,23 +609,23 @@ export function DebtorDetailModal({
                   </div>
 
                   {isTimelineOpen && (
-                    <div className="rounded-lg border border-[#D4E0EC] bg-[#F2F6FA]/70 p-2.5 text-xs">
+                    <div className="rounded-lg border border-bht-line-blue bg-bht-mist/70 p-2.5 text-xs">
                       {!timeline || timeline.length === 0 ? (
-                        <p className="text-[#5C5A55]">
+                        <p className="text-bht-ink-soft">
                           Este pedido aún no registra abonos previos.
                         </p>
                       ) : (
-                        <ul className="divide-y divide-[#D4E0EC]/70">
+                        <ul className="divide-y divide-bht-line-blue/70">
                           {timeline.map((t) => (
                             <li
                               key={t.arPaymentId}
                               className="flex items-center justify-between gap-2 py-1"
                             >
-                              <span className="text-[#5C5A55]">
+                              <span className="text-bht-ink-soft">
                                 {t.paymentDate} · {formatPaymentModeEs(t.paymentMode)} (
                                 {t.collectedByName || "Histórico"})
                               </span>
-                              <strong className="font-semibold text-[#15803D] tabular-nums">
+                              <strong className="font-semibold text-bht-success tabular-nums">
                                 S/ {Number(t.amountPen).toFixed(2)}
                               </strong>
                             </li>
@@ -644,12 +644,12 @@ export function DebtorDetailModal({
           canUseCustomerFifo &&
           onSelectCustomerAbono &&
           orders.length > 0 && (
-            <div className="border-t border-[#E7E5E0] pt-2.5">
+            <div className="border-t border-bht-line pt-2.5">
               <Button
                 variant="outline"
                 size="sm"
                 onClick={onSelectCustomerAbono}
-                className="w-full border-[#D4E0EC] bg-[#F2F6FA]/70 text-[#0F2942] hover:bg-[#EDF3F8]"
+                className="w-full border-bht-line-blue bg-bht-mist/70 text-bht-navy-deep hover:bg-bht-tone-edf3f8"
               >
                 <PlusIcon className="h-3.5 w-3.5" />
                 Abonar a cuenta general (desde la deuda más antigua)

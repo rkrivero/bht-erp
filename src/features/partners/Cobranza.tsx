@@ -55,21 +55,21 @@ export function Cobranza({ data, flow }: CobranzaProps) {
           {
             label: "Saldo pendiente",
             amount: collectionSummary.total,
-            tone: "text-[#0F2942]",
+            tone: "text-bht-navy-deep",
           },
           {
             label: "Cobrar hoy / mañana",
             amount: collectionSummary.dueSoon,
-            tone: "text-[#B45309]",
+            tone: "text-bht-warning",
           },
           {
             label: "Promesa vencida",
             amount: collectionSummary.overdue,
-            tone: "text-[#B91C1C]",
+            tone: "text-bht-danger",
           },
         ].map((item) => (
           <Card key={item.label} padding="sm" className="space-y-1">
-            <p className="text-xs text-[#5C5A55]">{item.label}</p>
+            <p className="text-xs text-bht-ink-soft">{item.label}</p>
             <p className={`text-lg font-semibold tabular-nums ${item.tone}`}>
               S/ {item.amount.toFixed(2)}
             </p>
@@ -78,7 +78,7 @@ export function Cobranza({ data, flow }: CobranzaProps) {
       </div>
       <Card padding="sm" className="space-y-2.5">
         <div className="relative">
-          <span className="pointer-events-none absolute inset-y-0 left-3.5 flex items-center text-[#6D6A64]">
+          <span className="pointer-events-none absolute inset-y-0 left-3.5 flex items-center text-bht-ink-muted">
             <SearchIcon className="h-4 w-4" />
           </span>
           <input
@@ -95,7 +95,7 @@ export function Cobranza({ data, flow }: CobranzaProps) {
               data-compact="true"
               aria-label="Limpiar búsqueda de deudores"
               onClick={() => setDebtorSearch("")}
-              className="absolute inset-y-0 right-2.5 flex items-center text-[#6D6A64] hover:text-[#18181B] cursor-pointer"
+              className="absolute inset-y-0 right-2.5 flex items-center text-bht-ink-muted hover:text-bht-ink-strong cursor-pointer"
             >
               <CloseIcon className="h-4 w-4" />
             </button>
@@ -110,7 +110,7 @@ export function Cobranza({ data, flow }: CobranzaProps) {
 
       <div className="grid gap-4 lg:grid-cols-2">
         <Card padding="md" className="space-y-3">
-          <h2 className="text-sm sm:text-base font-semibold text-[#18181B]">
+          <h2 className="text-sm sm:text-base font-semibold text-bht-ink-strong">
             Ranking de Clientes Deudores ({filteredDebtorsByCustomer.length})
           </h2>
           {filteredDebtorsByCustomer.length === 0 ? (
@@ -120,7 +120,7 @@ export function Cobranza({ data, flow }: CobranzaProps) {
               {filteredDebtorsByCustomer.map((c) => (
                 <div
                   key={String(c.customerKey)}
-                  className="flex min-h-[88px] items-center justify-between gap-3 rounded-xl border border-[#E7E5E0] bg-[#FAF9F6]/60 p-3.5"
+                  className="flex min-h-[88px] items-center justify-between gap-3 rounded-xl border border-bht-line bg-bht-paper/60 p-3.5"
                 >
                   <button
                     type="button"
@@ -136,17 +136,17 @@ export function Cobranza({ data, flow }: CobranzaProps) {
                       })
                     }
                     aria-label={`Ver pedidos y productos que debe ${String(c.customerName)}`}
-                    className="min-w-0 flex-1 rounded-lg px-1 py-0.5 text-left transition hover:bg-[#F2F6FA]/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0F2942]/45 cursor-pointer"
+                    className="min-w-0 flex-1 rounded-lg px-1 py-0.5 text-left transition hover:bg-bht-mist/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bht-navy-deep/45 cursor-pointer"
                   >
-                    <p className="truncate text-sm font-semibold text-[#18181B]">
+                    <p className="truncate text-sm font-semibold text-bht-ink-strong">
                       {String(c.customerName)}
                     </p>
-                    <p className="mt-0.5 text-xs text-[#5C5A55] tabular-nums">
+                    <p className="mt-0.5 text-xs text-bht-ink-soft tabular-nums">
                       {Number(c.openOrdersCount)} pedido(s) · Antigüedad:{" "}
                       {Number(c.maxDaysOverdue)} días · Próx. visita:{" "}
                       {String(c.earliestPromisedPaymentDate || "-")}
                     </p>
-                    <span className="mt-1 inline-flex items-center gap-0.5 text-xs font-medium text-[#1E446B]">
+                    <span className="mt-1 inline-flex items-center gap-0.5 text-xs font-medium text-bht-navy-mid">
                       Ver detalle y productos
                       <ChevronRightIcon className="h-3 w-3" />
                     </span>
@@ -179,7 +179,7 @@ export function Cobranza({ data, flow }: CobranzaProps) {
         </Card>
 
         <Card padding="md" className="space-y-3">
-          <h2 className="text-sm sm:text-base font-semibold text-[#18181B]">
+          <h2 className="text-sm sm:text-base font-semibold text-bht-ink-strong">
             Pedidos Pendientes de Cobro y Fechas Pactadas (
             {filteredDebtorsByOrder.length})
           </h2>
@@ -192,7 +192,7 @@ export function Cobranza({ data, flow }: CobranzaProps) {
                 return (
                   <div
                     key={String(o.orderId)}
-                    className="rounded-xl border border-[#E7E5E0] bg-[#FAF9F6]/60 p-3 space-y-2"
+                    className="rounded-xl border border-bht-line bg-bht-paper/60 p-3 space-y-2"
                   >
                     <button
                       type="button"
@@ -203,30 +203,30 @@ export function Cobranza({ data, flow }: CobranzaProps) {
                         })
                       }
                       aria-label={`Ver productos del pedido pendiente ${String(o.orderCode)} de ${String(o.customerName)}`}
-                      className="w-full space-y-2 rounded-lg text-left transition hover:bg-[#F2F6FA]/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0F2942]/45 cursor-pointer"
+                      className="w-full space-y-2 rounded-lg text-left transition hover:bg-bht-mist/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bht-navy-deep/45 cursor-pointer"
                     >
                       <div className="flex flex-wrap items-center justify-between gap-1.5">
-                        <span className="text-xs font-semibold text-[#18181B]">
+                        <span className="text-xs font-semibold text-bht-ink-strong">
                           {String(o.orderCode)} · {String(o.customerName)}
                         </span>
                         <Badge tone="danger" className="tabular-nums">
                           Hace {Number(o.daysOverdue)} días
                         </Badge>
                       </div>
-                      <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-[#5C5A55] tabular-nums">
+                      <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-bht-ink-soft tabular-nums">
                         <span>Total: {formatPen(o.totalPen)}</span>
                         <span>Abonado: {formatPen(o.paidPen)}</span>
-                        <strong className="text-[#B91C1C]">
+                        <strong className="text-bht-danger">
                           Falta: {formatPen(o.balanceDuePen)}
                         </strong>
-                        <span className="ml-auto inline-flex items-center gap-0.5 font-medium text-[#1E446B]">
+                        <span className="ml-auto inline-flex items-center gap-0.5 font-medium text-bht-navy-mid">
                           {lineCount > 0 ? `${lineCount} prod.` : "Ver detalle"}
                           <ChevronRightIcon className="h-3.5 w-3.5" />
                         </span>
                       </div>
                     </button>
                     <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
-                      <div className="flex flex-wrap items-center gap-2 text-xs text-[#5C5A55]">
+                      <div className="flex flex-wrap items-center gap-2 text-xs text-bht-ink-soft">
                         <span>Pactado: {String(o.promisedPaymentDate || "-")}</span>
                         <PromiseStatusPill status={String(o.promiseStatus ?? "")} />
                         <span className="sr-only">
@@ -357,7 +357,7 @@ export function CobranzaModals({ data, flow }: CobranzaModalsProps) {
             <>
               Se repartirá desde el pedido más antiguo (
               {Number(fifoCustomer.openOrdersCount)} pedidos) ·{" "}
-              <strong className="text-[#B91C1C] tabular-nums">
+              <strong className="text-bht-danger tabular-nums">
                 Deuda Total: {formatPen(fifoCustomer.totalBalanceDuePen)}
               </strong>
             </>
@@ -366,7 +366,7 @@ export function CobranzaModals({ data, flow }: CobranzaModalsProps) {
               Pedido {String(abonoOrder.orderCode)} · Total:{" "}
               {formatPen(abonoOrder.totalPen)} · Abonado:{" "}
               {formatPen(abonoOrder.paidPen)} ·{" "}
-              <strong className="text-[#B91C1C] tabular-nums">
+              <strong className="text-bht-danger tabular-nums">
                 Saldo: {formatPen(abonoOrder.balanceDuePen)}
               </strong>
             </>

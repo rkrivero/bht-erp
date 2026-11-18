@@ -191,7 +191,7 @@ export function Hoy({
                 className="grid gap-3 px-4 py-3.5 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:items-center sm:px-5"
               >
                 <span
-                  className={`flex h-9 w-9 items-center justify-center rounded-xl ${item.level === "clear" ? "bg-[#F2F6FA] text-[var(--bht-steel)]" : item.level === "critical" ? "bg-[#FEF2F2] text-[#B91C1C]" : "bg-[#FFF7E8] text-[#9A5A00]"}`}
+                  className={`flex h-9 w-9 items-center justify-center rounded-xl ${item.level === "clear" ? "bg-bht-mist text-[var(--bht-steel)]" : item.level === "critical" ? "bg-bht-danger-bg text-bht-danger" : "bg-bht-tone-fff7e8 text-bht-tone-9a5a00"}`}
                   aria-hidden="true"
                 >
                   <Icon className="h-4 w-4" />
@@ -230,14 +230,14 @@ export function Hoy({
       >
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-start gap-3">
-            <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-[#0F2942] text-white shadow-[0_2px_6px_rgba(15,41,66,0.18)]">
+            <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-bht-navy-deep text-white shadow-bht-elev-11">
               <ShoppingBagIcon className="h-5 w-5" />
             </div>
             <div className="min-w-0">
-              <h2 className="text-sm sm:text-base font-semibold text-[#0F2942]">
+              <h2 className="text-sm sm:text-base font-semibold text-bht-navy-deep">
                 Toma Rápida de Pedidos y Ventas
               </h2>
-              <p className="mt-0.5 text-xs text-[#5C5A55]">
+              <p className="mt-0.5 text-xs text-bht-ink-soft">
                 Registra pedidos nuevos, busca clientes y cobra en ruta directamente.
               </p>
             </div>
@@ -247,7 +247,7 @@ export function Hoy({
               variant="primary"
               size="md"
               onClick={() => router.push("/vendedor")}
-              className="flex-1 sm:flex-initial min-h-[44px] px-5 shadow-[0_2px_10px_rgba(15,41,66,0.18)]"
+              className="flex-1 sm:flex-initial min-h-[44px] px-5 shadow-bht-elev-12"
             >
               <PlusIcon className="h-4 w-4" />
               <span>Tomar Nuevo Pedido</span>
@@ -269,78 +269,80 @@ export function Hoy({
         <button
           type="button"
           onClick={() => handleTabChange("control")}
-          className="group rounded-2xl border border-[#E7E5E0] bg-white p-4 text-left shadow-[0_1px_2px_rgba(15,41,66,0.03)] transition hover:border-[#1E446B]/45 hover:shadow-[0_2px_8px_rgba(15,41,66,0.06)] cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0F2942]"
+          className="group rounded-2xl border border-bht-line bg-white p-4 text-left shadow-bht-elev-13 transition hover:border-bht-navy-mid/45 hover:shadow-bht-elev-14 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bht-navy-deep"
         >
           <div className="flex items-center justify-between gap-2">
-            <span className="text-xs font-medium text-[#4A4843]">Pend. Aprobación</span>
+            <span className="text-xs font-medium text-bht-ink-warm">
+              Pend. Aprobación
+            </span>
             <span
-              className="text-xs text-[#6D6A64] transition group-hover:translate-x-0.5 group-hover:text-[#0F2942]"
+              className="text-xs text-bht-ink-muted transition group-hover:translate-x-0.5 group-hover:text-bht-navy-deep"
               aria-hidden="true"
             >
               →
             </span>
           </div>
-          <p className="mt-2 text-2xl font-semibold tracking-tight text-[#0F2942] tabular-nums">
+          <p className="mt-2 text-2xl font-semibold tracking-tight text-bht-navy-deep tabular-nums">
             {pendingApprovals.length}
           </p>
         </button>
         <button
           type="button"
           onClick={() => handleTabChange("deudores")}
-          className="group rounded-2xl border border-[#E7E5E0] bg-white p-4 text-left shadow-[0_1px_2px_rgba(15,41,66,0.03)] transition hover:border-[#1E446B]/45 hover:shadow-[0_2px_8px_rgba(15,41,66,0.06)] cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0F2942]"
+          className="group rounded-2xl border border-bht-line bg-white p-4 text-left shadow-bht-elev-13 transition hover:border-bht-navy-mid/45 hover:shadow-bht-elev-14 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bht-navy-deep"
         >
           <div className="flex items-center justify-between gap-2">
-            <span className="text-xs font-medium text-[#4A4843]">
+            <span className="text-xs font-medium text-bht-ink-warm">
               Pedidos por cobrar
             </span>
             <span
-              className="text-xs text-[#6D6A64] transition group-hover:translate-x-0.5 group-hover:text-[#0F2942]"
+              className="text-xs text-bht-ink-muted transition group-hover:translate-x-0.5 group-hover:text-bht-navy-deep"
               aria-hidden="true"
             >
               →
             </span>
           </div>
-          <p className="mt-2 text-2xl font-semibold tracking-tight text-[#B91C1C] tabular-nums">
+          <p className="mt-2 text-2xl font-semibold tracking-tight text-bht-danger tabular-nums">
             {debtorsByOrder.length}
           </p>
         </button>
         <button
           type="button"
           onClick={() => handleTabChange("caja")}
-          className="group rounded-2xl border border-[#E7E5E0] bg-white p-4 text-left shadow-[0_1px_2px_rgba(15,41,66,0.03)] transition hover:border-[#1E446B]/45 hover:shadow-[0_2px_8px_rgba(15,41,66,0.06)] cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0F2942]"
+          className="group rounded-2xl border border-bht-line bg-white p-4 text-left shadow-bht-elev-13 transition hover:border-bht-navy-mid/45 hover:shadow-bht-elev-14 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bht-navy-deep"
         >
           <div className="flex items-center justify-between gap-2">
-            <span className="text-xs font-medium text-[#4A4843]">
+            <span className="text-xs font-medium text-bht-ink-warm">
               Bajo pedido pendientes
             </span>
             <span
-              className="text-xs text-[#6D6A64] transition group-hover:translate-x-0.5 group-hover:text-[#0F2942]"
+              className="text-xs text-bht-ink-muted transition group-hover:translate-x-0.5 group-hover:text-bht-navy-deep"
               aria-hidden="true"
             >
               →
             </span>
           </div>
-          <p className="mt-2 text-2xl font-semibold tracking-tight text-[#1E446B] tabular-nums">
+          <p className="mt-2 text-2xl font-semibold tracking-tight text-bht-navy-mid tabular-nums">
             {pendingOnDemand.length}
           </p>
         </button>
         <button
           type="button"
           onClick={() => handleTabChange("stock")}
-          className="group rounded-2xl border border-[#E7E5E0] bg-white p-4 text-left shadow-[0_1px_2px_rgba(15,41,66,0.03)] transition hover:border-[#1E446B]/45 hover:shadow-[0_2px_8px_rgba(15,41,66,0.06)] cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0F2942]"
+          className="group rounded-2xl border border-bht-line bg-white p-4 text-left shadow-bht-elev-13 transition hover:border-bht-navy-mid/45 hover:shadow-bht-elev-14 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bht-navy-deep"
         >
           <div className="flex items-center justify-between gap-2">
-            <span className="text-xs font-medium text-[#4A4843]">
+            <span className="text-xs font-medium text-bht-ink-warm">
               Saldos negativos Día 1
             </span>
             <span
-              className="text-xs text-[#6D6A64] transition group-hover:translate-x-0.5 group-hover:text-[#0F2942]"
+              className="text-xs text-bht-ink-muted transition group-hover:translate-x-0.5 group-hover:text-bht-navy-deep"
               aria-hidden="true"
             >
               →
             </span>
           </div>
-          <p className="mt-2 text-2xl font-semibold tracking-tight text-[#B45309] tabular-nums">
+          <p className="mt-2 text-2xl font-semibold tracking-tight text-bht-warning tabular-nums">
             {negStockCount}
           </p>
         </button>
@@ -350,10 +352,10 @@ export function Hoy({
       {pendingApprovals.length === 0 ? (
         <div
           id="discount-approval-queue"
-          className="order-2 flex scroll-mt-24 items-center justify-between gap-2 rounded-2xl border border-[#D5E0E9] bg-white px-4 py-4 text-sm text-[#486581]"
+          className="order-2 flex scroll-mt-24 items-center justify-between gap-2 rounded-2xl border border-bht-tone-d5e0e9 bg-white px-4 py-4 text-sm text-bht-steel"
         >
           <span className="flex items-center gap-2">
-            <CheckIcon className="h-3.5 w-3.5 text-[#15803D]" />
+            <CheckIcon className="h-3.5 w-3.5 text-bht-success" />
             No hay pedidos retenidos por descuento en este momento.
           </span>
           <Badge tone="neutral">0 pendientes</Badge>
@@ -367,8 +369,8 @@ export function Hoy({
         >
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="flex items-center gap-2">
-              <AlertTriangleIcon className="h-4 w-4 text-[#B45309]" />
-              <h2 className="text-sm sm:text-base font-semibold text-[#18181B]">
+              <AlertTriangleIcon className="h-4 w-4 text-bht-warning" />
+              <h2 className="text-sm sm:text-base font-semibold text-bht-ink-strong">
                 Aprobación de Descuentos bajo el Precio Mínimo
               </h2>
             </div>
@@ -391,12 +393,12 @@ export function Hoy({
               return (
                 <div
                   key={String(o.order_id)}
-                  className="rounded-xl border border-[#E7E5E0] bg-white p-3.5 shadow-xs space-y-2.5"
+                  className="rounded-xl border border-bht-line bg-white p-3.5 shadow-xs space-y-2.5"
                 >
                   <div className="flex flex-wrap items-center justify-between gap-1.5">
-                    <span className="text-xs font-medium text-[#5C5A55]">
+                    <span className="text-xs font-medium text-bht-ink-soft">
                       {String(o.order_code)} · Vendedor:{" "}
-                      <strong className="text-[#18181B]">
+                      <strong className="text-bht-ink-strong">
                         {formatActorName(o.created_by_name, "-")}
                       </strong>
                     </span>
@@ -407,17 +409,17 @@ export function Hoy({
                       Margen: {formatPen(marginVal)} ({marginPct.toFixed(1)}%)
                     </Badge>
                   </div>
-                  <h3 className="text-sm font-semibold text-[#18181B] tabular-nums">
+                  <h3 className="text-sm font-semibold text-bht-ink-strong tabular-nums">
                     {String(o.customer_name)} — {formatPen(o.total_pen)}
                   </h3>
                   {displayLines.length > 0 && (
-                    <div className="space-y-1 rounded-lg bg-[#FAF9F6] px-2.5 py-2 text-xs text-[#5C5A55]">
+                    <div className="space-y-1 rounded-lg bg-bht-paper px-2.5 py-2 text-xs text-bht-ink-soft">
                       {displayLines.slice(0, 4).map((ln, idx) => (
                         <div
                           key={String(ln.order_line_id ?? idx)}
                           className="flex flex-wrap items-center justify-between gap-2 tabular-nums"
                         >
-                          <span className="min-w-0 flex-1 truncate font-medium text-[#18181B]">
+                          <span className="min-w-0 flex-1 truncate font-medium text-bht-ink-strong">
                             {String(ln.raw_description || ln.sku)}
                           </span>
                           <span>
@@ -430,7 +432,7 @@ export function Hoy({
                         </div>
                       ))}
                       {displayLines.length > 4 && (
-                        <p className="text-xs font-medium text-[#6D6A64]">
+                        <p className="text-xs font-medium text-bht-ink-muted">
                           +{displayLines.length - 4} línea(s) adicional(es)
                         </p>
                       )}
@@ -462,7 +464,7 @@ export function Hoy({
                         setCancelOrderReason("");
                         setConfirmCancelOrder(o);
                       }}
-                      className="border-[#FECACA] text-[#B91C1C] hover:bg-[#FEF2F2]"
+                      className="border-bht-danger-line text-bht-danger hover:bg-bht-danger-bg"
                     >
                       Anular
                     </Button>
@@ -483,7 +485,7 @@ export function Hoy({
           className="order-5 space-y-3"
         >
           <div className="flex items-center justify-between gap-2">
-            <h2 className="text-sm sm:text-base font-semibold text-[#0F2942]">
+            <h2 className="text-sm sm:text-base font-semibold text-bht-navy-deep">
               Pedidos Bajo Pedido Pendientes de Compra ({pendingOnDemand.length})
             </h2>
           </div>
@@ -491,14 +493,14 @@ export function Hoy({
             {pendingOnDemand.map((od) => (
               <div
                 key={od.order_line_id}
-                className="flex items-center justify-between gap-3 rounded-xl border border-[#D4E0EC] bg-white p-3 text-xs"
+                className="flex items-center justify-between gap-3 rounded-xl border border-bht-line-blue bg-white p-3 text-xs"
               >
                 <div className="min-w-0 flex-1">
-                  <p className="truncate font-semibold text-[#18181B]">
+                  <p className="truncate font-semibold text-bht-ink-strong">
                     {od.sku} — {od.product_name} (×{Number(od.quantity)}{" "}
                     {od.unit_of_measure || "NIU"})
                   </p>
-                  <p className="mt-0.5 truncate text-[#5C5A55] tabular-nums">
+                  <p className="mt-0.5 truncate text-bht-ink-soft tabular-nums">
                     {od.order_code} · {od.customer_name || od.customer_name_raw || "-"}{" "}
                     · {formatPen(od.line_total_pen)}
                   </p>

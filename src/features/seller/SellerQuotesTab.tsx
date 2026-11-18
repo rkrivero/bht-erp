@@ -23,10 +23,10 @@ export default function SellerQuotesTab({
     <section aria-label="Cotizaciones" className="space-y-3">
       <Card padding="sm" className="flex flex-wrap items-center justify-between gap-2">
         <div>
-          <h2 className="text-sm font-semibold text-[#18181B] sm:text-base">
+          <h2 className="text-sm font-semibold text-bht-ink-strong sm:text-base">
             Cotizaciones ({quotes.length})
           </h2>
-          <p className="text-xs text-[#5C5A55]">
+          <p className="text-xs text-bht-ink-soft">
             Arma ítems en Pedido y usa “Cotizar”, o convierte una cotización abierta en
             pedido real.
           </p>
@@ -63,22 +63,22 @@ export default function SellerQuotesTab({
               <Card key={quote.quote_id} padding="md" className="space-y-2.5">
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
-                    <span className="text-xs font-semibold text-[#1E446B] tabular-nums">
+                    <span className="text-xs font-semibold text-bht-navy-mid tabular-nums">
                       {quote.quote_code} · {quote.issue_date}
                     </span>
-                    <h3 className="text-sm font-semibold text-[#18181B] sm:text-base">
+                    <h3 className="text-sm font-semibold text-bht-ink-strong sm:text-base">
                       {quote.customer_name}
                     </h3>
                   </div>
                   <Badge tone={tone}>{status}</Badge>
                 </div>
-                <div className="divide-y divide-[#E7E5E0] rounded-lg border border-[#E7E5E0] bg-[#FAF9F6] px-2.5 py-1 text-xs">
+                <div className="divide-y divide-bht-line rounded-lg border border-bht-line bg-bht-paper px-2.5 py-1 text-xs">
                   {quote.lines.map((line) => (
                     <div
                       key={line.quote_line_id}
                       className="flex items-center justify-between gap-2 py-1.5"
                     >
-                      <span className="min-w-0 truncate text-[#18181B]">
+                      <span className="min-w-0 truncate text-bht-ink-strong">
                         {line.quantity} {line.unit_of_measure} × {line.raw_description}
                       </span>
                       <span className="flex-shrink-0 font-semibold tabular-nums">
@@ -88,7 +88,7 @@ export default function SellerQuotesTab({
                   ))}
                 </div>
                 <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
-                  <span className="font-semibold text-[#0F2942] tabular-nums">
+                  <span className="font-semibold text-bht-navy-deep tabular-nums">
                     Total: S/ {quote.total_pen.toFixed(2)}
                   </span>
                   {quote.status === "OPEN" && (

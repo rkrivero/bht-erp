@@ -91,7 +91,7 @@ function InvoiceLinesBreakdown({
   const safeLines = Array.isArray(lines) ? lines : [];
   if (safeLines.length === 0) {
     return (
-      <p className="rounded-xl border border-dashed border-[#DDDAD3] bg-[#FAF9F6] px-3 py-2.5 text-xs text-[#5C5A55]">
+      <p className="rounded-xl border border-dashed border-bht-line-strong bg-bht-paper px-3 py-2.5 text-xs text-bht-ink-soft">
         {emptyMessage}
       </p>
     );
@@ -101,17 +101,17 @@ function InvoiceLinesBreakdown({
       {safeLines.map((ln, idx) => (
         <div
           key={ln.purchase_line_id || `${ln.line_no}-${idx}`}
-          className="flex flex-wrap items-start justify-between gap-2 rounded-xl border border-[#E7E5E0] bg-[#FAF9F6] px-3 py-2 text-xs"
+          className="flex flex-wrap items-start justify-between gap-2 rounded-xl border border-bht-line bg-bht-paper px-3 py-2 text-xs"
         >
           <div className="min-w-0 flex-1">
-            <p className="font-semibold text-[#18181B]">{ln.raw_description}</p>
-            <p className="mt-0.5 text-xs text-[#5C5A55] tabular-nums">
+            <p className="font-semibold text-bht-ink-strong">{ln.raw_description}</p>
+            <p className="mt-0.5 text-xs text-bht-ink-soft tabular-nums">
               {ln.sku ? `${ln.sku} · ` : ""}
               {Number(ln.quantity)} {ln.unit_of_measure || "NIU"} ×{" "}
               {formatPen(ln.unit_cost_pen)}
             </p>
           </div>
-          <span className="flex-shrink-0 font-semibold text-[#18181B] tabular-nums">
+          <span className="flex-shrink-0 font-semibold text-bht-ink-strong tabular-nums">
             {formatPen(ln.line_total_pen)}
           </span>
         </div>
@@ -167,7 +167,7 @@ const PurchaseLineRow = React.memo(function PurchaseLineRow({
   const costInputId = `pur-line-cost-${row.key}`;
 
   return (
-    <div className="grid grid-cols-1 gap-2.5 rounded-xl border border-[#E7E5E0] bg-white p-3 sm:grid-cols-12 sm:items-end">
+    <div className="grid grid-cols-1 gap-2.5 rounded-xl border border-bht-line bg-white p-3 sm:grid-cols-12 sm:items-end">
       <div className="sm:col-span-6 space-y-1.5 min-w-0">
         <FieldLabel htmlFor={searchInputId}>
           Producto #{idx + 1} (Filtra por nombre o código)
@@ -199,9 +199,11 @@ const PurchaseLineRow = React.memo(function PurchaseLineRow({
           ))}
         </select>
         {selectedProd && (
-          <p className="text-xs text-[#5C5A55] tabular-nums">
+          <p className="text-xs text-bht-ink-soft tabular-nums">
             Stock actual:{" "}
-            <strong className="text-[#18181B]">{selectedProd.stock_on_hand}</strong>{" "}
+            <strong className="text-bht-ink-strong">
+              {selectedProd.stock_on_hand}
+            </strong>{" "}
             {selectedProd.unit_of_measure} · Costo ref:{" "}
             {selectedProd.ref_cost_pen !== null
               ? formatPen(selectedProd.ref_cost_pen)
@@ -244,7 +246,7 @@ const PurchaseLineRow = React.memo(function PurchaseLineRow({
       </div>
 
       <div className="flex items-center justify-between gap-2 sm:col-span-2 sm:flex-col sm:items-end">
-        <span className="text-xs font-semibold text-[#18181B] tabular-nums">
+        <span className="text-xs font-semibold text-bht-ink-strong tabular-nums">
           {formatPen(Number.isFinite(lineSubtotal) ? lineSubtotal : 0)}
         </span>
         {canRemove && (
@@ -253,7 +255,7 @@ const PurchaseLineRow = React.memo(function PurchaseLineRow({
             data-compact="true"
             aria-label={`Quitar producto #${idx + 1}`}
             onClick={() => onRemove(row.key)}
-            className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-medium text-[#B91C1C] hover:bg-[#FEF2F2] cursor-pointer"
+            className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-medium text-bht-danger hover:bg-bht-danger-bg cursor-pointer"
           >
             <TrashIcon className="h-3.5 w-3.5" />
             Quitar
@@ -923,14 +925,14 @@ export default function CajaProveedoresTab({
         className="flex flex-wrap items-center justify-between gap-3"
       >
         <div>
-          <span className="text-xs font-medium text-[#5C5A55]">
+          <span className="text-xs font-medium text-bht-ink-soft">
             Proveedores y Cuentas por Pagar
           </span>
           <div className="mt-1 flex flex-wrap items-baseline gap-2.5">
-            <h2 className="text-2xl font-semibold text-[#B91C1C] tabular-nums">
+            <h2 className="text-2xl font-semibold text-bht-danger tabular-nums">
               {formatPen(totalOpenApPen)}
             </h2>
-            <span className="text-xs text-[#5C5A55] tabular-nums">
+            <span className="text-xs text-bht-ink-soft tabular-nums">
               en {openDocsCount} obligación(es) pendiente(s) · {suppliers.length}{" "}
               proveedores activos
             </span>
@@ -959,19 +961,19 @@ export default function CajaProveedoresTab({
             Nuevo Proveedor
           </Button>
         </div>
-        <div className="grid w-full grid-cols-1 gap-2 border-t border-[#E7E5E0] pt-3 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid w-full grid-cols-1 gap-2 border-t border-bht-line pt-3 sm:grid-cols-2 lg:grid-cols-3">
           {accounts.map((account) => (
             <div
               key={account.account_id}
-              className="flex items-center justify-between gap-2 rounded-xl border border-[#E7E5E0] bg-white/80 px-3 py-2"
+              className="flex items-center justify-between gap-2 rounded-xl border border-bht-line bg-white/80 px-3 py-2"
             >
               <div className="min-w-0">
-                <p className="truncate text-xs font-medium text-[#5C5A55]">
+                <p className="truncate text-xs font-medium text-bht-ink-soft">
                   {account.name}
                 </p>
-                <p className="text-[10px] text-[#6D6A64]">{account.code}</p>
+                <p className="text-[10px] text-bht-ink-muted">{account.code}</p>
               </div>
-              <strong className="flex-shrink-0 text-xs tabular-nums text-[#0F2942]">
+              <strong className="flex-shrink-0 text-xs tabular-nums text-bht-navy-deep">
                 {formatPen(Number(account.current_balance_pen ?? 0))}
               </strong>
             </div>
@@ -981,14 +983,14 @@ export default function CajaProveedoresTab({
 
       {/* Register Purchase + ON_DEMAND Fulfillment Form */}
       {showPurchaseForm && (
-        <Card padding="lg" className="border-[#0F2942]">
+        <Card padding="lg" className="border-bht-navy-deep">
           <form onSubmit={handleRegisterPurchase} className="space-y-4">
-            <div className="flex flex-wrap items-start justify-between gap-2 border-b border-[#E7E5E0] pb-3">
+            <div className="flex flex-wrap items-start justify-between gap-2 border-b border-bht-line pb-3">
               <div>
-                <h3 className="text-base font-semibold text-[#18181B]">
+                <h3 className="text-base font-semibold text-bht-ink-strong">
                   Registrar Compra / Ingreso de Mercadería
                 </h3>
-                <p className="mt-0.5 text-xs text-[#5C5A55]">
+                <p className="mt-0.5 text-xs text-bht-ink-soft">
                   Ingresa mercadería al almacén principal, actualiza costo de
                   referencia, genera CxP si es crédito/parcial y cierra líneas bajo
                   pedido.
@@ -1013,7 +1015,7 @@ export default function CajaProveedoresTab({
                     type="button"
                     data-compact="true"
                     onClick={() => setShowNewSupplier(true)}
-                    className="text-xs font-semibold text-[#1E446B] hover:underline cursor-pointer"
+                    className="text-xs font-semibold text-bht-navy-mid hover:underline cursor-pointer"
                   >
                     + Nuevo Proveedor
                   </button>
@@ -1168,8 +1170,8 @@ export default function CajaProveedoresTab({
                         onClick={() => setPurPaymentCond(c.id as typeof purPaymentCond)}
                         className={`rounded-xl border px-2 py-2.5 text-xs font-semibold transition cursor-pointer ${
                           active
-                            ? "border-[#0F2942] bg-[#0F2942] text-white"
-                            : "border-[#E7E5E0] bg-[#FAF9F6] text-[#5C5A55] hover:bg-[#F2F6FA] hover:text-[#0F2942]"
+                            ? "border-bht-navy-deep bg-bht-navy-deep text-white"
+                            : "border-bht-line bg-bht-paper text-bht-ink-soft hover:bg-bht-mist hover:text-bht-navy-deep"
                         }`}
                       >
                         {c.label}
@@ -1235,9 +1237,9 @@ export default function CajaProveedoresTab({
             </div>
 
             {/* Line Items */}
-            <div className="space-y-2.5 rounded-xl border border-[#E7E5E0] bg-[#FAF9F6] p-3.5">
+            <div className="space-y-2.5 rounded-xl border border-bht-line bg-bht-paper p-3.5">
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <h4 className="text-xs font-semibold text-[#18181B]">
+                <h4 className="text-xs font-semibold text-bht-ink-strong">
                   Ítems de Compra (Ingreso a Almacén Principal)
                 </h4>
                 <Button
@@ -1280,7 +1282,7 @@ export default function CajaProveedoresTab({
             {matchingOnDemandLines.length > 0 && (
               <Card tone="brand" padding="sm" className="space-y-2.5">
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <h4 className="text-xs font-semibold text-[#18181B]">
+                  <h4 className="text-xs font-semibold text-bht-ink-strong">
                     Cierre Automático Bajo Pedido ({matchingOnDemandLines.length}{" "}
                     coincidencia(s))
                   </h4>
@@ -1296,7 +1298,7 @@ export default function CajaProveedoresTab({
                     Seleccionar todos
                   </Button>
                 </div>
-                <p className="text-xs text-[#5C5A55]">
+                <p className="text-xs text-bht-ink-soft">
                   Marca las líneas de cliente que se surten con esta compra para cerrar
                   la alerta pendiente al instante:
                 </p>
@@ -1308,8 +1310,8 @@ export default function CajaProveedoresTab({
                         key={od.order_line_id}
                         className={`flex cursor-pointer items-start gap-2.5 rounded-xl border p-2.5 text-xs transition ${
                           checked
-                            ? "border-[#1D4ED8] bg-white ring-1 ring-[#1D4ED8]"
-                            : "border-[#DBEAFE] bg-white/80"
+                            ? "border-bht-tone-1d4ed8 bg-white ring-1 ring-bht-tone-1d4ed8"
+                            : "border-bht-tone-dbeafe bg-white/80"
                         }`}
                       >
                         <input
@@ -1326,14 +1328,14 @@ export default function CajaProveedoresTab({
                               );
                             }
                           }}
-                          className="mt-0.5 h-4 w-4 rounded border-[#D5D2CA]"
+                          className="mt-0.5 h-4 w-4 rounded border-bht-line-stronger"
                         />
                         <div className="min-w-0 flex-1">
-                          <p className="font-semibold text-[#18181B]">
+                          <p className="font-semibold text-bht-ink-strong">
                             {od.sku} · ×{Number(od.quantity)}{" "}
                             {od.unit_of_measure || "NIU"} — {od.product_name}
                           </p>
-                          <p className="text-xs text-[#5C5A55] tabular-nums">
+                          <p className="text-xs text-bht-ink-soft tabular-nums">
                             {od.order_code} ·{" "}
                             {od.customer_name || od.customer_name_raw || "-"} ·{" "}
                             {formatPen(od.line_total_pen)}
@@ -1348,7 +1350,7 @@ export default function CajaProveedoresTab({
 
             {otherOnDemandLines.length > 0 && (
               <Card tone="warning" padding="sm" className="space-y-2">
-                <p className="text-xs font-semibold text-[#18181B]">
+                <p className="text-xs font-semibold text-bht-ink-strong">
                   Otros pedidos bajo pedido pendientes ({otherOnDemandLines.length}):
                 </p>
                 <div className="flex flex-wrap gap-1.5">
@@ -1368,7 +1370,7 @@ export default function CajaProveedoresTab({
               </Card>
             )}
 
-            <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-[#0F2942] px-4 py-3.5 text-white">
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-bht-navy-deep px-4 py-3.5 text-white">
               <div className="flex flex-wrap gap-x-5 gap-y-1 text-xs tabular-nums">
                 {purTaxMode !== "NONE" && (
                   <>
@@ -1395,13 +1397,13 @@ export default function CajaProveedoresTab({
                 </div>
                 <div>
                   <span className="text-white/60">Pago Hoy:</span>{" "}
-                  <strong className="text-[#4ADE80]">
+                  <strong className="text-bht-tone-4ade80">
                     {formatPen(purchasePaidNowComputed)}
                   </strong>
                 </div>
                 <div>
                   <span className="text-white/60">A Cuentas por Pagar:</span>{" "}
-                  <strong className="text-[#FBBF24]">
+                  <strong className="text-bht-tone-fbbf24">
                     {formatPen(purchaseCreditBalancePen)}
                   </strong>
                 </div>
@@ -1423,21 +1425,21 @@ export default function CajaProveedoresTab({
       {/* Supplier Summary Cards */}
       <Card padding="md" className="space-y-3">
         <details>
-          <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0F2942]">
+          <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bht-navy-deep">
             <div>
-              <h3 className="text-sm font-semibold text-[#18181B] sm:text-base">
+              <h3 className="text-sm font-semibold text-bht-ink-strong sm:text-base">
                 Resumen por Proveedor ({suppliers.length})
               </h3>
-              <p className="text-xs text-[#5C5A55]">
+              <p className="text-xs text-bht-ink-soft">
                 Filtra CxP por proveedor cuando necesites revisar su detalle.
               </p>
             </div>
-            <ChevronRightIcon className="h-4 w-4 text-[#5C5A55]" />
+            <ChevronRightIcon className="h-4 w-4 text-bht-ink-soft" />
           </summary>
           <div className="mt-3 space-y-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div>
-                <p className="text-xs text-[#5C5A55]">
+                <p className="text-xs text-bht-ink-soft">
                   Toca un proveedor para filtrar sus facturas y cuentas por pagar.
                 </p>
               </div>
@@ -1453,7 +1455,7 @@ export default function CajaProveedoresTab({
               )}
             </div>
             {suppliers.length === 0 ? (
-              <p className="text-xs text-[#5C5A55]">
+              <p className="text-xs text-bht-ink-soft">
                 No hay proveedores registrados aún.
               </p>
             ) : (
@@ -1474,21 +1476,21 @@ export default function CajaProveedoresTab({
                       }
                       className={`flex min-w-0 w-full items-center justify-between gap-3 rounded-xl border p-3 text-left transition cursor-pointer ${
                         isSelected
-                          ? "border-[#0F2942] bg-[#F2F6FA] ring-1 ring-[#0F2942]"
-                          : "border-[#E7E5E0] bg-white hover:bg-[#FAF9F6]"
+                          ? "border-bht-navy-deep bg-bht-mist ring-1 ring-bht-navy-deep"
+                          : "border-bht-line bg-white hover:bg-bht-paper"
                       }`}
                     >
                       <div className="min-w-0">
-                        <p className="truncate text-sm font-semibold text-[#18181B]">
+                        <p className="truncate text-sm font-semibold text-bht-ink-strong">
                           {sup.trade_name || sup.legal_name}
                         </p>
-                        <p className="mt-0.5 text-xs text-[#5C5A55]">
+                        <p className="mt-0.5 text-xs text-bht-ink-soft">
                           {sup.doc_type && sup.doc_number
                             ? `${sup.doc_type}: ${sup.doc_number}`
                             : "Sin RUC/DNI"}
                           {sup.phone ? ` · ${sup.phone}` : ""}
                         </p>
-                        <p className="mt-0.5 text-xs text-[#6D6A64] tabular-nums">
+                        <p className="mt-0.5 text-xs text-bht-ink-muted tabular-nums">
                           {openDocs} doc(s) pendiente(s)
                         </p>
                       </div>
@@ -1511,13 +1513,13 @@ export default function CajaProveedoresTab({
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <Card padding="md" className="space-y-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <h3 className="text-sm sm:text-base font-semibold text-[#18181B]">
+            <h3 className="text-sm sm:text-base font-semibold text-bht-ink-strong">
               Obligaciones por Pagar (CxP) ({filteredApObligations.length})
             </h3>
           </div>
 
           <div className="relative">
-            <span className="pointer-events-none absolute inset-y-0 left-3.5 flex items-center text-[#6D6A64]">
+            <span className="pointer-events-none absolute inset-y-0 left-3.5 flex items-center text-bht-ink-muted">
               <SearchIcon className="h-4 w-4" />
             </span>
             <input
@@ -1534,7 +1536,7 @@ export default function CajaProveedoresTab({
                 data-compact="true"
                 aria-label="Limpiar búsqueda de cuentas por pagar"
                 onClick={() => setApSearch("")}
-                className="absolute inset-y-0 right-2.5 flex items-center text-[#6D6A64] hover:text-[#18181B] cursor-pointer"
+                className="absolute inset-y-0 right-2.5 flex items-center text-bht-ink-muted hover:text-bht-ink-strong cursor-pointer"
               >
                 <CloseIcon className="h-3.5 w-3.5" />
               </button>
@@ -1558,8 +1560,8 @@ export default function CajaProveedoresTab({
                   onClick={() => setApStatusFilter(f.id as typeof apStatusFilter)}
                   className={`min-h-[36px] sm:min-h-0 rounded-full border px-3 py-1.5 text-xs font-medium transition cursor-pointer ${
                     active
-                      ? "border-[#0F2942] bg-[#0F2942] text-white"
-                      : "border-[#E7E5E0] bg-white text-[#5C5A55] hover:bg-[#F2F6FA] hover:text-[#0F2942]"
+                      ? "border-bht-navy-deep bg-bht-navy-deep text-white"
+                      : "border-bht-line bg-white text-bht-ink-soft hover:bg-bht-mist hover:text-bht-navy-deep"
                   }`}
                 >
                   {f.label}
@@ -1586,20 +1588,20 @@ export default function CajaProveedoresTab({
                 return (
                   <div
                     key={ap.ap_id}
-                    className="rounded-xl border border-[#E7E5E0] bg-[#FAF9F6]/60 p-3 text-xs space-y-2 transition hover:border-[#D4E0EC]"
+                    className="rounded-xl border border-bht-line bg-bht-paper/60 p-3 text-xs space-y-2 transition hover:border-bht-line-blue"
                   >
                     <button
                       type="button"
                       onClick={() => setDetailAp(ap)}
                       aria-label={`Ver detalle de lo pedido y deuda de ${ap.doc_ref} (${ap.supplier_name})`}
-                      className="w-full space-y-2 rounded-lg text-left transition hover:bg-[#F2F6FA]/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0F2942]/45 cursor-pointer"
+                      className="w-full space-y-2 rounded-lg text-left transition hover:bg-bht-mist/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bht-navy-deep/45 cursor-pointer"
                     >
                       <div className="flex flex-wrap items-start justify-between gap-2">
                         <div className="min-w-0 flex-1">
-                          <p className="font-semibold text-[#18181B]">
+                          <p className="font-semibold text-bht-ink-strong">
                             {ap.supplier_name}
                           </p>
-                          <p className="mt-0.5 text-xs font-medium text-[#1E446B] tabular-nums">
+                          <p className="mt-0.5 text-xs font-medium text-bht-navy-mid tabular-nums">
                             {ap.doc_ref} · Emisión: {ap.issue_date}
                             {ap.due_date ? ` · Vence: ${ap.due_date}` : ""}
                           </p>
@@ -1607,29 +1609,29 @@ export default function CajaProveedoresTab({
                         <Badge tone={statusTone}>{formatApStatusEs(ap.status)}</Badge>
                       </div>
 
-                      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 tabular-nums text-xs text-[#5C5A55]">
+                      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 tabular-nums text-xs text-bht-ink-soft">
                         <span>
                           Original:{" "}
-                          <strong className="text-[#18181B]">
+                          <strong className="text-bht-ink-strong">
                             {formatPen(ap.original_amount_pen)}
                           </strong>{" "}
                           · Pagado:{" "}
-                          <strong className="text-[#18181B]">
+                          <strong className="text-bht-ink-strong">
                             {formatPen(ap.paid_amount_pen)}
                           </strong>
                         </span>
-                        <span className="font-semibold text-[#B91C1C]">
+                        <span className="font-semibold text-bht-danger">
                           Saldo: {formatPen(ap.balance_due_pen)}
                         </span>
                       </div>
 
                       {ap.notes && (
-                        <p className="text-xs text-[#6D6A64]">
+                        <p className="text-xs text-bht-ink-muted">
                           Nota: {normalizeUiNoteEs(ap.notes)}
                         </p>
                       )}
 
-                      <span className="inline-flex items-center gap-1 text-xs font-medium text-[#1E446B]">
+                      <span className="inline-flex items-center gap-1 text-xs font-medium text-bht-navy-mid">
                         Ver detalle ({itemCount}{" "}
                         {itemCount === 1 ? "ítem pedido" : "ítems pedidos"}) y pagos
                         <ChevronRightIcon className="h-3 w-3" />
@@ -1637,7 +1639,7 @@ export default function CajaProveedoresTab({
                     </button>
 
                     {canPay && (
-                      <div className="flex flex-wrap items-center justify-end gap-2 border-t border-[#E7E5E0]/80 pt-2">
+                      <div className="flex flex-wrap items-center justify-end gap-2 border-t border-bht-line/80 pt-2">
                         <Button
                           variant="success"
                           size="sm"
@@ -1664,7 +1666,7 @@ export default function CajaProveedoresTab({
         {/* Registrar Egreso / Retiro / Gasto de Caja */}
         <Card padding="md">
           <form onSubmit={handleSaveOutflow} className="space-y-3.5">
-            <h3 className="text-sm sm:text-base font-semibold text-[#18181B]">
+            <h3 className="text-sm sm:text-base font-semibold text-bht-ink-strong">
               {outflowIsTransfer
                 ? "Registrar Traslado entre Cuentas"
                 : outflowBucket === "ROUTE_OPEX"
@@ -1672,7 +1674,7 @@ export default function CajaProveedoresTab({
                   : "Registrar Egreso No Operativo"}
             </h3>
 
-            <label className="flex cursor-pointer items-center gap-2.5 rounded-xl border border-[#D4E0EC] bg-[#F2F6FA]/70 px-3 py-2 text-xs font-medium text-[#0F2942]">
+            <label className="flex cursor-pointer items-center gap-2.5 rounded-xl border border-bht-line-blue bg-bht-mist/70 px-3 py-2 text-xs font-medium text-bht-navy-deep">
               <input
                 type="checkbox"
                 checked={outflowIsTransfer}
@@ -1692,7 +1694,7 @@ export default function CajaProveedoresTab({
                     }
                   }
                 }}
-                className="h-4 w-4 rounded border-[#0F2942]"
+                className="h-4 w-4 rounded border-bht-navy-deep"
               />
               <span>Traslado interno entre cuentas propias (atómico OUT + IN)</span>
             </label>
@@ -1802,7 +1804,7 @@ export default function CajaProveedoresTab({
                       }}
                       className={`${INPUT_CLASS} mt-1.5 font-medium`}
                     />
-                    <p className="mt-1 text-xs text-[#6D6A64]">
+                    <p className="mt-1 text-xs text-bht-ink-muted">
                       Puedes elegir una fecha anterior para registrar un gasto olvidado.
                     </p>
                   </div>
@@ -1899,8 +1901,8 @@ export default function CajaProveedoresTab({
               />
             </div>
             {Number(outflowAmount) > 0 && (
-              <div className="space-y-1.5 rounded-xl border border-[#D4E0EC] bg-[#F2F6FA]/70 p-3 text-xs text-[#5C5A55] tabular-nums">
-                <p className="font-semibold text-[#0F2942]">
+              <div className="space-y-1.5 rounded-xl border border-bht-line-blue bg-bht-mist/70 p-3 text-xs text-bht-ink-soft tabular-nums">
+                <p className="font-semibold text-bht-navy-deep">
                   {confirmOutflow
                     ? "Confirma el movimiento"
                     : "Revisa antes de guardar"}
@@ -1989,17 +1991,17 @@ export default function CajaProveedoresTab({
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <Card padding="md" className="space-y-3">
           <details>
-            <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-2 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0F2942]">
-              <h3 className="text-sm sm:text-base font-semibold text-[#18181B]">
+            <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-2 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bht-navy-deep">
+              <h3 className="text-sm sm:text-base font-semibold text-bht-ink-strong">
                 Historial de Compras Registradas ({filteredRecentPurchases.length}
                 {purchaseSearch ? ` / ${recentPurchases.length}` : ""})
               </h3>
-              <ChevronRightIcon className="h-4 w-4 text-[#5C5A55]" />
+              <ChevronRightIcon className="h-4 w-4 text-bht-ink-soft" />
             </summary>
             <div className="mt-3 space-y-3">
               {recentPurchases.length > 0 && (
                 <div className="relative">
-                  <span className="pointer-events-none absolute inset-y-0 left-3.5 flex items-center text-[#6D6A64]">
+                  <span className="pointer-events-none absolute inset-y-0 left-3.5 flex items-center text-bht-ink-muted">
                     <SearchIcon className="h-4 w-4" />
                   </span>
                   <input
@@ -2016,7 +2018,7 @@ export default function CajaProveedoresTab({
                       data-compact="true"
                       aria-label="Limpiar búsqueda de compras"
                       onClick={() => setPurchaseSearch("")}
-                      className="absolute inset-y-0 right-2.5 flex items-center text-[#6D6A64] hover:text-[#18181B] cursor-pointer"
+                      className="absolute inset-y-0 right-2.5 flex items-center text-bht-ink-muted hover:text-bht-ink-strong cursor-pointer"
                     >
                       <CloseIcon className="h-3.5 w-3.5" />
                     </button>
@@ -2040,23 +2042,23 @@ export default function CajaProveedoresTab({
                         type="button"
                         onClick={() => setDetailPurchase(pur)}
                         aria-label={`Ver detalle de compra ${pur.doc_series}-${pur.doc_number}`}
-                        className="flex w-full items-center justify-between gap-2 rounded-xl border border-[#E7E5E0] bg-[#FAF9F6] p-3 text-left text-xs transition hover:border-[#D4E0EC] hover:bg-[#F2F6FA]/70 cursor-pointer"
+                        className="flex w-full items-center justify-between gap-2 rounded-xl border border-bht-line bg-bht-paper p-3 text-left text-xs transition hover:border-bht-line-blue hover:bg-bht-mist/70 cursor-pointer"
                       >
                         <div className="min-w-0 flex-1">
-                          <p className="font-semibold text-[#18181B]">
+                          <p className="font-semibold text-bht-ink-strong">
                             {formatDocTypeEs(pur.doc_type)} {pur.doc_series}-
                             {pur.doc_number}
                           </p>
-                          <p className="truncate text-[#5C5A55]">
+                          <p className="truncate text-bht-ink-soft">
                             {pur.supplier_name || pur.supplier_ruc || "-"} ·{" "}
                             {pur.issue_date}
                           </p>
                         </div>
                         <div className="flex-shrink-0 text-right tabular-nums">
-                          <p className="font-semibold text-[#18181B]">
+                          <p className="font-semibold text-bht-ink-strong">
                             {formatPen(pur.total_pen)}
                           </p>
-                          <p className="text-xs text-[#1E446B] font-medium">
+                          <p className="text-xs text-bht-navy-mid font-medium">
                             {Number(pur.line_count ?? 0)} ítem(s) →
                           </p>
                         </div>
@@ -2070,7 +2072,7 @@ export default function CajaProveedoresTab({
                     className="table-wrapper hidden md:block"
                   >
                     <table className="w-full text-left text-xs">
-                      <thead className="border-b border-[#E7E5E0] bg-[#FAF9F6] text-xs font-semibold uppercase tracking-wide text-[#5C5A55]">
+                      <thead className="border-b border-bht-line bg-bht-paper text-xs font-semibold uppercase tracking-wide text-bht-ink-soft">
                         <tr>
                           <th scope="col" className="whitespace-nowrap p-2">
                             Comprobante / Fecha
@@ -2086,14 +2088,14 @@ export default function CajaProveedoresTab({
                           </th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-[#E7E5E0]">
+                      <tbody className="divide-y divide-bht-line">
                         {filteredRecentPurchases.map((pur) => (
                           <tr
                             key={pur.purchase_id}
                             onClick={() => setDetailPurchase(pur)}
-                            className="cursor-pointer transition hover:bg-[#F2F6FA]/70"
+                            className="cursor-pointer transition hover:bg-bht-mist/70"
                           >
-                            <td className="whitespace-nowrap p-2 font-semibold text-[#1E446B]">
+                            <td className="whitespace-nowrap p-2 font-semibold text-bht-navy-mid">
                               <button
                                 type="button"
                                 data-compact="true"
@@ -2106,17 +2108,17 @@ export default function CajaProveedoresTab({
                                 {formatDocTypeEs(pur.doc_type)} {pur.doc_series}-
                                 {pur.doc_number}
                               </button>
-                              <span className="block text-xs font-normal text-[#6D6A64] tabular-nums">
+                              <span className="block text-xs font-normal text-bht-ink-muted tabular-nums">
                                 {pur.issue_date}
                               </span>
                             </td>
-                            <td className="p-2 font-medium text-[#5C5A55]">
+                            <td className="p-2 font-medium text-bht-ink-soft">
                               {pur.supplier_name || pur.supplier_ruc || "-"}
                             </td>
                             <td className="p-2 text-right tabular-nums">
                               {Number(pur.line_count ?? 0)}
                             </td>
-                            <td className="p-2 text-right font-semibold text-[#18181B] tabular-nums">
+                            <td className="p-2 text-right font-semibold text-bht-ink-strong tabular-nums">
                               {formatPen(pur.total_pen)}
                             </td>
                           </tr>
@@ -2132,17 +2134,17 @@ export default function CajaProveedoresTab({
 
         <Card padding="md" className="space-y-3">
           <details>
-            <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-2 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0F2942]">
-              <h3 className="text-sm sm:text-base font-semibold text-[#18181B]">
+            <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-2 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bht-navy-deep">
+              <h3 className="text-sm sm:text-base font-semibold text-bht-ink-strong">
                 Movimientos de Caja ({filteredLedger.length}
                 {ledgerSearch ? ` / ${ledger.length}` : ""})
               </h3>
-              <ChevronRightIcon className="h-4 w-4 text-[#5C5A55]" />
+              <ChevronRightIcon className="h-4 w-4 text-bht-ink-soft" />
             </summary>
             <div className="mt-3 space-y-3">
               {ledger.length > 0 && (
                 <div className="relative">
-                  <span className="pointer-events-none absolute inset-y-0 left-3.5 flex items-center text-[#6D6A64]">
+                  <span className="pointer-events-none absolute inset-y-0 left-3.5 flex items-center text-bht-ink-muted">
                     <SearchIcon className="h-4 w-4" />
                   </span>
                   <input
@@ -2159,7 +2161,7 @@ export default function CajaProveedoresTab({
                       data-compact="true"
                       aria-label="Limpiar búsqueda de movimientos de caja"
                       onClick={() => setLedgerSearch("")}
-                      className="absolute inset-y-0 right-2.5 flex items-center text-[#6D6A64] hover:text-[#18181B] cursor-pointer"
+                      className="absolute inset-y-0 right-2.5 flex items-center text-bht-ink-muted hover:text-bht-ink-strong cursor-pointer"
                     >
                       <CloseIcon className="h-3.5 w-3.5" />
                     </button>
@@ -2186,7 +2188,7 @@ export default function CajaProveedoresTab({
                     return (
                       <div
                         key={mov.ledger_id}
-                        className="flex items-start justify-between gap-2.5 rounded-xl border border-[#E7E5E0] bg-[#FAF9F6]/60 p-2.5 text-xs"
+                        className="flex items-start justify-between gap-2.5 rounded-xl border border-bht-line bg-bht-paper/60 p-2.5 text-xs"
                       >
                         <div className="min-w-0 flex-1">
                           <div className="flex flex-wrap items-center gap-1.5">
@@ -2196,24 +2198,24 @@ export default function CajaProveedoresTab({
                                 mov.is_internal_transfer
                               )}
                             </Badge>
-                            <span className="font-semibold text-[#18181B]">
+                            <span className="font-semibold text-bht-ink-strong">
                               {formatExpenseCategoryEs(mov.expense_category)}
                             </span>
-                            <span className="text-xs text-[#6D6A64]">
+                            <span className="text-xs text-bht-ink-muted">
                               · {mov.account_name} · {mov.tx_date}
                             </span>
                           </div>
-                          <p className="mt-1 truncate text-xs text-[#5C5A55]">
+                          <p className="mt-1 truncate text-xs text-bht-ink-soft">
                             {mov.description}
                           </p>
                         </div>
                         <span
                           className={`flex-shrink-0 font-semibold tabular-nums ${
                             mov.is_internal_transfer
-                              ? "text-[#1E446B]"
+                              ? "text-bht-navy-mid"
                               : isIn
-                                ? "text-[#15803D]"
-                                : "text-[#B91C1C]"
+                                ? "text-bht-success"
+                                : "text-bht-danger"
                           }`}
                         >
                           {isIn ? "+" : "-"}
@@ -2361,13 +2363,13 @@ export default function CajaProveedoresTab({
       >
         {payingAp && (
           <form onSubmit={handlePayApObligation} className="space-y-4">
-            <div className="rounded-xl border border-[#E7E5E0] bg-[#FAF9F6] p-3 text-xs text-[#5C5A55] tabular-nums">
+            <div className="rounded-xl border border-bht-line bg-bht-paper p-3 text-xs text-bht-ink-soft tabular-nums">
               Original:{" "}
-              <strong className="text-[#18181B]">
+              <strong className="text-bht-ink-strong">
                 {formatPen(payingAp.original_amount_pen)}
               </strong>{" "}
               · Saldo pendiente:{" "}
-              <strong className="text-[#B91C1C]">
+              <strong className="text-bht-danger">
                 {formatPen(payingAp.balance_due_pen)}
               </strong>
             </div>
@@ -2453,8 +2455,8 @@ export default function CajaProveedoresTab({
             </div>
 
             {confirmApPayment && (
-              <div className="space-y-2 rounded-xl border border-[#F3D9B1] bg-[#FDF8F0] p-3 text-xs text-[#5C5A55] tabular-nums">
-                <p className="font-semibold text-[#18181B]">
+              <div className="space-y-2 rounded-xl border border-bht-amber-line bg-bht-amber-bg p-3 text-xs text-bht-ink-soft tabular-nums">
+                <p className="font-semibold text-bht-ink-strong">
                   Revisa el movimiento antes de registrarlo
                 </p>
                 <p>
@@ -2529,34 +2531,36 @@ export default function CajaProveedoresTab({
         {detailAp && (
           <div className="space-y-4 text-xs">
             <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-3 tabular-nums">
-              <div className="rounded-xl border border-[#E7E5E0] bg-[#FAF9F6] p-3">
-                <span className="block text-xs text-[#6D6A64]">
+              <div className="rounded-xl border border-bht-line bg-bht-paper p-3">
+                <span className="block text-xs text-bht-ink-muted">
                   Total facturado / pedido
                 </span>
-                <strong className="mt-0.5 block text-base text-[#18181B]">
+                <strong className="mt-0.5 block text-base text-bht-ink-strong">
                   {formatPen(detailAp.original_amount_pen)}
                 </strong>
               </div>
-              <div className="rounded-xl border border-[#E7E5E0] bg-[#FAF9F6] p-3">
-                <span className="block text-xs text-[#6D6A64]">
+              <div className="rounded-xl border border-bht-line bg-bht-paper p-3">
+                <span className="block text-xs text-bht-ink-muted">
                   Pagado / amortizado
                 </span>
-                <strong className="mt-0.5 block text-base text-[#15803D]">
+                <strong className="mt-0.5 block text-base text-bht-success">
                   {formatPen(detailAp.paid_amount_pen)}
                 </strong>
               </div>
-              <div className="rounded-xl border border-[#FEE2E2] bg-[#FEF2F2]/60 p-3">
-                <span className="block text-xs text-[#991B1B]">Saldo que se debe</span>
-                <strong className="mt-0.5 block text-base text-[#B91C1C]">
+              <div className="rounded-xl border border-bht-tone-fee2e2 bg-bht-danger-bg/60 p-3">
+                <span className="block text-xs text-bht-danger-strong">
+                  Saldo que se debe
+                </span>
+                <strong className="mt-0.5 block text-base text-bht-danger">
                   {formatPen(detailAp.balance_due_pen)}
                 </strong>
               </div>
             </div>
 
-            <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-[#E7E5E0] bg-white px-3 py-2.5 text-[#5C5A55] tabular-nums">
+            <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-bht-line bg-white px-3 py-2.5 text-bht-ink-soft tabular-nums">
               <span>
                 Emisión:{" "}
-                <strong className="text-[#18181B]">{detailAp.issue_date}</strong>
+                <strong className="text-bht-ink-strong">{detailAp.issue_date}</strong>
                 {detailAp.due_date ? ` · Vence: ${detailAp.due_date}` : ""}
               </span>
               <Badge
@@ -2573,13 +2577,13 @@ export default function CajaProveedoresTab({
             </div>
 
             {detailAp.notes && (
-              <p className="rounded-xl border border-[#E7E5E0] bg-[#FAF9F6] px-3 py-2 text-xs text-[#5C5A55]">
+              <p className="rounded-xl border border-bht-line bg-bht-paper px-3 py-2 text-xs text-bht-ink-soft">
                 Nota: {normalizeUiNoteEs(detailAp.notes)}
               </p>
             )}
 
             <div className="space-y-2">
-              <p className="text-xs font-semibold uppercase tracking-wide text-[#0F2942]">
+              <p className="text-xs font-semibold uppercase tracking-wide text-bht-navy-deep">
                 Todo lo pedido en este comprobante ({detailAp.lines?.length ?? 0}{" "}
                 {(detailAp.lines?.length ?? 0) === 1 ? "ítem" : "ítems"})
               </p>
@@ -2590,7 +2594,7 @@ export default function CajaProveedoresTab({
             </div>
 
             <div className="space-y-2">
-              <p className="text-xs font-semibold uppercase tracking-wide text-[#0F2942]">
+              <p className="text-xs font-semibold uppercase tracking-wide text-bht-navy-deep">
                 Historial de pagos y abonos
               </p>
               {detailAp.payments && detailAp.payments.length > 0 ? (
@@ -2598,37 +2602,37 @@ export default function CajaProveedoresTab({
                   {detailAp.payments.map((pay) => (
                     <div
                       key={pay.ledger_id}
-                      className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-[#E7E5E0] bg-white px-3 py-2 tabular-nums"
+                      className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-bht-line bg-white px-3 py-2 tabular-nums"
                     >
                       <div className="min-w-0 flex-1">
-                        <p className="font-medium text-[#18181B]">
+                        <p className="font-medium text-bht-ink-strong">
                           {pay.description || "Pago a proveedor"}
                         </p>
-                        <p className="text-xs text-[#6D6A64]">
+                        <p className="text-xs text-bht-ink-muted">
                           {pay.tx_date} · {pay.account_name}
                         </p>
                       </div>
-                      <span className="font-semibold text-[#15803D]">
+                      <span className="font-semibold text-bht-success">
                         {formatPen(pay.amount_pen)}
                       </span>
                     </div>
                   ))}
                 </div>
               ) : Number(detailAp.paid_amount_pen) > 0 ? (
-                <p className="rounded-xl border border-[#FDE68A] bg-[#FFFBEB] px-3 py-2 text-xs text-[#78350F] tabular-nums">
+                <p className="rounded-xl border border-bht-warning-line bg-bht-warning-bg px-3 py-2 text-xs text-bht-warning-text tabular-nums">
                   Abono previo conciliado por{" "}
                   <strong>{formatPen(detailAp.paid_amount_pen)}</strong> (registro
                   anterior al control en vivo; saldo restante:{" "}
                   <strong>{formatPen(detailAp.balance_due_pen)}</strong>).
                 </p>
               ) : (
-                <p className="rounded-xl border border-dashed border-[#DDDAD3] bg-[#FAF9F6] px-3 py-2 text-xs text-[#5C5A55]">
+                <p className="rounded-xl border border-dashed border-bht-line-strong bg-bht-paper px-3 py-2 text-xs text-bht-ink-soft">
                   Aún no se han registrado pagos para este comprobante.
                 </p>
               )}
             </div>
 
-            <div className="flex flex-wrap gap-2 border-t border-[#E7E5E0] pt-3">
+            <div className="flex flex-wrap gap-2 border-t border-bht-line pt-3">
               <Button
                 variant="outline"
                 onClick={() => setDetailAp(null)}
@@ -2677,27 +2681,27 @@ export default function CajaProveedoresTab({
       >
         {detailPurchase && (
           <div className="space-y-4 text-xs">
-            <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-[#E7E5E0] bg-[#FAF9F6] px-3 py-2.5 tabular-nums">
-              <span className="text-[#5C5A55]">
+            <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-bht-line bg-bht-paper px-3 py-2.5 tabular-nums">
+              <span className="text-bht-ink-soft">
                 Tipo:{" "}
-                <strong className="text-[#18181B]">
+                <strong className="text-bht-ink-strong">
                   {formatDocTypeEs(detailPurchase.doc_type)}
                 </strong>
                 {detailPurchase.due_date ? ` · Vence: ${detailPurchase.due_date}` : ""}
               </span>
-              <span className="font-semibold text-[#18181B]">
+              <span className="font-semibold text-bht-ink-strong">
                 Total: {formatPen(detailPurchase.total_pen)}
               </span>
             </div>
 
             {detailPurchase.raw_notes && (
-              <p className="rounded-xl border border-[#E7E5E0] bg-white px-3 py-2 text-xs text-[#5C5A55]">
+              <p className="rounded-xl border border-bht-line bg-white px-3 py-2 text-xs text-bht-ink-soft">
                 Nota: {normalizeUiNoteEs(detailPurchase.raw_notes)}
               </p>
             )}
 
             <div className="space-y-2">
-              <p className="text-xs font-semibold uppercase tracking-wide text-[#0F2942]">
+              <p className="text-xs font-semibold uppercase tracking-wide text-bht-navy-deep">
                 Ítems de la compra ({detailPurchase.lines?.length ?? 0})
               </p>
               <InvoiceLinesBreakdown
@@ -2706,7 +2710,7 @@ export default function CajaProveedoresTab({
               />
             </div>
 
-            <div className="flex justify-end border-t border-[#E7E5E0] pt-3">
+            <div className="flex justify-end border-t border-bht-line pt-3">
               <Button variant="outline" onClick={() => setDetailPurchase(null)}>
                 Cerrar
               </Button>

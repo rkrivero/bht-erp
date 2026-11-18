@@ -14,14 +14,14 @@ export type Tone =
   | "indigo";
 
 const CARD_TONE_CLASSES: Record<Tone, string> = {
-  default: "border-[#E2E8F0] bg-white",
-  subtle: "border-[#E2E8F0] bg-[#F8FAFC]",
-  horizon: "border-[#E2E8F0] bg-[#F8FAFC]",
-  brand: "border-[#BFDBFE] bg-[#F8FAFC]",
-  success: "border-[#BBF7D0] bg-[#F5FBF7]",
-  warning: "border-[#F3D9B1] bg-[#FDF8F0]",
-  danger: "border-[#FECACA] bg-[#FEF6F6]",
-  indigo: "border-[#C7D2FE] bg-[#F6F7FF]",
+  default: "border-bht-slate-line bg-white",
+  subtle: "border-bht-slate-line bg-bht-surface-cool",
+  horizon: "border-bht-slate-line bg-bht-surface-cool",
+  brand: "border-bht-info-line bg-bht-surface-cool",
+  success: "border-bht-success-line bg-bht-tone-f5fbf7",
+  warning: "border-bht-amber-line bg-bht-amber-bg",
+  danger: "border-bht-danger-line bg-bht-tone-fef6f6",
+  indigo: "border-bht-tone-c7d2fe bg-bht-tone-f6f7ff",
 };
 
 export function Card({
@@ -47,12 +47,10 @@ export function Card({
           ? "p-5 sm:p-6"
           : "p-4";
   const accentClass =
-    accent === "horizon"
-      ? "border-[#CBD9E7] shadow-[0_2px_10px_rgba(15,41,66,0.05)]"
-      : "";
+    accent === "horizon" ? "border-bht-tone-cbd9e7 shadow-bht-elev-3" : "";
   return (
     <section
-      className={`min-w-0 rounded-2xl border shadow-[0_1px_2px_rgba(24,24,27,0.03)] ${CARD_TONE_CLASSES[tone]} ${accentClass} ${padClass} ${className}`}
+      className={`min-w-0 rounded-2xl border shadow-bht-elev-4 ${CARD_TONE_CLASSES[tone]} ${accentClass} ${padClass} ${className}`}
       {...props}
     >
       {children}
@@ -71,14 +69,14 @@ export type BadgeTone =
   | "indigo";
 
 const BADGE_CLASSES: Record<BadgeTone, string> = {
-  neutral: "border-[#E2E8F0] bg-[#F8FAFC] text-[#475569]",
-  obsidian: "border-[#18181B] bg-[#18181B] text-white",
-  horizon: "border-[#E2E8F0] bg-[#F8FAFC] text-[#0B192C]",
-  brand: "border-[#BFDBFE] bg-[#EAF2FF] text-[#0052D4]",
-  success: "border-[#DCFCE7] bg-[#F0FDF4] text-[#15803D]",
-  warning: "border-[#FDE68A] bg-[#FFFBEB] text-[#B45309]",
-  danger: "border-[#FEE2E2] bg-[#FEF2F2] text-[#B91C1C]",
-  indigo: "border-[#E0E7FF] bg-[#EEF2FF] text-[#4338CA]",
+  neutral: "border-bht-slate-line bg-bht-surface-cool text-bht-slate-text",
+  obsidian: "border-bht-ink-strong bg-bht-ink-strong text-white",
+  horizon: "border-bht-slate-line bg-bht-surface-cool text-bht-ink-deep",
+  brand: "border-bht-info-line bg-bht-cobalt-bg text-bht-cobalt-strong",
+  success: "border-bht-tone-dcfce7 bg-bht-success-bg text-bht-success",
+  warning: "border-bht-warning-line bg-bht-warning-bg text-bht-warning",
+  danger: "border-bht-tone-fee2e2 bg-bht-danger-bg text-bht-danger",
+  indigo: "border-bht-tone-e0e7ff bg-bht-tone-eef2ff text-bht-tone-4338ca",
 };
 
 export function Badge({
@@ -113,18 +111,16 @@ export type ButtonVariant =
   "primary" | "brand" | "secondary" | "outline" | "ghost" | "success" | "danger";
 
 const BUTTON_VARIANTS: Record<ButtonVariant, string> = {
-  primary:
-    "bg-[#075EE8] text-white hover:bg-[#064FC3] shadow-[0_1px_2px_rgba(7,94,232,0.18)]",
-  brand:
-    "bg-[#16324A] text-white hover:bg-[#0B192C] shadow-[0_1px_2px_rgba(11,25,44,0.16)]",
-  secondary: "bg-[#F8FAFC] text-[#0B192C] border border-[#E2E8F0] hover:bg-[#EAF2FF]",
+  primary: "bg-bht-cobalt text-white hover:bg-bht-tone-064fc3 shadow-bht-elev-5",
+  brand: "bg-bht-navy-soft text-white hover:bg-bht-ink-deep shadow-bht-elev-6",
+  secondary:
+    "bg-bht-surface-cool text-bht-ink-deep border border-bht-slate-line hover:bg-bht-cobalt-bg",
   outline:
-    "bg-white text-[#0B192C] border border-[#E2E8F0] hover:bg-[#F8FAFC] shadow-[0_1px_2px_rgba(11,25,44,0.03)]",
-  ghost: "bg-transparent text-[#475569] hover:bg-[#F8FAFC] hover:text-[#0B192C]",
-  success:
-    "bg-[#15803D] text-white hover:bg-[#166534] shadow-[0_1px_2px_rgba(21,128,61,0.18)]",
-  danger:
-    "bg-[#DC2626] text-white hover:bg-[#B91C1C] shadow-[0_1px_2px_rgba(220,38,38,0.18)]",
+    "bg-white text-bht-ink-deep border border-bht-slate-line hover:bg-bht-surface-cool shadow-bht-elev-7",
+  ghost:
+    "bg-transparent text-bht-slate-text hover:bg-bht-surface-cool hover:text-bht-ink-deep",
+  success: "bg-bht-success text-white hover:bg-bht-success-strong shadow-bht-elev-8",
+  danger: "bg-bht-danger-vivid text-white hover:bg-bht-danger shadow-bht-elev-9",
 };
 
 const BUTTON_SIZES: Record<"sm" | "md" | "lg", string> = {
@@ -161,7 +157,7 @@ export function Button({
     <button
       type={type}
       data-compact={isCompact ? "true" : undefined}
-      className={`${displayClass} items-center justify-center gap-2 font-semibold transition active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#075EE8] focus-visible:ring-offset-2 focus-visible:ring-offset-white disabled:pointer-events-none disabled:opacity-50 cursor-pointer ${BUTTON_VARIANTS[variant]} ${BUTTON_SIZES[size]} ${mobileTouchClass} ${className}`}
+      className={`${displayClass} items-center justify-center gap-2 font-semibold transition active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bht-cobalt focus-visible:ring-offset-2 focus-visible:ring-offset-white disabled:pointer-events-none disabled:opacity-50 cursor-pointer ${BUTTON_VARIANTS[variant]} ${BUTTON_SIZES[size]} ${mobileTouchClass} ${className}`}
       {...props}
     >
       {children}
@@ -183,11 +179,11 @@ export function FieldLabel({
   return (
     <label
       htmlFor={htmlFor}
-      className={`block text-xs font-medium text-[#475569] ${className}`}
+      className={`block text-xs font-medium text-bht-slate-text ${className}`}
     >
       {children}
       {required && (
-        <span className="ml-0.5 text-[#B91C1C]" aria-hidden="true">
+        <span className="ml-0.5 text-bht-danger" aria-hidden="true">
           *
         </span>
       )}
@@ -196,7 +192,7 @@ export function FieldLabel({
 }
 
 export const INPUT_CLASS =
-  "w-full rounded-xl border border-[#CBD5E1] bg-white px-3.5 py-2.5 text-sm text-[#0B192C] placeholder:text-[#64748B] transition focus:border-[#075EE8] focus:outline-none focus:ring-2 focus:ring-[#075EE8]/20 disabled:bg-[#F8FAFC] disabled:text-[#64748B]";
+  "w-full rounded-xl border border-bht-tone-cbd5e1 bg-white px-3.5 py-2.5 text-sm text-bht-ink-deep placeholder:text-bht-slate-muted transition focus:border-bht-cobalt focus:outline-none focus:ring-2 focus:ring-bht-cobalt/20 disabled:bg-bht-surface-cool disabled:text-bht-slate-muted";
 
 export function SegmentedControl<T extends string>({
   options,
@@ -235,7 +231,7 @@ export function SegmentedControl<T extends string>({
 
   return (
     <div
-      className={`flex gap-1 rounded-xl bg-[#F4F3EF] p-1 border border-[#E7E5E0] ${className}`}
+      className={`flex gap-1 rounded-xl bg-bht-paper-alt p-1 border border-bht-line ${className}`}
       role="radiogroup"
       aria-label={ariaLabel}
     >
@@ -253,17 +249,19 @@ export function SegmentedControl<T extends string>({
             tabIndex={active || (!hasMatch && idx === 0) ? 0 : -1}
             onClick={() => onChange(opt.id)}
             onKeyDown={(e) => handleKeyDown(e, idx)}
-            className={`flex-1 rounded-lg border px-3 py-2 text-xs font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0F2942] focus-visible:ring-offset-1 cursor-pointer ${
+            className={`flex-1 rounded-lg border px-3 py-2 text-xs font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bht-navy-deep focus-visible:ring-offset-1 cursor-pointer ${
               active
-                ? "border-[#D4E0EC] bg-white text-[#0F2942] shadow-[0_1px_2px_rgba(15,41,66,0.08)]"
-                : "border-transparent text-[#5C5A55] hover:text-[#0F2942]"
+                ? "border-bht-line-blue bg-white text-bht-navy-deep shadow-bht-elev-10"
+                : "border-transparent text-bht-ink-soft hover:text-bht-navy-deep"
             }`}
           >
             <span>{opt.label}</span>
             {opt.count !== undefined && (
               <span
                 className={`ml-1.5 inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] tabular-nums ${
-                  active ? "bg-[#0F2942] text-white" : "bg-[#E7E5E0] text-[#5C5A55]"
+                  active
+                    ? "bg-bht-navy-deep text-white"
+                    : "bg-bht-line text-bht-ink-soft"
                 }`}
               >
                 {opt.count}
@@ -289,10 +287,10 @@ export function ToastBanner({
 }) {
   const styles =
     type === "ok"
-      ? "border-[#BBF7D0] bg-[#F0FDF4] text-[#14532D]"
+      ? "border-bht-success-line bg-bht-success-bg text-bht-tone-14532d"
       : type === "warn"
-        ? "border-[#FDE68A] bg-[#FFFBEB] text-[#78350F]"
-        : "border-[#FECACA] bg-[#FEF2F2] text-[#7F1D1D]";
+        ? "border-bht-warning-line bg-bht-warning-bg text-bht-warning-text"
+        : "border-bht-danger-line bg-bht-danger-bg text-bht-tone-7f1d1d";
   const isError = type === "err";
 
   return (
@@ -305,11 +303,11 @@ export function ToastBanner({
       <div className="flex items-start gap-2.5">
         <span className="mt-0.5 flex-shrink-0">
           {type === "ok" ? (
-            <CheckIcon className="h-4 w-4 text-[#15803D]" />
+            <CheckIcon className="h-4 w-4 text-bht-success" />
           ) : (
             <AlertTriangleIcon
               className={`h-4 w-4 ${
-                type === "warn" ? "text-[#B45309]" : "text-[#B91C1C]"
+                type === "warn" ? "text-bht-warning" : "text-bht-danger"
               }`}
             />
           )}
@@ -322,7 +320,7 @@ export function ToastBanner({
           data-compact="true"
           onClick={onDismiss}
           aria-label="Cerrar notificación"
-          className="rounded-lg p-1 opacity-75 transition hover:bg-black/5 hover:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0F2942] cursor-pointer"
+          className="rounded-lg p-1 opacity-75 transition hover:bg-black/5 hover:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bht-navy-deep cursor-pointer"
         >
           <CloseIcon className="h-4 w-4" />
         </button>
@@ -436,7 +434,7 @@ export function ModalSheet({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-end justify-center bg-[#0F2942]/35 backdrop-blur-[2px] sm:items-center sm:p-4"
+      className="fixed inset-0 z-50 flex items-end justify-center bg-bht-navy-deep/35 backdrop-blur-[2px] sm:items-center sm:p-4"
       onClick={(e) => {
         if (e.target === e.currentTarget) onCloseRef.current();
       }}
@@ -448,22 +446,22 @@ export function ModalSheet({
         aria-labelledby={titleId}
         aria-describedby={subtitle ? subtitleId : undefined}
         tabIndex={-1}
-        className={`flex max-h-[90dvh] w-full flex-col rounded-t-2xl sm:rounded-2xl border border-[#E7E5E0] bg-white shadow-2xl outline-none ${widthClass}`}
+        className={`flex max-h-[90dvh] w-full flex-col rounded-t-2xl sm:rounded-2xl border border-bht-line bg-white shadow-2xl outline-none ${widthClass}`}
       >
         <div
-          className="mx-auto mt-2 h-1 w-10 rounded-full bg-[#DDDAD3] sm:hidden"
+          className="mx-auto mt-2 h-1 w-10 rounded-full bg-bht-line-strong sm:hidden"
           aria-hidden="true"
         />
-        <div className="flex items-start justify-between gap-3 border-b border-[#E7E5E0] px-4 py-3.5 sm:px-5">
+        <div className="flex items-start justify-between gap-3 border-b border-bht-line px-4 py-3.5 sm:px-5">
           <div className="min-w-0">
             <h2
               id={titleId}
-              className="text-sm sm:text-base font-semibold text-[#18181B]"
+              className="text-sm sm:text-base font-semibold text-bht-ink-strong"
             >
               {title}
             </h2>
             {subtitle && (
-              <p id={subtitleId} className="mt-0.5 text-xs text-[#5C5A55]">
+              <p id={subtitleId} className="mt-0.5 text-xs text-bht-ink-soft">
                 {subtitle}
               </p>
             )}
@@ -473,7 +471,7 @@ export function ModalSheet({
             data-compact="true"
             onClick={() => onCloseRef.current()}
             aria-label="Cerrar"
-            className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg text-[#5C5A55] transition hover:bg-[#F2F6FA] hover:text-[#0F2942] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0F2942] cursor-pointer"
+            className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg text-bht-ink-soft transition hover:bg-bht-mist hover:text-bht-navy-deep focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bht-navy-deep cursor-pointer"
           >
             <CloseIcon className="h-4 w-4" />
           </button>
@@ -496,15 +494,15 @@ export function EmptyState({
   description?: string;
 }) {
   return (
-    <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-[#DDDAD3] bg-white/70 px-6 py-10 text-center">
+    <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-bht-line-strong bg-white/70 px-6 py-10 text-center">
       {icon && (
-        <div className="mb-2.5 flex h-10 w-10 items-center justify-center rounded-full bg-[#F4F3EF] text-[#5C5A55]">
+        <div className="mb-2.5 flex h-10 w-10 items-center justify-center rounded-full bg-bht-paper-alt text-bht-ink-soft">
           {icon}
         </div>
       )}
-      <p className="text-sm font-semibold text-[#18181B]">{title}</p>
+      <p className="text-sm font-semibold text-bht-ink-strong">{title}</p>
       {description && (
-        <p className="mt-1 max-w-sm text-xs text-[#5C5A55]">{description}</p>
+        <p className="mt-1 max-w-sm text-xs text-bht-ink-soft">{description}</p>
       )}
     </div>
   );

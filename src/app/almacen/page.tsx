@@ -501,12 +501,12 @@ export default function AlmacenPage() {
   }, [activeTab, checkedLines, orders, preparingFilter, warehouseSearch]);
 
   return (
-    <div className="min-h-screen bg-[#FAF9F6] pb-12">
+    <div className="min-h-screen bg-bht-paper pb-12">
       <AppHeader
         title="Cola de Pedidos y Despacho"
         roleLabel={formatWarehouseRoleBadge(currentUser)}
         roleTone="horizon"
-        roleDotColor="bg-[#1E446B]"
+        roleDotColor="bg-bht-navy-mid"
         syncStatus={liveStatus}
         onSyncClick={() => void triggerSync({ force: true })}
         maxWidth="5xl"
@@ -528,7 +528,7 @@ export default function AlmacenPage() {
 
       <nav
         aria-label="Etapas de despacho"
-        className="border-b border-[#E7E5E0] bg-[#FAF9F6]/92"
+        className="border-b border-bht-line bg-bht-paper/92"
       >
         <div className="mx-auto flex max-w-5xl flex-wrap items-center gap-1.5 px-3.5 py-2.5 sm:px-5">
           {STATUS_TABS.map((tab) => {
@@ -540,16 +540,18 @@ export default function AlmacenPage() {
                 type="button"
                 aria-pressed={active}
                 onClick={() => setActiveTab(tab.id)}
-                className={`flex min-h-[38px] flex-shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold transition cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0F2942]/45 focus-visible:ring-offset-1 sm:px-3.5 ${
+                className={`flex min-h-[38px] flex-shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold transition cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bht-navy-deep/45 focus-visible:ring-offset-1 sm:px-3.5 ${
                   active
-                    ? "border-[#0F2942] bg-[#0F2942] text-white shadow-xs"
-                    : "border-[#E7E5E0] bg-white text-[#5C5A55] hover:border-[#D4E0EC] hover:bg-[#F2F6FA] hover:text-[#0F2942]"
+                    ? "border-bht-navy-deep bg-bht-navy-deep text-white shadow-xs"
+                    : "border-bht-line bg-white text-bht-ink-soft hover:border-bht-line-blue hover:bg-bht-mist hover:text-bht-navy-deep"
                 }`}
               >
                 <span>{tab.label}</span>
                 <span
                   className={`rounded-full px-1.5 py-0.5 text-[10px] font-semibold tabular-nums leading-none ${
-                    active ? "bg-white/20 text-white" : "bg-[#F4F3EF] text-[#18181B]"
+                    active
+                      ? "bg-white/20 text-white"
+                      : "bg-bht-paper-alt text-bht-ink-strong"
                   }`}
                 >
                   {count}
@@ -574,7 +576,7 @@ export default function AlmacenPage() {
         )}
 
         {activeTab === "PREPARING" && (
-          <div className="flex flex-col gap-2 rounded-xl border border-[#E7E5E0] bg-white p-2.5 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-col gap-2 rounded-xl border border-bht-line bg-white p-2.5 sm:flex-row sm:items-center sm:justify-between">
             <div
               className="flex gap-1"
               role="group"
@@ -624,11 +626,11 @@ export default function AlmacenPage() {
           <Card id="route-control" padding="sm" className="space-y-2.5">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div>
-                <span className="text-xs font-semibold text-[#18181B]">
+                <span className="text-xs font-semibold text-bht-ink-strong">
                   Rutas de Reparto ({openTrips.length} activa
                   {openTrips.length === 1 ? "" : "s"})
                 </span>
-                <p className="text-xs text-[#5C5A55]">
+                <p className="text-xs text-bht-ink-soft">
                   Asigna pedidos listos a una salida en ruta antes de entregar.
                 </p>
               </div>
@@ -645,7 +647,7 @@ export default function AlmacenPage() {
             {showNewTrip && (
               <form
                 onSubmit={handleCreateTrip}
-                className="grid grid-cols-1 gap-2 rounded-xl border border-[#E7E5E0] bg-[#FAF9F6] p-3 sm:grid-cols-4"
+                className="grid grid-cols-1 gap-2 rounded-xl border border-bht-line bg-bht-paper p-3 sm:grid-cols-4"
               >
                 <input
                   type="text"
@@ -687,12 +689,12 @@ export default function AlmacenPage() {
                 {openTrips.map((trip) => (
                   <div
                     key={trip.trip_id}
-                    className="flex flex-wrap items-center gap-2 rounded-xl border border-[#D4E0EC] bg-[#F2F6FA] px-3 py-1.5 text-xs"
+                    className="flex flex-wrap items-center gap-2 rounded-xl border border-bht-line-blue bg-bht-mist px-3 py-1.5 text-xs"
                   >
-                    <span className="font-semibold text-[#0F2942] tabular-nums">
+                    <span className="font-semibold text-bht-navy-deep tabular-nums">
                       {trip.trip_code}
                     </span>
-                    <span className="text-[#5C5A55]">
+                    <span className="text-bht-ink-soft">
                       {trip.zone_name || "Ruta"} · {trip.driver_name || "Reparto"}
                     </span>
                     <Badge tone="horizon" className="tabular-nums">
@@ -716,7 +718,7 @@ export default function AlmacenPage() {
         )}
 
         {loading && orders.length === 0 ? (
-          <Card className="p-8 text-center text-sm text-[#5C5A55]">
+          <Card className="p-8 text-center text-sm text-bht-ink-soft">
             Cargando pedidos operativos...
           </Card>
         ) : filtered.length === 0 ? (
@@ -743,13 +745,13 @@ export default function AlmacenPage() {
                   padding="md"
                   className="space-y-3"
                 >
-                  <div className="flex items-start justify-between gap-3 border-b border-[#E7E5E0] pb-3">
+                  <div className="flex items-start justify-between gap-3 border-b border-bht-line pb-3">
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
-                        <span className="text-xs font-semibold text-[#1E446B] tabular-nums">
+                        <span className="text-xs font-semibold text-bht-navy-mid tabular-nums">
                           {order.order_code}
                         </span>
-                        <span className="text-xs text-[#6D6A64] tabular-nums">
+                        <span className="text-xs text-bht-ink-muted tabular-nums">
                           {order.order_date}
                         </span>
                         {order.was_modified && <Badge tone="warning">Modificado</Badge>}
@@ -762,11 +764,11 @@ export default function AlmacenPage() {
                           <Badge tone="neutral">{order.trip_code}</Badge>
                         )}
                       </div>
-                      <h2 className="mt-0.5 text-base font-semibold text-[#18181B]">
+                      <h2 className="mt-0.5 text-base font-semibold text-bht-ink-strong">
                         {order.customer_name}
                       </h2>
                       {order.notes && (
-                        <p className="mt-1.5 rounded-lg border border-[#F3D9B1] bg-[#FDF8F0] px-2.5 py-1.5 text-xs font-medium text-[#92400E]">
+                        <p className="mt-1.5 rounded-lg border border-bht-amber-line bg-bht-amber-bg px-2.5 py-1.5 text-xs font-medium text-bht-warning-strong">
                           Destino / Nota: {order.notes}
                         </p>
                       )}
@@ -783,7 +785,7 @@ export default function AlmacenPage() {
 
                   <ul
                     aria-label={`Productos del pedido ${order.order_code}`}
-                    className="divide-y divide-[#E7E5E0]"
+                    className="divide-y divide-bht-line"
                   >
                     {order.lines.map((line) => {
                       const isDelivered = stage === "DELIVERED";
@@ -796,10 +798,10 @@ export default function AlmacenPage() {
                               aria-hidden="true"
                               className={`mt-0.5 flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-md border transition ${
                                 isDelivered
-                                  ? "border-[#15803D]/30 bg-[#EEF9F1] text-[#15803D]"
+                                  ? "border-bht-success/30 bg-bht-tone-eef9f1 text-bht-success"
                                   : checked
-                                    ? "border-[#0F2942] bg-[#0F2942] text-white"
-                                    : "border-[#D5D2CA] bg-white"
+                                    ? "border-bht-navy-deep bg-bht-navy-deep text-white"
+                                    : "border-bht-line-stronger bg-white"
                               }`}
                             >
                               {checked && <CheckIcon className="h-3.5 w-3.5" />}
@@ -808,14 +810,14 @@ export default function AlmacenPage() {
                               <p
                                 className={`text-sm font-medium ${
                                   !isDelivered && checked
-                                    ? "line-through text-[#6D6A64]"
-                                    : "text-[#18181B]"
+                                    ? "line-through text-bht-ink-muted"
+                                    : "text-bht-ink-strong"
                                 }`}
                               >
                                 {line.raw_description}
                               </p>
                               <div className="mt-1 flex flex-wrap items-center gap-1.5">
-                                <span className="text-xs font-medium text-[#5C5A55]">
+                                <span className="text-xs font-medium text-bht-ink-soft">
                                   {line.sku}
                                 </span>
                                 {line.needs_supplier_pickup && (
@@ -833,10 +835,10 @@ export default function AlmacenPage() {
                           <div
                             className={`flex-shrink-0 rounded-xl px-3 py-1.5 text-sm font-semibold tabular-nums ${
                               isDelivered
-                                ? "bg-[#F4F3EF] text-[#4A4843]"
+                                ? "bg-bht-paper-alt text-bht-ink-warm"
                                 : checked
-                                  ? "bg-[#F4F3EF] text-[#6D6A64]"
-                                  : "bg-[#0F2942] text-white"
+                                  ? "bg-bht-paper-alt text-bht-ink-muted"
+                                  : "bg-bht-navy-deep text-white"
                             }`}
                           >
                             × {line.quantity}
@@ -844,7 +846,7 @@ export default function AlmacenPage() {
                               <span
                                 className={`ml-1.5 text-xs font-medium uppercase ${
                                   isDelivered || checked
-                                    ? "text-[#6D6A64]"
+                                    ? "text-bht-ink-muted"
                                     : "text-white/80"
                                 }`}
                               >
@@ -873,7 +875,7 @@ export default function AlmacenPage() {
                               }, cantidad ${line.quantity}${
                                 line.unit_of_measure ? ` ${line.unit_of_measure}` : ""
                               }`}
-                              className="flex min-h-[44px] w-full items-center justify-between gap-3 rounded-lg px-1.5 py-3 text-left transition hover:bg-[#F2F6FA]/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0F2942]/45 cursor-pointer"
+                              className="flex min-h-[44px] w-full items-center justify-between gap-3 rounded-lg px-1.5 py-3 text-left transition hover:bg-bht-mist/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bht-navy-deep/45 cursor-pointer"
                             >
                               {lineBody}
                             </button>
@@ -883,7 +885,7 @@ export default function AlmacenPage() {
                     })}
                   </ul>
 
-                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl border border-[#D4E0EC]/70 bg-[#F2F6FA]/75 px-3 py-2 text-xs text-[#1E446B]">
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl border border-bht-line-blue/70 bg-bht-mist/75 px-3 py-2 text-xs text-bht-navy-mid">
                     <strong>
                       Etapa:{" "}
                       {order.operational_status === "IN_ROUTE"
@@ -1003,13 +1005,13 @@ export default function AlmacenPage() {
         subtitle={confirmCloseTrip?.trip_code}
       >
         {confirmCloseTrip && (
-          <div className="space-y-4 text-xs text-[#5C5A55] sm:text-sm">
+          <div className="space-y-4 text-xs text-bht-ink-soft sm:text-sm">
             <p>
               Confirma que la salida de {confirmCloseTrip.zone_name || "reparto"}{" "}
               terminó. La ruta dejará de estar disponible para asignar pedidos.
             </p>
             {confirmCloseTrip.in_route_count > 0 && (
-              <p className="rounded-xl border border-[#F3D9B1] bg-[#FDF8F0] px-3 py-2.5 text-xs text-[#92400E]">
+              <p className="rounded-xl border border-bht-amber-line bg-bht-amber-bg px-3 py-2.5 text-xs text-bht-warning-strong">
                 Aún figuran {confirmCloseTrip.in_route_count} pedido(s) en ruta. Revisa
                 sus entregas antes de cerrar.
               </p>
@@ -1060,16 +1062,16 @@ export default function AlmacenPage() {
             ).length;
             const isDeliverBusy = busyOrderId === confirmDeliverOrder.order_id;
             return (
-              <div className="space-y-4 text-xs sm:text-sm text-[#5C5A55]">
+              <div className="space-y-4 text-xs sm:text-sm text-bht-ink-soft">
                 <p>
                   ¿Confirmas que todos los productos de{" "}
-                  <strong className="text-[#18181B]">
+                  <strong className="text-bht-ink-strong">
                     {confirmDeliverOrder.order_code}
                   </strong>{" "}
                   ({totalLines} ítem(s)) fueron entregados al cliente?
                 </p>
                 {checkedInOrder < totalLines && (
-                  <p className="rounded-xl border border-[#F3D9B1] bg-[#FDF8F0] px-3 py-2.5 text-xs text-[#92400E]">
+                  <p className="rounded-xl border border-bht-amber-line bg-bht-amber-bg px-3 py-2.5 text-xs text-bht-warning-strong">
                     Llevas marcados {checkedInOrder} de {totalLines} ítems en la lista
                     de verificación.
                   </p>

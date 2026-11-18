@@ -87,9 +87,9 @@ const EXPORT_DATASETS = [
 function getBiMarginClass(marginPen: unknown, pct: unknown): string {
   const m = Number(marginPen ?? 0);
   const p = Number(pct ?? 0);
-  if (m <= 0 || p <= 0) return "text-[#B91C1C]";
-  if (p < 20) return "text-[#B45309]";
-  return "text-[#15803D]";
+  if (m <= 0 || p <= 0) return "text-bht-danger";
+  if (p < 20) return "text-bht-warning";
+  return "text-bht-success";
 }
 
 export default function KpisBiTab({
@@ -314,10 +314,12 @@ export default function KpisBiTab({
     <div className="min-w-0 space-y-5">
       {/* Period Selector */}
       {monthlyRows.length > 0 && (
-        <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-[#E7E5E0] bg-white px-4 py-3">
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-bht-line bg-white px-4 py-3">
           <div>
-            <p className="text-xs font-semibold text-[#18181B]">Filtro de período</p>
-            <p className="text-xs text-[#5C5A55]">
+            <p className="text-xs font-semibold text-bht-ink-strong">
+              Filtro de período
+            </p>
+            <p className="text-xs text-bht-ink-soft">
               {selectedMonthRow
                 ? `Viendo ${formatMonthLabel(selectedMonthRow.period_month)} (${Number(
                     selectedMonthRow.order_count ?? 0
@@ -360,40 +362,40 @@ export default function KpisBiTab({
         className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4"
       >
         <Card padding="md" className="space-y-1.5">
-          <span className="text-xs font-medium text-[#5C5A55]">
+          <span className="text-xs font-medium text-bht-ink-soft">
             {selectedMonthRow
               ? `Ventas (${formatMonthLabel(selectedMonthRow.period_month)})`
               : `Ventas totales (${String(kpiQ1.period_start)} – ${String(
                   kpiQ1.period_end
                 )})`}
           </span>
-          <p className="text-2xl font-semibold text-[#18181B] tabular-nums">
+          <p className="text-2xl font-semibold text-bht-ink-strong tabular-nums">
             {formatPen(displaySalesPen)}
           </p>
-          <span className="inline-flex items-center rounded-lg border border-[#D4E0EC] bg-[#F2F6FA] px-2 py-0.5 text-xs font-semibold text-[#0F2942] tabular-nums">
+          <span className="inline-flex items-center rounded-lg border border-bht-line-blue bg-bht-mist px-2 py-0.5 text-xs font-semibold text-bht-navy-deep tabular-nums">
             Cobrado: {formatPen(displayCollectedPen)}
           </span>
         </Card>
 
         <Card padding="md" className="space-y-1.5">
-          <span className="text-xs font-medium text-[#5C5A55]">
+          <span className="text-xs font-medium text-bht-ink-soft">
             {selectedMonthRow
               ? `Por cobrar (${formatMonthLabel(selectedMonthRow.period_month)})`
               : "Cuentas por cobrar (pendientes)"}
           </span>
-          <p className="text-2xl font-semibold text-[#B91C1C] tabular-nums">
+          <p className="text-2xl font-semibold text-bht-danger tabular-nums">
             {formatPen(displayArPendingPen)}
           </p>
-          <span className="inline-block text-xs font-medium text-[#5C5A55] tabular-nums">
+          <span className="inline-block text-xs font-medium text-bht-ink-soft tabular-nums">
             {dynamicOpenDebtorsCount} pedidos pendientes globales
           </span>
         </Card>
 
         <Card padding="md" className="space-y-1.5">
-          <span className="text-xs font-medium text-[#5C5A55]">
+          <span className="text-xs font-medium text-bht-ink-soft">
             Retiros no operativos vs reinversión
           </span>
-          <p className="text-2xl font-semibold text-[#B45309] tabular-nums">
+          <p className="text-2xl font-semibold text-bht-warning tabular-nums">
             {ratioPct.toFixed(2)}%
           </p>
           <Badge tone={ratioPct > 30 ? "danger" : "success"}>
@@ -405,12 +407,12 @@ export default function KpisBiTab({
         </Card>
 
         <Card padding="md" className="space-y-1.5">
-          <span className="text-xs font-medium text-[#5C5A55]">
+          <span className="text-xs font-medium text-bht-ink-soft">
             Brecha arqueo efectivo ruta
           </span>
-          <p className="text-2xl font-semibold text-[#18181B] tabular-nums">
+          <p className="text-2xl font-semibold text-bht-ink-strong tabular-nums">
             {formatPen(kpiQ1.reconciliation_gap_pen)}{" "}
-            <span className="text-sm font-medium text-[#5C5A55]">
+            <span className="text-sm font-medium text-bht-ink-soft">
               ({gapPct.toFixed(2)}%)
             </span>
           </p>
@@ -421,22 +423,22 @@ export default function KpisBiTab({
       </section>
 
       {/* Complete Cash Reconciliation Strip */}
-      <details className="rounded-2xl border border-[#E7E5E0] bg-white p-3 sm:p-4">
-        <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0F2942]">
+      <details className="rounded-2xl border border-bht-line bg-white p-3 sm:p-4">
+        <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bht-navy-deep">
           <div>
-            <h2 className="text-sm font-semibold text-[#18181B] sm:text-base">
+            <h2 className="text-sm font-semibold text-bht-ink-strong sm:text-base">
               Conciliación completa de caja
             </h2>
-            <p className="text-xs text-[#5C5A55]">
+            <p className="text-xs text-bht-ink-soft">
               Desglose de entradas, salidas e inversión histórica
             </p>
           </div>
-          <span className="text-xs font-medium text-[#1E446B]">Ver detalle</span>
+          <span className="text-xs font-medium text-bht-navy-mid">Ver detalle</span>
         </summary>
         <Card padding="md" className="mt-3 space-y-3.5">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
-              <p className="mt-0.5 text-xs text-[#5C5A55]">
+              <p className="mt-0.5 text-xs text-bht-ink-soft">
                 {selectedMonthRow
                   ? `Desglose mensual: ${formatMonthLabel(
                       selectedMonthRow.period_month
@@ -446,14 +448,14 @@ export default function KpisBiTab({
             </div>
             {kpiQ1.declared_net_cash_pen !== undefined &&
               kpiQ1.expected_net_cash_pen !== undefined && (
-                <div className="rounded-xl border border-[#D4E0EC] bg-[#F2F6FA] px-3.5 py-2 text-xs tabular-nums">
-                  <span className="text-[#1E446B]">Declarado: </span>
-                  <strong className="text-[#0F2942]">
+                <div className="rounded-xl border border-bht-line-blue bg-bht-mist px-3.5 py-2 text-xs tabular-nums">
+                  <span className="text-bht-navy-mid">Declarado: </span>
+                  <strong className="text-bht-navy-deep">
                     {formatPen(kpiQ1.declared_net_cash_pen)}
                   </strong>
-                  <span className="mx-2 text-[#D4E0EC]">|</span>
-                  <span className="text-[#1E446B]">Esperado: </span>
-                  <strong className="text-[#0F2942]">
+                  <span className="mx-2 text-bht-line-blue">|</span>
+                  <span className="text-bht-navy-mid">Esperado: </span>
+                  <strong className="text-bht-navy-deep">
                     {formatPen(kpiQ1.expected_net_cash_pen)}
                   </strong>
                 </div>
@@ -466,45 +468,47 @@ export default function KpisBiTab({
                 title: "Compra Mercadería (≥ 26 Jun)",
                 value: formatPen(totalMerchOutflow),
                 sub: "Reinversión en mercadería y proveedores",
-                dot: "bg-[#15803D]",
+                dot: "bg-bht-success",
               },
               {
                 title: "Gastos Operativos Ruta (≥ 26 Jun)",
                 value: formatPen(totalRouteOpex),
                 sub: "Combustible, viáticos, peajes",
-                dot: "bg-[#D97706]",
+                dot: "bg-bht-tone-d97706",
               },
               {
                 title: "Retiros y No Operativos (≥ 26 Jun)",
                 value: formatPen(totalNonOpexDrain),
                 sub: "Retiros (Socio / Gerencia) y gastos ajenos",
-                dot: "bg-[#DC2626]",
+                dot: "bg-bht-danger-vivid",
               },
               {
                 title: "Depósitos Internos (≥ 26 Jun)",
                 value: formatPen(totalInternalDeposits),
                 sub: "Traslados Caja Ruta → Bancos",
-                dot: "bg-[#1E446B]",
+                dot: "bg-bht-navy-mid",
               },
               {
                 title: "Inversión Pre-Ruta (Jun 23–25)",
                 value: formatPen(totalPreRouteFoundational),
                 sub: "Camión + hospedaje + comisión",
-                dot: "bg-[#4F46E5]",
+                dot: "bg-bht-tone-4f46e5",
               },
             ].map((item) => (
-              <div key={item.title} className="rounded-xl bg-[#FAF9F6] p-3">
-                <span className="flex items-center gap-1.5 text-xs font-medium text-[#5C5A55]">
+              <div key={item.title} className="rounded-xl bg-bht-paper p-3">
+                <span className="flex items-center gap-1.5 text-xs font-medium text-bht-ink-soft">
                   <span
                     className={`h-2 w-2 flex-shrink-0 rounded-full ${item.dot}`}
                     aria-hidden="true"
                   />
                   <span>{item.title}</span>
                 </span>
-                <p className="mt-1 text-base font-semibold text-[#18181B] tabular-nums">
+                <p className="mt-1 text-base font-semibold text-bht-ink-strong tabular-nums">
                   {item.value}
                 </p>
-                <span className="mt-0.5 block text-xs text-[#5C5A55]">{item.sub}</span>
+                <span className="mt-0.5 block text-xs text-bht-ink-soft">
+                  {item.sub}
+                </span>
               </div>
             ))}
           </div>
@@ -515,10 +519,10 @@ export default function KpisBiTab({
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <Card padding="md" className="space-y-3">
           <div>
-            <h2 className="text-sm sm:text-base font-semibold text-[#18181B]">
+            <h2 className="text-sm sm:text-base font-semibold text-bht-ink-strong">
               Alertas de Reposición — Stock Bajo (&le; 5 u.)
             </h2>
-            <p className="mt-0.5 text-xs text-[#5C5A55]">
+            <p className="mt-0.5 text-xs text-bht-ink-soft">
               Ordenados por mayor rotación histórica.
             </p>
           </div>
@@ -529,17 +533,17 @@ export default function KpisBiTab({
               biSummary.lowStockAlerts.map((item) => (
                 <div
                   key={item.product_id}
-                  className="flex flex-wrap items-center justify-between gap-2.5 rounded-xl border border-[#E7E5E0] bg-[#FAF9F6]/60 p-2.5 text-xs sm:flex-nowrap"
+                  className="flex flex-wrap items-center justify-between gap-2.5 rounded-xl border border-bht-line bg-bht-paper/60 p-2.5 text-xs sm:flex-nowrap"
                 >
                   <div className="min-w-0 flex-1">
-                    <p className="font-semibold text-[#18181B]">{item.name}</p>
-                    <p className="mt-0.5 text-xs text-[#5C5A55] tabular-nums">
+                    <p className="font-semibold text-bht-ink-strong">{item.name}</p>
+                    <p className="mt-0.5 text-xs text-bht-ink-soft tabular-nums">
                       {item.sku} · Stock:{" "}
                       <strong
                         className={
                           Number(item.stock_on_hand) <= 0
-                            ? "text-[#B91C1C]"
-                            : "text-[#B45309]"
+                            ? "text-bht-danger"
+                            : "text-bht-warning"
                         }
                       >
                         {Number(item.stock_on_hand)} {item.unit_of_measure}
@@ -574,12 +578,12 @@ export default function KpisBiTab({
           <div>
             <h2
               id="margin-risk-heading"
-              className="text-sm sm:text-base font-semibold text-[#18181B]"
+              className="text-sm sm:text-base font-semibold text-bht-ink-strong"
             >
               Productos con Margen &lt; 20% o Sin Costo (
               {biSummary?.marginRiskSkus?.length ?? 0})
             </h2>
-            <p className="mt-0.5 text-xs text-[#5C5A55]">
+            <p className="mt-0.5 text-xs text-bht-ink-soft">
               Edita el costo o precio mínimo en línea sin salir de esta vista.
             </p>
           </div>
@@ -590,19 +594,21 @@ export default function KpisBiTab({
               {biSummary.marginRiskSkus.map((m) => (
                 <div
                   key={`risk-${m.sku}`}
-                  className="flex flex-wrap items-center justify-between gap-2.5 rounded-xl border border-[#E7E5E0] bg-white p-3 text-xs"
+                  className="flex flex-wrap items-center justify-between gap-2.5 rounded-xl border border-bht-line bg-white p-3 text-xs"
                 >
                   <div className="min-w-0 flex-1 space-y-1">
                     <div className="flex flex-wrap items-center gap-1.5">
                       <Badge tone={m.missing_cost_alert ? "danger" : "warning"}>
                         {m.missing_cost_alert ? "Sin costo" : "Margen < 20%"}
                       </Badge>
-                      <span className="text-xs font-medium text-[#6D6A64]">
+                      <span className="text-xs font-medium text-bht-ink-muted">
                         {m.sku}
                       </span>
                     </div>
-                    <p className="font-semibold text-[#18181B]">{m.product_name}</p>
-                    <p className="text-xs text-[#5C5A55] tabular-nums">
+                    <p className="font-semibold text-bht-ink-strong">
+                      {m.product_name}
+                    </p>
+                    <p className="text-xs text-bht-ink-soft tabular-nums">
                       Ventas: <strong>{formatPen(m.total_revenue_pen)}</strong> · Costo:{" "}
                       {m.ref_cost_pen !== null && m.ref_cost_pen !== undefined
                         ? formatPen(m.ref_cost_pen)
@@ -635,11 +641,11 @@ export default function KpisBiTab({
         <div>
           <h2
             id="monthly-table-heading"
-            className="text-sm sm:text-base font-semibold text-[#18181B]"
+            className="text-sm sm:text-base font-semibold text-bht-ink-strong"
           >
             Comparativo Mensual — Flujo de Caja, Ventas y Pre-Ruta
           </h2>
-          <p className="mt-0.5 text-xs text-[#5C5A55]">
+          <p className="mt-0.5 text-xs text-bht-ink-soft">
             Ventas, cobros, compra de mercadería, gastos de ruta, no operativos y
             pre-ruta Jun 23–25.
           </p>
@@ -651,44 +657,44 @@ export default function KpisBiTab({
               {
                 label: "Ventas",
                 val: Number(m.sales_total_pen ?? 0),
-                color: "bg-[#0F2942]",
+                color: "bg-bht-navy-deep",
               },
               {
                 label: "Cobros",
                 val: Number(m.cash_collected_pen ?? 0),
-                color: "bg-[#15803D]",
+                color: "bg-bht-success",
               },
               {
                 label: "Mercadería",
                 val: Number(m.merchandise_outflow_pen ?? 0),
-                color: "bg-[#1E446B]",
+                color: "bg-bht-navy-mid",
               },
               {
                 label: "Gastos Ruta",
                 val: Number(m.route_opex_pen ?? 0),
-                color: "bg-[#D97706]",
+                color: "bg-bht-tone-d97706",
               },
               {
                 label: "No Operativos",
                 val: Number(m.non_opex_capex_drain_pen ?? 0),
-                color: "bg-[#DC2626]",
+                color: "bg-bht-danger-vivid",
               },
               {
                 label: "Pre-Ruta 23–25 Jun",
                 val: Number(m.pre_route_foundational_outflow_pen ?? 0),
-                color: "bg-[#4F46E5]",
+                color: "bg-bht-tone-4f46e5",
               },
             ];
             return (
               <div
                 key={m.period_month}
-                className="rounded-xl border border-[#E7E5E0] bg-[#FAF9F6]/60 p-3.5 space-y-2.5"
+                className="rounded-xl border border-bht-line bg-bht-paper/60 p-3.5 space-y-2.5"
               >
                 <div className="flex items-center justify-between gap-2">
-                  <span className="text-xs font-semibold uppercase tracking-wide text-[#18181B]">
+                  <span className="text-xs font-semibold uppercase tracking-wide text-bht-ink-strong">
                     {formatMonthLabel(m.period_month)}
                   </span>
-                  <span className="text-xs font-medium text-[#5C5A55] tabular-nums">
+                  <span className="text-xs font-medium text-bht-ink-soft tabular-nums">
                     {Number(m.order_count ?? 0)} pedidos · Depósitos:{" "}
                     {formatPen(m.internal_deposits_pen)}
                   </span>
@@ -706,12 +712,12 @@ export default function KpisBiTab({
                     return (
                       <div key={b.label} className="space-y-0.5">
                         <div className="flex justify-between text-xs tabular-nums">
-                          <span className="text-[#5C5A55]">{b.label}</span>
-                          <span className="font-semibold text-[#18181B]">
+                          <span className="text-bht-ink-soft">{b.label}</span>
+                          <span className="font-semibold text-bht-ink-strong">
                             {formatPen(b.val)}
                           </span>
                         </div>
-                        <div className="h-1.5 w-full overflow-hidden rounded-full bg-[#E7E5E0]">
+                        <div className="h-1.5 w-full overflow-hidden rounded-full bg-bht-line">
                           <div
                             className={`h-full rounded-full ${b.color}`}
                             style={{ width: `${pct}%` }}
@@ -734,7 +740,7 @@ export default function KpisBiTab({
           className="table-wrapper hidden md:block"
         >
           <table className="w-full text-left text-xs">
-            <thead className="border-b border-[#E7E5E0] bg-[#FAF9F6] text-xs font-semibold uppercase tracking-wide text-[#5C5A55]">
+            <thead className="border-b border-bht-line bg-bht-paper text-xs font-semibold uppercase tracking-wide text-bht-ink-soft">
               <tr>
                 <th scope="col" className="whitespace-nowrap p-2">
                   Mes
@@ -765,44 +771,44 @@ export default function KpisBiTab({
                 </th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-[#E7E5E0]">
+            <tbody className="divide-y divide-bht-line">
               {visibleMonthlyRows.map((m) => (
-                <tr key={m.period_month} className="transition hover:bg-[#FAF9F6]">
-                  <td className="p-2 font-semibold text-[#18181B]">
+                <tr key={m.period_month} className="transition hover:bg-bht-paper">
+                  <td className="p-2 font-semibold text-bht-ink-strong">
                     {formatMonthLabel(m.period_month)}
                   </td>
                   <td className="p-2 text-right font-semibold tabular-nums">
                     {formatPen(m.sales_total_pen)}
                   </td>
-                  <td className="p-2 text-right font-semibold text-[#15803D] tabular-nums">
+                  <td className="p-2 text-right font-semibold text-bht-success tabular-nums">
                     {formatPen(m.cash_collected_pen)}
                   </td>
-                  <td className="p-2 text-right font-semibold text-[#B91C1C] tabular-nums">
+                  <td className="p-2 text-right font-semibold text-bht-danger tabular-nums">
                     {formatPen(m.ar_pending_pen)}
                   </td>
-                  <td className="p-2 text-right font-semibold text-[#1E446B] tabular-nums">
+                  <td className="p-2 text-right font-semibold text-bht-navy-mid tabular-nums">
                     {formatPen(m.merchandise_outflow_pen)}
                   </td>
-                  <td className="p-2 text-right font-semibold text-[#B45309] tabular-nums">
+                  <td className="p-2 text-right font-semibold text-bht-warning tabular-nums">
                     {formatPen(m.route_opex_pen)}
                   </td>
-                  <td className="p-2 text-right font-semibold text-[#B91C1C] tabular-nums">
+                  <td className="p-2 text-right font-semibold text-bht-danger tabular-nums">
                     {formatPen(m.non_opex_capex_drain_pen)}
                   </td>
-                  <td className="p-2 text-right text-[#5C5A55] tabular-nums">
+                  <td className="p-2 text-right text-bht-ink-soft tabular-nums">
                     {formatPen(m.internal_deposits_pen)}
                   </td>
-                  <td className="p-2 text-right font-semibold text-[#4338CA] tabular-nums">
+                  <td className="p-2 text-right font-semibold text-bht-tone-4338ca tabular-nums">
                     {formatPen(m.pre_route_foundational_outflow_pen)}
                   </td>
                 </tr>
               ))}
             </tbody>
             {visibleMonthlyRows.length > 1 && (
-              <tfoot className="border-t-2 border-[#D5D2CA] bg-[#FAF9F6] text-xs font-semibold tabular-nums">
+              <tfoot className="border-t-2 border-bht-line-stronger bg-bht-paper text-xs font-semibold tabular-nums">
                 <tr>
-                  <td className="p-2 text-[#18181B]">TOTAL ACUMULADO</td>
-                  <td className="p-2 text-right text-[#18181B]">
+                  <td className="p-2 text-bht-ink-strong">TOTAL ACUMULADO</td>
+                  <td className="p-2 text-right text-bht-ink-strong">
                     {formatPen(
                       visibleMonthlyRows.reduce(
                         (s, r) => s + Number(r.sales_total_pen ?? 0),
@@ -810,7 +816,7 @@ export default function KpisBiTab({
                       )
                     )}
                   </td>
-                  <td className="p-2 text-right text-[#15803D]">
+                  <td className="p-2 text-right text-bht-success">
                     {formatPen(
                       visibleMonthlyRows.reduce(
                         (s, r) => s + Number(r.cash_collected_pen ?? 0),
@@ -818,7 +824,7 @@ export default function KpisBiTab({
                       )
                     )}
                   </td>
-                  <td className="p-2 text-right text-[#B91C1C]">
+                  <td className="p-2 text-right text-bht-danger">
                     {formatPen(
                       visibleMonthlyRows.reduce(
                         (s, r) => s + Number(r.ar_pending_pen ?? 0),
@@ -826,19 +832,19 @@ export default function KpisBiTab({
                       )
                     )}
                   </td>
-                  <td className="p-2 text-right text-[#1E446B]">
+                  <td className="p-2 text-right text-bht-navy-mid">
                     {formatPen(totalMerchOutflow)}
                   </td>
-                  <td className="p-2 text-right text-[#B45309]">
+                  <td className="p-2 text-right text-bht-warning">
                     {formatPen(totalRouteOpex)}
                   </td>
-                  <td className="p-2 text-right text-[#B91C1C]">
+                  <td className="p-2 text-right text-bht-danger">
                     {formatPen(totalNonOpexDrain)}
                   </td>
-                  <td className="p-2 text-right text-[#5C5A55]">
+                  <td className="p-2 text-right text-bht-ink-soft">
                     {formatPen(totalInternalDeposits)}
                   </td>
-                  <td className="p-2 text-right text-[#4338CA]">
+                  <td className="p-2 text-right text-bht-tone-4338ca">
                     {formatPen(totalPreRouteFoundational)}
                   </td>
                 </tr>
@@ -851,7 +857,7 @@ export default function KpisBiTab({
       {/* Cash & Bank Account Balances */}
       {biSummary?.cashAccountsSummary && (
         <Card padding="md" className="space-y-3">
-          <h2 className="text-sm sm:text-base font-semibold text-[#18181B]">
+          <h2 className="text-sm sm:text-base font-semibold text-bht-ink-strong">
             Saldos por Caja y Banco (Movimientos Registrados)
           </h2>
           <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
@@ -860,12 +866,12 @@ export default function KpisBiTab({
               return (
                 <div
                   key={acc.account_id}
-                  className="rounded-xl border border-[#E7E5E0] bg-[#FAF9F6]/60 p-3 text-xs space-y-2"
+                  className="rounded-xl border border-bht-line bg-bht-paper/60 p-3 text-xs space-y-2"
                 >
                   <div className="flex items-start justify-between gap-2">
                     <div>
-                      <p className="font-semibold text-[#18181B]">{acc.name}</p>
-                      <span className="text-xs text-[#5C5A55]">
+                      <p className="font-semibold text-bht-ink-strong">{acc.name}</p>
+                      <span className="text-xs text-bht-ink-soft">
                         {formatAccountTypeEs(acc.account_type)}
                       </span>
                     </div>
@@ -876,7 +882,7 @@ export default function KpisBiTab({
                       {formatPen(net)}
                     </Badge>
                   </div>
-                  <div className="flex justify-between text-xs text-[#5C5A55] tabular-nums">
+                  <div className="flex justify-between text-xs text-bht-ink-soft tabular-nums">
                     <span>Entradas: {formatPen(acc.total_in_pen)}</span>
                     <span>Salidas: {formatPen(acc.total_out_pen)}</span>
                   </div>
@@ -891,7 +897,7 @@ export default function KpisBiTab({
       <Card padding="md" className="space-y-3">
         <h2
           id="top-customers-heading"
-          className="text-sm sm:text-base font-semibold text-[#18181B]"
+          className="text-sm sm:text-base font-semibold text-bht-ink-strong"
         >
           Clientes Principales ({biSummary?.topCustomers?.length ?? 0})
         </h2>
@@ -906,31 +912,35 @@ export default function KpisBiTab({
                 return (
                   <div
                     key={`mob-cust-${c.customer_name}-${idx}`}
-                    className="rounded-xl bg-[#FAF9F6] p-3 text-xs space-y-1.5"
+                    className="rounded-xl bg-bht-paper p-3 text-xs space-y-1.5"
                   >
                     <div className="flex items-start justify-between gap-2">
-                      <p className="font-semibold text-[#18181B]">{c.customer_name}</p>
+                      <p className="font-semibold text-bht-ink-strong">
+                        {c.customer_name}
+                      </p>
                       <Badge tone="neutral" className="tabular-nums">
                         {c.orders_count} ped.
                       </Badge>
                     </div>
-                    <div className="grid grid-cols-3 gap-2 border-t border-[#E7E5E0]/80 pt-1.5 tabular-nums">
+                    <div className="grid grid-cols-3 gap-2 border-t border-bht-line/80 pt-1.5 tabular-nums">
                       <div>
-                        <span className="block text-xs text-[#5C5A55]">Vendido</span>
-                        <strong className="text-[#18181B]">
+                        <span className="block text-xs text-bht-ink-soft">Vendido</span>
+                        <strong className="text-bht-ink-strong">
                           {formatPen(c.total_sold_pen)}
                         </strong>
                       </div>
                       <div>
-                        <span className="block text-xs text-[#5C5A55]">Cobrado</span>
-                        <strong className="text-[#15803D]">
+                        <span className="block text-xs text-bht-ink-soft">Cobrado</span>
+                        <strong className="text-bht-success">
                           {formatPen(c.total_paid_pen)}
                         </strong>
                       </div>
                       <div>
-                        <span className="block text-xs text-[#5C5A55]">Deuda</span>
+                        <span className="block text-xs text-bht-ink-soft">Deuda</span>
                         <strong
-                          className={due > 0.05 ? "text-[#B91C1C]" : "text-[#15803D]"}
+                          className={
+                            due > 0.05 ? "text-bht-danger" : "text-bht-success"
+                          }
                         >
                           {formatPen(due)}
                         </strong>
@@ -949,7 +959,7 @@ export default function KpisBiTab({
               className="table-wrapper hidden md:block"
             >
               <table className="w-full text-left text-xs">
-                <thead className="border-b border-[#E7E5E0] bg-[#FAF9F6] text-xs font-semibold uppercase tracking-wide text-[#5C5A55]">
+                <thead className="border-b border-bht-line bg-bht-paper text-xs font-semibold uppercase tracking-wide text-bht-ink-soft">
                   <tr>
                     <th scope="col" className="p-2">
                       Cliente
@@ -968,24 +978,24 @@ export default function KpisBiTab({
                     </th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-[#E7E5E0]">
+                <tbody className="divide-y divide-bht-line">
                   {biSummary.topCustomers.map((c, idx) => (
                     <tr key={`${c.customer_name}-${idx}`}>
-                      <td className="p-2 font-medium text-[#18181B]">
+                      <td className="p-2 font-medium text-bht-ink-strong">
                         {c.customer_name}
                       </td>
                       <td className="p-2 text-right tabular-nums">{c.orders_count}</td>
                       <td className="p-2 text-right font-semibold tabular-nums">
                         {formatPen(c.total_sold_pen)}
                       </td>
-                      <td className="p-2 text-right font-semibold text-[#15803D] tabular-nums">
+                      <td className="p-2 text-right font-semibold text-bht-success tabular-nums">
                         {formatPen(c.total_paid_pen)}
                       </td>
                       <td
                         className={`p-2 text-right font-semibold tabular-nums ${
                           Number(c.total_due_pen) > 0.05
-                            ? "text-[#B91C1C]"
-                            : "text-[#15803D]"
+                            ? "text-bht-danger"
+                            : "text-bht-success"
                         }`}
                       >
                         {formatPen(c.total_due_pen)}
@@ -1004,12 +1014,12 @@ export default function KpisBiTab({
         <div className="flex flex-wrap items-center justify-between gap-2.5">
           <h2
             id="top-skus-heading"
-            className="text-sm sm:text-base font-semibold text-[#18181B]"
+            className="text-sm sm:text-base font-semibold text-bht-ink-strong"
           >
             Productos Líderes por Ingresos y Margen Bruto Real
           </h2>
           <div className="relative w-full sm:w-64">
-            <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-[#6D6A64]">
+            <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-bht-ink-muted">
               <SearchIcon className="h-3.5 w-3.5" />
             </span>
             <input
@@ -1026,7 +1036,7 @@ export default function KpisBiTab({
                 data-compact="true"
                 aria-label="Limpiar filtro de productos líderes"
                 onClick={() => setSkuSearch("")}
-                className="absolute inset-y-0 right-2 flex items-center text-[#6D6A64] hover:text-[#18181B] cursor-pointer"
+                className="absolute inset-y-0 right-2 flex items-center text-bht-ink-muted hover:text-bht-ink-strong cursor-pointer"
               >
                 <CloseIcon className="h-3.5 w-3.5" />
               </button>
@@ -1047,14 +1057,14 @@ export default function KpisBiTab({
                 return (
                   <div
                     key={`mob-sku-${String(sku.sku)}`}
-                    className="rounded-xl bg-[#FAF9F6] p-3 text-xs space-y-2"
+                    className="rounded-xl bg-bht-paper p-3 text-xs space-y-2"
                   >
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0 flex-1">
-                        <p className="font-semibold text-[#18181B]">
+                        <p className="font-semibold text-bht-ink-strong">
                           {String(sku.product_name)}
                         </p>
-                        <span className="text-xs text-[#6D6A64]">
+                        <span className="text-xs text-bht-ink-muted">
                           {String(sku.sku)} · {Number(sku.total_units_sold)} u.
                         </span>
                       </div>
@@ -1068,15 +1078,17 @@ export default function KpisBiTab({
                         Editar
                       </Button>
                     </div>
-                    <div className="grid grid-cols-3 gap-2 border-t border-[#E7E5E0]/80 pt-2 tabular-nums">
+                    <div className="grid grid-cols-3 gap-2 border-t border-bht-line/80 pt-2 tabular-nums">
                       <div>
-                        <span className="block text-xs text-[#5C5A55]">Ingresos</span>
-                        <strong className="text-[#18181B]">
+                        <span className="block text-xs text-bht-ink-soft">
+                          Ingresos
+                        </span>
+                        <strong className="text-bht-ink-strong">
                           {formatPen(sku.total_revenue_pen)}
                         </strong>
                       </div>
                       <div>
-                        <span className="block text-xs text-[#5C5A55]">Margen</span>
+                        <span className="block text-xs text-bht-ink-soft">Margen</span>
                         <strong className={marginCls}>
                           {sku.gross_margin_pen !== null
                             ? formatPen(sku.gross_margin_pen)
@@ -1084,7 +1096,9 @@ export default function KpisBiTab({
                         </strong>
                       </div>
                       <div>
-                        <span className="block text-xs text-[#5C5A55]">Margen %</span>
+                        <span className="block text-xs text-bht-ink-soft">
+                          Margen %
+                        </span>
                         <strong className={marginCls}>
                           {sku.gross_margin_pct !== null
                             ? `${Number(sku.gross_margin_pct).toFixed(1)}%`
@@ -1105,7 +1119,7 @@ export default function KpisBiTab({
               className="table-wrapper hidden md:block"
             >
               <table className="w-full text-left text-xs">
-                <thead className="border-b border-[#E7E5E0] bg-[#FAF9F6] text-xs font-semibold uppercase tracking-wide text-[#5C5A55]">
+                <thead className="border-b border-bht-line bg-bht-paper text-xs font-semibold uppercase tracking-wide text-bht-ink-soft">
                   <tr>
                     <th scope="col" className="whitespace-nowrap p-2">
                       Código / Producto
@@ -1133,7 +1147,7 @@ export default function KpisBiTab({
                     </th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-[#E7E5E0]">
+                <tbody className="divide-y divide-bht-line">
                   {filteredTopSkus.map((sku) => {
                     const marginCls = getBiMarginClass(
                       sku.gross_margin_pen,
@@ -1141,9 +1155,9 @@ export default function KpisBiTab({
                     );
                     return (
                       <tr key={String(sku.sku)}>
-                        <td className="p-2 font-medium text-[#18181B]">
+                        <td className="p-2 font-medium text-bht-ink-strong">
                           {String(sku.product_name)}
-                          <span className="block text-xs text-[#6D6A64]">
+                          <span className="block text-xs text-bht-ink-muted">
                             {String(sku.sku)}
                           </span>
                         </td>
@@ -1153,7 +1167,7 @@ export default function KpisBiTab({
                         <td className="whitespace-nowrap p-2 text-right font-semibold tabular-nums">
                           {formatPen(sku.total_revenue_pen)}
                         </td>
-                        <td className="whitespace-nowrap p-2 text-right text-[#5C5A55] tabular-nums">
+                        <td className="whitespace-nowrap p-2 text-right text-bht-ink-soft tabular-nums">
                           {sku.total_cogs_pen !== null
                             ? formatPen(sku.total_cogs_pen)
                             : "-"}
@@ -1201,10 +1215,10 @@ export default function KpisBiTab({
       {/* Excel / CSV Export Center */}
       <Card tone="success" padding="md" className="space-y-3">
         <div>
-          <h2 className="text-sm sm:text-base font-semibold text-[#18181B]">
+          <h2 className="text-sm sm:text-base font-semibold text-bht-ink-strong">
             Exportar Reportes para Excel / Contador (CSV)
           </h2>
-          <p className="mt-0.5 text-xs text-[#5C5A55]">
+          <p className="mt-0.5 text-xs text-bht-ink-soft">
             Descarga directa compatible con Microsoft Excel en español (UTF-8, Soles y
             columnas limpias).
           </p>
@@ -1219,13 +1233,15 @@ export default function KpisBiTab({
                 disabled={downloadingDataset !== null}
                 aria-label={`Descargar reporte ${ds.title} en formato CSV`}
                 onClick={() => handleDownloadCsv(ds.id, ds.title)}
-                className="flex flex-col justify-between rounded-xl border border-[#E7E5E0] bg-white p-3.5 text-left transition hover:border-[#0F2942] disabled:opacity-50 cursor-pointer"
+                className="flex flex-col justify-between rounded-xl border border-bht-line bg-white p-3.5 text-left transition hover:border-bht-navy-deep disabled:opacity-50 cursor-pointer"
               >
                 <div>
-                  <p className="text-xs font-semibold text-[#18181B]">{ds.title}</p>
-                  <p className="mt-1 text-xs text-[#5C5A55]">{ds.subtitle}</p>
+                  <p className="text-xs font-semibold text-bht-ink-strong">
+                    {ds.title}
+                  </p>
+                  <p className="mt-1 text-xs text-bht-ink-soft">{ds.subtitle}</p>
                 </div>
-                <span className="mt-3 inline-flex items-center justify-center gap-1.5 rounded-lg bg-[#0F2942] px-2.5 py-1.5 text-xs font-semibold text-white">
+                <span className="mt-3 inline-flex items-center justify-center gap-1.5 rounded-lg bg-bht-navy-deep px-2.5 py-1.5 text-xs font-semibold text-white">
                   <DownloadIcon className="h-3.5 w-3.5" />
                   {busy ? "Descargando..." : "Descargar CSV"}
                 </span>
@@ -1237,7 +1253,7 @@ export default function KpisBiTab({
 
       {/* Data Quality Gaps */}
       <Card padding="md" className="space-y-3">
-        <h2 className="text-sm sm:text-base font-semibold text-[#18181B]">
+        <h2 className="text-sm sm:text-base font-semibold text-bht-ink-strong">
           Estado de Calidad de Datos e Integridad Operativa
         </h2>
         <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
@@ -1246,13 +1262,13 @@ export default function KpisBiTab({
             return (
               <div
                 key={String(g.metric_code)}
-                className="rounded-xl bg-[#FAF9F6] p-3 text-xs space-y-1"
+                className="rounded-xl bg-bht-paper p-3 text-xs space-y-1"
               >
-                <span className="font-medium text-[#5C5A55]">{gapInfo.label}</span>
-                <p className="text-sm font-semibold text-[#18181B] tabular-nums">
+                <span className="font-medium text-bht-ink-soft">{gapInfo.label}</span>
+                <p className="text-sm font-semibold text-bht-ink-strong tabular-nums">
                   {Number(g.gap_count)} caso(s) ({formatPen(g.impacted_amount_pen)})
                 </p>
-                <p className="text-xs text-[#5C5A55]">{gapInfo.description}</p>
+                <p className="text-xs text-bht-ink-soft">{gapInfo.description}</p>
               </div>
             );
           })}
@@ -1263,10 +1279,10 @@ export default function KpisBiTab({
       <Card padding="md" className="space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
-            <h2 className="text-sm sm:text-base font-semibold text-[#18181B]">
+            <h2 className="text-sm sm:text-base font-semibold text-bht-ink-strong">
               Alertas Operativas y Auditoría
             </h2>
-            <p className="text-xs text-[#5C5A55]">
+            <p className="text-xs text-bht-ink-soft">
               {auditFlagCounts
                 ? `${auditFlagCounts.open} abierta(s) · ${auditFlagCounts.acknowledged} en revisión · ${auditFlagCounts.resolved} resuelta(s)`
                 : `${auditFlags.length} alerta(s) registradas`}
@@ -1288,8 +1304,8 @@ export default function KpisBiTab({
                 onClick={() => setFlagFilter(opt.id)}
                 className={`min-h-[36px] sm:min-h-0 rounded-full border px-2.5 py-1 text-xs font-semibold transition cursor-pointer ${
                   flagFilter === opt.id
-                    ? "border-[#0F2942] bg-[#0F2942] text-white"
-                    : "border-[#E7E5E0] bg-white text-[#5C5A55] hover:bg-[#F2F6FA]"
+                    ? "border-bht-navy-deep bg-bht-navy-deep text-white"
+                    : "border-bht-line bg-white text-bht-ink-soft hover:bg-bht-mist"
                 }`}
               >
                 {opt.label}
@@ -1320,22 +1336,22 @@ export default function KpisBiTab({
                 return (
                   <div
                     key={f.flag_id}
-                    className="rounded-xl border border-[#E7E5E0] bg-[#FAF9F6] p-3 text-xs space-y-2"
+                    className="rounded-xl border border-bht-line bg-bht-paper p-3 text-xs space-y-2"
                   >
                     <div className="flex flex-wrap items-start justify-between gap-2">
                       <div className="min-w-0 space-y-0.5">
                         <div className="flex flex-wrap items-center gap-1.5">
                           <Badge tone={tone}>{formatAuditFlagStatusEs(f.status)}</Badge>
-                          <span className="font-semibold text-[#18181B]">
+                          <span className="font-semibold text-bht-ink-strong">
                             {formatAuditFlagCodeEs(f.flag_code)}
                           </span>
-                          <span className="text-[#6D6A64]">
+                          <span className="text-bht-ink-muted">
                             ({formatEntityTableEs(f.entity_table)} #{f.entity_id})
                           </span>
                         </div>
-                        <p className="text-[#18181B]">{f.message}</p>
+                        <p className="text-bht-ink-strong">{f.message}</p>
                         {f.resolution_note && (
-                          <p className="text-xs text-[#5C5A55]">
+                          <p className="text-xs text-bht-ink-soft">
                             Nota: {f.resolution_note}
                           </p>
                         )}

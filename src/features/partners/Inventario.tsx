@@ -60,7 +60,7 @@ export function Inventario({ negStockCount, flow }: InventarioProps) {
             padding="sm"
             className="flex items-center justify-between gap-3"
           >
-            <span className="text-xs font-medium text-[#5C5A55]">{item.label}</span>
+            <span className="text-xs font-medium text-bht-ink-soft">{item.label}</span>
             <Badge tone={item.tone} className="tabular-nums">
               {item.count}
             </Badge>
@@ -69,21 +69,24 @@ export function Inventario({ negStockCount, flow }: InventarioProps) {
       </div>
       <Card tone={negStockCount > 0 ? "warning" : "default"} padding="md">
         <details className="group">
-          <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0F2942]">
+          <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bht-navy-deep">
             <div>
-              <h2 className="text-sm font-semibold text-[#18181B] sm:text-base">
+              <h2 className="text-sm font-semibold text-bht-ink-strong sm:text-base">
                 Administración · Regularización histórica
               </h2>
-              <p className="mt-0.5 text-xs text-[#5C5A55]">
+              <p className="mt-0.5 text-xs text-bht-ink-soft">
                 {negStockCount} saldo(s) negativo(s) de la carga inicial
               </p>
             </div>
-            <span aria-hidden="true" className="text-[#5C5A55] group-open:rotate-180">
+            <span
+              aria-hidden="true"
+              className="text-bht-ink-soft group-open:rotate-180"
+            >
               ▾
             </span>
           </summary>
-          <div className="mt-3 flex flex-wrap items-end justify-between gap-3 border-t border-[#E7E5E0] pt-3">
-            <p className="max-w-2xl text-xs leading-relaxed text-[#5C5A55]">
+          <div className="mt-3 flex flex-wrap items-end justify-between gap-3 border-t border-bht-line pt-3">
+            <p className="max-w-2xl text-xs leading-relaxed text-bht-ink-soft">
               Esta acción administrativa crea ajustes auditables para llevar a cero
               saldos históricos por ventas sin compra previa. No se usa en la operación
               cotidiana.
@@ -93,7 +96,7 @@ export function Inventario({ negStockCount, flow }: InventarioProps) {
               size="md"
               disabled={busyResetStock || negStockCount === 0}
               onClick={() => setConfirmResetNegativeOpen(true)}
-              className="border-[#F59E0B] text-[#92400E]"
+              className="border-bht-tone-f59e0b text-bht-warning-strong"
             >
               {busyResetStock
                 ? "Regularizando..."
@@ -106,7 +109,7 @@ export function Inventario({ negStockCount, flow }: InventarioProps) {
       <Card padding="md" className="space-y-3.5">
         <div className="flex flex-wrap items-center justify-between gap-2.5">
           <div className="relative w-full sm:w-auto sm:min-w-[220px] sm:flex-1">
-            <span className="pointer-events-none absolute inset-y-0 left-3.5 flex items-center text-[#6D6A64]">
+            <span className="pointer-events-none absolute inset-y-0 left-3.5 flex items-center text-bht-ink-muted">
               <SearchIcon className="h-4 w-4" />
             </span>
             <input
@@ -129,14 +132,14 @@ export function Inventario({ negStockCount, flow }: InventarioProps) {
                   setSearchSku("");
                   setShowAllCatalog(false);
                 }}
-                className="absolute inset-y-0 right-2.5 flex items-center text-[#6D6A64] hover:text-[#18181B] cursor-pointer"
+                className="absolute inset-y-0 right-2.5 flex items-center text-bht-ink-muted hover:text-bht-ink-strong cursor-pointer"
               >
                 <CloseIcon className="h-4 w-4" />
               </button>
             )}
           </div>
           <div className="flex items-center gap-2">
-            <span className="text-xs font-medium text-[#5C5A55] tabular-nums">
+            <span className="text-xs font-medium text-bht-ink-soft tabular-nums">
               Mostrando {visibleCatalog.length} de {filteredCatalog.length} productos
             </span>
             {filteredCatalog.length > 40 && (
@@ -160,12 +163,14 @@ export function Inventario({ negStockCount, flow }: InventarioProps) {
               {visibleCatalog.map((p) => (
                 <div
                   key={p.product_id}
-                  className="rounded-xl border border-[#E7E5E0] bg-[#FAF9F6] p-3 space-y-2 text-xs"
+                  className="rounded-xl border border-bht-line bg-bht-paper p-3 space-y-2 text-xs"
                 >
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0 flex-1">
-                      <p className="text-sm font-semibold text-[#18181B]">{p.name}</p>
-                      <p className="text-xs text-[#6D6A64]">{p.sku}</p>
+                      <p className="text-sm font-semibold text-bht-ink-strong">
+                        {p.name}
+                      </p>
+                      <p className="text-xs text-bht-ink-muted">{p.sku}</p>
                     </div>
                     <Badge
                       tone={p.fulfillment_mode === "ON_DEMAND" ? "warning" : "neutral"}
@@ -173,44 +178,50 @@ export function Inventario({ negStockCount, flow }: InventarioProps) {
                       {formatFulfillmentModeEs(p.fulfillment_mode)}
                     </Badge>
                   </div>
-                  <div className="grid grid-cols-2 gap-2 border-t border-[#E7E5E0]/80 pt-2 tabular-nums">
+                  <div className="grid grid-cols-2 gap-2 border-t border-bht-line/80 pt-2 tabular-nums">
                     <div>
-                      <span className="block text-xs text-[#5C5A55]">Stock actual</span>
+                      <span className="block text-xs text-bht-ink-soft">
+                        Stock actual
+                      </span>
                       <span
                         className={`font-semibold ${
-                          p.stock_on_hand < 0 ? "text-[#B91C1C]" : "text-[#18181B]"
+                          p.stock_on_hand < 0
+                            ? "text-bht-danger"
+                            : "text-bht-ink-strong"
                         }`}
                       >
                         {p.stock_on_hand}{" "}
                         <span
                           title={formatUnitTitleEs(p.unit_of_measure)}
-                          className="text-xs font-medium text-[#6D6A64]"
+                          className="text-xs font-medium text-bht-ink-muted"
                         >
                           {p.unit_of_measure}
                         </span>
                       </span>
                     </div>
                     <div>
-                      <span className="block text-xs text-[#5C5A55]">Costo real</span>
-                      <span className="font-semibold text-[#18181B]">
+                      <span className="block text-xs text-bht-ink-soft">
+                        Costo real
+                      </span>
+                      <span className="font-semibold text-bht-ink-strong">
                         {p.ref_cost_pen !== null
                           ? formatPen(p.ref_cost_pen)
                           : "Sin costo"}
                       </span>
                     </div>
                     <div>
-                      <span className="block text-xs text-[#5C5A55]">
+                      <span className="block text-xs text-bht-ink-soft">
                         Precio normal
                       </span>
-                      <span className="font-semibold text-[#18181B]">
+                      <span className="font-semibold text-bht-ink-strong">
                         {formatPen(p.list_sale_price_pen ?? 0)} / {p.unit_of_measure}
                       </span>
                     </div>
                     <div>
-                      <span className="block text-xs text-[#5C5A55]">
+                      <span className="block text-xs text-bht-ink-soft">
                         Precio mínimo
                       </span>
-                      <span className="font-semibold text-[#1E446B]">
+                      <span className="font-semibold text-bht-navy-mid">
                         {formatPen(p.min_sale_price_pen ?? 0)} / {p.unit_of_measure}
                       </span>
                     </div>
@@ -237,7 +248,7 @@ export function Inventario({ negStockCount, flow }: InventarioProps) {
               className="table-wrapper hidden md:block"
             >
               <table className="w-full text-left text-xs">
-                <thead className="border-b border-[#E7E5E0] bg-[#FAF9F6] text-xs font-semibold uppercase tracking-wide text-[#5C5A55]">
+                <thead className="border-b border-bht-line bg-bht-paper text-xs font-semibold uppercase tracking-wide text-bht-ink-soft">
                   <tr>
                     <th scope="col" className="whitespace-nowrap p-2.5">
                       Código / Producto
@@ -262,12 +273,12 @@ export function Inventario({ negStockCount, flow }: InventarioProps) {
                     </th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-[#E7E5E0]">
+                <tbody className="divide-y divide-bht-line">
                   {visibleCatalog.map((p) => (
-                    <tr key={p.product_id} className="transition hover:bg-[#FAF9F6]">
-                      <td className="min-w-[180px] p-2.5 font-medium text-[#18181B]">
+                    <tr key={p.product_id} className="transition hover:bg-bht-paper">
+                      <td className="min-w-[180px] p-2.5 font-medium text-bht-ink-strong">
                         {p.name}
-                        <span className="block text-xs font-normal text-[#6D6A64]">
+                        <span className="block text-xs font-normal text-bht-ink-muted">
                           {p.sku}
                         </span>
                       </td>
@@ -282,26 +293,28 @@ export function Inventario({ negStockCount, flow }: InventarioProps) {
                       </td>
                       <td
                         className={`whitespace-nowrap p-2.5 text-right font-semibold tabular-nums ${
-                          p.stock_on_hand < 0 ? "text-[#B91C1C]" : "text-[#18181B]"
+                          p.stock_on_hand < 0
+                            ? "text-bht-danger"
+                            : "text-bht-ink-strong"
                         }`}
                       >
                         {p.stock_on_hand}{" "}
                         <span
                           title={formatUnitTitleEs(p.unit_of_measure)}
-                          className="text-xs font-normal text-[#6D6A64]"
+                          className="text-xs font-normal text-bht-ink-muted"
                         >
                           {p.unit_of_measure}
                         </span>
                       </td>
-                      <td className="whitespace-nowrap p-2.5 text-right text-[#5C5A55] tabular-nums">
+                      <td className="whitespace-nowrap p-2.5 text-right text-bht-ink-soft tabular-nums">
                         {p.ref_cost_pen !== null
                           ? formatPen(p.ref_cost_pen)
                           : "Sin costo"}
                       </td>
-                      <td className="p-2.5 text-right font-semibold text-[#18181B] tabular-nums">
+                      <td className="p-2.5 text-right font-semibold text-bht-ink-strong tabular-nums">
                         {formatPen(p.list_sale_price_pen ?? 0)} / {p.unit_of_measure}
                       </td>
-                      <td className="p-2.5 text-right font-semibold text-[#1E446B] tabular-nums">
+                      <td className="p-2.5 text-right font-semibold text-bht-navy-mid tabular-nums">
                         {formatPen(p.min_sale_price_pen ?? 0)} / {p.unit_of_measure}
                       </td>
                       <td className="p-2.5 text-right">
@@ -439,22 +452,26 @@ export function InventarioModals({ negStockCount, flow }: InventarioModalsProps)
             </div>
 
             {hasPreviewCost && Number.isFinite(previewPrice) && previewPrice > 0 && (
-              <div className="grid grid-cols-2 gap-2.5 rounded-xl border border-[#E7E5E0] bg-[#FAF9F6] p-3 text-xs tabular-nums">
+              <div className="grid grid-cols-2 gap-2.5 rounded-xl border border-bht-line bg-bht-paper p-3 text-xs tabular-nums">
                 <div>
-                  <span className="block text-[#5C5A55]">Margen al precio normal</span>
-                  <strong className="text-[#15803D]">
+                  <span className="block text-bht-ink-soft">
+                    Margen al precio normal
+                  </span>
+                  <strong className="text-bht-success">
                     {formatPen(previewPrice - previewCost)} (
                     {(((previewPrice - previewCost) / previewPrice) * 100).toFixed(1)}
                     %)
                   </strong>
                 </div>
                 <div>
-                  <span className="block text-[#5C5A55]">Margen al precio mínimo</span>
+                  <span className="block text-bht-ink-soft">
+                    Margen al precio mínimo
+                  </span>
                   <strong
                     className={
                       previewMin - previewCost <= 0
-                        ? "text-[#B91C1C]"
-                        : "text-[#18181B]"
+                        ? "text-bht-danger"
+                        : "text-bht-ink-strong"
                     }
                   >
                     {Number.isFinite(previewMin) && previewMin > 0
@@ -497,13 +514,13 @@ export function InventarioModals({ negStockCount, flow }: InventarioModalsProps)
         title="Confirmar regularización de stock negativo"
         subtitle="Esta acción genera un ajuste contable (INV_ADJUSTMENT) en kardex."
       >
-        <div className="space-y-4 text-xs sm:text-sm text-[#5C5A55]">
+        <div className="space-y-4 text-xs sm:text-sm text-bht-ink-soft">
           <p>
             Se pondrán exactamente en <strong>0</strong> los saldos de{" "}
-            <strong className="text-[#18181B]">{negStockCount} producto(s)</strong> que
-            tienen inventario negativo histórico en Almacén Principal.
+            <strong className="text-bht-ink-strong">{negStockCount} producto(s)</strong>{" "}
+            que tienen inventario negativo histórico en Almacén Principal.
           </p>
-          <p className="rounded-xl border border-[#F3D9B1] bg-[#FDF8F0] px-3 py-2.5 text-xs text-[#92400E]">
+          <p className="rounded-xl border border-bht-amber-line bg-bht-amber-bg px-3 py-2.5 text-xs text-bht-warning-strong">
             Usa esto únicamente después de verificar que esos productos realmente están
             agotados y no falta registrar una compra previa.
           </p>

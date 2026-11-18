@@ -86,7 +86,7 @@ export default function SellerCollectionModals({
             <>
               Se repartirá desde el pedido más antiguo (
               {selectedCustomerForFifo.openOrdersCount} pedidos) ·{" "}
-              <strong className="text-[#B91C1C] tabular-nums">
+              <strong className="text-bht-danger tabular-nums">
                 Deuda Total: S/ {selectedCustomerForFifo.totalBalanceDuePen.toFixed(2)}
               </strong>
             </>
@@ -95,7 +95,7 @@ export default function SellerCollectionModals({
               Pedido {selectedOrderForAbono.orderCode} · Total: S/{" "}
               {selectedOrderForAbono.totalPen.toFixed(2)} · Abonado: S/{" "}
               {selectedOrderForAbono.paidPen.toFixed(2)} ·{" "}
-              <strong className="text-[#B91C1C] tabular-nums">
+              <strong className="text-bht-danger tabular-nums">
                 Saldo: S/ {selectedOrderForAbono.balanceDuePen.toFixed(2)}
               </strong>
             </>

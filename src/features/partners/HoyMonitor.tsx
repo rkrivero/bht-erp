@@ -55,11 +55,11 @@ export function HoyMonitor({
         <div>
           <h2
             id="monitor-table-heading"
-            className="text-sm sm:text-base font-semibold text-[#18181B]"
+            className="text-sm sm:text-base font-semibold text-bht-ink-strong"
           >
             Monitor en Tiempo Real
           </h2>
-          <p className="text-xs text-[#5C5A55]">
+          <p className="text-xs text-bht-ink-soft">
             {showAllMonitor || recentMonitorOrders.length <= 15
               ? `Mostrando ${recentMonitorOrders.length} pedidos`
               : `Mostrando 15 de ${recentMonitorOrders.length} pedidos`}{" "}
@@ -81,7 +81,7 @@ export function HoyMonitor({
 
       <div className="flex flex-wrap items-center gap-2">
         <div className="relative min-w-[200px] flex-1">
-          <span className="pointer-events-none absolute inset-y-0 left-3.5 flex items-center text-[#6D6A64]">
+          <span className="pointer-events-none absolute inset-y-0 left-3.5 flex items-center text-bht-ink-muted">
             <SearchIcon className="h-4 w-4" />
           </span>
           <input
@@ -98,7 +98,7 @@ export function HoyMonitor({
               data-compact="true"
               aria-label="Limpiar búsqueda de monitor"
               onClick={() => setMonitorSearch("")}
-              className="absolute inset-y-0 right-2.5 flex items-center text-[#6D6A64] hover:text-[#18181B] cursor-pointer"
+              className="absolute inset-y-0 right-2.5 flex items-center text-bht-ink-muted hover:text-bht-ink-strong cursor-pointer"
             >
               <CloseIcon className="h-3.5 w-3.5" />
             </button>
@@ -136,16 +136,16 @@ export function HoyMonitor({
             return (
               <div
                 key={String(o.order_id)}
-                className="rounded-xl border border-[#E7E5E0] bg-[#FAF9F6] p-3.5 space-y-2.5 text-xs"
+                className="rounded-xl border border-bht-line bg-bht-paper p-3.5 space-y-2.5 text-xs"
               >
                 <button
                   type="button"
                   onClick={() => setSelectedMonitorOrder(o)}
                   aria-label={`Ver detalle del pedido ${String(o.order_code)} de ${String(o.customer_name)}`}
-                  className="w-full text-left space-y-2 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0F2942]/45 cursor-pointer"
+                  className="w-full text-left space-y-2 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bht-navy-deep/45 cursor-pointer"
                 >
                   <div className="flex flex-wrap items-center justify-between gap-2">
-                    <span className="font-semibold text-[#1E446B] tabular-nums">
+                    <span className="font-semibold text-bht-navy-mid tabular-nums">
                       {String(o.order_code)} · {String(o.order_date)}
                     </span>
                     <div className="flex flex-wrap items-center gap-1.5">
@@ -155,19 +155,21 @@ export function HoyMonitor({
                       </Badge>
                     </div>
                   </div>
-                  <p className="text-sm font-semibold text-[#18181B]">
+                  <p className="text-sm font-semibold text-bht-ink-strong">
                     {String(o.customer_name)}
                   </p>
-                  <p className="text-xs text-[#5C5A55]">
-                    <span className="text-[#6D6A64]">Equipo:</span>{" "}
-                    <span className="font-medium text-[#18181B]">
+                  <p className="text-xs text-bht-ink-soft">
+                    <span className="text-bht-ink-muted">Equipo:</span>{" "}
+                    <span className="font-medium text-bht-ink-strong">
                       {formatTraceabilitySummary(o)}
                     </span>
                   </p>
-                  <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-t border-[#E7E5E0] pt-2 tabular-nums">
+                  <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-t border-bht-line pt-2 tabular-nums">
                     <span>
                       Venta:{" "}
-                      <strong className="text-[#18181B]">{formatPen(totalVal)}</strong>
+                      <strong className="text-bht-ink-strong">
+                        {formatPen(totalVal)}
+                      </strong>
                     </span>
                     <span
                       className={`font-semibold ${getMarginTextClass(
@@ -180,20 +182,20 @@ export function HoyMonitor({
                     <span
                       className={
                         debtVal > 0.05
-                          ? "font-semibold text-[#B91C1C]"
-                          : "font-medium text-[#15803D]"
+                          ? "font-semibold text-bht-danger"
+                          : "font-medium text-bht-success"
                       }
                     >
                       {debtVal > 0.05 ? `Debe: ${formatPen(debtVal)}` : "Al día"}
                     </span>
                   </div>
-                  <p className="text-xs font-medium text-[#1E446B]">
+                  <p className="text-xs font-medium text-bht-navy-mid">
                     Toca para ver productos comprados (
                     {Array.isArray(o.lines) ? o.lines.length : 0})
                   </p>
                 </button>
                 {(canAbonar || canCancel) && (
-                  <div className="flex flex-wrap gap-2 border-t border-[#E7E5E0]/80 pt-2">
+                  <div className="flex flex-wrap gap-2 border-t border-bht-line/80 pt-2">
                     {canAbonar && (
                       <Button
                         variant="primary"
@@ -212,7 +214,7 @@ export function HoyMonitor({
                           setCancelOrderReason("");
                           setConfirmCancelOrder(o);
                         }}
-                        className="border-[#FECACA] text-[#B91C1C] hover:bg-[#FEF2F2]"
+                        className="border-bht-danger-line text-bht-danger hover:bg-bht-danger-bg"
                       >
                         Anular
                       </Button>
@@ -233,7 +235,7 @@ export function HoyMonitor({
         className="table-wrapper hidden md:block"
       >
         <table className="w-full text-left text-xs">
-          <thead className="border-b border-[#E7E5E0] bg-[#FAF9F6] text-xs font-semibold uppercase tracking-wide text-[#5C5A55]">
+          <thead className="border-b border-bht-line bg-bht-paper text-xs font-semibold uppercase tracking-wide text-bht-ink-soft">
             <tr>
               <th scope="col" className="whitespace-nowrap p-3">
                 Pedido / Fecha
@@ -261,7 +263,7 @@ export function HoyMonitor({
               </th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-[#E7E5E0]">
+          <tbody className="divide-y divide-bht-line">
             {(showAllMonitor
               ? recentMonitorOrders
               : recentMonitorOrders.slice(0, 15)
@@ -290,15 +292,15 @@ export function HoyMonitor({
                     }
                   }}
                   aria-label={`Ver detalle del pedido ${String(o.order_code)}`}
-                  className="cursor-pointer transition hover:bg-[#F2F6FA]/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#0F2942]/45"
+                  className="cursor-pointer transition hover:bg-bht-mist/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-bht-navy-deep/45"
                 >
-                  <td className="whitespace-nowrap p-3 font-semibold text-[#1E446B] tabular-nums">
+                  <td className="whitespace-nowrap p-3 font-semibold text-bht-navy-mid tabular-nums">
                     {String(o.order_code)}
-                    <span className="block text-xs font-normal text-[#6D6A64]">
+                    <span className="block text-xs font-normal text-bht-ink-muted">
                       {String(o.order_date)}
                     </span>
                   </td>
-                  <td className="min-w-[160px] p-3 font-medium text-[#18181B]">
+                  <td className="min-w-[160px] p-3 font-medium text-bht-ink-strong">
                     {String(o.customer_name)}
                   </td>
                   <td className="whitespace-nowrap p-3">
@@ -309,10 +311,10 @@ export function HoyMonitor({
                       {wasModified && <Badge tone="warning">Modificado</Badge>}
                     </div>
                   </td>
-                  <td className="min-w-[200px] p-3 text-[#5C5A55]">
+                  <td className="min-w-[200px] p-3 text-bht-ink-soft">
                     {formatTraceabilitySummary(o)}
                   </td>
-                  <td className="whitespace-nowrap p-3 text-right font-semibold text-[#18181B] tabular-nums">
+                  <td className="whitespace-nowrap p-3 text-right font-semibold text-bht-ink-strong tabular-nums">
                     {formatPen(totalVal)}
                   </td>
                   <td
@@ -326,8 +328,8 @@ export function HoyMonitor({
                   <td
                     className={`whitespace-nowrap p-3 text-right tabular-nums ${
                       debtVal > 0.05
-                        ? "font-semibold text-[#B91C1C]"
-                        : "font-medium text-[#15803D]"
+                        ? "font-semibold text-bht-danger"
+                        : "font-medium text-bht-success"
                     }`}
                   >
                     {formatPen(debtVal)}
@@ -356,7 +358,7 @@ export function HoyMonitor({
                             setCancelOrderReason("");
                             setConfirmCancelOrder(o);
                           }}
-                          className="border-[#FECACA] text-[#B91C1C] hover:bg-[#FEF2F2]"
+                          className="border-bht-danger-line text-bht-danger hover:bg-bht-danger-bg"
                         >
                           Anular
                         </Button>
@@ -370,7 +372,7 @@ export function HoyMonitor({
         </table>
       </div>
       {ordersPagination?.hasMore && (
-        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-[#E7E5E0] pt-3 text-xs text-[#5C5A55]">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-bht-line pt-3 text-xs text-bht-ink-soft">
           <span>
             Mostrando {orders.length} de {ordersPagination.totalCount} pedidos
           </span>

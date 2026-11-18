@@ -16,11 +16,13 @@ export default function SellerOrderEditCard({ flow }: { flow: SellerOrderFlow })
     resetOrderDraft,
   } = flow;
   return (
-    <Card className="space-y-3 border-[#A9C7E3] bg-[#F2F6FA] lg:col-span-12">
+    <Card className="space-y-3 border-bht-tone-a9c7e3 bg-bht-mist lg:col-span-12">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
-          <p className="font-semibold text-[#0F2942]">Modificando {editingOrderCode}</p>
-          <p className="text-xs text-[#5C5A55]">
+          <p className="font-semibold text-bht-navy-deep">
+            Modificando {editingOrderCode}
+          </p>
+          <p className="text-xs text-bht-ink-soft">
             El pedido volverá a alistamiento y se guardará la versión anterior.
           </p>
         </div>

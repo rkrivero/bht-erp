@@ -28,7 +28,7 @@ export default function SellerOrderClientStep({ flow }: { flow: SellerOrderFlow 
           1. Cliente o ferretería
         </FieldLabel>
         <div className="relative mt-1.5">
-          <SearchIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#6D6A64]" />
+          <SearchIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-bht-ink-muted" />
           <input
             id="seller-customer-name"
             type="text"
@@ -71,14 +71,14 @@ export default function SellerOrderClientStep({ flow }: { flow: SellerOrderFlow 
                 setCustomerDropdownOpen(true);
               }}
               aria-label="Limpiar cliente"
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded-md p-1 text-[#6D6A64] hover:bg-[#F4F3EF] hover:text-[#18181B] cursor-pointer"
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded-md p-1 text-bht-ink-muted hover:bg-bht-paper-alt hover:text-bht-ink-strong cursor-pointer"
             >
               <CloseIcon className="h-3.5 w-3.5" />
             </button>
           )}
         </div>
         {selectedCustomer && (
-          <p className="mt-1.5 text-xs font-medium text-[#15803D]">
+          <p className="mt-1.5 text-xs font-medium text-bht-success">
             Cliente vinculado ({selectedCustomer.doc_number || "registrado"}
             {selectedCustomer.address ? ` · ${selectedCustomer.address}` : ""})
           </p>
@@ -88,7 +88,7 @@ export default function SellerOrderClientStep({ flow }: { flow: SellerOrderFlow 
             id="seller-customer-listbox"
             role="listbox"
             aria-label="Clientes sugeridos"
-            className="absolute z-30 mt-1.5 max-h-56 w-full overflow-y-auto rounded-xl border border-[#D4E0EC] bg-white p-1 shadow-[0_12px_28px_rgba(15,41,66,0.12)]"
+            className="absolute z-30 mt-1.5 max-h-56 w-full overflow-y-auto rounded-xl border border-bht-line-blue bg-white p-1 shadow-bht-elev-17"
           >
             {filteredCustomerSuggestions.map((c) => (
               <li
@@ -106,11 +106,11 @@ export default function SellerOrderClientStep({ flow }: { flow: SellerOrderFlow 
                     handleSelectCustomer(c);
                   }}
                   onClick={() => handleSelectCustomer(c)}
-                  className="flex min-h-[44px] w-full items-center justify-between gap-2 rounded-lg px-3.5 py-2.5 text-left text-sm transition hover:bg-[#F2F6FA] cursor-pointer"
+                  className="flex min-h-[44px] w-full items-center justify-between gap-2 rounded-lg px-3.5 py-2.5 text-left text-sm transition hover:bg-bht-mist cursor-pointer"
                 >
-                  <span className="font-semibold text-[#18181B]">{c.name}</span>
+                  <span className="font-semibold text-bht-ink-strong">{c.name}</span>
                   {c.doc_number && (
-                    <span className="flex-shrink-0 text-xs text-[#5C5A55] tabular-nums">
+                    <span className="flex-shrink-0 text-xs text-bht-ink-soft tabular-nums">
                       {c.doc_number}
                     </span>
                   )}
