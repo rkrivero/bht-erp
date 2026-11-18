@@ -30,7 +30,9 @@ export function DesktopSidebar<T extends string>({
   return (
     <aside className="fixed inset-y-0 left-0 z-40 hidden w-[232px] flex-col bg-[var(--bht-navy)] px-3.5 py-5 text-white md:flex">
       <div className="flex items-center gap-3 px-2 pb-6">
-        <HorizonLogo className="h-10 w-10 flex-none rounded-xl ring-1 ring-white/20" />
+        <span className="flex h-11 w-11 flex-none items-center justify-center rounded-xl bg-white p-1 shadow-[0_2px_10px_rgba(11,25,44,0.18)]">
+          <HorizonLogo className="h-full w-full" />
+        </span>
         <div className="min-w-0">
           <p className="text-sm font-bold leading-tight">Blue Horizon Trade</p>
           <p className="mt-1 truncate text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--bht-sky)]">
@@ -53,12 +55,17 @@ export function DesktopSidebar<T extends string>({
                   : "text-[var(--bht-sky)] hover:bg-white/10 hover:text-white"
               }`}
             >
-              <span aria-hidden="true" className="flex h-5 w-5 items-center justify-center">
+              <span
+                aria-hidden="true"
+                className="flex h-5 w-5 items-center justify-center"
+              >
                 {item.icon}
               </span>
               <span className="min-w-0 flex-1 truncate">{item.label}</span>
               {item.badgeCount !== undefined && item.badgeCount > 0 && (
-                <span className={`rounded-full px-2 py-0.5 text-[10px] tabular-nums ${active ? "bg-[var(--bht-sky)]" : "bg-white/10 text-white"}`}>
+                <span
+                  className={`rounded-full px-2 py-0.5 text-[10px] tabular-nums ${active ? "bg-[var(--bht-sky)]" : "bg-white/10 text-white"}`}
+                >
                   {item.badgeCount > 99 ? "99+" : item.badgeCount}
                 </span>
               )}
@@ -66,7 +73,11 @@ export function DesktopSidebar<T extends string>({
           );
         })}
       </nav>
-      {footer && <div className="mt-auto border-t border-white/15 px-2 pt-4 text-xs text-[var(--bht-sky)]">{footer}</div>}
+      {footer && (
+        <div className="mt-auto border-t border-white/15 px-2 pt-4 text-xs text-[var(--bht-sky)]">
+          {footer}
+        </div>
+      )}
     </aside>
   );
 }
@@ -136,12 +147,16 @@ export function AppHeader({
   const syncCfg = syncStatus ? SYNC_STATUS_CONFIG[syncStatus] : null;
 
   return (
-    <header className={`sticky top-0 z-30 border-b border-[var(--border-hairline)] bg-white/95 backdrop-blur-md ${withSidebar ? "md:ml-[232px]" : ""}`}>
+    <header
+      className={`sticky top-0 z-30 border-b border-[var(--border-hairline)] bg-white/95 backdrop-blur-md ${withSidebar ? "md:ml-[232px]" : ""}`}
+    >
       <div
         className={`mx-auto grid ${widthClass} grid-cols-[minmax(0,1fr)_auto] items-start gap-x-2 gap-y-2 px-3.5 py-3 sm:flex sm:flex-wrap sm:items-center sm:justify-between sm:gap-3 sm:px-5`}
       >
         <div className="flex min-w-0 flex-1 items-center gap-3">
-          <HorizonLogo className="h-9 w-9 flex-shrink-0 rounded-xl shadow-xs" />
+          <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-[var(--bht-paper)] p-1 ring-1 ring-[var(--border-hairline)]">
+            <HorizonLogo className="h-full w-full" />
+          </span>
           <div className="min-w-0 flex-1">
             <h1 className="line-clamp-2 text-sm font-semibold leading-tight tracking-[-0.02em] text-[#0B192C] min-[380px]:text-base sm:truncate sm:text-lg">
               {title}
@@ -323,9 +338,7 @@ export function BottomNav<T extends string>({
             >
               <div
                 className={`relative flex h-7 w-12 items-center justify-center rounded-full transition ${
-                  active
-                    ? "bg-[#EAF2FF] text-[#0062FF] ring-1 ring-[#BFDBFE]"
-                    : ""
+                  active ? "bg-[#EAF2FF] text-[#0062FF] ring-1 ring-[#BFDBFE]" : ""
                 }`}
               >
                 <span aria-hidden="true">{item.icon}</span>
@@ -346,21 +359,49 @@ export function BottomNav<T extends string>({
             {moreOpen && (
               <div className="absolute bottom-full right-0 mb-3 w-56 rounded-xl border border-[#E2E8F0] bg-white p-1.5 shadow-lg">
                 {extraItems.map((item) => (
-                  <button key={item.id} type="button" aria-current={activeId === item.id ? "page" : undefined}
-                    onClick={() => { onChange(item.id); setMoreOpen(false); moreButtonRef.current?.focus(); }}
-                    className={`flex min-h-11 w-full items-center gap-3 rounded-lg px-3 text-left text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0062FF] ${activeId === item.id ? "bg-[#EAF2FF] text-[#0052D4]" : "text-[#475569] hover:bg-[#F8FAFC]"}`}>
-                    <span aria-hidden="true">{item.icon}</span><span className="flex-1">{item.label}</span>
-                    {item.badgeCount !== undefined && item.badgeCount > 0 && <span className="tabular-nums">{item.badgeCount > 99 ? "99+" : item.badgeCount}</span>}
+                  <button
+                    key={item.id}
+                    type="button"
+                    aria-current={activeId === item.id ? "page" : undefined}
+                    onClick={() => {
+                      onChange(item.id);
+                      setMoreOpen(false);
+                      moreButtonRef.current?.focus();
+                    }}
+                    className={`flex min-h-11 w-full items-center gap-3 rounded-lg px-3 text-left text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0062FF] ${activeId === item.id ? "bg-[#EAF2FF] text-[#0052D4]" : "text-[#475569] hover:bg-[#F8FAFC]"}`}
+                  >
+                    <span aria-hidden="true">{item.icon}</span>
+                    <span className="flex-1">{item.label}</span>
+                    {item.badgeCount !== undefined && item.badgeCount > 0 && (
+                      <span className="tabular-nums">
+                        {item.badgeCount > 99 ? "99+" : item.badgeCount}
+                      </span>
+                    )}
                   </button>
                 ))}
               </div>
             )}
-            <button ref={moreButtonRef} type="button" aria-expanded={moreOpen}
-              aria-label={selectedExtra ? `Más secciones, actual: ${selectedExtra.label}` : "Más secciones"}
+            <button
+              ref={moreButtonRef}
+              type="button"
+              aria-expanded={moreOpen}
+              aria-label={
+                selectedExtra
+                  ? `Más secciones, actual: ${selectedExtra.label}`
+                  : "Más secciones"
+              }
               onClick={() => setMoreOpen((open) => !open)}
-              className={`flex min-h-11 w-full flex-col items-center justify-center gap-1 rounded-xl px-1 py-1.5 text-xs font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0062FF] ${selectedExtra || moreOpen ? "text-[#0052D4]" : "text-[#475569]"}`}>
-              <span className={`flex h-7 w-12 items-center justify-center rounded-full text-lg leading-none ${selectedExtra || moreOpen ? "bg-[#EAF2FF] ring-1 ring-[#BFDBFE]" : ""}`} aria-hidden="true">···</span>
-              <span className="max-w-full truncate">{selectedExtra?.mobileLabel || "Más"}</span>
+              className={`flex min-h-11 w-full flex-col items-center justify-center gap-1 rounded-xl px-1 py-1.5 text-xs font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0062FF] ${selectedExtra || moreOpen ? "text-[#0052D4]" : "text-[#475569]"}`}
+            >
+              <span
+                className={`flex h-7 w-12 items-center justify-center rounded-full text-lg leading-none ${selectedExtra || moreOpen ? "bg-[#EAF2FF] ring-1 ring-[#BFDBFE]" : ""}`}
+                aria-hidden="true"
+              >
+                ···
+              </span>
+              <span className="max-w-full truncate">
+                {selectedExtra?.mobileLabel || "Más"}
+              </span>
             </button>
           </div>
         )}

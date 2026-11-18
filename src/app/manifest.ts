@@ -8,8 +8,8 @@ export default function manifest(): MetadataRoute.Manifest {
       "Pedidos, almacén, cobranzas y control operativo de Blue Horizon Trade.",
     start_url: "/",
     display: "standalone",
-    background_color: "#F8FAFC",
-    theme_color: "#0B192C",
+    background_color: "#F7F5F0",
+    theme_color: "#102A43",
     lang: "es-PE",
     shortcuts: [
       {

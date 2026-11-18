@@ -1,6 +1,18 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <rect width="512" height="512" rx="112" fill="#0F2942"/>
-  <path d="M104 320c48-72 95-108 152-108s104 36 152 108" fill="none" stroke="#fff" stroke-width="28" stroke-linecap="round"/>
-  <path d="M124 344h264" stroke="#5B89B5" stroke-width="24" stroke-linecap="round"/>
-  <circle cx="344" cy="164" r="18" fill="#fff"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
+  <title id="title">Blue Horizon Trade</title>
+  <desc id="desc">Tres volúmenes de carga organizados sobre un pallet geométrico.</desc>
+  <rect width="512" height="512" rx="112" fill="#F7F5F0"/>
+  <g transform="translate(64 64) scale(1.6)">
+    <path fill="#102A43" d="M24 151 120 96l96 55v24l-96 55-96-55v-24Zm20 12 76 44 76-44-76-44-76 44Z"/>
+    <path fill="#102A43" d="M48 176h24v27H48zM108 207h24v25h-24zM168 176h24v27h-24z"/>
+    <path fill="#D9E8FF" d="m41 83 47-27 47 27-47 27-47-27Z"/>
+    <path fill="#486581" d="m41 83 47 27v57l-47-27V83Z"/>
+    <path fill="#102A43" d="m88 110 47-27v57l-47 27v-57Z"/>
+    <path fill="#F6A623" d="m105 73 47-27 47 27-47 27-47-27Z"/>
+    <path fill="#102A43" d="m105 73 47 27v57l-47-27V73Z"/>
+    <path fill="#486581" d="m152 100 47-27v57l-47 27v-57Z"/>
+    <path fill="#1463FF" d="m75 135 47-27 47 27-47 27-47-27Z"/>
+    <path fill="#102A43" d="m75 135 47 27v52l-47-27v-52Z"/>
+    <path fill="#1463FF" d="m122 162 47-27v52l-47 27v-52Z"/>
+  </g>
 </svg>

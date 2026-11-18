@@ -29,36 +29,24 @@ function getIconA11yProps({
 
 export function HorizonLogo({ className = "h-7 w-7", ...props }: IconProps) {
   return (
-    <svg
-      viewBox="0 0 32 32"
-      fill="none"
-      className={className}
-      {...getIconA11yProps(props)}
-    >
-      <rect width="32" height="32" rx="9" fill="#0F2942" />
-      <rect
-        x="0.75"
-        y="0.75"
-        width="30.5"
-        height="30.5"
-        rx="8.25"
-        stroke="#1E446B"
-        strokeOpacity="0.65"
-        strokeWidth="1.5"
+    <svg viewBox="0 0 240 240" className={className} {...getIconA11yProps(props)}>
+      <path
+        fill="#102A43"
+        d="M24 151 120 96l96 55v24l-96 55-96-55v-24Zm20 12 76 44 76-44-76-44-76 44Z"
       />
       <path
-        d="M7 18.5C10.5 13.5 14.5 11.5 18.5 13.5C21.2 14.85 23 16.5 25 18.5"
-        stroke="#F2F6FA"
-        strokeWidth="2"
-        strokeLinecap="round"
+        fill="#102A43"
+        d="M48 176h24v27H48zM108 207h24v25h-24zM168 176h24v27h-24z"
       />
-      <path
-        d="M7 22H25"
-        stroke="#5B89B5"
-        strokeWidth="2"
-        strokeLinecap="round"
-      />
-      <circle cx="21" cy="10.5" r="2" fill="#7CA6CC" />
+      <path fill="#D9E8FF" d="m41 83 47-27 47 27-47 27-47-27Z" />
+      <path fill="#486581" d="m41 83 47 27v57l-47-27V83Z" />
+      <path fill="#102A43" d="m88 110 47-27v57l-47 27v-57Z" />
+      <path fill="#F6A623" d="m105 73 47-27 47 27-47 27-47-27Z" />
+      <path fill="#102A43" d="m105 73 47 27v57l-47-27V73Z" />
+      <path fill="#486581" d="m152 100 47-27v57l-47 27v-57Z" />
+      <path fill="#1463FF" d="m75 135 47-27 47 27-47 27-47-27Z" />
+      <path fill="#102A43" d="m75 135 47 27v52l-47-27v-52Z" />
+      <path fill="#1463FF" d="m122 162 47-27v52l-47 27v-52Z" />
     </svg>
   );
 }
