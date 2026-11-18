@@ -126,7 +126,7 @@ describe("RBAC Financial Isolation & Session Signing", () => {
     expect(formatOperationalStatusEs("READY")).toBe("Pedido listo");
     expect(formatRouteTripStatusEs("OPEN")).toBe("En Ruta");
     expect(formatRouteTripStatusEs("CLOSED")).toBe("Cerrada");
-    expect(formatRouteTripStatusEs("RECONCILED")).toBe("Conciliada");
+    expect(formatRouteTripStatusEs("RECONCILED")).toBe("Cerrada");
     expect(formatQuoteStatusEs("OPEN")).toBe("Abierta");
     expect(formatQuoteStatusEs("CONVERTED")).toBe("Convertida");
     expect(formatQuoteStatusEs("EXPIRED")).toBe("Vencida");

@@ -46,9 +46,6 @@ export function useOrderFlow({
   const router = useRouter();
   const [loadingMoreOrders, setLoadingMoreOrders] = useState(false);
   const [busyTripId, setBusyTripId] = useState<number | null>(null);
-  const [tripDeclaredNetById, setTripDeclaredNetById] = useState<
-    Record<number, string>
-  >({});
   const [busyQuoteId, setBusyQuoteId] = useState<number | null>(null);
   const [selectedMonitorOrder, setSelectedMonitorOrder] =
     useState<SellerOrderDto | null>(null);
@@ -105,29 +102,19 @@ export function useOrderFlow({
     }
   }
 
-  async function handlePartnerTripAction(
-    tripId: number,
-    nextStatus: "CLOSED" | "RECONCILED"
-  ) {
+  // Cierre de ruta: se da por conciliada; el efectivo del día equivale a las ventas de la ruta.
+  async function handlePartnerTripAction(tripId: number, salesPen: number) {
     if (busyTripId === tripId) return;
     setBusyTripId(tripId);
     try {
-      const rawNet = tripDeclaredNetById[tripId];
-      const declaredNetCashPen =
-        nextStatus === "RECONCILED" && rawNet !== undefined && rawNet.trim() !== ""
-          ? Number(rawNet)
-          : undefined;
+      const declaredNetCashPen = Math.max(0, Number(salesPen) || 0);
       await postJson("/api/trips", {
         action: "close_trip",
         tripId,
-        nextStatus,
+        nextStatus: "RECONCILED",
         declaredNetCashPen,
       });
-      showFeedback(
-        nextStatus === "RECONCILED"
-          ? "Ruta conciliada correctamente."
-          : "Ruta cerrada correctamente."
-      );
+      showFeedback("Ruta cerrada correctamente.");
       notifyLocalSync(["orders", "partners"]);
       await refreshDashboard(["orders", "partners"]);
     } catch (error) {
@@ -311,8 +298,6 @@ export function useOrderFlow({
   return {
     loadingMoreOrders,
     busyTripId,
-    tripDeclaredNetById,
-    setTripDeclaredNetById,
     busyQuoteId,
     selectedMonitorOrder,
     setSelectedMonitorOrder,

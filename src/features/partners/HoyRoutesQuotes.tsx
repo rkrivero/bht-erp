@@ -4,13 +4,7 @@ import React from "react";
 import { formatPen } from "@/components/socios/types";
 import {} from "@/components/shared/CollectionControls";
 import {} from "@/components/ui/Icons";
-import {
-  Badge,
-  Button,
-  Card,
-  EmptyState,
-  INPUT_CLASS,
-} from "@/components/ui/Primitives";
+import { Badge, Button, Card, EmptyState } from "@/components/ui/Primitives";
 import { formatQuoteStatusEs, formatRouteTripStatusEs } from "@/lib/labels-es";
 import {} from "./partnerShared";
 import type { PartnerData } from "./usePartnerData";
@@ -29,8 +23,6 @@ export function HoyRoutesQuotes({
 }: HoyRoutesQuotesProps) {
   const {
     busyTripId,
-    tripDeclaredNetById,
-    setTripDeclaredNetById,
     busyQuoteId,
     setSelectedPartnerQuote,
     handlePartnerTripAction,
@@ -46,7 +38,8 @@ export function HoyRoutesQuotes({
               Rutas y Despachos ({routeTrips.length})
             </h2>
             <p className="text-xs text-bht-ink-soft">
-              Cierra la ruta y compara lo cobrado en el día con los pedidos registrados.
+              Cierra la ruta al terminar el día; lo cobrado equivale a las ventas
+              registradas.
             </p>
           </div>
         </div>
@@ -96,55 +89,22 @@ export function HoyRoutesQuotes({
                   </div>
                   {status !== "RECONCILED" && (
                     <div className="flex flex-wrap items-center gap-2">
-                      <label className="flex flex-col gap-1 text-xs font-medium text-bht-ink-soft">
-                        Cobrado del día (S/)
-                        <input
-                          type="number"
-                          step="0.01"
-                          min="0"
-                          placeholder="Total cobrado"
-                          aria-label={`Cobrado del día de la ruta ${String(tr.trip_code)}`}
-                          value={tripDeclaredNetById[tId] ?? ""}
-                          onChange={(e) =>
-                            setTripDeclaredNetById((prev) => ({
-                              ...prev,
-                              [tId]: e.target.value,
-                            }))
-                          }
-                          className={`${INPUT_CLASS} w-40 py-1.5 text-xs tabular-nums`}
-                        />
-                      </label>
-                      {status === "OPEN" && (
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          data-compact="true"
-                          disabled={isBusy}
-                          onClick={() => handlePartnerTripAction(tId, "CLOSED")}
-                        >
-                          Cerrar
-                        </Button>
-                      )}
                       <Button
                         type="button"
                         variant="success"
                         size="sm"
                         data-compact="true"
                         disabled={isBusy}
-                        onClick={() => handlePartnerTripAction(tId, "RECONCILED")}
+                        onClick={() =>
+                          handlePartnerTripAction(
+                            tId,
+                            Number(tr.computed_sales_pen ?? 0)
+                          )
+                        }
                       >
-                        Conciliar
+                        Cerrar ruta
                       </Button>
                     </div>
-                  )}
-                  {status !== "RECONCILED" && (
-                    <p className="text-xs text-bht-ink-muted">
-                      Ingresa lo cobrado por las ventas de ese día. Los gastos de ruta
-                      se registran aparte, incluso retroactivamente; no se descuentan
-                      aquí. El monto es opcional si solo necesitas marcar la ruta como
-                      revisada.
-                    </p>
                   )}
                 </div>
               );

@@ -308,7 +308,6 @@ export default function KpisBiTab({
         ? 100
         : 0
     : Number(kpiQ1.non_opex_vs_reinvestment_ratio_pct ?? 0);
-  const gapPct = Number(kpiQ1.reconciliation_gap_pct ?? 0);
 
   return (
     <div className="min-w-0 space-y-5">
@@ -405,29 +404,14 @@ export default function KpisBiTab({
             (Meta &lt; 30%)
           </Badge>
         </Card>
-
-        <Card padding="md" className="space-y-1.5">
-          <span className="text-xs font-medium text-bht-ink-soft">
-            Brecha arqueo efectivo ruta
-          </span>
-          <p className="text-2xl font-semibold text-bht-ink-strong tabular-nums">
-            {formatPen(kpiQ1.reconciliation_gap_pen)}{" "}
-            <span className="text-sm font-medium text-bht-ink-soft">
-              ({gapPct.toFixed(2)}%)
-            </span>
-          </p>
-          <Badge tone={gapPct > 1 ? "warning" : "success"}>
-            {String(kpiQ1.reconciliation_health_flag)}
-          </Badge>
-        </Card>
       </section>
 
-      {/* Complete Cash Reconciliation Strip */}
+      {/* Cash breakdown */}
       <details className="rounded-2xl border border-bht-line bg-white p-3 sm:p-4">
         <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bht-navy-deep">
           <div>
             <h2 className="text-sm font-semibold text-bht-ink-strong sm:text-base">
-              Conciliación completa de caja
+              Desglose de caja
             </h2>
             <p className="text-xs text-bht-ink-soft">
               Desglose de entradas, salidas e inversión histórica
@@ -446,20 +430,6 @@ export default function KpisBiTab({
                   : "Desglose integral entre operación en ruta (≥ 26 Jun) e inversión inicial pre-ruta (23–25 Jun)."}
               </p>
             </div>
-            {kpiQ1.declared_net_cash_pen !== undefined &&
-              kpiQ1.expected_net_cash_pen !== undefined && (
-                <div className="rounded-xl border border-bht-line-blue bg-bht-mist px-3.5 py-2 text-xs tabular-nums">
-                  <span className="text-bht-navy-mid">Declarado: </span>
-                  <strong className="text-bht-navy-deep">
-                    {formatPen(kpiQ1.declared_net_cash_pen)}
-                  </strong>
-                  <span className="mx-2 text-bht-line-blue">|</span>
-                  <span className="text-bht-navy-mid">Esperado: </span>
-                  <strong className="text-bht-navy-deep">
-                    {formatPen(kpiQ1.expected_net_cash_pen)}
-                  </strong>
-                </div>
-              )}
           </div>
 
           <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-5">

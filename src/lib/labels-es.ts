@@ -212,7 +212,7 @@ export function formatAccountTypeEs(accountType: unknown): string {
 const ROUTE_TRIP_STATUS_ES: Record<string, string> = {
   OPEN: "En Ruta",
   CLOSED: "Cerrada",
-  RECONCILED: "Conciliada",
+  RECONCILED: "Cerrada",
 };
 
 const QUOTE_STATUS_ES: Record<string, string> = {
