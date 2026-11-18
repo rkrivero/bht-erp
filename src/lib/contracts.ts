@@ -126,6 +126,62 @@ export interface TripsResponseDto {
   trips: RouteTripDto[];
 }
 
+export interface WarehouseLineDto {
+  order_line_id: number;
+  line_no: number;
+  sku: string;
+  raw_description: string;
+  unit_of_measure?: string;
+  quantity: number;
+  fulfillment_mode: FulfillmentMode;
+  fulfillment_status: string;
+  needs_supplier_pickup: boolean;
+}
+
+export interface WarehouseOrderDto {
+  order_id: number;
+  order_code: string;
+  order_date: string;
+  customer_name: string;
+  was_modified?: boolean;
+  trip_id?: number | null;
+  trip_code?: string | null;
+  operational_status: "REGISTERED" | "PICKING" | "READY" | "IN_ROUTE" | "DELIVERED";
+  notes: string | null;
+  created_by_name: string | null;
+  picked_by_name: string | null;
+  delivered_by_name: string | null;
+  lines: WarehouseLineDto[];
+}
+
+export interface WarehouseTripDto {
+  trip_id: number;
+  trip_code: string;
+  trip_date: string;
+  end_date: string | null;
+  zone_name: string | null;
+  driver_name: string | null;
+  status: "OPEN" | "CLOSED" | "RECONCILED";
+  notes: string | null;
+  order_count: number;
+  ready_count: number;
+  in_route_count: number;
+  delivered_count: number;
+}
+
+export interface WarehouseOrdersResponseDto {
+  orders?: WarehouseOrderDto[];
+  currentUser?: CurrentUserInfo;
+}
+
+export interface WarehouseTripsResponseDto {
+  trips?: WarehouseTripDto[];
+}
+
+export interface WarehouseTripMutationResponseDto {
+  tripCode?: string;
+}
+
 export interface PartnerTopSkuDto {
   product_id: number;
   sku: string;

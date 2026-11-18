@@ -6,7 +6,7 @@ const nextDir = resolve(root, ".next");
 const routes = {
   socios: { budget: 650_000, source: "src/features/partners/PartnerWorkspace.tsx" },
   vendedor: { budget: 640_000, source: "src/features/seller/SellerWorkspace.tsx" },
-  almacen: { budget: 570_000, source: "src/app/almacen/page.tsx" },
+  almacen: { budget: 570_000, source: "src/features/warehouse/WarehouseWorkspace.tsx" },
   login: { budget: 730_000, source: "src/app/login/page.tsx" },
 };
 
