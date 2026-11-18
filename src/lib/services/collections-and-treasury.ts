@@ -5,6 +5,7 @@ import { getLimaDateString } from "./orders";
 import {
   AuthorizationError,
   ValidationError,
+  parsePositiveInt,
   type FulfillmentMode,
   type LineFulfillmentStatus,
   type SessionUser,
@@ -591,6 +592,7 @@ export async function registerCashOutflow(
     accountId?: number;
     toAccountId?: number;
     isInternalTransfer?: boolean;
+    tripId?: number | null;
   }
 ): Promise<{ ledgerId: number; transferInLedgerId?: number }> {
   assertRole(actor, ["PARTNER_ADMIN", "PARTNER_MANAGER", "EXTERNAL_SELLER"]);
@@ -698,19 +700,33 @@ export async function registerCashOutflow(
     );
   }
 
+  let resolvedTripId: number | null = null;
+  if (bucket === "ROUTE_OPEX" && input.tripId !== undefined && input.tripId !== null) {
+    const tripIdInt = parsePositiveInt(input.tripId, "Ruta / viaje");
+    const tripRes = await client.query(
+      `SELECT 1 FROM erp.route_trips WHERE trip_id = $1 LIMIT 1`,
+      [tripIdInt]
+    );
+    if (tripRes.rowCount === 0) {
+      throw new ValidationError("La ruta seleccionada no existe");
+    }
+    resolvedTripId = tripIdInt;
+  }
+
   const res = await client.query(
     `INSERT INTO erp.cash_ledger (
-       tx_date, account_id, direction, amount_pen,
+       tx_date, account_id, trip_id, direction, amount_pen,
        expense_bucket, expense_category, is_internal_transfer,
        description, source_origin
      ) VALUES (
-       $1::date, $2, 'OUT', $3,
-       $4, $5, FALSE,
-       $6, 'ERP_APP'
+       $1::date, $2, $3, 'OUT', $4,
+       $5, $6, FALSE,
+       $7, 'ERP_APP'
      ) RETURNING ledger_id`,
     [
       txDate,
       fromAcc.accountId,
+      resolvedTripId,
       amountPen,
       bucket,
       normalizedCategory,

@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { Card, SegmentedControl } from "@/components/ui/Primitives";
+import { Card } from "@/components/ui/Primitives";
 import type { PartnerData } from "./usePartnerData";
 import type { PartnerTab, PurchaseTarget, ShowFeedback } from "./partnerShared";
 
@@ -14,10 +14,9 @@ const DeferredSection = () => (
   </Card>
 );
 
-const CajaProveedoresTab = dynamic(
-  () => import("@/components/socios/CajaProveedoresTab"),
-  { loading: DeferredSection }
-);
+const CajaWorkspace = dynamic(() => import("@/components/socios/caja/CajaWorkspace"), {
+  loading: DeferredSection,
+});
 const KpisBiTab = dynamic(() => import("@/components/socios/KpisBiTab"), {
   loading: DeferredSection,
 });
@@ -54,6 +53,7 @@ export function Finanzas({
     suppliers,
     recentPurchases,
     pendingOnDemand,
+    routeTrips,
     kpiQ1,
     openDebtorsCount,
     kpiQ2TopSkus,
@@ -63,17 +63,8 @@ export function Finanzas({
   } = data;
   return (
     <div className="space-y-4">
-      <SegmentedControl
-        ariaLabel="Vista de finanzas y análisis"
-        value={tab === "kpis" ? "kpis" : "caja"}
-        onChange={(value) => handleTabChange(value as PartnerTab)}
-        options={[
-          { id: "caja", label: "Caja y proveedores" },
-          { id: "kpis", label: "Indicadores y reportes" },
-        ]}
-      />
       {tab === "caja" && (
-        <CajaProveedoresTab
+        <CajaWorkspace
           catalog={catalog}
           accounts={accounts}
           ledger={ledger}
@@ -81,8 +72,10 @@ export function Finanzas({
           suppliers={suppliers}
           recentPurchases={recentPurchases}
           pendingOnDemand={pendingOnDemand}
+          routeTrips={routeTrips}
           preselectedTarget={preselectedPurchaseTarget}
           onClearPreselectedTarget={() => setPreselectedPurchaseTarget(null)}
+          onOpenDirectory={() => handleTabChange("directorio")}
           onRefresh={loadDashboard}
           onFeedback={showFeedback}
           onEditingChange={setSubTabEditing}

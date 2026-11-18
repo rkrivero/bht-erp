@@ -29,12 +29,22 @@ export interface CashAccountItem {
 export interface CashLedgerEntry {
   ledger_id: number;
   tx_date: string;
+  account_id?: number;
+  account_code?: string;
   account_name: string;
+  trip_id?: number | null;
+  trip_code?: string | null;
+  trip_zone?: string | null;
+  party_name?: string | null;
   direction: string;
   amount_pen: number | string;
   expense_bucket: string | null;
   expense_category: string;
   is_internal_transfer: boolean;
+  reference_table?: string | null;
+  reference_id?: string | null;
+  source_origin?: string | null;
+  created_at?: string | null;
   description: string;
 }
 

@@ -281,7 +281,7 @@ export function Hoy({
         >
           <div className="flex items-center justify-between gap-2">
             <span className="text-xs font-medium text-bht-ink-warm">
-              Caja y Proveedores (CxP)
+              Caja y Compras (CxP)
             </span>
             <span
               className="text-xs text-bht-ink-muted transition group-hover:translate-x-0.5 group-hover:text-bht-navy-deep"

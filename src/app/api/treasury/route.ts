@@ -57,17 +57,30 @@ export async function GET(req: NextRequest) {
                  cl.account_id,
                  ca.code AS account_code,
                  ca.name AS account_name,
+                 cl.trip_id,
+                 rt.trip_code,
+                 rt.zone_name AS trip_zone,
+                 CASE
+                   WHEN $1::boolean THEN COALESCE(pa.trade_name, pa.legal_name)
+                   ELSE NULL
+                 END AS party_name,
                  cl.direction::text AS direction,
                  cl.amount_pen,
                  cl.expense_bucket::text AS expense_bucket,
                  cl.expense_category,
                  cl.is_internal_transfer,
+                 cl.reference_table,
+                 cl.reference_id,
+                 cl.source_origin::text AS source_origin,
+                 cl.created_at::text AS created_at,
                  cl.description
                FROM erp.cash_ledger cl
                JOIN erp.cash_accounts ca ON ca.account_id = cl.account_id
+               LEFT JOIN erp.route_trips rt ON rt.trip_id = cl.trip_id
+               LEFT JOIN erp.parties pa ON pa.party_id = cl.party_id
                ${whereClause}
                ORDER BY cl.tx_date DESC, cl.ledger_id DESC
-               LIMIT 50
+               LIMIT 150
              ) t
            ), '[]'::json) AS ledger,
            COALESCE((
@@ -119,6 +132,8 @@ export async function GET(req: NextRequest) {
           ...r,
           ledger_id: Number(r.ledger_id),
           account_id: Number(r.account_id),
+          trip_id:
+            r.trip_id !== null && r.trip_id !== undefined ? Number(r.trip_id) : null,
           amount_pen: Number(r.amount_pen),
         })),
         apObligations: (bundle.ap_obligations ?? []).map(mapApObligationRow),
@@ -191,6 +206,7 @@ export async function POST(req: NextRequest) {
             accountId: body.accountId ? Number(body.accountId) : undefined,
             toAccountId: body.toAccountId ? Number(body.toAccountId) : undefined,
             isInternalTransfer: Boolean(body.isInternalTransfer),
+            tripId: body.tripId ? Number(body.tripId) : undefined,
           })
       );
     });

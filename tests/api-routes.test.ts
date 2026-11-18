@@ -909,10 +909,45 @@ describe("API Route Role Enforcement, DB Branch Isolation & Endpoint Contracts",
             expenseCategory: "COMBUSTIBLE",
             description: "Combustible test ruta",
             accountId: sellerAccId,
+            tripId: createdTrip.tripId,
           }),
         })
       );
       expect(routeOpexRes.status).toBe(200);
+      const routeOpexJson = await routeOpexRes.json();
+
+      const badTripExpenseRes = await treasuryRoute.POST(
+        new NextRequest("http://localhost:3000/api/treasury", {
+          method: "POST",
+          headers: {
+            cookie: `bht_session=${adminTok}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            amountPen: 20,
+            expenseBucket: "ROUTE_OPEX",
+            expenseCategory: "PEAJE",
+            description: "Peaje ruta inexistente",
+            accountId: sellerAccId,
+            tripId: 99999999,
+          }),
+        })
+      );
+      expect(badTripExpenseRes.status).toBe(400);
+
+      const treasuryCheckRes = await treasuryRoute.GET(
+        new NextRequest("http://localhost:3000/api/treasury", {
+          headers: { cookie: `bht_session=${adminTok}` },
+        })
+      );
+      expect(treasuryCheckRes.status).toBe(200);
+      const treasuryCheckJson = await treasuryCheckRes.json();
+      const recordedTripExpense = treasuryCheckJson.ledger.find(
+        (m: { ledger_id: number }) => m.ledger_id === routeOpexJson.ledgerId
+      );
+      expect(recordedTripExpense).toBeDefined();
+      expect(recordedTripExpense.trip_id).toBe(createdTrip.tripId);
+      expect(recordedTripExpense.trip_code).toBe(createdTrip.tripCode);
 
       if (secondAccId !== sellerAccId) {
         const transferRes = await treasuryRoute.POST(
