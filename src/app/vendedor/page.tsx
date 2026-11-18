@@ -246,13 +246,13 @@ export default function VendedorPage() {
       setTab(resolved.legacyTab);
       const canonical = canonicalSellerUrl(current);
       if (canonical.search !== current.search) {
-        window.history.replaceState(null, "", canonical.pathname + canonical.search + canonical.hash);
+        router.replace(canonical.pathname + canonical.search + canonical.hash, { scroll: false });
       }
     };
     syncFromUrl();
     window.addEventListener("popstate", syncFromUrl);
     return () => window.removeEventListener("popstate", syncFromUrl);
-  }, []);
+  }, [router]);
   const handleTabChange = useCallback((nextTab: SellerTab) => {
     setTab(nextTab);
     const current = new URL(window.location.href);

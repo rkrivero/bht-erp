@@ -9,9 +9,8 @@ import React, {
   useState,
 } from "react";
 import { useRouter } from "next/navigation";
+import dynamic from "next/dynamic";
 import { authClient } from "@/lib/auth/client";
-import CajaProveedoresTab from "@/components/socios/CajaProveedoresTab";
-import KpisBiTab from "@/components/socios/KpisBiTab";
 import {
   type ApObligationItem,
   type AppUserItem,
@@ -45,7 +44,6 @@ import {
 import {
   ActivityIcon,
   AlertTriangleIcon,
-  BarChartIcon,
   BuildingIcon,
   CheckIcon,
   ChevronRightIcon,
@@ -88,9 +86,24 @@ import {
   resolvePartnerNavigation,
   type LegacyPartnerTab,
 } from "@/lib/navigation";
+import type { PriorityItem } from "@/features/partners/types";
 
 type PartnerTab = LegacyPartnerTab;
 type MonitorStatusFilter = "ALL" | "PENDING" | "DELIVERED" | "CANCELLED";
+
+const DeferredSection = () => (
+  <Card className="p-8 text-center text-sm font-medium text-[var(--ink-secondary)]" role="status">
+    Preparando sección…
+  </Card>
+);
+
+const CajaProveedoresTab = dynamic(
+  () => import("@/components/socios/CajaProveedoresTab"),
+  { loading: DeferredSection }
+);
+const KpisBiTab = dynamic(() => import("@/components/socios/KpisBiTab"), {
+  loading: DeferredSection,
+});
 
 const SOCIOS_SYNC_SCOPES: SyncScope[] = [
   "orders",
@@ -560,13 +573,13 @@ export default function SociosPage() {
       setTab(resolved.legacyTab);
       const canonical = canonicalPartnerUrl(current);
       if (canonical.search !== current.search) {
-        window.history.replaceState(null, "", canonical.pathname + canonical.search + canonical.hash);
+        router.replace(canonical.pathname + canonical.search + canonical.hash, { scroll: false });
       }
     };
     syncFromUrl();
     window.addEventListener("popstate", syncFromUrl);
     return () => window.removeEventListener("popstate", syncFromUrl);
-  }, []);
+  }, [router]);
 
   const isEditingOrModalOpen = Boolean(
     editingProd ||
@@ -1053,44 +1066,38 @@ export default function SociosPage() {
     () => [
       {
         id: "control",
-        label: "Control en Vivo",
-        mobileLabel: "Control",
+        label: "Hoy",
+        mobileLabel: "Hoy",
         icon: <ActivityIcon className="h-4 w-4" />,
         badgeCount: pendingApprovals.length,
       },
       {
         id: "pedidos",
-        label: "Pedidos y Ventas",
-        mobileLabel: "Pedidos",
+        label: "Ventas",
+        mobileLabel: "Ventas",
         icon: <ShoppingBagIcon className="h-4 w-4" />,
         badgeCount: ordersPagination?.totalCount,
       },
       {
         id: "deudores",
-        label: "Deudores y Cobros",
-        mobileLabel: "Cobros",
+        label: "Cobranza",
+        mobileLabel: "Cobrar",
         icon: <WalletIcon className="h-4 w-4" />,
         badgeCount: debtorsByOrder.length,
       },
       {
         id: "stock",
-        label: "Inventario y Precios",
-        mobileLabel: "Stock",
+        label: "Inventario",
+        mobileLabel: "Inventario",
         icon: <PackageIcon className="h-4 w-4" />,
         badgeCount: negStockCount,
       },
       {
         id: "caja",
-        label: "Caja y Proveedores",
-        mobileLabel: "Caja",
+        label: "Finanzas y análisis",
+        mobileLabel: "Finanzas",
         icon: <BuildingIcon className="h-4 w-4" />,
         badgeCount: openApCount,
-      },
-      {
-        id: "kpis",
-        label: "Indicadores y Reportes",
-        mobileLabel: "BI",
-        icon: <BarChartIcon className="h-4 w-4" />,
       },
     ],
     [
@@ -1103,7 +1110,82 @@ export default function SociosPage() {
   );
 
   const activeTabLabel =
-    navItems.find((item) => item.id === tab)?.label ?? "Control en Vivo";
+    navItems.find((item) => item.id === (tab === "kpis" ? "caja" : tab))?.label ?? "Hoy";
+  const navActiveTab: PartnerTab = tab === "kpis" ? "caja" : tab;
+  const brokenPromisesCount = useMemo(
+    () => debtorsByOrder.filter((item) => String(item.promiseStatus) === "PROMISE_BROKEN").length,
+    [debtorsByOrder]
+  );
+  const priorityItems: PriorityItem[] = useMemo(
+    () => [
+      {
+        id: "discount-decisions",
+        category: "decision",
+        level: pendingApprovals.length > 0 ? "critical" : "clear",
+        title: "Descuentos y bloqueos",
+        summary:
+          pendingApprovals.length > 0
+            ? `${pendingApprovals.length} pedido(s) requieren una decisión autorizada.`
+            : "No hay decisiones pendientes en este momento.",
+        dueLabel: pendingApprovals.length > 0 ? "Ahora" : "Al día",
+        entity: { type: "order", count: pendingApprovals.length },
+        allowedAction: "review-decisions",
+      },
+      {
+        id: "broken-promises",
+        category: "cash",
+        level: brokenPromisesCount > 0 ? "due" : "clear",
+        title: "Promesas de pago vencidas",
+        summary:
+          brokenPromisesCount > 0
+            ? `${brokenPromisesCount} compromiso(s) requieren seguimiento.`
+            : "No hay promesas vencidas registradas.",
+        dueLabel: brokenPromisesCount > 0 ? "Vencido" : "Al día",
+        entity: { type: "collection", count: brokenPromisesCount },
+        allowedAction: "open-collections",
+      },
+      {
+        id: "pending-purchases",
+        category: "operation",
+        level: pendingOnDemand.length > 0 ? "attention" : "clear",
+        title: "Compras bajo pedido",
+        summary:
+          pendingOnDemand.length > 0
+            ? `${pendingOnDemand.length} línea(s) esperan gestión con proveedor.`
+            : "No hay compras bajo pedido pendientes.",
+        dueLabel: pendingOnDemand.length > 0 ? "Pendiente" : "Al día",
+        entity: { type: "purchase", count: pendingOnDemand.length },
+        allowedAction: "open-finance",
+      },
+      {
+        id: "inventory-risks",
+        category: "risk",
+        level: negStockCount > 0 ? "attention" : "clear",
+        title: "Riesgos de inventario",
+        summary:
+          negStockCount > 0
+            ? `${negStockCount} saldo(s) negativos requieren revisión.`
+            : "No hay saldos negativos históricos pendientes.",
+        dueLabel: negStockCount > 0 ? "Revisar" : "Al día",
+        entity: { type: "inventory", count: negStockCount },
+        allowedAction: "open-inventory",
+      },
+    ],
+    [brokenPromisesCount, negStockCount, pendingApprovals.length, pendingOnDemand.length]
+  );
+
+  const handlePriorityAction = useCallback(
+    (action: PriorityItem["allowedAction"]) => {
+      if (action === "open-collections") return handleTabChange("deudores");
+      if (action === "open-finance") return handleTabChange("caja");
+      if (action === "open-inventory") return handleTabChange("stock");
+      document.getElementById("discount-approval-queue")?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    },
+    [handleTabChange]
+  );
 
   function handleGlobalSearchSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -1170,7 +1252,7 @@ export default function SociosPage() {
 
       <DesktopSidebar
         items={navItems}
-        activeId={tab}
+        activeId={navActiveTab}
         onChange={handleTabChange}
         areaLabel="Socios · Control"
         footer="Equipo y acceso se mantiene en administración."
@@ -1250,12 +1332,67 @@ export default function SociosPage() {
         )}
 
         {tab === "control" && (
-          <div className="space-y-5">
+          <div className="flex flex-col gap-5">
+            <div className="order-0 flex flex-col gap-1 px-1 sm:flex-row sm:items-end sm:justify-between">
+              <div>
+                <h2 className="text-xl font-bold text-[var(--bht-navy)] sm:text-2xl">
+                  Primero, resuelve lo que bloquea la operación
+                </h2>
+                <p className="mt-1 text-sm text-[var(--ink-secondary)]">
+                  Decisiones, caja, operación y riesgos ordenados por acción.
+                </p>
+              </div>
+              <span className="mt-2 text-xs font-medium text-[var(--ink-secondary)] sm:mt-0">
+                Hoy · America/Lima
+              </span>
+            </div>
+            <Card padding="none" className="order-1 overflow-hidden border-[var(--border-strong)]">
+              <div className="flex items-center justify-between gap-3 border-b border-[var(--border-hairline)] px-4 py-3.5 sm:px-5">
+                <div>
+                  <h3 className="text-base font-bold text-[var(--bht-navy)]">Cola priorizada</h3>
+                  <p className="mt-0.5 text-xs text-[var(--ink-secondary)]">
+                    Ordenada por impacto, vencimiento y acción permitida.
+                  </p>
+                </div>
+                <Badge tone={priorityItems.some((item) => item.entity.count > 0) ? "warning" : "success"}>
+                  {priorityItems.reduce((sum, item) => sum + item.entity.count, 0)} pendientes
+                </Badge>
+              </div>
+              <div className="divide-y divide-[var(--border-hairline)]">
+                {priorityItems.map((item) => {
+                  const Icon =
+                    item.category === "decision"
+                      ? ActivityIcon
+                      : item.category === "cash"
+                        ? WalletIcon
+                        : item.category === "operation"
+                          ? ShoppingBagIcon
+                          : AlertTriangleIcon;
+                  return (
+                    <div key={item.id} className="grid gap-3 px-4 py-3.5 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:items-center sm:px-5">
+                      <span className={`flex h-9 w-9 items-center justify-center rounded-xl ${item.level === "clear" ? "bg-[#F2F6FA] text-[var(--bht-steel)]" : item.level === "critical" ? "bg-[#FEF2F2] text-[#B91C1C]" : "bg-[#FFF7E8] text-[#9A5A00]"}`} aria-hidden="true">
+                        <Icon className="h-4 w-4" />
+                      </span>
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <h4 className="text-sm font-semibold text-[var(--bht-ink)]">{item.title}</h4>
+                          <span className="text-[11px] font-semibold text-[var(--ink-secondary)]">{item.dueLabel}</span>
+                        </div>
+                        <p className="mt-1 text-xs text-[var(--ink-secondary)]">{item.summary}</p>
+                      </div>
+                      <Button variant={item.entity.count > 0 ? "primary" : "outline"} size="sm" onClick={() => handlePriorityAction(item.allowedAction)} className="w-full sm:w-auto">
+                        {item.entity.count > 0 ? "Resolver" : "Revisar"}
+                      </Button>
+                    </div>
+                  );
+                })}
+              </div>
+            </Card>
             {/* Primary Order Intake Action Hub */}
             <Card
               accent="horizon"
               padding="md"
-              className="border-[#D4E0EC] bg-gradient-to-r from-[#F2F6FA] via-white to-[#FAF9F6]"
+              className="order-4 border-[var(--border-hairline)] bg-white"
             >
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex items-start gap-3">
@@ -1295,11 +1432,10 @@ export default function SociosPage() {
             </Card>
 
             {/* Executive Quick Glance Strip ordered by operational priority */}
-            <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+            <div className="order-3 grid grid-cols-2 gap-3 lg:grid-cols-4">
               <button
                 type="button"
                 onClick={() => handleTabChange("control")}
-                aria-label={`Ver pedidos pendientes de aprobación (${pendingApprovals.length})`}
                 className="group rounded-2xl border border-[#E7E5E0] bg-white p-4 text-left shadow-[0_1px_2px_rgba(15,41,66,0.03)] transition hover:border-[#1E446B]/45 hover:shadow-[0_2px_8px_rgba(15,41,66,0.06)] cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0F2942]"
               >
                 <div className="flex items-center justify-between gap-2">
@@ -1320,7 +1456,6 @@ export default function SociosPage() {
               <button
                 type="button"
                 onClick={() => handleTabChange("deudores")}
-                aria-label={`Ir a pedidos por cobrar (${debtorsByOrder.length})`}
                 className="group rounded-2xl border border-[#E7E5E0] bg-white p-4 text-left shadow-[0_1px_2px_rgba(15,41,66,0.03)] transition hover:border-[#1E446B]/45 hover:shadow-[0_2px_8px_rgba(15,41,66,0.06)] cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0F2942]"
               >
                 <div className="flex items-center justify-between gap-2">
@@ -1341,7 +1476,6 @@ export default function SociosPage() {
               <button
                 type="button"
                 onClick={() => handleTabChange("caja")}
-                aria-label={`Ir a compras bajo pedido pendientes (${pendingOnDemand.length})`}
                 className="group rounded-2xl border border-[#E7E5E0] bg-white p-4 text-left shadow-[0_1px_2px_rgba(15,41,66,0.03)] transition hover:border-[#1E446B]/45 hover:shadow-[0_2px_8px_rgba(15,41,66,0.06)] cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0F2942]"
               >
                 <div className="flex items-center justify-between gap-2">
@@ -1362,7 +1496,6 @@ export default function SociosPage() {
               <button
                 type="button"
                 onClick={() => handleTabChange("stock")}
-                aria-label={`Ver administración de saldos históricos negativos (${negStockCount})`}
                 className="group rounded-2xl border border-[#E7E5E0] bg-white p-4 text-left shadow-[0_1px_2px_rgba(15,41,66,0.03)] transition hover:border-[#1E446B]/45 hover:shadow-[0_2px_8px_rgba(15,41,66,0.06)] cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0F2942]"
               >
                 <div className="flex items-center justify-between gap-2">
@@ -1384,7 +1517,7 @@ export default function SociosPage() {
 
             {/* 1-Tap Discount Approval Queue — calm slim banner when 0 pending */}
             {pendingApprovals.length === 0 ? (
-              <div className="flex items-center justify-between gap-2 rounded-2xl border border-[#E7E5E0] bg-white/80 px-4 py-2.5 text-xs text-[#5C5A55]">
+              <div id="discount-approval-queue" className="order-2 flex scroll-mt-24 items-center justify-between gap-2 rounded-2xl border border-[#D5E0E9] bg-white px-4 py-4 text-sm text-[#486581]">
                 <span className="flex items-center gap-2">
                   <CheckIcon className="h-3.5 w-3.5 text-[#15803D]" />
                   No hay pedidos retenidos por descuento en este momento.
@@ -1392,7 +1525,7 @@ export default function SociosPage() {
                 <Badge tone="neutral">0 pendientes</Badge>
               </div>
             ) : (
-              <Card tone="warning" padding="md" className="space-y-3">
+              <Card id="discount-approval-queue" tone="warning" padding="md" className="order-2 scroll-mt-24 space-y-3">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div className="flex items-center gap-2">
                     <AlertTriangleIcon className="h-4 w-4 text-[#B45309]" />
@@ -1508,7 +1641,7 @@ export default function SociosPage() {
 
             {/* ON_DEMAND Pending Supplier Purchases */}
             {pendingOnDemand.length > 0 && (
-              <Card tone="horizon" accent="horizon" padding="md" className="space-y-3">
+              <Card tone="horizon" accent="horizon" padding="md" className="order-5 space-y-3">
                 <div className="flex items-center justify-between gap-2">
                   <h2 className="text-sm sm:text-base font-semibold text-[#0F2942]">
                     Pedidos Bajo Pedido Pendientes de Compra ({pendingOnDemand.length})
@@ -2772,8 +2905,18 @@ export default function SociosPage() {
           </div>
         )}
 
-        {tab === "caja" && (
-          <CajaProveedoresTab
+        {(tab === "caja" || tab === "kpis") && (
+          <div className="space-y-4">
+            <SegmentedControl
+              ariaLabel="Vista de finanzas y análisis"
+              value={tab === "kpis" ? "kpis" : "caja"}
+              onChange={(value) => handleTabChange(value as PartnerTab)}
+              options={[
+                { id: "caja", label: "Caja y proveedores" },
+                { id: "kpis", label: "Indicadores y reportes" },
+              ]}
+            />
+            {tab === "caja" && <CajaProveedoresTab
             catalog={catalog}
             accounts={accounts}
             ledger={ledger}
@@ -2786,33 +2929,32 @@ export default function SociosPage() {
             onRefresh={loadDashboard}
             onFeedback={showFeedback}
             onEditingChange={setSubTabEditing}
-          />
-        )}
+            />}
 
-        {tab === "kpis" && kpiQ1 && (
-          <KpisBiTab
-            currentUser={currentUser}
-            kpiQ1={kpiQ1}
-            openDebtorsCount={openDebtorsCount}
-            kpiQ2TopSkus={kpiQ2TopSkus}
-            qualityGaps={qualityGaps}
-            auditFlags={
-              Array.isArray(partnerData?.auditFlags)
-                ? (partnerData.auditFlags as AuditFlagItem[])
-                : undefined
-            }
-            auditFlagCounts={
-              partnerData?.auditFlagCounts as AuditFlagCounts | undefined
-            }
-            biSummary={biSummary}
-            users={appUsers}
-            userAccessHistory={userAccessHistory}
-            onGoToPurchaseProduct={handleGoToPurchaseProduct}
-            onGoToEditProduct={handleGoToEditProduct}
-            onRefresh={loadDashboard}
-            onFeedback={showFeedback}
-            onEditingChange={setSubTabEditing}
-          />
+            {tab === "kpis" && kpiQ1 && <KpisBiTab
+              currentUser={currentUser}
+              kpiQ1={kpiQ1}
+              openDebtorsCount={openDebtorsCount}
+              kpiQ2TopSkus={kpiQ2TopSkus}
+              qualityGaps={qualityGaps}
+              auditFlags={
+                Array.isArray(partnerData?.auditFlags)
+                  ? (partnerData.auditFlags as AuditFlagItem[])
+                  : undefined
+              }
+              auditFlagCounts={
+                partnerData?.auditFlagCounts as AuditFlagCounts | undefined
+              }
+              biSummary={biSummary}
+              users={appUsers}
+              userAccessHistory={userAccessHistory}
+              onGoToPurchaseProduct={handleGoToPurchaseProduct}
+              onGoToEditProduct={handleGoToEditProduct}
+              onRefresh={loadDashboard}
+              onFeedback={showFeedback}
+              onEditingChange={setSubTabEditing}
+            />}
+          </div>
         )}
       </main>
 
@@ -3439,7 +3581,7 @@ export default function SociosPage() {
 
       <BottomNav
         items={navItems}
-        activeId={tab}
+        activeId={navActiveTab}
         onChange={handleTabChange}
         maxWidth="full"
         className="md:hidden"

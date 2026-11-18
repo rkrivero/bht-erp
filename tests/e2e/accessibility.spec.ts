@@ -105,3 +105,75 @@ test("authenticated warehouse header remains usable without clipping", async ({
     )
   ).toEqual([]);
 });
+
+test("partner today view keeps the priority queue visible and accessible", async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    Object.defineProperty(window, "EventSource", {
+      configurable: true,
+      value: undefined,
+    });
+  });
+
+  const fixtures: Record<string, unknown> = {
+    orders: { orders: [], catalog: [], accounts: [], pagination: { totalCount: 0 } },
+    collections: { byOrder: [], byCustomer: [] },
+    partners: {
+      currentUser: {
+        userId: 1,
+        username: "partner-e2e",
+        fullName: "Socio de prueba",
+        role: "PARTNER_MANAGER",
+      },
+      pendingOnDemand: [],
+      negativeStockSkuCount: 0,
+    },
+    treasury: { accounts: [], ledger: [], apObligations: [] },
+    purchases: { suppliers: [], recentPurchases: [] },
+    trips: { trips: [] },
+    quotes: { quotes: [] },
+  };
+
+  for (const [endpoint, body] of Object.entries(fixtures)) {
+    await page.route(`**/api/${endpoint}`, async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(body),
+      });
+    });
+  }
+  await page.route("**/api/sync**", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        version: "e2e-static",
+        changedScopes: [],
+        allowedScopes: ["orders", "inventory", "collections", "treasury", "purchases", "partners"],
+      }),
+    });
+  });
+
+  await page.goto("/socios?tab=control");
+  await expect(
+    page.getByRole("heading", { name: "Primero, resuelve lo que bloquea la operación" })
+  ).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Cola priorizada" })).toBeVisible();
+  await expect(page).toHaveURL(/tab=today/);
+
+  const overflow = await page.evaluate(
+    () => document.documentElement.scrollWidth > document.documentElement.clientWidth
+  );
+  expect(overflow).toBe(false);
+
+  const results = await new AxeBuilder({ page })
+    .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"])
+    .analyze();
+  expect(
+    results.violations.filter((violation) =>
+      ["critical", "serious"].includes(violation.impact || "")
+    )
+  ).toEqual([]);
+});
