@@ -27,12 +27,14 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [errorScope, setErrorScope] = useState<"email" | "password" | "form" | null>(null);
   const [loading, setLoading] = useState(false);
 
   async function handleLogin(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (loading) return;
     setError(null);
+    setErrorScope(null);
     setLoading(true);
 
     try {
@@ -42,6 +44,7 @@ export default function LoginPage() {
       });
       if (result.error) {
         setError(result.error.message || "Correo o contraseña incorrectos");
+        setErrorScope("password");
         return;
       }
 
@@ -52,11 +55,13 @@ export default function LoginPage() {
         setError(
           "Tu correo aún no está habilitado en el ERP. Contacta a un socio administrador."
         );
+        setErrorScope("email");
         return;
       }
       router.replace(routeForRole(data.session.role));
     } catch {
-      setError("Error de red al iniciar sesión");
+      setError("No pudimos conectar con el ERP. Revisa tu conexión y vuelve a intentar.");
+      setErrorScope("form");
     } finally {
       setLoading(false);
     }
@@ -83,7 +88,8 @@ export default function LoginPage() {
               maxLength={80}
               value={email}
               onChange={(event) => setEmail(event.target.value)}
-              aria-invalid={Boolean(error)}
+              aria-invalid={errorScope === "email"}
+              aria-describedby={errorScope === "email" ? "login-error" : undefined}
               placeholder="nombre@empresa.com"
               required
               className={`${INPUT_CLASS} mt-1.5 w-full rounded-xl`}
@@ -108,7 +114,8 @@ export default function LoginPage() {
                 maxLength={128}
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
-                aria-invalid={Boolean(error)}
+                aria-invalid={errorScope === "password"}
+                aria-describedby={errorScope === "password" ? "login-error" : undefined}
                 placeholder="Tu contraseña"
                 required
                 className={`${INPUT_CLASS} w-full rounded-xl pl-10 pr-11`}
@@ -129,7 +136,7 @@ export default function LoginPage() {
             </div>
           </div>
 
-          {error && <ToastBanner type="err" message={error} />}
+          {error && <div id="login-error"><ToastBanner type="err" message={error} /></div>}
 
           <p className="text-xs leading-relaxed text-[#64748B]">
             Tu correo debe estar habilitado por un socio administrador. Tu sesión

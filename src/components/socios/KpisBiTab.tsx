@@ -316,7 +316,7 @@ export default function KpisBiTab({
         <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-[#E7E5E0] bg-white px-4 py-3">
           <div>
             <p className="text-xs font-semibold text-[#18181B]">Filtro de período</p>
-            <p className="text-[11px] text-[#5C5A55]">
+            <p className="text-xs text-[#5C5A55]">
               {selectedMonthRow
                 ? `Viendo ${formatMonthLabel(selectedMonthRow.period_month)} (${Number(
                     selectedMonthRow.order_count ?? 0
@@ -493,7 +493,7 @@ export default function KpisBiTab({
               },
             ].map((item) => (
               <div key={item.title} className="rounded-xl bg-[#FAF9F6] p-3">
-                <span className="flex items-center gap-1.5 text-[11px] font-medium text-[#5C5A55]">
+                <span className="flex items-center gap-1.5 text-xs font-medium text-[#5C5A55]">
                   <span
                     className={`h-2 w-2 flex-shrink-0 rounded-full ${item.dot}`}
                     aria-hidden="true"
@@ -503,7 +503,7 @@ export default function KpisBiTab({
                 <p className="mt-1 text-base font-semibold text-[#18181B] tabular-nums">
                   {item.value}
                 </p>
-                <span className="mt-0.5 block text-[11px] text-[#5C5A55]">
+                <span className="mt-0.5 block text-xs text-[#5C5A55]">
                   {item.sub}
                 </span>
               </div>
@@ -534,7 +534,7 @@ export default function KpisBiTab({
                 >
                   <div className="min-w-0 flex-1">
                     <p className="font-semibold text-[#18181B]">{item.name}</p>
-                    <p className="mt-0.5 text-[11px] text-[#5C5A55] tabular-nums">
+                    <p className="mt-0.5 text-xs text-[#5C5A55] tabular-nums">
                       {item.sku} · Stock:{" "}
                       <strong
                         className={
@@ -598,12 +598,12 @@ export default function KpisBiTab({
                       <Badge tone={m.missing_cost_alert ? "danger" : "warning"}>
                         {m.missing_cost_alert ? "Sin costo" : "Margen < 20%"}
                       </Badge>
-                      <span className="text-[11px] font-medium text-[#6D6A64]">
+                      <span className="text-xs font-medium text-[#6D6A64]">
                         {m.sku}
                       </span>
                     </div>
                     <p className="font-semibold text-[#18181B]">{m.product_name}</p>
-                    <p className="text-[11px] text-[#5C5A55] tabular-nums">
+                    <p className="text-xs text-[#5C5A55] tabular-nums">
                       Ventas: <strong>{formatPen(m.total_revenue_pen)}</strong> · Costo:{" "}
                       {m.ref_cost_pen !== null && m.ref_cost_pen !== undefined
                         ? formatPen(m.ref_cost_pen)
@@ -689,7 +689,7 @@ export default function KpisBiTab({
                   <span className="text-xs font-semibold uppercase tracking-wide text-[#18181B]">
                     {formatMonthLabel(m.period_month)}
                   </span>
-                  <span className="text-[11px] font-medium text-[#5C5A55] tabular-nums">
+                  <span className="text-xs font-medium text-[#5C5A55] tabular-nums">
                     {Number(m.order_count ?? 0)} pedidos · Depósitos:{" "}
                     {formatPen(m.internal_deposits_pen)}
                   </span>
@@ -706,7 +706,7 @@ export default function KpisBiTab({
                     );
                     return (
                       <div key={b.label} className="space-y-0.5">
-                        <div className="flex justify-between text-[11px] tabular-nums">
+                        <div className="flex justify-between text-xs tabular-nums">
                           <span className="text-[#5C5A55]">{b.label}</span>
                           <span className="font-semibold text-[#18181B]">
                             {formatPen(b.val)}
@@ -735,7 +735,7 @@ export default function KpisBiTab({
           className="table-wrapper hidden md:block"
         >
           <table className="w-full text-left text-xs">
-            <thead className="border-b border-[#E7E5E0] bg-[#FAF9F6] text-[11px] font-semibold uppercase tracking-wide text-[#5C5A55]">
+            <thead className="border-b border-[#E7E5E0] bg-[#FAF9F6] text-xs font-semibold uppercase tracking-wide text-[#5C5A55]">
               <tr>
                 <th scope="col" className="whitespace-nowrap p-2">
                   Mes
@@ -866,7 +866,7 @@ export default function KpisBiTab({
                   <div className="flex items-start justify-between gap-2">
                     <div>
                       <p className="font-semibold text-[#18181B]">{acc.name}</p>
-                      <span className="text-[11px] text-[#5C5A55]">
+                      <span className="text-xs text-[#5C5A55]">
                         {formatAccountTypeEs(acc.account_type)}
                       </span>
                     </div>
@@ -877,7 +877,7 @@ export default function KpisBiTab({
                       {formatPen(net)}
                     </Badge>
                   </div>
-                  <div className="flex justify-between text-[11px] text-[#5C5A55] tabular-nums">
+                  <div className="flex justify-between text-xs text-[#5C5A55] tabular-nums">
                     <span>Entradas: {formatPen(acc.total_in_pen)}</span>
                     <span>Salidas: {formatPen(acc.total_out_pen)}</span>
                   </div>
@@ -917,7 +917,7 @@ export default function KpisBiTab({
                     </div>
                     <div className="grid grid-cols-3 gap-2 border-t border-[#E7E5E0]/80 pt-1.5 tabular-nums">
                       <div>
-                        <span className="block text-[11px] text-[#5C5A55]">
+                        <span className="block text-xs text-[#5C5A55]">
                           Vendido
                         </span>
                         <strong className="text-[#18181B]">
@@ -925,7 +925,7 @@ export default function KpisBiTab({
                         </strong>
                       </div>
                       <div>
-                        <span className="block text-[11px] text-[#5C5A55]">
+                        <span className="block text-xs text-[#5C5A55]">
                           Cobrado
                         </span>
                         <strong className="text-[#15803D]">
@@ -933,7 +933,7 @@ export default function KpisBiTab({
                         </strong>
                       </div>
                       <div>
-                        <span className="block text-[11px] text-[#5C5A55]">Deuda</span>
+                        <span className="block text-xs text-[#5C5A55]">Deuda</span>
                         <strong
                           className={due > 0.05 ? "text-[#B91C1C]" : "text-[#15803D]"}
                         >
@@ -954,7 +954,7 @@ export default function KpisBiTab({
               className="table-wrapper hidden md:block"
             >
               <table className="w-full text-left text-xs">
-                <thead className="border-b border-[#E7E5E0] bg-[#FAF9F6] text-[11px] font-semibold uppercase tracking-wide text-[#5C5A55]">
+                <thead className="border-b border-[#E7E5E0] bg-[#FAF9F6] text-xs font-semibold uppercase tracking-wide text-[#5C5A55]">
                   <tr>
                     <th scope="col" className="p-2">
                       Cliente
@@ -1059,7 +1059,7 @@ export default function KpisBiTab({
                         <p className="font-semibold text-[#18181B]">
                           {String(sku.product_name)}
                         </p>
-                        <span className="text-[11px] text-[#6D6A64]">
+                        <span className="text-xs text-[#6D6A64]">
                           {String(sku.sku)} · {Number(sku.total_units_sold)} u.
                         </span>
                       </div>
@@ -1075,7 +1075,7 @@ export default function KpisBiTab({
                     </div>
                     <div className="grid grid-cols-3 gap-2 border-t border-[#E7E5E0]/80 pt-2 tabular-nums">
                       <div>
-                        <span className="block text-[11px] text-[#5C5A55]">
+                        <span className="block text-xs text-[#5C5A55]">
                           Ingresos
                         </span>
                         <strong className="text-[#18181B]">
@@ -1083,7 +1083,7 @@ export default function KpisBiTab({
                         </strong>
                       </div>
                       <div>
-                        <span className="block text-[11px] text-[#5C5A55]">Margen</span>
+                        <span className="block text-xs text-[#5C5A55]">Margen</span>
                         <strong className={marginCls}>
                           {sku.gross_margin_pen !== null
                             ? formatPen(sku.gross_margin_pen)
@@ -1091,7 +1091,7 @@ export default function KpisBiTab({
                         </strong>
                       </div>
                       <div>
-                        <span className="block text-[11px] text-[#5C5A55]">
+                        <span className="block text-xs text-[#5C5A55]">
                           Margen %
                         </span>
                         <strong className={marginCls}>
@@ -1114,7 +1114,7 @@ export default function KpisBiTab({
               className="table-wrapper hidden md:block"
             >
               <table className="w-full text-left text-xs">
-                <thead className="border-b border-[#E7E5E0] bg-[#FAF9F6] text-[11px] font-semibold uppercase tracking-wide text-[#5C5A55]">
+                <thead className="border-b border-[#E7E5E0] bg-[#FAF9F6] text-xs font-semibold uppercase tracking-wide text-[#5C5A55]">
                   <tr>
                     <th scope="col" className="whitespace-nowrap p-2">
                       Código / Producto
@@ -1152,7 +1152,7 @@ export default function KpisBiTab({
                       <tr key={String(sku.sku)}>
                         <td className="p-2 font-medium text-[#18181B]">
                           {String(sku.product_name)}
-                          <span className="block text-[11px] text-[#6D6A64]">
+                          <span className="block text-xs text-[#6D6A64]">
                             {String(sku.sku)}
                           </span>
                         </td>
@@ -1232,9 +1232,9 @@ export default function KpisBiTab({
               >
                 <div>
                   <p className="text-xs font-semibold text-[#18181B]">{ds.title}</p>
-                  <p className="mt-1 text-[11px] text-[#5C5A55]">{ds.subtitle}</p>
+                  <p className="mt-1 text-xs text-[#5C5A55]">{ds.subtitle}</p>
                 </div>
-                <span className="mt-3 inline-flex items-center justify-center gap-1.5 rounded-lg bg-[#0F2942] px-2.5 py-1.5 text-[11px] font-semibold text-white">
+                <span className="mt-3 inline-flex items-center justify-center gap-1.5 rounded-lg bg-[#0F2942] px-2.5 py-1.5 text-xs font-semibold text-white">
                   <DownloadIcon className="h-3.5 w-3.5" />
                   {busy ? "Descargando..." : "Descargar CSV"}
                 </span>
@@ -1261,7 +1261,7 @@ export default function KpisBiTab({
                 <p className="text-sm font-semibold text-[#18181B] tabular-nums">
                   {Number(g.gap_count)} caso(s) ({formatPen(g.impacted_amount_pen)})
                 </p>
-                <p className="text-[11px] text-[#5C5A55]">{gapInfo.description}</p>
+                <p className="text-xs text-[#5C5A55]">{gapInfo.description}</p>
               </div>
             );
           })}
@@ -1344,7 +1344,7 @@ export default function KpisBiTab({
                         </div>
                         <p className="text-[#18181B]">{f.message}</p>
                         {f.resolution_note && (
-                          <p className="text-[11px] text-[#5C5A55]">
+                          <p className="text-xs text-[#5C5A55]">
                             Nota: {f.resolution_note}
                           </p>
                         )}

@@ -1,0 +1,67 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-11-18T11:00:00-05:00",
+  "title": "Design System: Blue Horizon Trade ERP",
+  "extensions": {
+    "colorMeta": {
+      "horizon-navy": { "role": "primary", "displayName": "Horizon Navy", "canonical": "#102A43", "tonalRamp": ["#F2F6FA", "#D9E8FF", "#486581", "#102A43"] },
+      "trade-cobalt": { "role": "primary", "displayName": "Trade Cobalt", "canonical": "#1463FF", "tonalRamp": ["#EAF2FF", "#D9E8FF", "#1463FF", "#0F54DA"] },
+      "cargo-amber": { "role": "tertiary", "displayName": "Cargo Amber", "canonical": "#F6A623", "tonalRamp": ["#FFF7E8", "#F6A623", "#9A5A00"] },
+      "paper": { "role": "neutral", "displayName": "Paper", "canonical": "#F7F5F0", "tonalRamp": ["#FFFFFF", "#F7F5F0", "#D5E0E9", "#486581"] }
+    },
+    "typographyMeta": {
+      "headline": { "displayName": "Operational Headline", "purpose": "Nombra la decisión o tarea dominante." },
+      "body": { "displayName": "Operational Body", "purpose": "Lectura continua y acciones de campo." },
+      "label": { "displayName": "Control Label", "purpose": "Controles, filtros y metadata." }
+    },
+    "shadows": [
+      { "name": "ambient-low", "value": "0 1px 2px rgba(24,24,27,0.03)", "purpose": "Separación mínima de tarjetas." },
+      { "name": "active-surface", "value": "0 2px 10px rgba(15,41,66,0.05)", "purpose": "Zona operativa prioritaria." },
+      { "name": "floating", "value": "0 12px 28px rgba(15,41,66,0.12)", "purpose": "Menús y listboxes." }
+    ],
+    "motion": [
+      { "name": "state-fast", "value": "160ms cubic-bezier(0.16, 1, 0.3, 1)", "purpose": "Color, borde y opacidad de controles." }
+    ],
+    "breakpoints": [
+      { "name": "sm", "value": "640px" },
+      { "name": "md", "value": "768px" },
+      { "name": "lg", "value": "1024px" },
+      { "name": "xl", "value": "1280px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Acción dominante, directa y accesible.",
+      "html": "<button class=\"ds-btn-primary\">Continuar</button>",
+      "css": ".ds-btn-primary{min-height:40px;padding:10px 16px;border:0;border-radius:12px;background:#1463FF;color:#fff;font:600 14px 'Plus Jakarta Sans',Arial,sans-serif;transition:background-color 160ms}.ds-btn-primary:hover{background:#0F54DA}.ds-btn-primary:focus-visible{outline:2px solid #102A43;outline-offset:2px}"
+    },
+    {
+      "name": "Priority Row",
+      "kind": "custom",
+      "description": "Situación, evidencia y siguiente acción.",
+      "html": "<div class=\"ds-priority\"><div><strong>Descuentos y bloqueos</strong><span>No hay decisiones pendientes.</span></div><button>Revisar</button></div>",
+      "css": ".ds-priority{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:14px 16px;border-bottom:1px solid #D5E0E9;background:#fff;color:#0B192C;font:400 14px 'Plus Jakarta Sans',Arial,sans-serif}.ds-priority strong,.ds-priority span{display:block}.ds-priority span{margin-top:4px;color:#486581;font-size:12px}.ds-priority button{min-height:36px;border:1px solid #1463FF;border-radius:8px;background:#fff;color:#1463FF;font-weight:600}"
+    },
+    {
+      "name": "Operational Input",
+      "kind": "input",
+      "description": "Campo de trabajo con foco inequívoco.",
+      "html": "<input class=\"ds-input\" value=\"Cliente de muestra\" aria-label=\"Cliente\">",
+      "css": ".ds-input{min-height:44px;width:100%;padding:10px 12px;border:1px solid #B9CAD9;border-radius:12px;background:#fff;color:#0B192C;font:400 14px 'Plus Jakarta Sans',Arial,sans-serif}.ds-input:focus-visible{outline:2px solid #1463FF;outline-offset:1px}"
+    }
+  ],
+  "narrative": {
+    "northStar": "Precision Modern",
+    "overview": "Una interfaz operativa sobria donde prioridad, estado y tiempo crean la jerarquía. Primero decide, después ejecuta y finalmente analiza.",
+    "keyCharacteristics": ["Cola dominante", "Densidad progresiva", "Móvil operativo", "Estados semánticos estables"],
+    "rules": [
+      { "name": "Regla 60/30/8/2", "body": "Superficies 60%, estructura 30%, acciones 8% y acentos 2%.", "section": "colors" },
+      { "name": "Plano por defecto", "body": "Bordes tonales crean estructura; sombras responden a jerarquía o flotación.", "section": "elevation" }
+    ],
+    "dos": ["Mostrar la siguiente acción antes del análisis.", "Usar texto, icono y color para los estados."],
+    "donts": ["No inventar KPIs ni urgencias.", "No usar gradientes decorativos o tarjetas equivalentes sin prioridad."]
+  }
+}

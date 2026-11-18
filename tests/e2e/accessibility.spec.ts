@@ -156,7 +156,14 @@ test("partner today view keeps the priority queue visible and accessible", async
       body: JSON.stringify({
         version: "e2e-static",
         changedScopes: [],
-        allowedScopes: ["orders", "inventory", "collections", "treasury", "purchases", "partners"],
+        allowedScopes: [
+          "orders",
+          "inventory",
+          "collections",
+          "treasury",
+          "purchases",
+          "partners",
+        ],
       }),
     });
   });
@@ -236,7 +243,9 @@ test("seller guided flow exposes four steps without overflow", async ({ page }) 
   });
 
   await page.goto("/vendedor?tab=nuevo");
-  await expect(page.getByRole("navigation", { name: "Progreso del pedido" })).toBeVisible();
+  await expect(
+    page.getByRole("navigation", { name: "Progreso del pedido" })
+  ).toBeVisible();
   for (const label of ["Cliente", "Productos", "Pago", "Confirmación"]) {
     await expect(page.getByRole("button", { name: label, exact: true })).toBeVisible();
   }

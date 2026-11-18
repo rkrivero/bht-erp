@@ -87,6 +87,7 @@ import {
   type LegacyPartnerTab,
 } from "@/lib/navigation";
 import type { PriorityItem } from "@/features/partners/types";
+import { deleteOfflineSnapshotsForActor } from "@/lib/offline/outbox";
 
 type PartnerTab = LegacyPartnerTab;
 type MonitorStatusFilter = "ALL" | "PENDING" | "DELIVERED" | "CANCELLED";
@@ -1242,6 +1243,9 @@ export default function SociosPage() {
           if (busyLogout) return;
           setBusyLogout(true);
           try {
+            if (currentUser?.username) {
+              await deleteOfflineSnapshotsForActor(currentUser.username).catch(() => undefined);
+            }
             await authClient.signOut();
           } finally {
             setBusyLogout(false);
@@ -1376,7 +1380,7 @@ export default function SociosPage() {
                       <div className="min-w-0">
                         <div className="flex flex-wrap items-center gap-2">
                           <h4 className="text-sm font-semibold text-[var(--bht-ink)]">{item.title}</h4>
-                          <span className="text-[11px] font-semibold text-[var(--ink-secondary)]">{item.dueLabel}</span>
+                          <span className="text-xs font-semibold text-[var(--ink-secondary)]">{item.dueLabel}</span>
                         </div>
                         <p className="mt-1 text-xs text-[var(--ink-secondary)]">{item.summary}</p>
                       </div>
@@ -1575,7 +1579,7 @@ export default function SociosPage() {
                           {String(o.customer_name)} — {formatPen(o.total_pen)}
                         </h3>
                         {displayLines.length > 0 && (
-                          <div className="space-y-1 rounded-lg bg-[#FAF9F6] px-2.5 py-2 text-[11px] text-[#5C5A55]">
+                          <div className="space-y-1 rounded-lg bg-[#FAF9F6] px-2.5 py-2 text-xs text-[#5C5A55]">
                             {displayLines.slice(0, 4).map((ln, idx) => (
                               <div
                                 key={String(ln.order_line_id ?? idx)}
@@ -1595,7 +1599,7 @@ export default function SociosPage() {
                               </div>
                             ))}
                             {displayLines.length > 4 && (
-                              <p className="text-[11px] font-medium text-[#6D6A64]">
+                              <p className="text-xs font-medium text-[#6D6A64]">
                                 +{displayLines.length - 4} línea(s) adicional(es)
                               </p>
                             )}
@@ -1801,7 +1805,7 @@ export default function SociosPage() {
                         <p className="text-sm font-semibold text-[#18181B]">
                           {String(o.customer_name)}
                         </p>
-                        <p className="text-[11px] text-[#5C5A55]">
+                        <p className="text-xs text-[#5C5A55]">
                           <span className="text-[#6D6A64]">Equipo:</span>{" "}
                           <span className="font-medium text-[#18181B]">
                             {formatTraceabilitySummary(o)}
@@ -1832,7 +1836,7 @@ export default function SociosPage() {
                             {debtVal > 0.05 ? `Debe: ${formatPen(debtVal)}` : "Al día"}
                           </span>
                         </div>
-                        <p className="text-[11px] font-medium text-[#1E446B]">
+                        <p className="text-xs font-medium text-[#1E446B]">
                           Toca para ver productos comprados (
                           {Array.isArray(o.lines) ? o.lines.length : 0})
                         </p>
@@ -1877,7 +1881,7 @@ export default function SociosPage() {
                 className="table-wrapper hidden md:block"
               >
                 <table className="w-full text-left text-xs">
-                  <thead className="border-b border-[#E7E5E0] bg-[#FAF9F6] text-[11px] font-semibold uppercase tracking-wide text-[#5C5A55]">
+                  <thead className="border-b border-[#E7E5E0] bg-[#FAF9F6] text-xs font-semibold uppercase tracking-wide text-[#5C5A55]">
                     <tr>
                       <th scope="col" className="whitespace-nowrap p-3">
                         Pedido / Fecha
@@ -1942,7 +1946,7 @@ export default function SociosPage() {
                         >
                           <td className="whitespace-nowrap p-3 font-semibold text-[#1E446B] tabular-nums">
                             {String(o.order_code)}
-                            <span className="block text-[11px] font-normal text-[#6D6A64]">
+                            <span className="block text-xs font-normal text-[#6D6A64]">
                               {String(o.order_date)}
                             </span>
                           </td>
@@ -2094,7 +2098,7 @@ export default function SociosPage() {
                           </div>
                           {status !== "RECONCILED" && (
                             <div className="flex flex-wrap items-center gap-2">
-                              <label className="flex flex-col gap-1 text-[11px] font-medium text-[#5C5A55]">
+                              <label className="flex flex-col gap-1 text-xs font-medium text-[#5C5A55]">
                                 Cobrado del día (S/)
                                 <input
                                   type="number"
@@ -2139,7 +2143,7 @@ export default function SociosPage() {
                             </div>
                           )}
                           {status !== "RECONCILED" && (
-                            <p className="text-[11px] text-[#6D6A64]">
+                            <p className="text-xs text-[#6D6A64]">
                               Ingresa lo cobrado por las ventas de ese día. Los gastos
                               de ruta se registran aparte, incluso retroactivamente; no
                               se descuentan aquí. El monto es opcional si solo necesitas
@@ -2326,7 +2330,7 @@ export default function SociosPage() {
                           {formatPen(order.total_pen)}
                         </span>
                       </div>
-                      <span className="text-[11px] text-[#5C5A55]">
+                      <span className="text-xs text-[#5C5A55]">
                         Vendedor: {formatActorName(order.created_by_name, "-")} ·{" "}
                         {Array.isArray(order.lines) ? order.lines.length : 0} producto(s)
                       </span>
@@ -2454,7 +2458,7 @@ export default function SociosPage() {
                             {Number(c.maxDaysOverdue)} días · Próx. visita:{" "}
                             {String(c.earliestPromisedPaymentDate || "-")}
                           </p>
-                          <span className="mt-1 inline-flex items-center gap-0.5 text-[11px] font-medium text-[#1E446B]">
+                          <span className="mt-1 inline-flex items-center gap-0.5 text-xs font-medium text-[#1E446B]">
                             Ver detalle y productos
                             <ChevronRightIcon className="h-3 w-3" />
                           </span>
@@ -2710,7 +2714,7 @@ export default function SociosPage() {
                             <p className="text-sm font-semibold text-[#18181B]">
                               {p.name}
                             </p>
-                            <p className="text-[11px] text-[#6D6A64]">{p.sku}</p>
+                            <p className="text-xs text-[#6D6A64]">{p.sku}</p>
                           </div>
                           <Badge
                             tone={
@@ -2722,7 +2726,7 @@ export default function SociosPage() {
                         </div>
                         <div className="grid grid-cols-2 gap-2 border-t border-[#E7E5E0]/80 pt-2 tabular-nums">
                           <div>
-                            <span className="block text-[11px] text-[#5C5A55]">
+                            <span className="block text-xs text-[#5C5A55]">
                               Stock actual
                             </span>
                             <span
@@ -2735,14 +2739,14 @@ export default function SociosPage() {
                               {p.stock_on_hand}{" "}
                               <span
                                 title={formatUnitTitleEs(p.unit_of_measure)}
-                                className="text-[11px] font-medium text-[#6D6A64]"
+                                className="text-xs font-medium text-[#6D6A64]"
                               >
                                 {p.unit_of_measure}
                               </span>
                             </span>
                           </div>
                           <div>
-                            <span className="block text-[11px] text-[#5C5A55]">
+                            <span className="block text-xs text-[#5C5A55]">
                               Costo real
                             </span>
                             <span className="font-semibold text-[#18181B]">
@@ -2752,7 +2756,7 @@ export default function SociosPage() {
                             </span>
                           </div>
                           <div>
-                            <span className="block text-[11px] text-[#5C5A55]">
+                            <span className="block text-xs text-[#5C5A55]">
                               Precio normal
                             </span>
                             <span className="font-semibold text-[#18181B]">
@@ -2761,7 +2765,7 @@ export default function SociosPage() {
                             </span>
                           </div>
                           <div>
-                            <span className="block text-[11px] text-[#5C5A55]">
+                            <span className="block text-xs text-[#5C5A55]">
                               Precio mínimo
                             </span>
                             <span className="font-semibold text-[#1E446B]">
@@ -2792,7 +2796,7 @@ export default function SociosPage() {
                     className="table-wrapper hidden md:block"
                   >
                     <table className="w-full text-left text-xs">
-                      <thead className="border-b border-[#E7E5E0] bg-[#FAF9F6] text-[11px] font-semibold uppercase tracking-wide text-[#5C5A55]">
+                      <thead className="border-b border-[#E7E5E0] bg-[#FAF9F6] text-xs font-semibold uppercase tracking-wide text-[#5C5A55]">
                         <tr>
                           <th scope="col" className="whitespace-nowrap p-2.5">
                             Código / Producto
@@ -2840,7 +2844,7 @@ export default function SociosPage() {
                           >
                             <td className="min-w-[180px] p-2.5 font-medium text-[#18181B]">
                               {p.name}
-                              <span className="block text-[11px] font-normal text-[#6D6A64]">
+                              <span className="block text-xs font-normal text-[#6D6A64]">
                                 {p.sku}
                               </span>
                             </td>
@@ -2865,7 +2869,7 @@ export default function SociosPage() {
                               {p.stock_on_hand}{" "}
                               <span
                                 title={formatUnitTitleEs(p.unit_of_measure)}
-                                className="text-[11px] font-normal text-[#6D6A64]"
+                                className="text-xs font-normal text-[#6D6A64]"
                               >
                                 {p.unit_of_measure}
                               </span>
@@ -3107,19 +3111,19 @@ export default function SociosPage() {
           <div className="space-y-3 text-xs">
             <div className="grid grid-cols-1 gap-2 rounded-xl border border-[#D4E0EC] bg-[#F2F6FA]/70 p-3 sm:grid-cols-3">
               <div>
-                <span className="block text-[11px] text-[#5C5A55]">Estado</span>
+                <span className="block text-xs text-[#5C5A55]">Estado</span>
                 <strong className="text-sm text-[#18181B]">
                   {formatQuoteStatusEs(selectedPartnerQuote.status)}
                 </strong>
               </div>
               <div>
-                <span className="block text-[11px] text-[#5C5A55]">Vendedor</span>
+                <span className="block text-xs text-[#5C5A55]">Vendedor</span>
                 <strong className="text-sm text-[#18181B]">
                   {String(selectedPartnerQuote.seller_name || "-")}
                 </strong>
               </div>
               <div>
-                <span className="block text-[11px] text-[#5C5A55]">Total</span>
+                <span className="block text-xs text-[#5C5A55]">Total</span>
                 <strong className="text-sm text-[#18181B] tabular-nums">
                   {formatPen(selectedPartnerQuote.total_pen)}
                 </strong>
@@ -3147,7 +3151,7 @@ export default function SociosPage() {
                       <p className="font-medium text-[#18181B]">
                         {String(line.raw_description || line.sku || "Producto")}
                       </p>
-                      <p className="text-[11px] text-[#5C5A55] tabular-nums">
+                      <p className="text-xs text-[#5C5A55] tabular-nums">
                         {Number(line.quantity)}{" "}
                         {String(line.unit_of_measure || "NIU")} ×{" "}
                         {formatPen(line.unit_price_pen)}
@@ -3215,13 +3219,13 @@ export default function SociosPage() {
               <div className="space-y-3 text-xs">
                 <div className="grid grid-cols-1 gap-2 rounded-xl border border-[#D4E0EC] bg-[#F2F6FA]/70 p-3 sm:grid-cols-3 tabular-nums">
                   <div>
-                    <span className="block text-[11px] text-[#5C5A55]">Venta</span>
+                    <span className="block text-xs text-[#5C5A55]">Venta</span>
                     <strong className="text-sm text-[#18181B]">
                       {formatPen(totalVal)}
                     </strong>
                   </div>
                   <div>
-                    <span className="block text-[11px] text-[#5C5A55]">Margen</span>
+                    <span className="block text-xs text-[#5C5A55]">Margen</span>
                     <strong
                       className={`text-sm ${getMarginTextClass(marginVal, totalVal)}`}
                     >
@@ -3229,7 +3233,7 @@ export default function SociosPage() {
                     </strong>
                   </div>
                   <div>
-                    <span className="block text-[11px] text-[#5C5A55]">Saldo</span>
+                    <span className="block text-xs text-[#5C5A55]">Saldo</span>
                     <strong
                       className={`text-sm ${
                         debtVal > 0.05 ? "text-[#B91C1C]" : "text-[#15803D]"
@@ -3262,7 +3266,7 @@ export default function SociosPage() {
                             <p className="font-medium text-[#18181B]">
                               {String(ln.raw_description || ln.sku)}
                             </p>
-                            <p className="text-[11px] text-[#5C5A55] tabular-nums">
+                            <p className="text-xs text-[#5C5A55] tabular-nums">
                               {Number(ln.quantity)}{" "}
                               <span title={formatUnitTitleEs(ln.unit_of_measure)}>
                                 {String(ln.unit_of_measure || "NIU")}
@@ -3281,7 +3285,7 @@ export default function SociosPage() {
                             {ln.line_margin_pen !== null &&
                               ln.line_margin_pen !== undefined && (
                                 <span
-                                  className={`block text-[11px] font-medium ${
+                                  className={`block text-xs font-medium ${
                                     Number(ln.line_margin_pen) <= 0
                                       ? "text-[#B91C1C]"
                                       : "text-[#15803D]"
@@ -3321,7 +3325,7 @@ export default function SociosPage() {
                         ).map((entry) => (
                           <div
                             key={String(entry.audit_id)}
-                            className="border-t border-[#D4E0EC] pt-2 text-[11px] text-[#5C5A55]"
+                            className="border-t border-[#D4E0EC] pt-2 text-xs text-[#5C5A55]"
                           >
                             <p className="font-medium text-[#18181B]">
                               {String(entry.action) === "CANCEL"

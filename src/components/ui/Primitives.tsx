@@ -101,7 +101,7 @@ export function Badge({
   );
   return (
     <span
-      className={`inline-flex flex-shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[11px] font-medium leading-4 ${
+      className={`inline-flex flex-shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-medium leading-4 ${
         hasCustomWrap ? "" : "whitespace-nowrap"
       } ${BADGE_CLASSES[tone]} ${className}`}
     >

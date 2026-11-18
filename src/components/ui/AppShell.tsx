@@ -157,7 +157,7 @@ export function AppHeader({
                     data-compact="true"
                     onClick={onSyncClick}
                     aria-label={`Estado de sincronización: ${syncCfg.label}. Tocar para actualizar`}
-                    className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[11px] font-medium leading-4 whitespace-nowrap transition hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#075EE8] cursor-pointer ${syncCfg.pillClass}`}
+                    className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-medium leading-4 whitespace-nowrap transition hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#075EE8] cursor-pointer ${syncCfg.pillClass}`}
                   >
                     <span
                       className={`h-1.5 w-1.5 rounded-full ${syncCfg.dotClass}`}
@@ -169,7 +169,7 @@ export function AppHeader({
                   <span
                     role="status"
                     aria-live="polite"
-                    className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[11px] font-medium leading-4 whitespace-nowrap ${syncCfg.pillClass}`}
+                    className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-medium leading-4 whitespace-nowrap ${syncCfg.pillClass}`}
                   >
                     <span
                       className={`h-1.5 w-1.5 rounded-full ${syncCfg.dotClass}`}
@@ -317,7 +317,7 @@ export function BottomNav<T extends string>({
               type="button"
               aria-current={active ? "page" : undefined}
               onClick={() => onChange(item.id)}
-              className={`relative flex min-w-0 flex-1 min-h-[44px] flex-col items-center justify-center gap-1 rounded-xl py-1.5 px-1 text-[11px] font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0F2942] cursor-pointer ${
+              className={`relative flex min-w-0 flex-1 min-h-[44px] flex-col items-center justify-center gap-1 rounded-xl py-1.5 px-1 text-xs font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0F2942] cursor-pointer ${
                 active ? "text-[#0062FF]" : "text-[#475569] hover:text-[#0B192C]"
               }`}
             >
@@ -330,7 +330,7 @@ export function BottomNav<T extends string>({
               >
                 <span aria-hidden="true">{item.icon}</span>
                 {item.badgeCount !== undefined && item.badgeCount > 0 && (
-                  <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-[#0F2942] px-1 text-[9px] font-bold text-white tabular-nums">
+                  <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-[#0F2942] px-1 text-[10px] font-bold text-white tabular-nums">
                     {item.badgeCount > 99 ? "99+" : item.badgeCount}
                   </span>
                 )}
@@ -358,7 +358,7 @@ export function BottomNav<T extends string>({
             <button ref={moreButtonRef} type="button" aria-expanded={moreOpen}
               aria-label={selectedExtra ? `Más secciones, actual: ${selectedExtra.label}` : "Más secciones"}
               onClick={() => setMoreOpen((open) => !open)}
-              className={`flex min-h-11 w-full flex-col items-center justify-center gap-1 rounded-xl px-1 py-1.5 text-[11px] font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0062FF] ${selectedExtra || moreOpen ? "text-[#0052D4]" : "text-[#475569]"}`}>
+              className={`flex min-h-11 w-full flex-col items-center justify-center gap-1 rounded-xl px-1 py-1.5 text-xs font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0062FF] ${selectedExtra || moreOpen ? "text-[#0052D4]" : "text-[#475569]"}`}>
               <span className={`flex h-7 w-12 items-center justify-center rounded-full text-lg leading-none ${selectedExtra || moreOpen ? "bg-[#EAF2FF] ring-1 ring-[#BFDBFE]" : ""}`} aria-hidden="true">···</span>
               <span className="max-w-full truncate">{selectedExtra?.mobileLabel || "Más"}</span>
             </button>

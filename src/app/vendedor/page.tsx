@@ -62,6 +62,7 @@ import {
   useLiveSync,
   type SyncScope,
 } from "@/lib/realtime/useLiveSync";
+import { deleteOfflineSnapshotsForActor } from "@/lib/offline/outbox";
 import {
   canonicalSellerUrl,
   resolveSellerNavigation,
@@ -1536,6 +1537,9 @@ export default function VendedorPage() {
     if (loggingOut) return;
     setLoggingOut(true);
     try {
+      if (currentUser?.username) {
+        await deleteOfflineSnapshotsForActor(currentUser.username).catch(() => undefined);
+      }
       await authClient.signOut();
     } finally {
       router.push("/login");
@@ -1626,7 +1630,7 @@ export default function VendedorPage() {
           </Card>
         )}
         {tab === "nuevo" && hasOrderDraft && (
-          <p className="-mt-2 px-1 text-[11px] text-[#5C5A55]" role="status">
+          <p className="-mt-2 px-1 text-xs text-[#5C5A55]" role="status">
             Borrador guardado automáticamente en este dispositivo para tu usuario.
           </p>
         )}
@@ -1645,7 +1649,7 @@ export default function VendedorPage() {
                   type="button"
                   aria-current={orderStep === id ? "step" : undefined}
                   onClick={() => openOrderStep(id)}
-                  className={`min-h-11 rounded-xl px-1.5 text-[11px] font-semibold transition-colors sm:text-xs ${orderStep === id ? "bg-[var(--bht-cobalt)] text-white" : complete ? "bg-[var(--bht-sky)] text-[var(--bht-navy)]" : "text-[var(--ink-secondary)] hover:bg-[var(--bg-subtle)]"}`}
+                  className={`min-h-11 rounded-xl px-1.5 text-xs font-semibold transition-colors sm:text-xs ${orderStep === id ? "bg-[var(--bht-cobalt)] text-white" : complete ? "bg-[var(--bht-sky)] text-[var(--bht-navy)]" : "text-[var(--ink-secondary)] hover:bg-[var(--bg-subtle)]"}`}
                 >
                   {label}
                 </button>
@@ -1779,7 +1783,7 @@ export default function VendedorPage() {
                       )}
                     </div>
                     {selectedCustomer && (
-                      <p className="mt-1.5 text-[11px] font-medium text-[#15803D]">
+                      <p className="mt-1.5 text-xs font-medium text-[#15803D]">
                         Cliente vinculado ({selectedCustomer.doc_number || "registrado"}
                         {selectedCustomer.address
                           ? ` · ${selectedCustomer.address}`
@@ -1816,7 +1820,7 @@ export default function VendedorPage() {
                                 {c.name}
                               </span>
                               {c.doc_number && (
-                                <span className="flex-shrink-0 text-[11px] text-[#5C5A55] tabular-nums">
+                                <span className="flex-shrink-0 text-xs text-[#5C5A55] tabular-nums">
                                   {c.doc_number}
                                 </span>
                               )}
@@ -1836,7 +1840,7 @@ export default function VendedorPage() {
                     </FieldLabel>
                     <span
                       id="seller-catalog-count"
-                      className="text-[11px] text-[#5C5A55] tabular-nums"
+                      className="text-xs text-[#5C5A55] tabular-nums"
                     >
                       {initialLoading
                         ? "Cargando..."
@@ -1910,7 +1914,7 @@ export default function VendedorPage() {
                                       title={formatUnitTitleEs(
                                         prod.unit_of_measure || "NIU"
                                       )}
-                                      className="text-[11px] font-normal text-[#6D6A64]"
+                                      className="text-xs font-normal text-[#6D6A64]"
                                     >
                                       / {prod.unit_of_measure || "NIU"}
                                     </span>
@@ -2922,7 +2926,7 @@ export default function VendedorPage() {
 
                           <div className="grid grid-cols-3 gap-2 rounded-xl bg-[#F2F6FA]/70 p-2.5 text-xs tabular-nums">
                             <div>
-                              <span className="block text-[11px] text-[#5C5A55]">
+                              <span className="block text-xs text-[#5C5A55]">
                                 Total
                               </span>
                               <span className="font-semibold text-[#18181B]">
@@ -2930,7 +2934,7 @@ export default function VendedorPage() {
                               </span>
                             </div>
                             <div>
-                              <span className="block text-[11px] text-[#5C5A55]">
+                              <span className="block text-xs text-[#5C5A55]">
                                 Abonado ({item.paymentCount})
                               </span>
                               <span className="font-semibold text-[#15803D]">
@@ -2938,7 +2942,7 @@ export default function VendedorPage() {
                               </span>
                             </div>
                             <div className="text-right">
-                              <span className="block text-[11px] text-[#5C5A55]">
+                              <span className="block text-xs text-[#5C5A55]">
                                 Saldo pendiente
                               </span>
                               <span className="text-sm font-semibold text-[#B91C1C]">
@@ -3179,7 +3183,7 @@ export default function VendedorPage() {
                             </strong>
                           </span>
                         </div>
-                        <p className="rounded-lg bg-[#F2F6FA]/70 px-2.5 py-1.5 text-[11px] text-[#1E446B]">
+                        <p className="rounded-lg bg-[#F2F6FA]/70 px-2.5 py-1.5 text-xs text-[#1E446B]">
                           Tomó: {String(o.created_by_name || "-")} · Preparó:{" "}
                           {String(o.picked_by_name || "Pendiente")} · Entregó:{" "}
                           {String(o.delivered_by_name || "Pendiente")}
@@ -3188,7 +3192,7 @@ export default function VendedorPage() {
 
                       {isExpanded && (
                         <div className="space-y-2 border-t border-[#E7E5E0] pt-2.5 text-xs">
-                          <div className="flex items-center justify-between text-[11px] font-semibold uppercase tracking-wide text-[#5C5A55]">
+                          <div className="flex items-center justify-between text-xs font-semibold uppercase tracking-wide text-[#5C5A55]">
                             <span>
                               Detalle comprado ({orderLines.length}{" "}
                               {orderLines.length === 1 ? "ítem" : "ítems"})
@@ -3210,7 +3214,7 @@ export default function VendedorPage() {
                                     <p className="font-medium text-[#18181B]">
                                       {String(ln.raw_description || ln.sku)}
                                     </p>
-                                    <p className="text-[11px] text-[#5C5A55] tabular-nums">
+                                    <p className="text-xs text-[#5C5A55] tabular-nums">
                                       {Number(ln.quantity)}{" "}
                                       {String(ln.unit_of_measure || "NIU")} × S/{" "}
                                       {Number(ln.unit_price_pen).toFixed(2)}
@@ -3230,7 +3234,7 @@ export default function VendedorPage() {
                             </div>
                           )}
                           {o.notes ? (
-                            <p className="rounded-lg bg-[#FAF9F6] px-2.5 py-1.5 text-[11px] text-[#5C5A55]">
+                            <p className="rounded-lg bg-[#FAF9F6] px-2.5 py-1.5 text-xs text-[#5C5A55]">
                               Nota: {String(o.notes)}
                             </p>
                           ) : null}
@@ -3243,7 +3247,7 @@ export default function VendedorPage() {
                                 {auditHistory.map((entry) => (
                                   <div
                                     key={String(entry.audit_id)}
-                                    className="border-t border-[#D4E0EC] pt-2 text-[11px] text-[#5C5A55]"
+                                    className="border-t border-[#D4E0EC] pt-2 text-xs text-[#5C5A55]"
                                   >
                                     <p className="font-medium text-[#18181B]">
                                       {String(entry.action) === "CANCEL"
@@ -3575,7 +3579,7 @@ export default function VendedorPage() {
         >
           <div className="mx-auto flex max-w-2xl items-center justify-between gap-3">
             <div className="min-w-0">
-              <p className="text-[11px] font-medium text-[#5C5A55]">
+              <p className="text-xs font-medium text-[#5C5A55]">
                 {cart.length} {cart.length === 1 ? "producto" : "productos"} en pedido
               </p>
               <p className="text-base font-semibold text-[#0F2942] tabular-nums">

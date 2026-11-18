@@ -19,6 +19,7 @@ import {
   useLiveSync,
   type SyncScope,
 } from "@/lib/realtime/useLiveSync";
+import { deleteOfflineSnapshotsForActor } from "@/lib/offline/outbox";
 
 interface CurrentWarehouseUser {
   userId: number;
@@ -456,6 +457,9 @@ export default function AlmacenPage() {
     if (loggingOut) return;
     setLoggingOut(true);
     try {
+      if (currentUser?.username) {
+        await deleteOfflineSnapshotsForActor(currentUser.username).catch(() => undefined);
+      }
       await authClient.signOut();
     } finally {
       router.push("/login");
@@ -596,7 +600,7 @@ export default function AlmacenPage() {
                 Rutas de Reparto ({openTrips.length} activa
                 {openTrips.length === 1 ? "" : "s"})
               </span>
-              <p className="text-[11px] text-[#5C5A55]">
+              <p className="text-xs text-[#5C5A55]">
                 Asigna pedidos listos a una salida en ruta antes de entregar.
               </p>
             </div>
@@ -782,7 +786,7 @@ export default function AlmacenPage() {
                                 {line.raw_description}
                               </p>
                               <div className="mt-1 flex flex-wrap items-center gap-1.5">
-                                <span className="text-[11px] font-medium text-[#5C5A55]">
+                                <span className="text-xs font-medium text-[#5C5A55]">
                                   {line.sku}
                                 </span>
                                 {line.needs_supplier_pickup && (
@@ -809,7 +813,7 @@ export default function AlmacenPage() {
                             × {line.quantity}
                             {line.unit_of_measure ? (
                               <span
-                                className={`ml-1.5 text-[11px] font-medium uppercase ${
+                                className={`ml-1.5 text-xs font-medium uppercase ${
                                   isDelivered || checked
                                     ? "text-[#6D6A64]"
                                     : "text-white/80"
@@ -850,7 +854,7 @@ export default function AlmacenPage() {
                     })}
                   </ul>
 
-                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl border border-[#D4E0EC]/70 bg-[#F2F6FA]/75 px-3 py-2 text-[11px] text-[#1E446B]">
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl border border-[#D4E0EC]/70 bg-[#F2F6FA]/75 px-3 py-2 text-xs text-[#1E446B]">
                     <strong>
                       Etapa:{" "}
                       {order.operational_status === "IN_ROUTE"

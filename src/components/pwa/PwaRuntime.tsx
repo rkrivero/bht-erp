@@ -3,7 +3,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { listOutbox, OUTBOX_EVENT, putOutboxMutation } from "@/lib/offline/outbox";
+import {
+  getOfflineCausalKey,
+  listOutbox,
+  OUTBOX_EVENT,
+  putOutboxMutation,
+} from "@/lib/offline/outbox";
 import type { OfflineMutation } from "@/lib/offline/types";
 
 interface RuntimeState {
@@ -51,10 +56,16 @@ export default function PwaRuntime() {
     setState((prev) => ({ ...prev, syncing: true, online: true }));
     try {
       const items = await listOutbox();
+      const blockedChains = new Set(
+        items
+          .filter((item) => item.status === "conflict")
+          .map((item) => getOfflineCausalKey(item))
+      );
       for (const item of items) {
         if (item.status === "synced") continue;
-        // Preserve operation order: a blocked mutation pauses later writes.
-        if (item.status === "conflict") break;
+        const causalKey = getOfflineCausalKey(item);
+        // Preserve order inside one entity chain while allowing independent work.
+        if (item.status === "conflict" || blockedChains.has(causalKey)) continue;
         const syncing: OfflineMutation = { ...item, status: "syncing" };
         await putOutboxMutation(syncing);
         try {
@@ -97,8 +108,10 @@ export default function PwaRuntime() {
             lastError: payload.error || "La operación cambió y requiere revisión",
             conflictCode: payload.code,
             entityRef: payload.entityRef,
+            causalKey,
           });
-          break;
+          blockedChains.add(causalKey);
+          continue;
         } catch {
           await putOutboxMutation({
             ...item,

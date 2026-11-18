@@ -75,7 +75,7 @@ export default function OfflineQueuePanel() {
         <h2 id="offline-queue-heading" className="text-sm font-semibold text-[#0F2942]">
           Actividad de sincronización
         </h2>
-        <p className="text-[11px] text-[#5C5A55]">
+        <p className="text-xs text-[#5C5A55]">
           {pendingCount} pendiente(s) · {syncedCount} sincronizada(s) · {conflictCount}{" "}
           en revisión
         </p>
@@ -128,7 +128,7 @@ export default function OfflineQueuePanel() {
               <p className="mt-2 font-medium text-[#991B1B]">{item.lastError}</p>
             )}
             {item.conflictCode && (
-              <p className="mt-1 text-[11px] text-[#7F1D1D]">
+              <p className="mt-1 text-xs text-[#7F1D1D]">
                 Código: {item.conflictCode}
                 {item.entityRef ? ` · Referencia: ${item.entityRef}` : ""}
               </p>

@@ -13,6 +13,7 @@ export interface OfflineMutation {
   syncedAt?: string;
   conflictCode?: string;
   entityRef?: string;
+  causalKey?: string;
 }
 
 export interface SyncConflict {

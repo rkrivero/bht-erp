@@ -149,6 +149,48 @@ export async function deleteOfflineSnapshot(
   );
 }
 
+export async function deleteOfflineSnapshotsForActor(
+  actorUsername: string
+): Promise<void> {
+  const prefix = `${actorUsername}:`;
+  const db = await openDb();
+  try {
+    await new Promise<void>((resolve, reject) => {
+      const tx = db.transaction(SNAPSHOT_STORE, "readwrite");
+      const store = tx.objectStore(SNAPSHOT_STORE);
+      const cursor = store.openCursor();
+      cursor.onsuccess = () => {
+        const row = cursor.result;
+        if (!row) return;
+        if (String(row.key).startsWith(prefix)) row.delete();
+        row.continue();
+      };
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+      tx.onabort = () => reject(tx.error);
+    });
+  } finally {
+    db.close();
+  }
+}
+
+export function getOfflineCausalKey(
+  mutation: Pick<
+    OfflineMutation,
+    "id" | "kind" | "actorUsername" | "body" | "causalKey"
+  >
+): string {
+  if (mutation.causalKey) return mutation.causalKey;
+  const body = mutation.body;
+  const entity =
+    body.orderId ??
+    body.customerPartyId ??
+    body.customerNameRaw ??
+    body.expenseDate ??
+    mutation.id;
+  return `${mutation.actorUsername}:${mutation.kind}:${String(entity)}`;
+}
+
 export async function submitOfflineCapable<T>({
   kind,
   actorUsername,
@@ -174,6 +216,13 @@ export async function submitOfflineCapable<T>({
     body,
     createdAt: new Date().toISOString(),
     status: "pending",
+    causalKey: getOfflineCausalKey({
+      id,
+      kind,
+      actorUsername,
+      body,
+      causalKey: undefined,
+    }),
   };
 
   if (navigator.onLine === false) {

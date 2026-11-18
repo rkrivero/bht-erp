@@ -483,7 +483,7 @@ export function DebtorDetailModal({
       <div className="space-y-3.5 text-xs">
         <div className="grid grid-cols-1 gap-2.5 rounded-xl border border-[#D4E0EC] bg-[#F2F6FA]/85 p-3 sm:grid-cols-3 tabular-nums">
           <div>
-            <span className="block text-[11px] text-[#5C5A55]">
+            <span className="block text-xs text-[#5C5A55]">
               {mode === "customer" ? "Total vendido" : "Total pedido"}
             </span>
             <strong className="text-sm text-[#18181B]">
@@ -491,13 +491,13 @@ export function DebtorDetailModal({
             </strong>
           </div>
           <div>
-            <span className="block text-[11px] text-[#5C5A55]">Abonado</span>
+            <span className="block text-xs text-[#5C5A55]">Abonado</span>
             <strong className="text-sm text-[#15803D]">
               S/ {totalPaid.toFixed(2)}
             </strong>
           </div>
           <div className="sm:text-right">
-            <span className="block text-[11px] text-[#5C5A55]">
+            <span className="block text-xs text-[#5C5A55]">
               Saldo pendiente
             </span>
             <strong className="text-sm text-[#B91C1C]">
@@ -531,7 +531,7 @@ export function DebtorDetailModal({
                           {formatOperationalStatusEs(order.operationalStatus)}
                         </Badge>
                       </div>
-                      <p className="mt-0.5 text-[11px] text-[#5C5A55] tabular-nums">
+                      <p className="mt-0.5 text-xs text-[#5C5A55] tabular-nums">
                         Total: S/ {order.totalPen.toFixed(2)} · Abonado: S/{" "}
                         {order.paidPen.toFixed(2)} ·{" "}
                         <strong className="text-[#B91C1C]">
@@ -553,7 +553,7 @@ export function DebtorDetailModal({
                     </Badge>
                   </div>
 
-                  <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-[#5C5A55]">
+                  <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-[#5C5A55]">
                     <span>
                       Pactado:{" "}
                       <strong className="text-[#18181B]">
@@ -567,11 +567,11 @@ export function DebtorDetailModal({
                   </div>
 
                   <div className="space-y-1.5 border-t border-[#E7E5E0] pt-2">
-                    <p className="text-[11px] font-semibold uppercase tracking-wide text-[#0F2942]">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-[#0F2942]">
                       Productos de este pedido ({lines.length})
                     </p>
                     {lines.length === 0 ? (
-                      <p className="rounded-lg border border-dashed border-[#DDDAD3] bg-white px-2.5 py-2 text-[11px] text-[#5C5A55]">
+                      <p className="rounded-lg border border-dashed border-[#DDDAD3] bg-white px-2.5 py-2 text-xs text-[#5C5A55]">
                         Pedido histórico sin desglose individual de productos.
                       </p>
                     ) : (
@@ -585,7 +585,7 @@ export function DebtorDetailModal({
                               <p className="font-medium text-[#18181B]">
                                 {ln.rawDescription || ln.sku}
                               </p>
-                              <p className="mt-0.5 text-[11px] text-[#5C5A55] tabular-nums">
+                              <p className="mt-0.5 text-xs text-[#5C5A55] tabular-nums">
                                 {ln.quantity} {ln.unitOfMeasure || "NIU"} × S/{" "}
                                 {ln.unitPricePen.toFixed(2)}
                                 {ln.unitDiscountPen > 0
@@ -630,7 +630,7 @@ export function DebtorDetailModal({
                   </div>
 
                   {isTimelineOpen && (
-                    <div className="rounded-lg border border-[#D4E0EC] bg-[#F2F6FA]/70 p-2.5 text-[11px]">
+                    <div className="rounded-lg border border-[#D4E0EC] bg-[#F2F6FA]/70 p-2.5 text-xs">
                       {!timeline || timeline.length === 0 ? (
                         <p className="text-[#5C5A55]">
                           Este pedido aún no registra abonos previos.

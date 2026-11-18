@@ -316,7 +316,7 @@ export default function UserManagementPanel({
 
                   <div className="flex w-full flex-col gap-2 lg:w-auto lg:min-w-[280px]">
                     <label
-                      className="text-[11px] font-semibold text-[#5C5A55]"
+                      className="text-xs font-semibold text-[#5C5A55]"
                       htmlFor={`role-${user.user_id}`}
                     >
                       Rol y alcance
@@ -339,7 +339,7 @@ export default function UserManagementPanel({
                         </option>
                       ))}
                     </select>
-                    <p className="text-[11px] leading-4 text-[#6D6A64]">
+                    <p className="text-xs leading-4 text-[#6D6A64]">
                       {roleDescription(user.role)}
                     </p>
                   </div>
@@ -465,7 +465,7 @@ export default function UserManagementPanel({
                     {auditActionLabel(entry.action)} de{" "}
                     <strong className="text-[#18181B]">{entry.target_name}</strong>.
                   </p>
-                  <p className="mt-1 text-[11px] text-[#6D6A64]">
+                  <p className="mt-1 text-xs text-[#6D6A64]">
                     {formatAuditDate(entry.created_at)}
                   </p>
                 </div>
@@ -520,7 +520,7 @@ export default function UserManagementPanel({
               className={`${INPUT_CLASS} mt-1.5 min-h-11 w-full`}
               placeholder="Ej. maria.lopez"
             />
-            <p className="mt-1 text-[11px] text-[#6D6A64]">
+            <p className="mt-1 text-xs text-[#6D6A64]">
               Se usa en auditorías y responsables; no es la contraseña.
             </p>
           </div>
@@ -567,7 +567,7 @@ export default function UserManagementPanel({
                 </option>
               ))}
             </select>
-            <p className="mt-1 text-[11px] leading-4 text-[#6D6A64]">
+            <p className="mt-1 text-xs leading-4 text-[#6D6A64]">
               {roleDescription(createForm.role)}
             </p>
           </div>

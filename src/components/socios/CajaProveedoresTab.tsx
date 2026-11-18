@@ -105,7 +105,7 @@ function InvoiceLinesBreakdown({
         >
           <div className="min-w-0 flex-1">
             <p className="font-semibold text-[#18181B]">{ln.raw_description}</p>
-            <p className="mt-0.5 text-[11px] text-[#5C5A55] tabular-nums">
+            <p className="mt-0.5 text-xs text-[#5C5A55] tabular-nums">
               {ln.sku ? `${ln.sku} · ` : ""}
               {Number(ln.quantity)} {ln.unit_of_measure || "NIU"} ×{" "}
               {formatPen(ln.unit_cost_pen)}
@@ -199,7 +199,7 @@ const PurchaseLineRow = React.memo(function PurchaseLineRow({
           ))}
         </select>
         {selectedProd && (
-          <p className="text-[11px] text-[#5C5A55] tabular-nums">
+          <p className="text-xs text-[#5C5A55] tabular-nums">
             Stock actual:{" "}
             <strong className="text-[#18181B]">{selectedProd.stock_on_hand}</strong>{" "}
             {selectedProd.unit_of_measure} · Costo ref:{" "}
@@ -966,7 +966,7 @@ export default function CajaProveedoresTab({
               className="flex items-center justify-between gap-2 rounded-xl border border-[#E7E5E0] bg-white/80 px-3 py-2"
             >
               <div className="min-w-0">
-                <p className="truncate text-[11px] font-medium text-[#5C5A55]">
+                <p className="truncate text-xs font-medium text-[#5C5A55]">
                   {account.name}
                 </p>
                 <p className="text-[10px] text-[#6D6A64]">{account.code}</p>
@@ -1333,7 +1333,7 @@ export default function CajaProveedoresTab({
                             {od.sku} · ×{Number(od.quantity)}{" "}
                             {od.unit_of_measure || "NIU"} — {od.product_name}
                           </p>
-                          <p className="text-[11px] text-[#5C5A55] tabular-nums">
+                          <p className="text-xs text-[#5C5A55] tabular-nums">
                             {od.order_code} ·{" "}
                             {od.customer_name || od.customer_name_raw || "-"} ·{" "}
                             {formatPen(od.line_total_pen)}
@@ -1482,13 +1482,13 @@ export default function CajaProveedoresTab({
                         <p className="truncate text-sm font-semibold text-[#18181B]">
                           {sup.trade_name || sup.legal_name}
                         </p>
-                        <p className="mt-0.5 text-[11px] text-[#5C5A55]">
+                        <p className="mt-0.5 text-xs text-[#5C5A55]">
                           {sup.doc_type && sup.doc_number
                             ? `${sup.doc_type}: ${sup.doc_number}`
                             : "Sin RUC/DNI"}
                           {sup.phone ? ` · ${sup.phone}` : ""}
                         </p>
-                        <p className="mt-0.5 text-[11px] text-[#6D6A64] tabular-nums">
+                        <p className="mt-0.5 text-xs text-[#6D6A64] tabular-nums">
                           {openDocs} doc(s) pendiente(s)
                         </p>
                       </div>
@@ -1599,7 +1599,7 @@ export default function CajaProveedoresTab({
                           <p className="font-semibold text-[#18181B]">
                             {ap.supplier_name}
                           </p>
-                          <p className="mt-0.5 text-[11px] font-medium text-[#1E446B] tabular-nums">
+                          <p className="mt-0.5 text-xs font-medium text-[#1E446B] tabular-nums">
                             {ap.doc_ref} · Emisión: {ap.issue_date}
                             {ap.due_date ? ` · Vence: ${ap.due_date}` : ""}
                           </p>
@@ -1624,12 +1624,12 @@ export default function CajaProveedoresTab({
                       </div>
 
                       {ap.notes && (
-                        <p className="text-[11px] text-[#6D6A64]">
+                        <p className="text-xs text-[#6D6A64]">
                           Nota: {normalizeUiNoteEs(ap.notes)}
                         </p>
                       )}
 
-                      <span className="inline-flex items-center gap-1 text-[11px] font-medium text-[#1E446B]">
+                      <span className="inline-flex items-center gap-1 text-xs font-medium text-[#1E446B]">
                         Ver detalle ({itemCount}{" "}
                         {itemCount === 1 ? "ítem pedido" : "ítems pedidos"}) y pagos
                         <ChevronRightIcon className="h-3 w-3" />
@@ -1802,7 +1802,7 @@ export default function CajaProveedoresTab({
                       }}
                       className={`${INPUT_CLASS} mt-1.5 font-medium`}
                     />
-                    <p className="mt-1 text-[11px] text-[#6D6A64]">
+                    <p className="mt-1 text-xs text-[#6D6A64]">
                       Puedes elegir una fecha anterior para registrar un gasto olvidado.
                     </p>
                   </div>
@@ -2056,7 +2056,7 @@ export default function CajaProveedoresTab({
                           <p className="font-semibold text-[#18181B]">
                             {formatPen(pur.total_pen)}
                           </p>
-                          <p className="text-[11px] text-[#1E446B] font-medium">
+                          <p className="text-xs text-[#1E446B] font-medium">
                             {Number(pur.line_count ?? 0)} ítem(s) →
                           </p>
                         </div>
@@ -2070,7 +2070,7 @@ export default function CajaProveedoresTab({
                     className="table-wrapper hidden md:block"
                   >
                     <table className="w-full text-left text-xs">
-                      <thead className="border-b border-[#E7E5E0] bg-[#FAF9F6] text-[11px] font-semibold uppercase tracking-wide text-[#5C5A55]">
+                      <thead className="border-b border-[#E7E5E0] bg-[#FAF9F6] text-xs font-semibold uppercase tracking-wide text-[#5C5A55]">
                         <tr>
                           <th scope="col" className="whitespace-nowrap p-2">
                             Comprobante / Fecha
@@ -2106,7 +2106,7 @@ export default function CajaProveedoresTab({
                                 {formatDocTypeEs(pur.doc_type)} {pur.doc_series}-
                                 {pur.doc_number}
                               </button>
-                              <span className="block text-[11px] font-normal text-[#6D6A64] tabular-nums">
+                              <span className="block text-xs font-normal text-[#6D6A64] tabular-nums">
                                 {pur.issue_date}
                               </span>
                             </td>
@@ -2199,7 +2199,7 @@ export default function CajaProveedoresTab({
                             <span className="font-semibold text-[#18181B]">
                               {formatExpenseCategoryEs(mov.expense_category)}
                             </span>
-                            <span className="text-[11px] text-[#6D6A64]">
+                            <span className="text-xs text-[#6D6A64]">
                               · {mov.account_name} · {mov.tx_date}
                             </span>
                           </div>
@@ -2530,7 +2530,7 @@ export default function CajaProveedoresTab({
           <div className="space-y-4 text-xs">
             <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-3 tabular-nums">
               <div className="rounded-xl border border-[#E7E5E0] bg-[#FAF9F6] p-3">
-                <span className="block text-[11px] text-[#6D6A64]">
+                <span className="block text-xs text-[#6D6A64]">
                   Total facturado / pedido
                 </span>
                 <strong className="mt-0.5 block text-base text-[#18181B]">
@@ -2538,7 +2538,7 @@ export default function CajaProveedoresTab({
                 </strong>
               </div>
               <div className="rounded-xl border border-[#E7E5E0] bg-[#FAF9F6] p-3">
-                <span className="block text-[11px] text-[#6D6A64]">
+                <span className="block text-xs text-[#6D6A64]">
                   Pagado / amortizado
                 </span>
                 <strong className="mt-0.5 block text-base text-[#15803D]">
@@ -2546,7 +2546,7 @@ export default function CajaProveedoresTab({
                 </strong>
               </div>
               <div className="rounded-xl border border-[#FEE2E2] bg-[#FEF2F2]/60 p-3">
-                <span className="block text-[11px] text-[#991B1B]">
+                <span className="block text-xs text-[#991B1B]">
                   Saldo que se debe
                 </span>
                 <strong className="mt-0.5 block text-base text-[#B91C1C]">
@@ -2575,13 +2575,13 @@ export default function CajaProveedoresTab({
             </div>
 
             {detailAp.notes && (
-              <p className="rounded-xl border border-[#E7E5E0] bg-[#FAF9F6] px-3 py-2 text-[11px] text-[#5C5A55]">
+              <p className="rounded-xl border border-[#E7E5E0] bg-[#FAF9F6] px-3 py-2 text-xs text-[#5C5A55]">
                 Nota: {normalizeUiNoteEs(detailAp.notes)}
               </p>
             )}
 
             <div className="space-y-2">
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-[#0F2942]">
+              <p className="text-xs font-semibold uppercase tracking-wide text-[#0F2942]">
                 Todo lo pedido en este comprobante ({detailAp.lines?.length ?? 0}{" "}
                 {(detailAp.lines?.length ?? 0) === 1 ? "ítem" : "ítems"})
               </p>
@@ -2592,7 +2592,7 @@ export default function CajaProveedoresTab({
             </div>
 
             <div className="space-y-2">
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-[#0F2942]">
+              <p className="text-xs font-semibold uppercase tracking-wide text-[#0F2942]">
                 Historial de pagos y abonos
               </p>
               {detailAp.payments && detailAp.payments.length > 0 ? (
@@ -2606,7 +2606,7 @@ export default function CajaProveedoresTab({
                         <p className="font-medium text-[#18181B]">
                           {pay.description || "Pago a proveedor"}
                         </p>
-                        <p className="text-[11px] text-[#6D6A64]">
+                        <p className="text-xs text-[#6D6A64]">
                           {pay.tx_date} · {pay.account_name}
                         </p>
                       </div>
@@ -2617,14 +2617,14 @@ export default function CajaProveedoresTab({
                   ))}
                 </div>
               ) : Number(detailAp.paid_amount_pen) > 0 ? (
-                <p className="rounded-xl border border-[#FDE68A] bg-[#FFFBEB] px-3 py-2 text-[11px] text-[#78350F] tabular-nums">
+                <p className="rounded-xl border border-[#FDE68A] bg-[#FFFBEB] px-3 py-2 text-xs text-[#78350F] tabular-nums">
                   Abono previo conciliado por{" "}
                   <strong>{formatPen(detailAp.paid_amount_pen)}</strong> (registro
                   anterior al control en vivo; saldo restante:{" "}
                   <strong>{formatPen(detailAp.balance_due_pen)}</strong>).
                 </p>
               ) : (
-                <p className="rounded-xl border border-dashed border-[#DDDAD3] bg-[#FAF9F6] px-3 py-2 text-[11px] text-[#5C5A55]">
+                <p className="rounded-xl border border-dashed border-[#DDDAD3] bg-[#FAF9F6] px-3 py-2 text-xs text-[#5C5A55]">
                   Aún no se han registrado pagos para este comprobante.
                 </p>
               )}
@@ -2693,13 +2693,13 @@ export default function CajaProveedoresTab({
             </div>
 
             {detailPurchase.raw_notes && (
-              <p className="rounded-xl border border-[#E7E5E0] bg-white px-3 py-2 text-[11px] text-[#5C5A55]">
+              <p className="rounded-xl border border-[#E7E5E0] bg-white px-3 py-2 text-xs text-[#5C5A55]">
                 Nota: {normalizeUiNoteEs(detailPurchase.raw_notes)}
               </p>
             )}
 
             <div className="space-y-2">
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-[#0F2942]">
+              <p className="text-xs font-semibold uppercase tracking-wide text-[#0F2942]">
                 Ítems de la compra ({detailPurchase.lines?.length ?? 0})
               </p>
               <InvoiceLinesBreakdown
