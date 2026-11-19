@@ -27,7 +27,7 @@ export function CustomerDetailContent({
     : "No registrado";
 
   return (
-    <div className="space-y-3 text-xs">
+    <div className="space-y-3 text-sm">
       <div className="grid grid-cols-1 gap-2 rounded-xl border border-bht-line-blue bg-bht-mist/70 p-3 sm:grid-cols-3 tabular-nums">
         <div>
           <span className="block text-xs text-bht-ink-soft">Pedidos</span>
@@ -128,7 +128,7 @@ function DetailRow({
       }`}
     >
       <span className="block text-xs text-bht-ink-soft">{label}</span>
-      <p className="mt-0.5 break-words font-medium text-bht-ink-strong tabular-nums">
+      <p className="mt-0.5 break-words text-sm font-semibold text-bht-ink-strong tabular-nums">
         {value}
       </p>
     </div>

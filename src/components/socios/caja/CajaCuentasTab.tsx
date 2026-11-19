@@ -165,10 +165,10 @@ export function CajaCuentasTab({
       <Card padding="md" className="space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
-            <h3 className="text-sm font-semibold text-bht-ink-strong sm:text-base">
+            <h3 className="text-base font-bold text-bht-ink-strong sm:text-lg">
               Saldos registrados por caja, banco y custodia
             </h3>
-            <p className="text-xs text-bht-ink-soft">
+            <p className="text-xs sm:text-sm text-bht-ink-soft">
               Toca una cuenta para filtrar sus movimientos en el libro inferior.
             </p>
           </div>
@@ -223,7 +223,7 @@ export function CajaCuentasTab({
                       {formatAccountTypeEs(acc.account_type)}
                     </Badge>
                   </div>
-                  <p className="mt-0.5 text-[11px] text-bht-ink-muted">{acc.code}</p>
+                  <p className="mt-0.5 text-xs text-bht-ink-muted">{acc.code}</p>
                 </div>
                 <strong className="flex-shrink-0 text-sm font-bold text-bht-navy-deep tabular-nums">
                   {formatPen(Number(acc.current_balance_pen ?? 0))}
@@ -237,11 +237,11 @@ export function CajaCuentasTab({
       <Card padding="md" className="space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
-            <h3 className="text-sm font-semibold text-bht-ink-strong sm:text-base">
+            <h3 className="text-base font-bold text-bht-ink-strong sm:text-lg">
               Movimientos de Caja ({filteredLedger.length}
               {filteredLedger.length !== ledger.length ? ` / ${ledger.length}` : ""})
             </h3>
-            <p className="text-xs text-bht-ink-soft">
+            <p className="text-xs sm:text-sm text-bht-ink-soft">
               Toca cualquier movimiento para abrir su ventana de detalle.
             </p>
           </div>

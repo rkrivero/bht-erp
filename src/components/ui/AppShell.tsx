@@ -43,7 +43,7 @@ export function DesktopSidebar<T extends string>({
         </span>
         <div className="min-w-0">
           <p className="text-sm font-bold leading-tight">Blue Horizon Trade</p>
-          <p className="mt-1 truncate text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--bht-sky)]">
+          <p className="mt-1 truncate text-xs font-semibold uppercase tracking-[0.04em] text-[var(--bht-sky)]">
             {areaLabel}
           </p>
         </div>
@@ -57,7 +57,7 @@ export function DesktopSidebar<T extends string>({
             <React.Fragment key={item.id}>
               {showGroupHeader && (
                 <p
-                  className={`px-3 pb-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--bht-sky)] ${
+                  className={`px-3 pb-1 text-xs font-semibold uppercase tracking-[0.12em] text-[var(--bht-sky)] ${
                     idx === 0 ? "pt-0" : "pt-3"
                   }`}
                 >
@@ -68,7 +68,7 @@ export function DesktopSidebar<T extends string>({
                 type="button"
                 aria-current={active ? "page" : undefined}
                 onClick={() => onChange(item.id)}
-                className={`flex min-h-11 w-full items-center gap-3 rounded-xl px-3 text-left text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white cursor-pointer ${
+                className={`flex min-h-11 w-full items-center gap-3 rounded-xl px-3 text-left text-sm font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white cursor-pointer ${
                   active
                     ? "bg-white text-[var(--bht-navy)]"
                     : "text-[var(--bht-sky)] hover:bg-white/10 hover:text-white"
@@ -200,7 +200,7 @@ export function AppHeader({
             <HorizonLogo className="h-full w-full" />
           </span>
           <div className="min-w-0 flex-1">
-            <h1 className="line-clamp-2 text-sm font-semibold leading-tight tracking-[-0.02em] text-bht-ink-deep min-[380px]:text-base sm:truncate sm:text-lg">
+            <h1 className="line-clamp-2 text-base font-bold leading-tight tracking-[-0.02em] text-bht-ink-deep sm:truncate sm:text-xl">
               {title}
             </h1>
             <div className="mt-1 flex flex-wrap items-center gap-2">
@@ -291,7 +291,7 @@ export function DesktopTabBar<T extends string>({
             type="button"
             aria-current={active ? "page" : undefined}
             onClick={() => onChange(item.id)}
-            className={`flex flex-shrink-0 items-center gap-2 rounded-lg border px-3.5 py-2 text-xs font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bht-cobalt focus-visible:ring-offset-1 cursor-pointer ${
+            className={`flex flex-shrink-0 items-center gap-2 rounded-lg border px-3.5 py-2 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bht-cobalt focus-visible:ring-offset-1 cursor-pointer ${
               active
                 ? "border-bht-tone-b9d3fa bg-bht-tone-eaf2fe text-bht-cobalt"
                 : "border-transparent text-bht-slate-text hover:bg-bht-surface-cool hover:text-bht-ink-deep"

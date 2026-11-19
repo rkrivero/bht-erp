@@ -230,7 +230,7 @@ export function DirectorioProveedores({
               ? `${detailSupplier.doc_type !== "NONE" ? detailSupplier.doc_type : "Doc."} ${detailSupplier.doc_number}`
               : "No registrado";
             return (
-              <div className="space-y-3 text-xs">
+              <div className="space-y-3 text-sm">
                 <div className="grid grid-cols-1 gap-2 rounded-xl border border-bht-line-blue bg-bht-mist/70 p-3 sm:grid-cols-3 tabular-nums">
                   <div>
                     <span className="block text-xs text-bht-ink-soft">CxP abierta</span>

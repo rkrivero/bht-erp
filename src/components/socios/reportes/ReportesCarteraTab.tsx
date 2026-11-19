@@ -44,7 +44,7 @@ export default function ReportesCarteraTab({
             })
           }
         >
-          <span className="text-xs font-medium text-bht-ink-soft">
+          <span className="text-sm font-semibold text-bht-ink-soft">
             Cartera Total por Cobrar
           </span>
           <p className="text-2xl font-semibold text-bht-danger tabular-nums">
@@ -66,7 +66,7 @@ export default function ReportesCarteraTab({
             })
           }
         >
-          <span className="text-xs font-medium text-bht-ink-soft">
+          <span className="text-sm font-semibold text-bht-ink-soft">
             DSO Estimado (Días promedio de cobro)
           </span>
           <p className="text-2xl font-semibold text-bht-navy-deep tabular-nums">
@@ -87,7 +87,7 @@ export default function ReportesCarteraTab({
             })
           }
         >
-          <span className="text-xs font-medium text-bht-ink-soft">
+          <span className="text-sm font-semibold text-bht-ink-soft">
             Saldo con antigüedad &gt; 30 días
           </span>
           <p className="text-2xl font-semibold text-bht-warning tabular-nums">
@@ -108,7 +108,7 @@ export default function ReportesCarteraTab({
             })
           }
         >
-          <span className="text-xs font-medium text-bht-ink-soft">
+          <span className="text-sm font-semibold text-bht-ink-soft">
             Promesas de Pago Vencidas
           </span>
           <p className="text-2xl font-semibold text-bht-danger tabular-nums">
@@ -124,7 +124,7 @@ export default function ReportesCarteraTab({
       <Card padding="md" className="space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
-            <h3 className="text-sm font-semibold text-bht-ink-strong sm:text-base">
+            <h3 className="text-base font-bold text-bht-ink-strong sm:text-lg">
               Antigüedad de Cartera por Tramos (0–15 / 16–30 / 31–60 / &gt;60 días)
             </h3>
             <p className="mt-0.5 text-xs text-bht-ink-soft">
@@ -181,7 +181,7 @@ export default function ReportesCarteraTab({
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <Card padding="md" className="space-y-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <h3 className="text-sm font-semibold text-bht-ink-strong sm:text-base">
+            <h3 className="text-base font-bold text-bht-ink-strong sm:text-lg">
               Morosidad por Zona
             </h3>
             {selectedZone && (
@@ -234,7 +234,7 @@ export default function ReportesCarteraTab({
         </Card>
 
         <Card padding="md" className="space-y-3">
-          <h3 className="text-sm font-semibold text-bht-ink-strong sm:text-base">
+          <h3 className="text-base font-bold text-bht-ink-strong sm:text-lg">
             Deudores Prioritarios ({byCustomer.length})
           </h3>
           {byCustomer.length === 0 ? (
@@ -282,7 +282,7 @@ export default function ReportesCarteraTab({
           <div>
             <h3
               id="collection-sheet-heading"
-              className="text-sm font-semibold text-bht-ink-strong sm:text-base"
+              className="text-base font-bold text-bht-ink-strong sm:text-lg"
             >
               Hoja de Cobranza por Zona ({collectionSheet.length} documentos)
             </h3>
@@ -311,7 +311,7 @@ export default function ReportesCarteraTab({
             aria-labelledby="collection-sheet-heading"
             className="table-wrapper"
           >
-            <table className="w-full text-left text-xs">
+            <table className="w-full text-left text-sm">
               <thead className="border-b border-bht-line bg-bht-paper text-xs font-semibold uppercase tracking-wide text-bht-ink-soft">
                 <tr>
                   <th scope="col" className="p-2">

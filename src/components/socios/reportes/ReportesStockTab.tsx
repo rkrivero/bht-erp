@@ -71,7 +71,7 @@ export default function ReportesStockTab({
             })
           }
         >
-          <span className="text-xs font-medium text-bht-ink-soft">
+          <span className="text-sm font-semibold text-bht-ink-soft">
             Valorización Inventario (Stock Positivo)
           </span>
           <p className="text-2xl font-semibold text-bht-navy-deep tabular-nums">
@@ -92,7 +92,7 @@ export default function ReportesStockTab({
             })
           }
         >
-          <span className="text-xs font-medium text-bht-ink-soft">
+          <span className="text-sm font-semibold text-bht-ink-soft">
             Stock Muerto (&ge; 90 días sin venta)
           </span>
           <p className="text-2xl font-semibold text-bht-warning tabular-nums">
@@ -114,7 +114,7 @@ export default function ReportesStockTab({
             })
           }
         >
-          <span className="text-xs font-medium text-bht-ink-soft">
+          <span className="text-sm font-semibold text-bht-ink-soft">
             Reposición Urgente (&le; 14d cobertura)
           </span>
           <p className="text-2xl font-semibold text-bht-navy-mid tabular-nums">
@@ -141,7 +141,7 @@ export default function ReportesStockTab({
             })
           }
         >
-          <span className="text-xs font-medium text-bht-ink-soft">
+          <span className="text-sm font-semibold text-bht-ink-soft">
             Riesgo de Margen (&lt; 20% o sin costo)
           </span>
           <p className="text-2xl font-semibold text-bht-danger tabular-nums">
@@ -158,7 +158,7 @@ export default function ReportesStockTab({
       {/* Mix STOCKED vs ON_DEMAND + ON_DEMAND Promotion Candidates */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <Card padding="md" className="space-y-3">
-          <h3 className="text-sm font-semibold text-bht-ink-strong sm:text-base">
+          <h3 className="text-base font-bold text-bht-ink-strong sm:text-lg">
             Mix Inventario: Stock Permanente vs. Bajo Pedido
           </h3>
           <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
@@ -189,7 +189,7 @@ export default function ReportesStockTab({
 
         <Card padding="md" className="space-y-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <h3 className="text-sm font-semibold text-bht-ink-strong sm:text-base">
+            <h3 className="text-base font-bold text-bht-ink-strong sm:text-lg">
               Candidatos Bajo Pedido Frecuentes para Pasar a Stock (
               {onDemandCandidates.length})
             </h3>
@@ -248,7 +248,7 @@ export default function ReportesStockTab({
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <Card padding="md" className="space-y-3">
           <div>
-            <h3 className="text-sm font-semibold text-bht-ink-strong sm:text-base">
+            <h3 className="text-base font-bold text-bht-ink-strong sm:text-lg">
               Reposición por Días de Cobertura ({replenishmentAlerts.length})
             </h3>
             <p className="mt-0.5 text-xs text-bht-ink-soft">
@@ -299,7 +299,7 @@ export default function ReportesStockTab({
 
         <Card padding="md" className="space-y-3">
           <div>
-            <h3 className="text-sm font-semibold text-bht-ink-strong sm:text-base">
+            <h3 className="text-base font-bold text-bht-ink-strong sm:text-lg">
               Capital Inmovilizado — Stock Lento y Muerto ({deadAndSlowStock.length})
             </h3>
             <p className="mt-0.5 text-xs text-bht-ink-soft">
@@ -356,7 +356,7 @@ export default function ReportesStockTab({
       {/* Margin Risk SKUs */}
       {marginRiskSkus.length > 0 && (
         <Card tone="warning" padding="md" className="space-y-3">
-          <h3 className="text-sm font-semibold text-bht-ink-strong sm:text-base">
+          <h3 className="text-base font-bold text-bht-ink-strong sm:text-lg">
             Productos con Margen &lt; 20% o Sin Costo ({marginRiskSkus.length})
           </h3>
           <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
@@ -400,7 +400,7 @@ export default function ReportesStockTab({
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h3
             id="stock-top-skus-heading"
-            className="text-sm font-semibold text-bht-ink-strong sm:text-base"
+            className="text-base font-bold text-bht-ink-strong sm:text-lg"
           >
             Productos líderes por ingresos y margen con costo conocido (
             {filteredTopSkus.length})
@@ -440,7 +440,7 @@ export default function ReportesStockTab({
             aria-labelledby="stock-top-skus-heading"
             className="table-wrapper"
           >
-            <table className="w-full text-left text-xs">
+            <table className="w-full text-left text-sm">
               <thead className="border-b border-bht-line bg-bht-paper text-xs font-semibold uppercase tracking-wide text-bht-ink-soft">
                 <tr>
                   <th scope="col" className="p-2">

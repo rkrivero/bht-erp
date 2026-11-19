@@ -137,7 +137,7 @@ export function ReportesCalidadPanel({
       >
         <div className="flex flex-wrap items-start justify-between gap-2">
           <div className="space-y-1">
-            <h3 className="text-sm font-semibold text-bht-ink-strong sm:text-base">
+            <h3 className="text-base font-bold text-bht-ink-strong sm:text-lg">
               Cobertura de registro completo en 24 h
             </h3>
             <p className="text-xs text-bht-ink-soft">
@@ -220,7 +220,7 @@ export function ReportesCalidadPanel({
       {/* Actionable Data Quality Indicators */}
       <Card padding="md" className="space-y-3">
         <div>
-          <h3 className="text-sm font-semibold text-bht-ink-strong sm:text-base">
+          <h3 className="text-base font-bold text-bht-ink-strong sm:text-lg">
             Panel de Calidad del Dato (Indicadores Accionables)
           </h3>
           <p className="mt-0.5 text-xs text-bht-ink-soft">
@@ -254,7 +254,7 @@ export function ReportesCalidadPanel({
       <Card padding="md" className="space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
-            <h3 className="text-sm font-semibold text-bht-ink-strong sm:text-base">
+            <h3 className="text-base font-bold text-bht-ink-strong sm:text-lg">
               Lista de Verificación de Inicio Operativo
             </h3>
             <p className="mt-0.5 text-xs text-bht-ink-soft">

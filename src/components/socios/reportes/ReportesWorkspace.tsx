@@ -219,7 +219,7 @@ export default function ReportesWorkspace({
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
-              <h2 className="text-base font-bold text-bht-navy-deep sm:text-lg">
+              <h2 className="text-lg font-bold text-bht-navy-deep sm:text-xl">
                 Reportes para decidir
               </h2>
               {isFetching && displayPayload && (
@@ -287,7 +287,7 @@ export default function ReportesWorkspace({
 
         <div
           role="status"
-          className={`flex flex-wrap items-start justify-between gap-2 rounded-xl border p-3 text-xs ${
+          className={`flex flex-wrap items-start justify-between gap-2 rounded-xl border p-3 text-xs sm:text-sm ${
             dataNeedsReview
               ? "border-bht-warning bg-bht-warning-bg text-bht-ink-strong"
               : "border-bht-line-blue bg-bht-mist text-bht-ink-strong"

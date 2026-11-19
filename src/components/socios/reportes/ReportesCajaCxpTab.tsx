@@ -52,7 +52,7 @@ export default function ReportesCajaCxpTab({
             })
           }
         >
-          <span className="text-xs font-medium text-bht-ink-soft">
+          <span className="text-sm font-semibold text-bht-ink-soft">
             Saldo registrado en cuentas líquidas
           </span>
           <p className="text-2xl font-semibold text-bht-navy-deep tabular-nums">
@@ -72,7 +72,7 @@ export default function ReportesCajaCxpTab({
             })
           }
         >
-          <span className="text-xs font-medium text-bht-ink-soft">
+          <span className="text-sm font-semibold text-bht-ink-soft">
             Custodia de Socios (por rendir)
           </span>
           <p className="text-2xl font-semibold text-bht-warning tabular-nums">
@@ -92,7 +92,7 @@ export default function ReportesCajaCxpTab({
             })
           }
         >
-          <span className="text-xs font-medium text-bht-ink-soft">
+          <span className="text-sm font-semibold text-bht-ink-soft">
             Total CxP Abiertas
           </span>
           <p className="text-2xl font-semibold text-bht-danger tabular-nums">
@@ -116,7 +116,7 @@ export default function ReportesCajaCxpTab({
             })
           }
         >
-          <span className="text-xs font-medium text-bht-ink-soft">
+          <span className="text-sm font-semibold text-bht-ink-soft">
             Cobertura registrada tras CxP ≤30d
           </span>
           <p
@@ -144,7 +144,7 @@ export default function ReportesCajaCxpTab({
       <Card padding="md" className="space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
-            <h3 className="text-sm font-semibold text-bht-ink-strong sm:text-base">
+            <h3 className="text-base font-bold text-bht-ink-strong sm:text-lg">
               Proyección de Vencimientos CxP (Vencidas / 7 / 15 / 30 días)
             </h3>
             <p className="mt-0.5 text-xs text-bht-ink-soft">
@@ -201,7 +201,7 @@ export default function ReportesCajaCxpTab({
 
       {/* Accounts Breakdown */}
       <Card padding="md" className="space-y-3">
-        <h3 className="text-sm font-semibold text-bht-ink-strong sm:text-base">
+        <h3 className="text-base font-bold text-bht-ink-strong sm:text-lg">
           Saldos registrados por caja, banco y custodia
         </h3>
         <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
@@ -238,7 +238,7 @@ export default function ReportesCajaCxpTab({
         <Card padding="md" className="space-y-3 lg:col-span-2">
           <h3
             id="ap-schedule-heading"
-            className="text-sm font-semibold text-bht-ink-strong sm:text-base"
+            className="text-base font-bold text-bht-ink-strong sm:text-lg"
           >
             Calendario de Pagos Pendientes ({upcomingApDocs.length})
           </h3>
@@ -251,7 +251,7 @@ export default function ReportesCajaCxpTab({
               aria-labelledby="ap-schedule-heading"
               className="table-wrapper"
             >
-              <table className="w-full text-left text-xs">
+              <table className="w-full text-left text-sm">
                 <thead className="border-b border-bht-line bg-bht-paper text-xs font-semibold uppercase tracking-wide text-bht-ink-soft">
                   <tr>
                     <th scope="col" className="p-2">
@@ -311,7 +311,7 @@ export default function ReportesCajaCxpTab({
         </Card>
 
         <Card padding="md" className="space-y-3">
-          <h3 className="text-sm font-semibold text-bht-ink-strong sm:text-base">
+          <h3 className="text-base font-bold text-bht-ink-strong sm:text-lg">
             CxP por Proveedor
           </h3>
           {apBySupplier.length === 0 ? (

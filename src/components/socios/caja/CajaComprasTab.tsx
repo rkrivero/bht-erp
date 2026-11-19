@@ -179,7 +179,7 @@ export function CajaComprasTab({
     <div className="space-y-4">
       <Card padding="md" className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h3 className="text-sm font-semibold text-bht-ink-strong sm:text-base">
+          <h3 className="text-base font-bold text-bht-ink-strong sm:text-lg">
             Compras de Mercadería y Cuentas por Pagar (CxP)
           </h3>
           <p className="text-xs text-bht-ink-soft">
@@ -254,7 +254,7 @@ export function CajaComprasTab({
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <Card padding="md" className="space-y-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <h3 className="text-sm font-semibold text-bht-ink-strong sm:text-base">
+            <h3 className="text-base font-bold text-bht-ink-strong sm:text-lg">
               Obligaciones por Pagar (CxP) ({filteredApObligations.length})
             </h3>
           </div>

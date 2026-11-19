@@ -33,7 +33,7 @@ export default function ReportesComercialTab({ data }: ReportesComercialTabProps
         <Card padding="md" className="space-y-3">
           <h3
             id="sales-zone-heading"
-            className="text-sm font-semibold text-bht-ink-strong sm:text-base"
+            className="text-base font-bold text-bht-ink-strong sm:text-lg"
           >
             Ventas y Margen por Zona ({byZone.length})
           </h3>
@@ -46,7 +46,7 @@ export default function ReportesComercialTab({ data }: ReportesComercialTabProps
               aria-labelledby="sales-zone-heading"
               className="table-wrapper"
             >
-              <table className="w-full text-left text-xs">
+              <table className="w-full text-left text-sm">
                 <thead className="border-b border-bht-line bg-bht-paper text-xs font-semibold uppercase tracking-wide text-bht-ink-soft">
                   <tr>
                     <th scope="col" className="p-2">
@@ -96,7 +96,7 @@ export default function ReportesComercialTab({ data }: ReportesComercialTabProps
         <Card padding="md" className="space-y-3">
           <h3
             id="sales-seller-heading"
-            className="text-sm font-semibold text-bht-ink-strong sm:text-base"
+            className="text-base font-bold text-bht-ink-strong sm:text-lg"
           >
             Desempeño por Vendedor — Vendido vs. Cobrado ({bySeller.length})
           </h3>
@@ -109,7 +109,7 @@ export default function ReportesComercialTab({ data }: ReportesComercialTabProps
               aria-labelledby="sales-seller-heading"
               className="table-wrapper"
             >
-              <table className="w-full text-left text-xs">
+              <table className="w-full text-left text-sm">
                 <thead className="border-b border-bht-line bg-bht-paper text-xs font-semibold uppercase tracking-wide text-bht-ink-soft">
                   <tr>
                     <th scope="col" className="p-2">
@@ -171,7 +171,7 @@ export default function ReportesComercialTab({ data }: ReportesComercialTabProps
           <div>
             <h3
               id="route-pnl-heading"
-              className="text-sm font-semibold text-bht-ink-strong sm:text-base"
+              className="text-base font-bold text-bht-ink-strong sm:text-lg"
             >
               Rentabilidad por Ruta / Viaje (Últimos {routeProfitability.length})
             </h3>
@@ -205,7 +205,7 @@ export default function ReportesComercialTab({ data }: ReportesComercialTabProps
             aria-labelledby="route-pnl-heading"
             className="table-wrapper"
           >
-            <table className="w-full text-left text-xs">
+            <table className="w-full text-left text-sm">
               <thead className="border-b border-bht-line bg-bht-paper text-xs font-semibold uppercase tracking-wide text-bht-ink-soft">
                 <tr>
                   <th scope="col" className="p-2">
@@ -295,7 +295,7 @@ export default function ReportesComercialTab({ data }: ReportesComercialTabProps
       {/* Top Customers + Discount Audit & Inactive Customers */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <Card padding="md" className="space-y-3">
-          <h3 className="text-sm font-semibold text-bht-ink-strong sm:text-base">
+          <h3 className="text-base font-bold text-bht-ink-strong sm:text-lg">
             Clientes Principales ({topCustomers.length})
           </h3>
           {topCustomers.length === 0 ? (
@@ -342,7 +342,7 @@ export default function ReportesComercialTab({ data }: ReportesComercialTabProps
         <Card padding="md" className="space-y-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
-              <h3 className="text-sm font-semibold text-bht-ink-strong sm:text-base">
+              <h3 className="text-base font-bold text-bht-ink-strong sm:text-lg">
                 Auditoría de Descuentos en Ventas
               </h3>
               <p className="text-xs text-bht-ink-soft tabular-nums">
@@ -411,7 +411,7 @@ export default function ReportesComercialTab({ data }: ReportesComercialTabProps
         <div>
           <h3
             id="inactive-customers-heading"
-            className="text-sm font-semibold text-bht-ink-strong sm:text-base"
+            className="text-base font-bold text-bht-ink-strong sm:text-lg"
           >
             Clientes Inactivos para Reactivación (&ge; 30 días sin pedido ·{" "}
             {inactiveCustomers.length})
@@ -430,7 +430,7 @@ export default function ReportesComercialTab({ data }: ReportesComercialTabProps
             aria-labelledby="inactive-customers-heading"
             className="table-wrapper"
           >
-            <table className="w-full text-left text-xs">
+            <table className="w-full text-left text-sm">
               <thead className="border-b border-bht-line bg-bht-paper text-xs font-semibold uppercase tracking-wide text-bht-ink-soft">
                 <tr>
                   <th scope="col" className="p-2">

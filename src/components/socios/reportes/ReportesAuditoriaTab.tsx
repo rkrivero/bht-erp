@@ -177,7 +177,7 @@ export default function ReportesAuditoriaTab({
       >
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
-            <h3 className="text-sm font-semibold text-bht-ink-strong sm:text-base">
+            <h3 className="text-base font-bold text-bht-ink-strong sm:text-lg">
               Semáforo de Cierre Contable y Operativo
             </h3>
             <p className="mt-0.5 text-xs text-bht-ink-soft">
@@ -217,7 +217,7 @@ export default function ReportesAuditoriaTab({
       {/* CSV Download Center (7 datasets) */}
       <Card tone="success" padding="md" className="space-y-3">
         <div>
-          <h3 className="text-sm font-semibold text-bht-ink-strong sm:text-base">
+          <h3 className="text-base font-bold text-bht-ink-strong sm:text-lg">
             Centro de Descargas Contables y Excel (7 Reportes CSV)
           </h3>
           <p className="mt-0.5 text-xs text-bht-ink-soft">
@@ -263,7 +263,7 @@ export default function ReportesAuditoriaTab({
 
       {/* Data Quality Gaps */}
       <Card padding="md" className="space-y-3">
-        <h3 className="text-sm font-semibold text-bht-ink-strong sm:text-base">
+        <h3 className="text-base font-bold text-bht-ink-strong sm:text-lg">
           Calidad de Datos e Integridad Operativa
         </h3>
         <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
@@ -289,7 +289,7 @@ export default function ReportesAuditoriaTab({
       <Card padding="md" className="space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
-            <h3 className="text-sm font-semibold text-bht-ink-strong sm:text-base">
+            <h3 className="text-base font-bold text-bht-ink-strong sm:text-lg">
               Alertas Operativas y Auditoría
             </h3>
             <p className="text-xs text-bht-ink-soft">

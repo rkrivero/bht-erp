@@ -380,13 +380,13 @@ export default function PartnerWorkspace() {
         areaLabel="Socios · Control"
         footer={
           <div className="space-y-1.5">
-            <p className="px-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--bht-sky)]">
+            <p className="px-2 text-xs font-semibold uppercase tracking-[0.12em] text-[var(--bht-sky)]">
               Espacios de campo
             </p>
             <button
               type="button"
               onClick={() => router.push("/vendedor")}
-              className="flex min-h-9 w-full items-center gap-2 rounded-lg px-2 text-left text-xs font-semibold text-[var(--bht-sky)] transition-colors hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white cursor-pointer"
+              className="flex min-h-9 w-full items-center gap-2 rounded-lg px-2 text-left text-sm font-semibold text-[var(--bht-sky)] transition-colors hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white cursor-pointer"
             >
               <PlusIcon className="h-3.5 w-3.5" aria-hidden="true" />
               <span>Tomar pedido</span>
@@ -394,7 +394,7 @@ export default function PartnerWorkspace() {
             <button
               type="button"
               onClick={() => router.push("/almacen")}
-              className="flex min-h-9 w-full items-center gap-2 rounded-lg px-2 text-left text-xs font-semibold text-[var(--bht-sky)] transition-colors hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white cursor-pointer"
+              className="flex min-h-9 w-full items-center gap-2 rounded-lg px-2 text-left text-sm font-semibold text-[var(--bht-sky)] transition-colors hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white cursor-pointer"
             >
               <PackageIcon className="h-3.5 w-3.5" aria-hidden="true" />
               <span>Almacén y reparto</span>
@@ -431,7 +431,7 @@ export default function PartnerWorkspace() {
         )}
 
         <div className="flex flex-col gap-3 rounded-xl border border-bht-slate-line bg-white p-3 sm:flex-row sm:items-center sm:justify-between sm:p-3.5">
-          <div className="flex min-w-0 items-center gap-2 text-xs text-bht-ink-muted">
+          <div className="flex min-w-0 items-center gap-2 text-sm text-bht-ink-muted">
             <span className="font-medium text-bht-ink-soft">Inicio</span>
             <ChevronRightIcon
               className="h-3.5 w-3.5 text-bht-tone-a8a49c"

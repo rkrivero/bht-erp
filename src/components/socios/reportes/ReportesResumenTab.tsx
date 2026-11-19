@@ -54,7 +54,7 @@ export default function ReportesResumenTab({
       {/* Partial operating result */}
       <section aria-label="Resultado comercial parcial" className="space-y-2">
         <div className="flex flex-wrap items-center justify-between gap-2 px-1">
-          <h3 className="text-sm font-bold text-bht-navy-deep">
+          <h3 className="text-base sm:text-lg font-bold text-bht-navy-deep">
             Resultado comercial parcial
           </h3>
           {momComparison && (
@@ -78,7 +78,7 @@ export default function ReportesResumenTab({
               })
             }
           >
-            <span className="text-xs font-medium text-bht-ink-soft">
+            <span className="text-sm font-semibold text-bht-ink-soft">
               Ventas Totales ({totals.orderCount} ped.)
             </span>
             <p className="text-2xl font-semibold text-bht-navy-deep tabular-nums">
@@ -98,7 +98,7 @@ export default function ReportesResumenTab({
               })
             }
           >
-            <span className="text-xs font-medium text-bht-ink-soft">
+            <span className="text-sm font-semibold text-bht-ink-soft">
               Margen bruto sobre ventas con costo
             </span>
             <p className="text-2xl font-semibold text-bht-success tabular-nums">
@@ -119,7 +119,7 @@ export default function ReportesResumenTab({
               })
             }
           >
-            <span className="text-xs font-medium text-bht-ink-soft">
+            <span className="text-sm font-semibold text-bht-ink-soft">
               Gastos Operativos de Ruta (OpEx)
             </span>
             <p className="text-2xl font-semibold text-bht-warning tabular-nums">
@@ -145,7 +145,7 @@ export default function ReportesResumenTab({
               })
             }
           >
-            <span className="text-xs font-medium text-bht-ink-soft">
+            <span className="text-sm font-semibold text-bht-ink-soft">
               Contribución después de gastos de ruta
             </span>
             <p
@@ -176,7 +176,7 @@ export default function ReportesResumenTab({
       {/* Cash Flow Summary */}
       <section aria-label="Movimientos de caja registrados" className="space-y-2">
         <div className="flex flex-wrap items-center justify-between gap-2 px-1">
-          <h3 className="text-sm font-bold text-bht-navy-deep">
+          <h3 className="text-base sm:text-lg font-bold text-bht-navy-deep">
             Movimientos de caja registrados
           </h3>
           <Badge
@@ -265,7 +265,7 @@ export default function ReportesResumenTab({
         <div>
           <h3
             id="pnl-monthly-heading"
-            className="text-sm font-semibold text-bht-ink-strong sm:text-base"
+            className="text-base font-bold text-bht-ink-strong sm:text-lg"
           >
             Comparativo mensual de ventas y movimientos registrados
           </h3>
@@ -372,7 +372,7 @@ export default function ReportesResumenTab({
               aria-labelledby="pnl-monthly-heading"
               className="table-wrapper hidden md:block"
             >
-              <table className="w-full text-left text-xs">
+              <table className="w-full text-left text-sm">
                 <thead className="border-b border-bht-line bg-bht-paper text-xs font-semibold uppercase tracking-wide text-bht-ink-soft">
                   <tr>
                     <th scope="col" className="p-2">

@@ -431,7 +431,7 @@ export function ReportConceptModal({
       maxWidth="lg"
     >
       {concept && def && (
-        <div className="space-y-3 text-xs">
+        <div className="space-y-3 text-sm">
           {(concept.currentValue || concept.currentSubtext) && (
             <div className="rounded-xl border border-bht-line-blue bg-bht-mist/70 p-3">
               <span className="block text-xs text-bht-ink-soft">

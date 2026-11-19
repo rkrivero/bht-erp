@@ -356,7 +356,7 @@ export default function CustomerFormModal({
               className={`${INPUT_CLASS} mt-1 disabled:bg-bht-surface-cool disabled:text-bht-ink-muted`}
             />
             {legalNameLocked && (
-              <p className="mt-1 text-[11px] text-bht-ink-soft">
+              <p className="mt-1 text-xs text-bht-ink-soft">
                 Bloqueado por tener pedidos; aún puedes actualizar el alias comercial.
               </p>
             )}
@@ -386,7 +386,7 @@ export default function CustomerFormModal({
                     type="button"
                     data-compact="true"
                     onClick={() => setCityZone(zone)}
-                    className={`rounded-full border px-2.5 py-0.5 text-[11px] font-medium transition cursor-pointer ${
+                    className={`rounded-full border px-2.5 py-0.5 text-xs font-medium transition cursor-pointer ${
                       normalizeZone(cityZone) === zone
                         ? "border-bht-cobalt bg-bht-cobalt-bg text-bht-cobalt-strong"
                         : "border-bht-slate-line bg-bht-surface-cool text-bht-ink-soft hover:text-bht-ink-strong"
@@ -466,7 +466,7 @@ export default function CustomerFormModal({
                   className={`${INPUT_CLASS} mt-1 disabled:bg-bht-paper-alt`}
                 />
                 {initialCustomer?.is_generic_doc && (
-                  <p className="mt-1 text-[11px] text-bht-ink-soft">
+                  <p className="mt-1 text-xs text-bht-ink-soft">
                     Este registro tenía un código genérico ({initialCustomer.doc_number}
                     ). Puedes ingresar su RUC o DNI real.
                   </p>

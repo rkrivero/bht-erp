@@ -83,7 +83,7 @@ export function Ventas({ orders, ordersPagination, partnerQuotes, flow }: Ventas
       {salesView === "quotes" ? (
         <Card padding="md" className="space-y-3">
           <div>
-            <h2 className="text-sm sm:text-base font-semibold text-bht-ink-strong">
+            <h2 className="text-base sm:text-lg font-bold text-bht-ink-strong">
               Cotizaciones Comerciales ({partnerQuotes.length})
             </h2>
             <p className="text-xs text-bht-ink-soft">
@@ -101,14 +101,14 @@ export function Ventas({ orders, ordersPagination, partnerQuotes, flow }: Ventas
                 return (
                   <div
                     key={qId}
-                    className="rounded-xl border border-bht-line bg-bht-paper p-3 text-xs space-y-2"
+                    className="rounded-xl border border-bht-line bg-bht-paper p-3 text-sm space-y-2"
                   >
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <div className="min-w-0">
-                        <span className="font-semibold text-bht-navy-mid tabular-nums">
+                        <span className="text-xs font-semibold text-bht-navy-mid tabular-nums">
                           {String(q.quote_code)} · {String(q.issue_date)}
                         </span>
-                        <p className="truncate font-semibold text-bht-ink-strong">
+                        <p className="truncate text-base font-bold text-bht-ink-strong">
                           {String(q.customer_name)}
                         </p>
                         <p className="text-bht-ink-soft tabular-nums">
@@ -183,7 +183,7 @@ export function Ventas({ orders, ordersPagination, partnerQuotes, flow }: Ventas
       ) : (
         <Card padding="md" className="space-y-3">
           <div>
-            <h2 className="text-sm sm:text-base font-semibold text-bht-ink-strong">
+            <h2 className="text-base sm:text-lg font-bold text-bht-ink-strong">
               {customerOrderScope
                 ? `Pedidos de ${customerOrderScope.name}`
                 : "Todos los Pedidos"}
@@ -346,7 +346,7 @@ export function VentasModals({ flow, openAbonoForOrderRecord }: VentasModalsProp
         maxWidth="lg"
       >
         {selectedPartnerQuote && (
-          <div className="space-y-3 text-xs">
+          <div className="space-y-3 text-sm">
             <div className="grid grid-cols-1 gap-2 rounded-xl border border-bht-line-blue bg-bht-mist/70 p-3 sm:grid-cols-3">
               <div>
                 <span className="block text-xs text-bht-ink-soft">Estado</span>
@@ -450,7 +450,7 @@ export function VentasModals({ flow, openAbonoForOrderRecord }: VentasModalsProp
               statusStr !== "PENDING_PARTNER_APPROVAL";
             const canCancel = statusStr !== "CANCELLED" && statusStr !== "DELIVERED";
             return (
-              <div className="space-y-3 text-xs">
+              <div className="space-y-3 text-sm">
                 <div className="grid grid-cols-1 gap-2 rounded-xl border border-bht-line-blue bg-bht-mist/70 p-3 sm:grid-cols-3 tabular-nums">
                   <div>
                     <span className="block text-xs text-bht-ink-soft">Venta</span>

@@ -44,7 +44,7 @@ export function HoyDataStatusCard({
       className="space-y-2.5"
     >
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="min-w-0 space-y-0.5 text-xs">
+        <div className="min-w-0 space-y-0.5 text-sm">
           <div className="flex flex-wrap items-center gap-1.5">
             <span className="font-semibold text-bht-ink-strong">
               {effectiveCutDate
@@ -55,7 +55,7 @@ export function HoyDataStatusCard({
             {!bankReconciled && <Badge tone="warning">Saldos no conciliados</Badge>}
           </div>
           {dataCut && (
-            <p className="text-bht-ink-soft tabular-nums">
+            <p className="text-xs text-bht-ink-soft tabular-nums">
               Caja: {formatDatePe(dataCut.lastCashLedgerDate)} · Cobros:{" "}
               {formatDatePe(dataCut.lastPaymentDate)} · Compras:{" "}
               {formatDatePe(dataCut.lastPurchaseDate)}
@@ -92,7 +92,7 @@ export function HoyDataStatusCard({
       </div>
 
       {checklist.length > 0 && (
-        <details className="group border-t border-bht-line pt-2 text-xs">
+        <details className="group border-t border-bht-line pt-2 text-sm">
           <summary className="inline-flex cursor-pointer list-none items-center gap-1.5 font-semibold text-bht-navy-deep hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bht-cobalt [&::-webkit-details-marker]:hidden">
             <span>
               Lista de inicio operativo ({doneCount}/{checklist.length})
@@ -118,7 +118,7 @@ export function HoyDataStatusCard({
                       {item.label}
                     </span>
                   </div>
-                  <p className="text-bht-ink-soft">{item.detail}</p>
+                  <p className="text-xs text-bht-ink-soft">{item.detail}</p>
                 </div>
                 {!item.done && (
                   <Button
