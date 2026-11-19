@@ -28,8 +28,10 @@ El workflow de calidad ejecuta pruebas de contrato sin datos de negocio ni
 conexión a Neon. Las pruebas de integración con datos reales se ejecutan de
 forma local y controlada contra `dev`.
 
-La migración de producción se ejecuta únicamente mediante `workflow_dispatch`
-en la rama `main`, con confirmación escrita, el entorno GitHub `production`
-protegido por revisores y el secreto `NEON_MAIN_DATABASE_URL_UNPOOLED`.
-Configurar la protección del entorno y el secreto antes de habilitar esa Action.
-La Action comprueba la versión previa y posterior; no ejecuta el ETL de carga.
+La migración de producción requiere aprobación explícita. Este repositorio
+privado no tiene una Action que aplique migraciones: GitHub rechazó la regla de
+revisores obligatorios para el entorno `production` con el plan actual. Hasta
+que exista ese control, un operador autorizado debe ejecutar
+`uv run bht-etl migrate --branch main` desde una máquina controlada, con la
+credencial fuera de GitHub, después de comprobar los checksums y la versión
+actual de `public.schema_migrations`. El ETL de carga es un paso independiente.
