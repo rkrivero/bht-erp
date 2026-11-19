@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import type { UndoActionReceiptDto } from "@/lib/contracts";
 import { notifyLocalSync } from "@/lib/realtime/useLiveSync";
 import type { SellerData } from "@/features/seller/useSellerData";
 import type {
@@ -31,6 +32,7 @@ export function useSellerQuotes(data: SellerData, setFeedback: SellerFeedbackSet
         msg: converted.order?.requiresApproval
           ? `Cotización convertida a ${converted.order.orderCode} (pendiente de aprobación de Socio).`
           : `Cotización convertida en pedido ${converted.order?.orderCode} y enviada a Almacén.`,
+        undoAction: converted.undoAction,
       });
       notifyLocalSync(["orders", "inventory", "collections", "treasury", "partners"]);
       await loadAll({ silent: true });
@@ -51,10 +53,18 @@ export function useSellerQuotes(data: SellerData, setFeedback: SellerFeedbackSet
     if (busyQuoteId === quoteId) return;
     setBusyQuoteId(quoteId);
     try {
-      await postJson<object>("/api/quotes", {
+      const res = await postJson<{ undoAction?: UndoActionReceiptDto }>("/api/quotes", {
         action: "update_status",
         quoteId,
         nextStatus,
+      });
+      setFeedback({
+        type: "ok",
+        msg:
+          nextStatus === "CANCELLED"
+            ? "Cotización anulada correctamente."
+            : "Cotización marcada como vencida.",
+        undoAction: res.undoAction,
       });
       notifyLocalSync(["orders", "partners"]);
       await loadOrdersAndCatalog({ silent: true });

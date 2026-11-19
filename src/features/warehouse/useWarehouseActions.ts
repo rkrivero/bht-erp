@@ -2,10 +2,12 @@ import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { ApiClientError, fetchJson } from "@/lib/api-client";
 import type {
+  UndoActionReceiptDto,
   WarehouseOrderDto,
   WarehouseTripDto,
   WarehouseTripMutationResponseDto,
 } from "@/lib/contracts";
+import { formatOperationalStatusEs } from "@/lib/labels-es";
 import { notifyLocalSync } from "@/lib/realtime/useLiveSync";
 import type { NextOrderStatus, WarehouseFeedback } from "./types";
 import { isAuthStatus } from "./useWarehouseData";
@@ -80,12 +82,16 @@ export function useWarehouseActions({ openTrips, loadOrders, setFeedback }: Opti
     setFeedback(null);
     setBusyTripAction(true);
     try {
-      await postJson("/api/trips", {
+      const res = await postJson<{ undoAction?: UndoActionReceiptDto }>("/api/trips", {
         action: "close_trip",
         tripId,
         nextStatus: "CLOSED",
       });
-      setFeedback({ type: "ok", msg: "Ruta cerrada correctamente." });
+      setFeedback({
+        type: "ok",
+        msg: "Ruta cerrada correctamente.",
+        undoAction: res.undoAction,
+      });
       notifyLocalSync(["orders", "partners"]);
       await loadOrders({ silent: true });
     } catch (error) {
@@ -111,7 +117,7 @@ export function useWarehouseActions({ openTrips, loadOrders, setFeedback }: Opti
         });
         return;
       }
-      await postJson("/api/trips", {
+      const res = await postJson<{ undoAction?: UndoActionReceiptDto }>("/api/trips", {
         action: "assign_order",
         tripId: Number(chosenTripId),
         orderId: order.order_id,
@@ -120,6 +126,7 @@ export function useWarehouseActions({ openTrips, loadOrders, setFeedback }: Opti
       setFeedback({
         type: "ok",
         msg: `Pedido ${order.order_code} despachado en ruta.`,
+        undoAction: res.undoAction,
       });
       notifyLocalSync(["orders", "inventory", "partners"]);
       await loadOrders({ silent: true });
@@ -135,7 +142,16 @@ export function useWarehouseActions({ openTrips, loadOrders, setFeedback }: Opti
     setFeedback(null);
     setBusyOrderId(orderId);
     try {
-      await postJson("/api/orders", { action: "advance", orderId, nextStatus });
+      const res = await postJson<{ undoAction?: UndoActionReceiptDto }>("/api/orders", {
+        action: "advance",
+        orderId,
+        nextStatus,
+      });
+      setFeedback({
+        type: "ok",
+        msg: `Pedido actualizado a ${formatOperationalStatusEs(nextStatus)}.`,
+        undoAction: res.undoAction,
+      });
       notifyLocalSync(["orders", "inventory", "partners"]);
       await loadOrders({ silent: true });
     } catch (error) {

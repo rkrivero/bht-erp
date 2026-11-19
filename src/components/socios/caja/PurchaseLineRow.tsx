@@ -4,6 +4,10 @@ import React, { useDeferredValue, useMemo } from "react";
 import { PlusIcon, TrashIcon } from "@/components/ui/Icons";
 import { Button, Card, FieldLabel, INPUT_CLASS } from "@/components/ui/Primitives";
 import { formatFulfillmentModeEs } from "@/lib/labels-es";
+import {
+  matchCatalogItem,
+  resolveCatalogProductMatch,
+} from "@/lib/product-matching";
 import { formatPen, type PartnerCatalogItem, type PendingOnDemandItem } from "../types";
 import type { PurchaseLineDraft } from "./caja-utils";
 
@@ -30,16 +34,38 @@ export const PurchaseLineRow = React.memo(function PurchaseLineRow({
 }) {
   const deferredSearch = useDeferredValue(row.search);
 
-  const filteredProds = useMemo(() => {
-    const q = deferredSearch.trim().toLowerCase();
-    if (!q) return catalog;
-    return catalog.filter(
-      (p) =>
-        p.name.toLowerCase().includes(q) ||
-        p.sku.toLowerCase().includes(q) ||
-        p.product_id === row.productId
-    );
+  const filteredMatches = useMemo(() => {
+    const q = deferredSearch.trim();
+    if (!q) {
+      return catalog.map((product) => ({ product, viaAlias: undefined as string | undefined }));
+    }
+    const matches: Array<{ product: PartnerCatalogItem; viaAlias?: string }> = [];
+    for (const p of catalog) {
+      const m = matchCatalogItem(p, q);
+      if (m.matched || p.product_id === row.productId) {
+        matches.push({ product: p, viaAlias: m.matchedText });
+      }
+    }
+    return matches;
   }, [catalog, deferredSearch, row.productId]);
+
+  const deducedMatch = useMemo(() => {
+    const q = deferredSearch.trim();
+    if (!q || row.productId !== "") return null;
+    const res = resolveCatalogProductMatch(catalog, { rawDescription: q });
+    if (res.ok) return res;
+    if (filteredMatches.length === 1 && q.length >= 4) {
+      const only = filteredMatches[0].product;
+      return {
+        ok: true as const,
+        productId: only.product_id,
+        sku: only.sku,
+        name: only.name,
+        via: "canonical_alias" as const,
+      };
+    }
+    return null;
+  }, [catalog, deferredSearch, filteredMatches, row.productId]);
 
   const selectedProd = useMemo(
     () =>
@@ -57,14 +83,14 @@ export const PurchaseLineRow = React.memo(function PurchaseLineRow({
     <div className="grid grid-cols-1 gap-2.5 rounded-xl border border-bht-line bg-white p-3 sm:grid-cols-12 sm:items-end">
       <div className="min-w-0 space-y-1.5 sm:col-span-6">
         <FieldLabel htmlFor={searchInputId}>
-          Producto #{idx + 1} (Filtra por nombre o código)
+          Producto #{idx + 1} (Filtra por código, nombre o alias de factura)
         </FieldLabel>
         <input
           id={searchInputId}
           type="text"
           value={row.search}
           onChange={(e) => onSearchChange(row.key, e.target.value)}
-          placeholder="Buscar código o producto..."
+          placeholder="Buscar código, nombre o descripción de factura..."
           className={INPUT_CLASS}
         />
         <label htmlFor={selectProdId} className="sr-only">
@@ -78,13 +104,34 @@ export const PurchaseLineRow = React.memo(function PurchaseLineRow({
           className={`${INPUT_CLASS} min-w-0 font-medium`}
         >
           <option value="">-- Elegir producto --</option>
-          {filteredProds.map((p) => (
+          {filteredMatches.map(({ product: p, viaAlias }) => (
             <option key={p.product_id} value={String(p.product_id)}>
-              {p.sku} — {p.name} (Stock: {p.stock_on_hand} {p.unit_of_measure} ·{" "}
-              {formatFulfillmentModeEs(p.fulfillment_mode)})
+              {p.sku} — {p.name}
+              {viaAlias ? ` [vía: ${viaAlias}]` : ""} (Stock: {p.stock_on_hand}{" "}
+              {p.unit_of_measure} · {formatFulfillmentModeEs(p.fulfillment_mode)})
             </option>
           ))}
         </select>
+        {deducedMatch && (
+          <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-bht-info-line bg-bht-cobalt-bg/60 px-2.5 py-1.5 text-xs text-bht-navy-deep">
+            <span className="min-w-0 truncate">
+              Deducido a SKU único:{" "}
+              <strong>
+                {deducedMatch.sku} — {deducedMatch.name}
+              </strong>
+            </span>
+            <button
+              type="button"
+              data-compact="true"
+              onClick={() =>
+                onSelectProduct(row.key, String(deducedMatch.productId))
+              }
+              className="shrink-0 rounded-md border border-bht-cobalt bg-white px-2 py-0.5 text-xs font-semibold text-bht-cobalt-strong hover:bg-bht-cobalt-bg cursor-pointer"
+            >
+              Usar SKU único: {deducedMatch.sku}
+            </button>
+          </div>
+        )}
         {selectedProd && (
           <p className="text-xs text-bht-ink-soft tabular-nums">
             Stock actual:{" "}

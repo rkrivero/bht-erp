@@ -99,7 +99,18 @@
   h3 {
     font-family: inherit;
     text-wrap: balance;
-    letter-spacing: -0.02em;
+    letter-spacing: -0.025em;
+  }
+
+  code,
+  kbd,
+  samp,
+  pre,
+  .font-mono {
+    font-family:
+      var(--font-jetbrains-mono), ui-monospace, SFMono-Regular, Menlo, Monaco,
+      Consolas, monospace;
+    font-variant-numeric: tabular-nums;
   }
 
   p,

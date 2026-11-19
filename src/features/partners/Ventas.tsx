@@ -1,8 +1,8 @@
 "use client";
 
 import React from "react";
+import { PartnerQuotesPanel } from "@/components/socios/PartnerQuotesPanel";
 import { formatPen } from "@/components/socios/types";
-import {} from "@/components/shared/CollectionControls";
 import { SearchIcon } from "@/components/ui/Icons";
 import {
   Badge,
@@ -75,111 +75,19 @@ export function Ventas({ orders, ordersPagination, partnerQuotes, flow }: Ventas
           {
             id: "quotes",
             label: "Cotizaciones",
-            count: partnerQuotes.length,
+            count: partnerQuotes.filter((q) => q.status === "OPEN").length,
           },
         ]}
       />
 
       {salesView === "quotes" ? (
-        <Card padding="md" className="space-y-3">
-          <div>
-            <h2 className="text-base sm:text-lg font-bold text-bht-ink-strong">
-              Cotizaciones Comerciales ({partnerQuotes.length})
-            </h2>
-            <p className="text-xs text-bht-ink-soft">
-              Revisa cualquier cotización o conviértela en pedido al contado o crédito.
-            </p>
-          </div>
-          {partnerQuotes.length === 0 ? (
-            <EmptyState title="Sin cotizaciones registradas" />
-          ) : (
-            <div className="grid grid-cols-1 gap-2.5 md:grid-cols-2">
-              {partnerQuotes.map((q) => {
-                const qId = Number(q.quote_id);
-                const status = String(q.status);
-                const isBusy = busyQuoteId === qId;
-                return (
-                  <div
-                    key={qId}
-                    className="rounded-xl border border-bht-line bg-bht-paper p-3 text-sm space-y-2"
-                  >
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <div className="min-w-0">
-                        <span className="text-xs font-semibold text-bht-navy-mid tabular-nums">
-                          {String(q.quote_code)} · {String(q.issue_date)}
-                        </span>
-                        <p className="truncate text-base font-bold text-bht-ink-strong">
-                          {String(q.customer_name)}
-                        </p>
-                        <p className="text-bht-ink-soft tabular-nums">
-                          Total: {formatPen(q.total_pen)} ·{" "}
-                          {Array.isArray(q.lines) ? q.lines.length : 0} ítem(s)
-                        </p>
-                      </div>
-                      <Badge
-                        tone={
-                          status === "CONVERTED"
-                            ? "success"
-                            : status === "OPEN"
-                              ? "brand"
-                              : "neutral"
-                        }
-                      >
-                        {status === "CONVERTED"
-                          ? `Pedido ${String(q.converted_order_code || q.related_cpe || "")}`.trim()
-                          : formatQuoteStatusEs(status)}
-                      </Badge>
-                    </div>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      data-compact="true"
-                      onClick={() => setSelectedPartnerQuote(q)}
-                      className="w-full"
-                    >
-                      Ver detalle
-                    </Button>
-                    {status === "OPEN" && (
-                      <div className="flex flex-wrap gap-1.5">
-                        <Button
-                          type="button"
-                          variant="success"
-                          size="sm"
-                          data-compact="true"
-                          disabled={isBusy}
-                          onClick={() => handlePartnerConvertQuote(qId, "CASH")}
-                        >
-                          Convertir Contado
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="primary"
-                          size="sm"
-                          data-compact="true"
-                          disabled={isBusy}
-                          onClick={() => handlePartnerConvertQuote(qId, "CREDIT")}
-                        >
-                          A Crédito
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          data-compact="true"
-                          disabled={isBusy}
-                          onClick={() => handlePartnerCancelQuote(qId)}
-                        >
-                          Anular
-                        </Button>
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </Card>
+        <PartnerQuotesPanel
+          quotes={partnerQuotes}
+          busyQuoteId={busyQuoteId}
+          onSelectQuote={setSelectedPartnerQuote}
+          onConvertQuote={handlePartnerConvertQuote}
+          onCancelQuote={handlePartnerCancelQuote}
+        />
       ) : (
         <Card padding="md" className="space-y-3">
           <div>
@@ -558,7 +466,11 @@ export function VentasModals({ flow, openAbonoForOrderRecord }: VentasModalsProp
                             <p className="font-medium text-bht-ink-strong">
                               {String(entry.action) === "CANCEL"
                                 ? "Anulación"
-                                : "Modificación"}{" "}
+                                : String(entry.action) === "UNDO_CANCEL"
+                                  ? "Reversión de anulación"
+                                  : String(entry.action) === "UNDO_STATUS"
+                                    ? "Reversión de estado"
+                                    : "Modificación"}{" "}
                               · {String(entry.reason)}
                             </p>
                             <p>

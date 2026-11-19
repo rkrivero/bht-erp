@@ -222,6 +222,7 @@ export interface PartnerDashboardResponseDto {
   qualityGaps: PartnerQualityGapDto[];
   openDebtorsCount: number;
   negativeStockSkuCount: number;
+  unpurchasedRegularizationCount?: number;
   pendingOnDemand: PendingOnDemandItem[];
   auditFlags: AuditFlagItem[];
   auditFlagCounts: AuditFlagCounts;
@@ -252,3 +253,52 @@ export type PartnerOrdersResponseDto = OrdersResponseDto<
   PartnerCatalogItem,
   SellerCustomerDto
 >;
+
+export interface UndoActionReceiptDto {
+  undoId: number;
+  actionType: string;
+  entityTable?: string;
+  entityId?: string;
+  entityCode?: string | null;
+  summary: string;
+  createdAt?: string;
+  expiresAt: string;
+  windowSeconds?: number;
+}
+
+export interface UndoableActionDto {
+  undo_id: number;
+  action_type: string;
+  entity_table: string;
+  entity_id: string;
+  entity_code: string | null;
+  summary: string;
+  actor_user_id: number;
+  actor_username: string;
+  actor_name: string;
+  actor_role: string;
+  created_at: string;
+  expires_at: string;
+  undone_at: string | null;
+  undone_by_user_id: number | null;
+  undone_by_name: string | null;
+  undone_reason: string | null;
+  is_expired: boolean;
+  can_undo: boolean;
+  remaining_seconds: number;
+}
+
+export interface UndoListResponseDto {
+  scope: "mine" | "all";
+  windowSeconds: number;
+  isAdmin: boolean;
+  actions: UndoableActionDto[];
+}
+
+export interface UndoExecuteResponseDto {
+  ok: true;
+  undoId: number;
+  actionType: string;
+  entityCode: string | null;
+  restoredMessage: string;
+}

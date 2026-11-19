@@ -1,4 +1,9 @@
 import type { PoolClient } from "pg";
+import {
+  formatAuditFlagCodeEs,
+  formatAuditFlagStatusEs,
+  formatRouteTripStatusEs,
+} from "../labels-es";
 import { assertRole, isPartnerRole } from "../rbac";
 import {
   AuthorizationError,
@@ -10,6 +15,7 @@ import {
   type SessionUser,
 } from "../types";
 import { advanceWarehouseStatus, createOrder, getLimaDateString } from "./orders";
+import { recordUndoableAction, type UndoActionReceipt } from "./undo";
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -169,7 +175,11 @@ export async function updateAuditFlagStatus(
     nextStatus: "OPEN" | "ACKNOWLEDGED" | "RESOLVED";
     resolutionNote?: string | null;
   }
-): Promise<{ flagId: number; status: "OPEN" | "ACKNOWLEDGED" | "RESOLVED" }> {
+): Promise<{
+  flagId: number;
+  status: "OPEN" | "ACKNOWLEDGED" | "RESOLVED";
+  undoAction?: UndoActionReceipt;
+}> {
   assertRole(actor, ["PARTNER_ADMIN", "PARTNER_MANAGER"]);
   const flagId = parsePositiveInt(input.flagId, "Alerta");
   const nextStatus = String(input.nextStatus || "")
@@ -182,13 +192,28 @@ export async function updateAuditFlagStatus(
   }
   const note = input.resolutionNote?.trim() || null;
 
-  const lockRes = await client.query<{ flag_id: string }>(
-    `SELECT flag_id::text FROM erp.audit_flags WHERE flag_id = $1 FOR UPDATE`,
+  const lockRes = await client.query<{
+    flag_id: string;
+    flag_code: string;
+    status: string;
+    acknowledged_at: string | null;
+    acknowledged_by: string | null;
+    resolved_at: string | null;
+    resolved_by: string | null;
+    resolution_note: string | null;
+  }>(
+    `SELECT flag_id::text, flag_code, status,
+            acknowledged_at::text, acknowledged_by,
+            resolved_at::text, resolved_by, resolution_note
+     FROM erp.audit_flags
+     WHERE flag_id = $1
+     FOR UPDATE`,
     [flagId]
   );
   if (lockRes.rowCount === 0) {
     throw new ValidationError("Alerta no encontrada");
   }
+  const prev = lockRes.rows[0];
 
   if (nextStatus === "ACKNOWLEDGED") {
     await client.query(
@@ -222,9 +247,32 @@ export async function updateAuditFlagStatus(
     );
   }
 
+  const undoAction =
+    prev.status !== nextStatus
+      ? await recordUndoableAction(client, actor, {
+          actionType: "AUDIT_FLAG_STATUS",
+          entityTable: "erp.audit_flags",
+          entityId: flagId,
+          entityCode: prev.flag_code,
+          summary: `Cambió alerta #${flagId} (${formatAuditFlagCodeEs(prev.flag_code)}) de ${formatAuditFlagStatusEs(prev.status)} a ${formatAuditFlagStatusEs(nextStatus)}`,
+          undoPayload: {
+            flagId,
+            flagCode: prev.flag_code,
+            previousStatus: prev.status,
+            nextStatus,
+            previousAcknowledgedAt: prev.acknowledged_at,
+            previousAcknowledgedBy: prev.acknowledged_by,
+            previousResolvedAt: prev.resolved_at,
+            previousResolvedBy: prev.resolved_by,
+            previousResolutionNote: prev.resolution_note,
+          },
+        })
+      : undefined;
+
   return {
     flagId,
     status: nextStatus as "OPEN" | "ACKNOWLEDGED" | "RESOLVED",
+    undoAction,
   };
 }
 
@@ -415,7 +463,12 @@ export async function assignOrderToTrip(
     orderId: number;
     advanceToInRoute?: boolean;
   }
-): Promise<{ tripId: number; orderId: number; operationalStatus: string }> {
+): Promise<{
+  tripId: number;
+  orderId: number;
+  operationalStatus: string;
+  undoAction?: UndoActionReceipt;
+}> {
   assertRole(actor, ["PARTNER_ADMIN", "PARTNER_MANAGER", "WAREHOUSE_DELIVERY"]);
   const tripId = parsePositiveInt(input.tripId, "Ruta");
   const orderId = parsePositiveInt(input.orderId, "Pedido");
@@ -431,8 +484,11 @@ export async function assignOrderToTrip(
     throw new ValidationError("Solo se pueden asignar pedidos a una ruta OPEN");
   }
 
-  const orderRes = await client.query<{ operational_status: string }>(
-    `SELECT operational_status::text AS operational_status
+  const orderRes = await client.query<{
+    operational_status: string;
+    trip_id: string | null;
+  }>(
+    `SELECT operational_status::text AS operational_status, trip_id::text AS trip_id
      FROM erp.sales_orders
      WHERE order_id = $1
      FOR UPDATE`,
@@ -441,6 +497,8 @@ export async function assignOrderToTrip(
   if (orderRes.rowCount === 0) {
     throw new ValidationError("Pedido no encontrado");
   }
+  const previousTripId =
+    orderRes.rows[0].trip_id !== null ? Number(orderRes.rows[0].trip_id) : null;
   let opStatus = String(orderRes.rows[0].operational_status);
   if (opStatus === "CANCELLED" || opStatus === "PENDING_PARTNER_APPROVAL") {
     throw new ValidationError(
@@ -453,17 +511,21 @@ export async function assignOrderToTrip(
     orderId,
   ]);
 
+  let undoAction: UndoActionReceipt | undefined;
   if (input.advanceToInRoute) {
     if (opStatus !== "READY") {
       throw new ValidationError(
         `El pedido debe estar READY para pasar a IN_ROUTE (estado actual: ${opStatus})`
       );
     }
-    await advanceWarehouseStatus(client, actor, orderId, "IN_ROUTE");
+    const adv = await advanceWarehouseStatus(client, actor, orderId, "IN_ROUTE", {
+      previousTripIdOverride: previousTripId,
+    });
     opStatus = "IN_ROUTE";
+    undoAction = adv.undoAction;
   }
 
-  return { tripId, orderId, operationalStatus: opStatus };
+  return { tripId, orderId, operationalStatus: opStatus, undoAction };
 }
 
 export async function closeRouteTrip(
@@ -477,7 +539,11 @@ export async function closeRouteTrip(
     declaredNetCashPen?: number | null;
     notes?: string | null;
   }
-): Promise<{ tripId: number; status: "CLOSED" | "RECONCILED" }> {
+): Promise<{
+  tripId: number;
+  status: "CLOSED" | "RECONCILED";
+  undoAction?: UndoActionReceipt;
+}> {
   const tripId = parsePositiveInt(input.tripId, "Ruta");
   const nextStatus = String(input.nextStatus || "CLOSED")
     .trim()
@@ -525,14 +591,28 @@ export async function closeRouteTrip(
       ? parseNonNegativeNumber(input.declaredNetCashPen, "Neto caja declarado")
       : null;
 
-  const lockRes = await client.query<{ status: string }>(
-    `SELECT status::text AS status FROM erp.route_trips WHERE trip_id = $1 FOR UPDATE`,
+  const lockRes = await client.query<{
+    trip_code: string;
+    status: string;
+    end_date: string | null;
+    declared_gross_sales_pen: string | number | null;
+    declared_route_opex_pen: string | number | null;
+    declared_net_cash_pen: string | number | null;
+    notes: string | null;
+  }>(
+    `SELECT trip_code, status::text AS status, end_date::text AS end_date,
+            declared_gross_sales_pen, declared_route_opex_pen,
+            declared_net_cash_pen, notes
+     FROM erp.route_trips
+     WHERE trip_id = $1
+     FOR UPDATE`,
     [tripId]
   );
   if (lockRes.rowCount === 0) {
     throw new ValidationError("Ruta no encontrada");
   }
-  const currentStatus = String(lockRes.rows[0].status);
+  const prevTrip = lockRes.rows[0];
+  const currentStatus = String(prevTrip.status);
   if (currentStatus === "RECONCILED" && nextStatus === "CLOSED") {
     throw new ValidationError("Una ruta ya conciliada no puede volver a CLOSED");
   }
@@ -549,16 +629,47 @@ export async function closeRouteTrip(
     [tripId, nextStatus, gross, opex, net, input.notes?.trim() || null]
   );
 
-  return { tripId, status: nextStatus as "CLOSED" | "RECONCILED" };
+  const undoAction =
+    currentStatus !== nextStatus
+      ? await recordUndoableAction(client, actor, {
+          actionType: "TRIP_CLOSE",
+          entityTable: "erp.route_trips",
+          entityId: tripId,
+          entityCode: prevTrip.trip_code,
+          summary: `Cerró ruta ${prevTrip.trip_code} (${formatRouteTripStatusEs(currentStatus)} → ${formatRouteTripStatusEs(nextStatus)})`,
+          undoPayload: {
+            tripId,
+            tripCode: prevTrip.trip_code,
+            previousStatus: currentStatus,
+            nextStatus,
+            previousEndDate: prevTrip.end_date,
+            previousDeclaredGrossSalesPen:
+              prevTrip.declared_gross_sales_pen !== null
+                ? Number(prevTrip.declared_gross_sales_pen)
+                : null,
+            previousDeclaredRouteOpexPen:
+              prevTrip.declared_route_opex_pen !== null
+                ? Number(prevTrip.declared_route_opex_pen)
+                : null,
+            previousDeclaredNetCashPen:
+              prevTrip.declared_net_cash_pen !== null
+                ? Number(prevTrip.declared_net_cash_pen)
+                : null,
+            previousNotes: prevTrip.notes,
+          },
+        })
+      : undefined;
+
+  return { tripId, status: nextStatus as "CLOSED" | "RECONCILED", undoAction };
 }
 
 export async function listQuotes(
   client: PoolClient,
   actor: SessionUser,
-  limit = 60
+  limit = 250
 ): Promise<Record<string, unknown>[]> {
   assertRole(actor, ["PARTNER_ADMIN", "PARTNER_MANAGER", "EXTERNAL_SELLER"]);
-  const safeLimit = Math.max(1, Math.min(150, Math.floor(limit || 60)));
+  const safeLimit = Math.max(1, Math.min(500, Math.floor(limit || 250)));
 
   const res = await client.query(
     `SELECT
@@ -846,7 +957,11 @@ export async function updateQuoteStatus(
     quoteId: number;
     nextStatus: "OPEN" | "EXPIRED" | "CANCELLED";
   }
-): Promise<{ quoteId: number; status: "OPEN" | "EXPIRED" | "CANCELLED" }> {
+): Promise<{
+  quoteId: number;
+  status: "OPEN" | "EXPIRED" | "CANCELLED";
+  undoAction?: UndoActionReceipt;
+}> {
   assertRole(actor, ["PARTNER_ADMIN", "PARTNER_MANAGER", "EXTERNAL_SELLER"]);
   const quoteId = parsePositiveInt(input.quoteId, "Cotización");
   const nextStatus = String(input.nextStatus || "")
@@ -856,14 +971,22 @@ export async function updateQuoteStatus(
     throw new ValidationError("Estado destino inválido (OPEN, EXPIRED o CANCELLED)");
   }
 
-  const res = await client.query<{ status: string }>(
-    `SELECT status::text AS status FROM erp.quotes WHERE quote_id = $1 FOR UPDATE`,
+  const res = await client.query<{
+    status: string;
+    quote_code: string;
+    customer_name_raw: string | null;
+  }>(
+    `SELECT status::text AS status, quote_code, customer_name_raw
+     FROM erp.quotes
+     WHERE quote_id = $1
+     FOR UPDATE`,
     [quoteId]
   );
   if (res.rowCount === 0) {
     throw new ValidationError("Cotización no encontrada");
   }
-  if (res.rows[0].status === "CONVERTED") {
+  const prev = res.rows[0];
+  if (prev.status === "CONVERTED") {
     throw new ValidationError(
       "Una cotización ya convertida en pedido no puede cambiar a otro estado"
     );
@@ -874,9 +997,33 @@ export async function updateQuoteStatus(
     [quoteId, nextStatus]
   );
 
+  const verb =
+    nextStatus === "CANCELLED"
+      ? "Anuló"
+      : nextStatus === "EXPIRED"
+        ? "Marcó como vencida"
+        : "Reabrió";
+  const undoAction =
+    prev.status !== nextStatus
+      ? await recordUndoableAction(client, actor, {
+          actionType: "QUOTE_STATUS_CHANGE",
+          entityTable: "erp.quotes",
+          entityId: quoteId,
+          entityCode: prev.quote_code,
+          summary: `${verb} cotización ${prev.quote_code} (${prev.customer_name_raw || "CLIENTE"})`,
+          undoPayload: {
+            quoteId,
+            quoteCode: prev.quote_code,
+            previousStatus: prev.status,
+            nextStatus,
+          },
+        })
+      : undefined;
+
   return {
     quoteId,
     status: nextStatus as "OPEN" | "EXPIRED" | "CANCELLED",
+    undoAction,
   };
 }
 
@@ -904,6 +1051,7 @@ export async function convertQuoteToOrder(
     customer_party_id: string | null;
     customer_name_raw: string | null;
     status: string;
+    related_cpe: string | null;
     notes: string | null;
   }>(
     `SELECT
@@ -912,6 +1060,7 @@ export async function convertQuoteToOrder(
        customer_party_id::text,
        customer_name_raw,
        status::text AS status,
+       related_cpe,
        notes
      FROM erp.quotes
      WHERE quote_id = $1
@@ -988,22 +1137,27 @@ export async function convertQuoteToOrder(
     }
   }
 
-  const orderResult = await createOrder(client, actor, {
-    customerPartyId: quote.customer_party_id ? Number(quote.customer_party_id) : null,
-    customerNameRaw: quote.customer_name_raw || `CLIENTE ${quote.quote_code}`,
-    paymentMode: (input.paymentMode || "CASH") as PaymentMode,
-    collectOnDelivery: Boolean(input.collectOnDelivery),
-    creditDays: input.creditDays,
-    promisedPaymentDate: input.promisedPaymentDate ?? null,
-    initialPaidPen: input.initialPaidPen,
-    paymentAccountId: input.paymentAccountId,
-    tripId: input.tripId ?? null,
-    quoteId,
-    notes:
-      input.notes?.trim() ||
-      [quote.notes, `Convertido de ${quote.quote_code}`].filter(Boolean).join(" | "),
-    lines: orderLines,
-  });
+  const orderResult = await createOrder(
+    client,
+    actor,
+    {
+      customerPartyId: quote.customer_party_id ? Number(quote.customer_party_id) : null,
+      customerNameRaw: quote.customer_name_raw || `CLIENTE ${quote.quote_code}`,
+      paymentMode: (input.paymentMode || "CASH") as PaymentMode,
+      collectOnDelivery: Boolean(input.collectOnDelivery),
+      creditDays: input.creditDays,
+      promisedPaymentDate: input.promisedPaymentDate ?? null,
+      initialPaidPen: input.initialPaidPen,
+      paymentAccountId: input.paymentAccountId,
+      tripId: input.tripId ?? null,
+      quoteId,
+      notes:
+        input.notes?.trim() ||
+        [quote.notes, `Convertido de ${quote.quote_code}`].filter(Boolean).join(" | "),
+      lines: orderLines,
+    },
+    { skipUndoLog: true }
+  );
 
   await client.query(
     `UPDATE erp.quotes
@@ -1013,9 +1167,26 @@ export async function convertQuoteToOrder(
     [quoteId, orderResult.orderCode]
   );
 
+  const undoAction = await recordUndoableAction(client, actor, {
+    actionType: "QUOTE_CONVERT_TO_ORDER",
+    entityTable: "erp.quotes",
+    entityId: quoteId,
+    entityCode: quote.quote_code,
+    summary: `Convirtió cotización ${quote.quote_code} en pedido ${orderResult.orderCode} (${quote.customer_name_raw || "CLIENTE"})`,
+    undoPayload: {
+      quoteId,
+      quoteCode: quote.quote_code,
+      orderId: orderResult.orderId,
+      orderCode: orderResult.orderCode,
+      previousQuoteStatus: quote.status,
+      previousRelatedCpe: quote.related_cpe ?? null,
+    },
+  });
+
   return {
     quoteId,
     quoteCode: quote.quote_code,
     order: orderResult,
+    undoAction,
   };
 }

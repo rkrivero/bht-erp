@@ -15,6 +15,7 @@ import {
   formatEntityTableEs,
   formatQualityGapEs,
 } from "@/lib/labels-es";
+import type { UndoActionReceiptDto } from "@/lib/contracts";
 import { notifyLocalSync } from "@/lib/realtime/useLiveSync";
 import { formatPen } from "../types";
 import { ReportesCalidadPanel } from "./ReportesCalidadPanel";
@@ -35,7 +36,11 @@ interface ReportesAuditoriaTabProps {
   onOpenDirectory?: () => void;
   onOpenSeller?: () => void;
   onRefresh: () => Promise<void>;
-  onFeedback: (msg: string, isError?: boolean) => void;
+  onFeedback: (
+    msg: string,
+    isError?: boolean,
+    undoAction?: UndoActionReceiptDto
+  ) => void;
 }
 
 export default function ReportesAuditoriaTab({
@@ -130,7 +135,10 @@ export default function ReportesAuditoriaTab({
           resolutionNote: flagNoteById[flagId]?.trim() || undefined,
         }),
       });
-      const resData = (await res.json()) as { error?: string };
+      const resData = (await res.json()) as {
+        error?: string;
+        undoAction?: UndoActionReceiptDto;
+      };
       if (!res.ok) {
         onFeedback(resData.error || "No se pudo actualizar la alerta.", true);
         return;
@@ -140,7 +148,9 @@ export default function ReportesAuditoriaTab({
           ? "Alerta operativa marcada como resuelta."
           : nextStatus === "ACKNOWLEDGED"
             ? "Alerta marcada como revisada."
-            : "Alerta reabierta correctamente."
+            : "Alerta reabierta correctamente.",
+        false,
+        resData.undoAction
       );
       notifyLocalSync(["partners"]);
       await onRefresh();

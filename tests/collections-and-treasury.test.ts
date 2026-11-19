@@ -249,9 +249,11 @@ describe("Collections, Partial Amortizations, FIFO, Debtors Aging, Treasury & Da
         })
       ).rejects.toThrow(AuthorizationError);
 
-      // Day-1 negative stock reset: first call resets all 93 negative historical SKUs, second call resets 0
+      // Day-1 negative stock reset: first call resets all 91 negative historical SKUs
+      // (after migrations 020/023/024 consolidated calipers and applied verified 2026-06-26 D562-SET + 47730-20480 opening stocks),
+      // second call resets 0
       const firstReset = await resetHistoricalNegativeStock(client, partnerActor);
-      expect(firstReset.adjustedSkuCount).toBe(93);
+      expect(firstReset.adjustedSkuCount).toBe(91);
 
       const secondReset = await resetHistoricalNegativeStock(client, partnerActor);
       expect(secondReset.adjustedSkuCount).toBe(0);

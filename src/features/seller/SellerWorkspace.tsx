@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import { signOutFromERP } from "@/lib/auth/logout-client";
@@ -25,7 +25,10 @@ import {
   SegmentedControl,
   ToastBanner,
 } from "@/components/ui/Primitives";
-import { useLiveSync } from "@/lib/realtime/useLiveSync";
+import { RecentUndoStrip } from "@/components/shared/RecentUndoStrip";
+import { ApiClientError } from "@/lib/api-client";
+import { notifyLocalSync, useLiveSync } from "@/lib/realtime/useLiveSync";
+import { executeUndoRequest } from "@/lib/undo-client";
 import { deleteOfflineSnapshotsForActor } from "@/lib/offline/outbox";
 import {
   canonicalSellerUrl,
@@ -60,6 +63,17 @@ export default function SellerWorkspace() {
   const [feedback, setFeedback] = useState<SellerFeedback | null>(null);
   const [loggingOut, setLoggingOut] = useState(false);
   const [expandedOrderId, setExpandedOrderId] = useState<number | null>(null);
+  const [busyUndoId, setBusyUndoId] = useState<number | null>(null);
+  const [undoRefreshSeq, setUndoRefreshSeq] = useState(0);
+  const seenUndoIdRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    const id = feedback?.undoAction?.undoId ?? null;
+    if (id !== null && id !== seenUndoIdRef.current) {
+      seenUndoIdRef.current = id;
+      setUndoRefreshSeq((seq) => seq + 1);
+    }
+  }, [feedback]);
 
   useEffect(() => {
     const syncFromUrl = () => {
@@ -110,6 +124,31 @@ export default function SellerWorkspace() {
     onRemoteChange: data.handleRemoteChange,
     onAuthError: handleSyncAuthError,
   });
+
+  const handleExecuteUndo = useCallback(
+    async (undoId: number) => {
+      if (busyUndoId !== null) return;
+      setBusyUndoId(undoId);
+      try {
+        const res = await executeUndoRequest(undoId);
+        setFeedback({ type: "ok", msg: res.restoredMessage });
+        setUndoRefreshSeq((seq) => seq + 1);
+        notifyLocalSync(SELLER_SYNC_SCOPES);
+        await data.loadAll({ silent: true });
+      } catch (error) {
+        setFeedback({
+          type: "err",
+          msg:
+            error instanceof ApiClientError
+              ? error.message
+              : "No se pudo deshacer la acción.",
+        });
+      } finally {
+        setBusyUndoId(null);
+      }
+    },
+    [busyUndoId, data]
+  );
 
   const openQuotesCount = useMemo(
     () => quotes.filter((q) => q.status === "OPEN").length,
@@ -294,7 +333,37 @@ export default function SellerWorkspace() {
           <ToastBanner
             type={feedback.type}
             message={feedback.msg}
+            action={
+              feedback.undoAction && feedback.type !== "err"
+                ? {
+                    label:
+                      busyUndoId === feedback.undoAction.undoId
+                        ? "Deshaciendo..."
+                        : "Deshacer",
+                    disabled: busyUndoId !== null,
+                    expiresAt: feedback.undoAction.expiresAt,
+                    windowSeconds: feedback.undoAction.windowSeconds,
+                    showCountdown: currentUser?.role !== "PARTNER_ADMIN",
+                    onClick: () => void handleExecuteUndo(feedback.undoAction!.undoId),
+                  }
+                : undefined
+            }
             onDismiss={() => setFeedback(null)}
+          />
+        )}
+
+        {liveStatus !== "offline" && (
+          <RecentUndoStrip
+            refreshKey={undoRefreshSeq + orders.length + quotes.length}
+            activeToastUndoId={feedback?.undoAction?.undoId ?? null}
+            isAdmin={currentUser?.role === "PARTNER_ADMIN"}
+            onUndone={(restoredMsg) => {
+              setFeedback({ type: "ok", msg: restoredMsg });
+              setUndoRefreshSeq((seq) => seq + 1);
+              notifyLocalSync(SELLER_SYNC_SCOPES);
+              void data.loadAll({ silent: true });
+            }}
+            onError={(errMsg) => setFeedback({ type: "err", msg: errMsg })}
           />
         )}
 

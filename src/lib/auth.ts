@@ -24,7 +24,7 @@ export async function resolveERPActor(
      SET neon_auth_user_id = $1
      WHERE LOWER(BTRIM(email)) = $2
        AND is_active = TRUE
-       AND (neon_auth_user_id IS NULL OR neon_auth_user_id = $1)`,
+       AND neon_auth_user_id IS NULL`,
     [authUserId, email]
   );
 

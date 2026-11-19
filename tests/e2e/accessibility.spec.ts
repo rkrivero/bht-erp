@@ -73,6 +73,18 @@ test("authenticated warehouse header remains usable without clipping", async ({
       body: JSON.stringify({ trips: [] }),
     });
   });
+  await page.route("**/api/undo**", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        scope: "mine",
+        windowSeconds: 900,
+        isAdmin: false,
+        actions: [],
+      }),
+    });
+  });
   await page.route("**/api/sync**", async (route) => {
     await route.fulfill({
       status: 200,
@@ -139,6 +151,7 @@ test("partner today view keeps the priority queue visible and accessible", async
     purchases: { suppliers: [], recentPurchases: [], pendingOnDemand: [] },
     trips: { trips: [] },
     quotes: { quotes: [] },
+    undo: { scope: "mine", windowSeconds: 900, isAdmin: false, actions: [] },
   };
 
   for (const [endpoint, body] of Object.entries(fixtures)) {
@@ -218,6 +231,7 @@ test("partner reports expose the data cut and cautious financial language", asyn
     purchases: { suppliers: [], recentPurchases: [] },
     trips: { trips: [] },
     quotes: { quotes: [] },
+    undo: { scope: "mine", windowSeconds: 900, isAdmin: false, actions: [] },
   };
 
   for (const [endpoint, body] of Object.entries(fixtures)) {
@@ -479,6 +493,7 @@ test("daily close correction stays usable on mobile and desktop", async ({
     purchases: { suppliers: [], recentPurchases: [], pendingOnDemand: [] },
     trips: { trips: [] },
     quotes: { quotes: [] },
+    undo: { scope: "mine", windowSeconds: 900, isAdmin: false, actions: [] },
   };
   for (const [endpoint, body] of Object.entries(fixtures)) {
     await page.route(`**/api/${endpoint}**`, async (route) => {
@@ -635,6 +650,7 @@ test("partner manager hides user administration nav and restricts access route",
     purchases: { suppliers: [], recentPurchases: [] },
     trips: { trips: [] },
     quotes: { quotes: [] },
+    undo: { scope: "mine", windowSeconds: 900, isAdmin: false, actions: [] },
   };
 
   for (const [endpoint, body] of Object.entries(fixtures)) {
@@ -787,6 +803,7 @@ test("partner directory exposes customer detail and keeps buyer hierarchy in ord
     purchases: { suppliers: [], recentPurchases: [] },
     trips: { trips: [] },
     quotes: { quotes: [] },
+    undo: { scope: "mine", windowSeconds: 900, isAdmin: false, actions: [] },
   };
 
   for (const [endpoint, body] of Object.entries(fixtures)) {
@@ -1000,11 +1017,23 @@ test("seller guided flow exposes four steps without overflow", async ({ page }) 
       }),
     });
   });
-  await page.route("**/api/quotes", async (route) => {
+  await page.route("**/api/quotes**", async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
       body: JSON.stringify({ quotes: [] }),
+    });
+  });
+  await page.route("**/api/undo**", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        scope: "mine",
+        windowSeconds: 900,
+        isAdmin: false,
+        actions: [],
+      }),
     });
   });
   await page.route("**/api/collections", async (route) => {
@@ -1047,5 +1076,384 @@ test("seller guided flow exposes four steps without overflow", async ({ page }) 
     results.violations.filter((violation) =>
       ["critical", "serious"].includes(violation.impact || "")
     )
+  ).toEqual([]);
+});
+
+test("regularization Excel export, partner quotes undo & PARTNER_ADMIN undo center stay accessible and responsive", async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    Object.defineProperty(window, "EventSource", {
+      configurable: true,
+      value: undefined,
+    });
+  });
+
+  const quotesList = [
+    {
+      quote_id: 9001,
+      quote_code: "COT-000201",
+      issue_date: "2026-11-18",
+      customer_name: "Cliente Caliper E2E",
+      seller_name: "Vendedor Externo",
+      status: "OPEN",
+      total_pen: 270,
+      related_cpe: null,
+      converted_order_code: null,
+      lines: [
+        {
+          quote_line_id: 1,
+          line_no: 1,
+          sku: "47730-20480",
+          raw_description: "CALIPER PARA TOYOTA 57-25",
+          quantity: 2,
+          unit_price_pen: 135,
+          line_total_pen: 270,
+        },
+      ],
+    },
+  ];
+
+  const undoActions: Array<{
+    undo_id: number;
+    action_type: string;
+    entity_table: string;
+    entity_id: string;
+    entity_code: string | null;
+    summary: string;
+    actor_user_id: number;
+    actor_username: string;
+    actor_name: string;
+    actor_role: string;
+    created_at: string;
+    expires_at: string;
+    undone_at: string | null;
+    undone_by_user_id: number | null;
+    undone_by_name: string | null;
+    undone_reason: string | null;
+    is_expired: boolean;
+    can_undo: boolean;
+    remaining_seconds: number;
+  }> = [
+    {
+      undo_id: 501,
+      action_type: "QUOTE_STATUS_CHANGE",
+      entity_table: "erp.quotes",
+      entity_id: "9001",
+      entity_code: "COT-000201",
+      summary: "Anuló cotización COT-000201 (Cliente Caliper E2E)",
+      actor_user_id: 3,
+      actor_username: "vendedor1",
+      actor_name: "Vendedor Externo",
+      actor_role: "EXTERNAL_SELLER",
+      created_at: "2026-11-19T14:00:00.000Z",
+      expires_at: "2026-11-19T13:50:00.000Z",
+      undone_at: null,
+      undone_by_user_id: null,
+      undone_by_name: null,
+      undone_reason: null,
+      is_expired: true,
+      can_undo: true,
+      remaining_seconds: 0,
+    },
+  ];
+
+  const fixtures: Record<string, unknown> = {
+    orders: {
+      orders: [],
+      catalog: [
+        {
+          product_id: 2,
+          sku: "47730-20480",
+          name: "CALIPER PARA TOYOTA 57-25",
+          unit_of_measure: "UND",
+          fulfillment_mode: "STOCKED",
+          stock_on_hand: -4,
+          list_sale_price_pen: 135,
+          min_sale_price_pen: 120,
+          ref_cost_pen: 80.5882,
+          aliases: [
+            "47750-20480 R",
+            'CALIPER PARA TOYOTA LASER 57-25 47750-20480 LADO DERECHO "NUEVO"',
+          ],
+        },
+      ],
+      accounts: [],
+      pagination: { totalCount: 0 },
+    },
+    collections: { byOrder: [], byCustomer: [] },
+    partners: {
+      currentUser: {
+        userId: 1,
+        username: "admin-e2e",
+        fullName: "Socio Operativo y Admin",
+        role: "PARTNER_ADMIN",
+      },
+      kpiQ1: {},
+      pendingOnDemand: [],
+      negativeStockSkuCount: 1,
+      unpurchasedRegularizationCount: 1,
+      users: [
+        {
+          user_id: 1,
+          username: "admin-e2e",
+          full_name: "Socio Operativo y Admin",
+          role: "PARTNER_ADMIN",
+          is_active: true,
+        },
+      ],
+      userAccessHistory: [],
+    },
+    treasury: { accounts: [], ledger: [], apObligations: [] },
+    purchases: { suppliers: [], recentPurchases: [], pendingOnDemand: [] },
+    trips: { trips: [] },
+  };
+
+  for (const [endpoint, body] of Object.entries(fixtures)) {
+    await page.route(`**/api/${endpoint}**`, async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(body),
+      });
+    });
+  }
+  await page.route("**/api/sync**", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        version: "e2e-static",
+        changedScopes: [],
+        allowedScopes: [
+          "orders",
+          "inventory",
+          "collections",
+          "treasury",
+          "purchases",
+          "partners",
+        ],
+      }),
+    });
+  });
+
+  await page.route("**/api/quotes**", async (route) => {
+    if (route.request().method() === "POST") {
+      quotesList[0].status = "CANCELLED";
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          quoteId: 9001,
+          status: "CANCELLED",
+          undoAction: {
+            undoId: 501,
+            actionType: "QUOTE_STATUS_CHANGE",
+            entityTable: "erp.quotes",
+            entityId: "9001",
+            entityCode: "COT-000201",
+            summary: "Anuló cotización COT-000201 (Cliente Caliper E2E)",
+            createdAt: "2026-11-19T14:00:00.000Z",
+            expiresAt: "2099-11-19T14:15:00.000Z",
+            windowSeconds: 900,
+          },
+        }),
+      });
+      return;
+    }
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ quotes: quotesList }),
+    });
+  });
+
+  let xlsxRequested = false;
+  await page.route("**/api/purchases/regularization**", async (route) => {
+    const url = new URL(route.request().url());
+    if (url.searchParams.get("format") === "xlsx") {
+      xlsxRequested = true;
+      await route.fulfill({
+        status: 200,
+        contentType:
+          "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers: {
+          "content-disposition":
+            'attachment; filename="bht_por_regularizar_compra_sold.xlsx"',
+        },
+        body: Buffer.from("PK\x03\x04e2e-xlsx"),
+      });
+      return;
+    }
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        mode: "sold",
+        summary: {
+          totalSkus: 1,
+          soldDeficitSkus: 1,
+          totalUnitsToRegularize: 4,
+          totalEstimatedPurchasePen: 322.35,
+          missingCostSkus: 0,
+          projectedDeficitSkus: 1,
+          totalProjectedUnits: 4,
+          totalProjectedPurchasePen: 322.35,
+          openQuotesTotalQty: 0,
+        },
+        suppliers: ["QINGDAO TUOYUAN RIGGING HARDWARE E.I.R.L."],
+        items: [
+          {
+            product_id: 2,
+            sku: "47730-20480",
+            product_name: "CALIPER PARA TOYOTA 57-25",
+            category: "FRENOS",
+            unit_of_measure: "UND",
+            fulfillment_mode: "STOCKED",
+            opening_stock_qty: 0,
+            purchased_qty: 204,
+            formal_backed_qty: 204,
+            sold_qty: 208,
+            orders_count: 15,
+            first_sale_date: "2026-06-30",
+            last_sale_date: "2026-09-18",
+            total_sales_revenue_pen: 27285,
+            open_quoted_qty: 0,
+            open_quotes_count: 0,
+            qty_to_regularize: 4,
+            projected_qty_to_regularize: 4,
+            additional_quote_deficit_qty: 0,
+            current_stock_on_hand: -4,
+            ref_cost_pen: 80.5882,
+            list_sale_price_pen: 135,
+            estimated_purchase_pen: 322.35,
+            projected_purchase_pen: 322.35,
+            last_supplier_party_id: 10,
+            last_supplier_name: "QINGDAO TUOYUAN RIGGING HARDWARE E.I.R.L.",
+            has_sold_deficit: true,
+          },
+        ],
+      }),
+    });
+  });
+
+  await page.route("**/api/undo**", async (route) => {
+    if (route.request().method() === "POST") {
+      undoActions[0].undone_at = "2026-11-19T14:05:00.000Z";
+      undoActions[0].undone_by_user_id = 1;
+      undoActions[0].undone_by_name = "Socio Operativo y Admin";
+      undoActions[0].can_undo = false;
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          ok: true,
+          undoId: 501,
+          actionType: "QUOTE_STATUS_CHANGE",
+          entityCode: "COT-000201",
+          restoredMessage: "Cotización COT-000201 restaurada a estado Abierta.",
+        }),
+      });
+      return;
+    }
+    const url = new URL(route.request().url());
+    const scope = url.searchParams.get("scope") || "mine";
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        scope,
+        windowSeconds: 900,
+        isAdmin: true,
+        actions: scope === "all" ? undoActions.filter((a) => a.undone_at === null) : [],
+      }),
+    });
+  });
+
+  // 1) Inventario -> Por Regularizar Compra + Exportar Excel
+  await page.goto("/socios?tab=inventory");
+  await page
+    .getByRole("radiogroup", { name: "Secciones de Inventario" })
+    .getByRole("radio", { name: /Por Regularizar Compra/ })
+    .click();
+  await expect(
+    page.getByRole("heading", { name: "Productos por Regularizar Compra" })
+  ).toBeVisible();
+  await expect(
+    page.locator("td:visible, p:visible").filter({ hasText: "CALIPER PARA TOYOTA 57-25" }).first()
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Exportar a Excel (.xlsx)" }).click();
+  await expect.poll(() => xlsxRequested).toBe(true);
+  await expect(
+    page.getByText(/Excel descargado: bht_por_regularizar_compra_sold\.xlsx/)
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Exportar a Excel (.xlsx)" })
+  ).toBeEnabled();
+  await page.waitForTimeout(200);
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth > document.documentElement.clientWidth
+    )
+  ).toBe(false);
+  const regAxe = await new AxeBuilder({ page })
+    .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"])
+    .analyze();
+  expect(
+    regAxe.violations.filter((v) => ["critical", "serious"].includes(v.impact || ""))
+  ).toEqual([]);
+
+  // 2) Ventas -> Cotizaciones -> Anular -> Toast Deshacer
+  await page.goto("/socios?tab=sales");
+  await page
+    .getByRole("radiogroup", { name: "Vista de pedidos y cotizaciones" })
+    .getByRole("radio", { name: /Cotizaciones/ })
+    .click();
+  await expect(
+    page.getByRole("heading", { name: /Cotizaciones Comerciales/ })
+  ).toBeVisible();
+  await expect(page.getByText("COT-000201")).toBeVisible();
+  await page.getByRole("button", { name: "Anular" }).first().click();
+  await expect(
+    page.getByText("Cotización anulada correctamente.")
+  ).toBeVisible();
+  await expect(page.getByRole("button", { name: "Deshacer" }).first()).toBeVisible();
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth > document.documentElement.clientWidth
+    )
+  ).toBe(false);
+
+  // 3) Accesos -> PARTNER_ADMIN Centro de Reversión -> Deshacer acción
+  await page.goto("/socios?tab=access");
+  await page
+    .getByRole("radiogroup", { name: "Secciones de administración" })
+    .getByRole("radio", { name: "Deshacer acciones (Admin)" })
+    .click();
+  await expect(
+    page.getByRole("heading", { name: "Centro de Reversión (Deshacer Acciones)" })
+  ).toBeVisible();
+  await expect(
+    page.getByText("Anuló cotización COT-000201 (Cliente Caliper E2E)")
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Deshacer acción" }).first().click();
+  await expect(
+    page.getByRole("heading", { name: "Confirmar reversión administrativa" })
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Sí, deshacer acción" }).click();
+  await expect(
+    page.getByText("Cotización COT-000201 restaurada a estado Abierta.")
+  ).toBeVisible();
+
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth > document.documentElement.clientWidth
+    )
+  ).toBe(false);
+  const undoAxe = await new AxeBuilder({ page })
+    .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"])
+    .analyze();
+  expect(
+    undoAxe.violations.filter((v) => ["critical", "serious"].includes(v.impact || ""))
   ).toEqual([]);
 });

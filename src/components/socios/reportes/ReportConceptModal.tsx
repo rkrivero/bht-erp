@@ -437,7 +437,7 @@ export function ConceptCardButton({
   children: React.ReactNode;
   className?: string;
 }) {
-  const padClass = padding === "sm" ? "p-3" : "p-4";
+  const padClass = padding === "sm" ? "p-3.5" : "p-4";
   return (
     <button
       type="button"
@@ -445,8 +445,8 @@ export function ConceptCardButton({
       className={`group flex min-w-0 flex-col justify-between rounded-2xl border ${padClass} text-left shadow-bht-elev-4 transition hover:border-bht-navy-mid/45 hover:shadow-bht-elev-14 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bht-navy-deep cursor-pointer ${BUTTON_TONE_CLASSES[tone]} ${className}`}
     >
       <div className="space-y-1.5">{children}</div>
-      <span className="mt-2.5 inline-flex items-center gap-1 text-xs font-semibold text-bht-navy-deep group-hover:underline">
-        ¿Qué significa? →
+      <span className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-bht-ink-muted transition-colors group-hover:text-bht-cobalt group-hover:underline">
+        Ver fórmula y guía →
       </span>
     </button>
   );

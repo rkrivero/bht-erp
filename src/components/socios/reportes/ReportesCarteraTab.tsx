@@ -145,6 +145,10 @@ export default function ReportesCarteraTab({
               100,
               Math.max(b.balanceDuePen > 0 ? 4 : 0, (b.balanceDuePen / maxBucket) * 100)
             );
+            const sharePct =
+              summary.totalReceivablePen > 0
+                ? (b.balanceDuePen / summary.totalReceivablePen) * 100
+                : 0;
             const barColor =
               b.bucket === "GT_60"
                 ? "bg-bht-danger-vivid"
@@ -156,18 +160,23 @@ export default function ReportesCarteraTab({
             return (
               <div
                 key={b.bucket}
-                className="rounded-xl border border-bht-line bg-bht-paper/60 p-3 text-xs space-y-1.5"
+                className="rounded-xl border border-bht-line bg-bht-paper/60 p-3.5 text-xs space-y-2"
               >
-                <span className="font-medium text-bht-ink-soft">
-                  {formatArBucketEs(b.bucket)}
-                </span>
-                <p className="text-lg font-semibold text-bht-ink-strong tabular-nums">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="font-bold text-bht-ink-soft">
+                    {formatArBucketEs(b.bucket)}
+                  </span>
+                  <span className="rounded-md bg-white px-1.5 py-0.5 text-xs font-bold text-bht-navy-deep tabular-nums">
+                    {sharePct.toFixed(1)}%
+                  </span>
+                </div>
+                <p className="text-lg font-extrabold text-bht-ink-strong tabular-nums">
                   {formatPen(b.balanceDuePen)}
                 </p>
                 <span className="block text-bht-ink-muted tabular-nums">
                   {b.ordersCount} pedido(s)
                 </span>
-                <div className="h-1.5 w-full overflow-hidden rounded-full bg-bht-line">
+                <div className="h-2.5 w-full overflow-hidden rounded-full bg-bht-line">
                   <div
                     className={`h-full rounded-full ${barColor}`}
                     style={{ width: `${pct}%` }}

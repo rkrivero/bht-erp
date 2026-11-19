@@ -36,6 +36,7 @@ interface FinanzasProps {
   handleTabChange: (tab: PartnerTab) => void;
   handleGoToPurchaseProduct: (target: number | PurchaseTarget) => void;
   handleGoToEditProduct: (sku: string) => void;
+  onOpenRegularization?: () => void;
   setSubTabEditing: (editing: boolean) => void;
   showFeedback: ShowFeedback;
 }
@@ -50,6 +51,7 @@ export function Finanzas({
   handleTabChange,
   handleGoToPurchaseProduct,
   handleGoToEditProduct,
+  onOpenRegularization,
   setSubTabEditing,
   showFeedback,
 }: FinanzasProps) {
@@ -62,6 +64,7 @@ export function Finanzas({
     suppliers,
     recentPurchases,
     pendingOnDemand,
+    unpurchasedRegularizationCount,
     routeTrips,
     dataCut,
     loadDashboard,
@@ -79,6 +82,7 @@ export function Finanzas({
           suppliers={suppliers}
           recentPurchases={recentPurchases}
           pendingOnDemand={pendingOnDemand}
+          unpurchasedRegularizationCount={unpurchasedRegularizationCount}
           routeTrips={routeTrips}
           dataCut={dataCut}
           preselectedTarget={preselectedPurchaseTarget}
@@ -86,6 +90,7 @@ export function Finanzas({
           initialSubTab={initialCajaSubTab}
           onClearInitialSubTab={onClearInitialCajaSubTab}
           onOpenDirectory={() => handleTabChange("directorio")}
+          onOpenRegularization={onOpenRegularization}
           onRefresh={loadDashboard}
           onFeedback={showFeedback}
           onEditingChange={setSubTabEditing}

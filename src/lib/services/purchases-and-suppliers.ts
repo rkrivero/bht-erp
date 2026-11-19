@@ -1,4 +1,5 @@
 import type { PoolClient } from "pg";
+import { resolveCatalogProductMatch } from "../product-matching";
 import { assertRole } from "../rbac";
 import { getLimaDateString } from "./orders";
 import { ValidationError, type SessionUser } from "../types";
@@ -233,6 +234,14 @@ export interface CreateSupplierInput {
   notes?: string | null;
 }
 
+export interface RegisterPurchaseLineInput {
+  productId?: number | null;
+  sku?: string | null;
+  rawDescription?: string | null;
+  quantity: number;
+  unitCostPen: number;
+}
+
 export interface RegisterPurchaseInput {
   supplierPartyId: number;
   docType: string;
@@ -247,11 +256,7 @@ export interface RegisterPurchaseInput {
   paidNowPen?: number;
   accountId?: number;
   notes?: string;
-  items: Array<{
-    productId: number;
-    quantity: number;
-    unitCostPen: number;
-  }>;
+  items: RegisterPurchaseLineInput[];
   fulfillOrderLineIds?: number[];
 }
 
@@ -834,14 +839,79 @@ export async function registerSupplierPurchase(
   let origBaseSum = 0;
   let lineTotalPenSum = 0;
 
+  const needsCatalogResolution = input.items.some((item) => {
+    const pid = Number(item.productId ?? 0);
+    return !Number.isInteger(pid) || pid <= 0;
+  });
+
+  let resolutionCandidates: Array<{
+    product_id: number;
+    sku: string;
+    name: string;
+    aliases: string[];
+  }> = [];
+
+  if (needsCatalogResolution) {
+    const candRes = await client.query<{
+      product_id: string | number;
+      sku: string;
+      name: string;
+      aliases: string[] | null;
+    }>(
+      `SELECT
+         p.product_id,
+         p.sku,
+         p.name,
+         COALESCE(
+           array_agg(DISTINCT pa.alias_raw) FILTER (WHERE pa.alias_raw IS NOT NULL),
+           ARRAY[]::text[]
+         ) AS aliases
+       FROM erp.products p
+       LEFT JOIN erp.product_aliases pa ON pa.product_id = p.product_id
+       WHERE p.is_active = TRUE
+       GROUP BY p.product_id, p.sku, p.name
+       ORDER BY p.product_id ASC`
+    );
+    resolutionCandidates = candRes.rows.map((r) => ({
+      product_id: Number(r.product_id),
+      sku: String(r.sku),
+      name: String(r.name),
+      aliases: Array.isArray(r.aliases) ? r.aliases.map(String) : [],
+    }));
+  }
+
   const parsedItems = input.items.map((item, idx) => {
-    const productId = Number(item.productId);
+    const rawPid = Number(item.productId ?? 0);
+    let productId = Number.isInteger(rawPid) && rawPid > 0 ? rawPid : 0;
+
+    if (productId <= 0) {
+      const skuText = item.sku?.trim() || "";
+      const descText = item.rawDescription?.trim() || "";
+      if (!skuText && !descText) {
+        throw new ValidationError(`Producto inválido en la línea ${idx + 1}`);
+      }
+      const match = resolveCatalogProductMatch(resolutionCandidates, {
+        sku: skuText || null,
+        rawDescription: descText || null,
+      });
+      if (!match.ok) {
+        const refLabel = skuText || descText;
+        if (match.reason === "ambiguous") {
+          const choices = match.candidates.map((c) => c.sku).join(", ");
+          throw new ValidationError(
+            `La descripción "${refLabel}" en la línea ${idx + 1} coincide con múltiples productos (${choices}); selecciona el SKU exacto`
+          );
+        }
+        throw new ValidationError(
+          `No se encontró un producto activo para "${refLabel}" en la línea ${idx + 1}`
+        );
+      }
+      productId = match.productId;
+    }
+
     const quantity = Number(item.quantity);
     const enteredUnitCost = Number(item.unitCostPen);
 
-    if (!Number.isInteger(productId) || productId <= 0) {
-      throw new ValidationError(`Producto inválido en la línea ${idx + 1}`);
-    }
     if (!Number.isFinite(quantity) || quantity <= 0) {
       throw new ValidationError(
         `La cantidad debe ser mayor a 0 en la línea ${idx + 1}`
@@ -1414,7 +1484,7 @@ export async function registerSupplierPurchase(
     }
   }
 
-  // Resolve any ON_DEMAND_STOCK_DEFICIT flags for purchased SKUs that are now >= 0
+  // Resolve any stock deficit flags for purchased SKUs that are now >= 0
   if (uniqueProductIds.length > 0) {
     await client.query(
       `UPDATE erp.audit_flags af
@@ -1425,7 +1495,7 @@ export async function registerSupplierPurchase(
        WHERE vcs.warehouse_id = $1
          AND vcs.product_id = ANY($2::bigint[])
          AND vcs.stock_on_hand >= 0
-         AND af.flag_code = 'ON_DEMAND_STOCK_DEFICIT'
+         AND af.flag_code IN ('ON_DEMAND_STOCK_DEFICIT', 'UNPURCHASED_STOCK_DEFICIT')
          AND af.entity_table = 'erp.products'
          AND af.entity_id = (vcs.product_id::text || '@' || $1::text)
          AND af.status = 'OPEN'`,

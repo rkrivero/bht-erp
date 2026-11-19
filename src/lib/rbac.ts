@@ -69,6 +69,7 @@ export function projectProductForRole(
       product.min_stock_qty !== null && product.min_stock_qty !== undefined
         ? Number(product.min_stock_qty)
         : null,
+    aliases: Array.isArray(product.aliases) ? product.aliases : [],
   };
 }
 

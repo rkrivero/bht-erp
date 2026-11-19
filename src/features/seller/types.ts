@@ -1,5 +1,6 @@
 import type { Dispatch, SetStateAction } from "react";
 import type { CashAccountItem } from "@/components/socios/types";
+import type { UndoActionReceiptDto } from "@/lib/contracts";
 import type { RawOrderWithLines } from "@/lib/types";
 
 export type SellerPaymentMode = "CASH" | "CREDIT" | "YAPE_PLIN" | "TRANSFER";
@@ -98,6 +99,7 @@ export interface SellerPaymentTimelineEntryDto {
 export interface SellerOrderMutationResultDto {
   orderCode: string;
   requiresApproval?: boolean;
+  undoAction?: UndoActionReceiptDto;
 }
 
 export interface SellerCollectionMutationResultDto {
@@ -117,6 +119,7 @@ export type SellerCollectionPaymentMode = "CASH" | "YAPE_PLIN" | "TRANSFER";
 export interface SellerFeedback {
   type: "ok" | "warn" | "err";
   msg: string;
+  undoAction?: UndoActionReceiptDto;
 }
 
 export type SellerFeedbackSetter = (feedback: SellerFeedback | null) => void;
@@ -135,6 +138,7 @@ export interface SellerQuoteCreateResultDto {
 
 export interface SellerQuoteConvertResultDto {
   order?: { orderCode: string; requiresApproval?: boolean };
+  undoAction?: UndoActionReceiptDto;
 }
 
 export interface SellerPaymentTimelineResponseDto {

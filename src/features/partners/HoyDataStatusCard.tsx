@@ -41,37 +41,31 @@ export function HoyDataStatusCard({
   const doneCount = checklist.filter((item) => item.done).length;
 
   return (
-    <Card
-      tone={isStale || !bankReconciled ? "warning" : "default"}
-      padding="sm"
-      className="space-y-2.5"
-    >
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="min-w-0 space-y-0.5 text-sm">
-          <div className="flex flex-wrap items-center gap-1.5">
-            <span className="font-semibold text-bht-ink-strong">
-              {effectiveCutDate
-                ? `Ventas actualizadas hasta: ${formatDatePe(effectiveCutDate)}`
-                : "Sin ventas registradas aún"}
-            </span>
-            {isStale && <Badge tone="warning">Revisar vigencia</Badge>}
-            {!bankReconciled && <Badge tone="warning">Saldos no conciliados</Badge>}
-          </div>
+    <Card tone="subtle" padding="sm" className="space-y-2">
+      <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+        <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+          <span className="font-semibold text-bht-ink-strong">
+            {effectiveCutDate
+              ? `Ventas actualizadas hasta: ${formatDatePe(effectiveCutDate)}`
+              : "Sin ventas registradas aún"}
+          </span>
           {dataCut && (
-            <p className="text-xs text-bht-ink-soft tabular-nums">
-              Caja: {formatDatePe(dataCut.lastCashLedgerDate)} · Cobros:{" "}
+            <span className="text-bht-ink-soft tabular-nums">
+              · Caja: {formatDatePe(dataCut.lastCashLedgerDate)} · Cobros:{" "}
               {formatDatePe(dataCut.lastPaymentDate)} · Compras:{" "}
               {formatDatePe(dataCut.lastPurchaseDate)}
-            </p>
+            </span>
           )}
+          {isStale && <Badge tone="warning">Revisar vigencia</Badge>}
+          {!bankReconciled && <Badge tone="neutral">Saldos no conciliados</Badge>}
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-1.5">
           {coverage && (
             <Badge
               tone={
                 coverage.baselineMode === "NO_APP_ORDERS"
-                  ? "warning"
+                  ? "neutral"
                   : coverage.coveragePct !== null && coverage.coveragePct >= 90
                     ? "success"
                     : "warning"
@@ -100,6 +94,7 @@ export function HoyDataStatusCard({
               type="button"
               variant="secondary"
               size="sm"
+              compact
               onClick={onOpenDailyClose}
             >
               Cierre diario
@@ -107,8 +102,9 @@ export function HoyDataStatusCard({
           )}
           <Button
             type="button"
-            variant="outline"
+            variant="ghost"
             size="sm"
+            compact
             onClick={() => onOpenTab("kpis")}
           >
             Ver calidad en Reportes →

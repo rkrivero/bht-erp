@@ -18,9 +18,9 @@ describe("reportes-types pure helpers", () => {
     expect(REPORT_TAB_ITEMS).toHaveLength(6);
     expect(REPORT_TAB_ITEMS.map((t) => t.id)).toEqual([
       "resumen",
-      "caja_cxp",
-      "cartera",
       "comercial",
+      "cartera",
+      "caja_cxp",
       "stock",
       "auditoria",
     ]);

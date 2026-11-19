@@ -39,10 +39,12 @@ export function CajaComprasTab({
   suppliers,
   recentPurchases,
   pendingOnDemand,
+  unpurchasedRegularizationCount = 0,
   defaultAccountId,
   preselectedTarget,
   onClearPreselectedTarget,
   onOpenDirectory,
+  onOpenRegularization,
   onRefresh,
   onFeedback,
   onEditingChange,
@@ -53,6 +55,7 @@ export function CajaComprasTab({
   suppliers: SupplierItem[];
   recentPurchases: RecentPurchaseItem[];
   pendingOnDemand: PendingOnDemandItem[];
+  unpurchasedRegularizationCount?: number;
   defaultAccountId: string;
   preselectedTarget: {
     productId: number;
@@ -61,6 +64,7 @@ export function CajaComprasTab({
   } | null;
   onClearPreselectedTarget: () => void;
   onOpenDirectory: () => void;
+  onOpenRegularization?: () => void;
   onRefresh: () => Promise<void>;
   onFeedback: (msg: string, isError?: boolean) => void;
   onEditingChange?: (editing: boolean) => void;
@@ -188,6 +192,16 @@ export function CajaComprasTab({
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
+          {onOpenRegularization && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={onOpenRegularization}
+              className="border-bht-amber-line text-bht-warning-strong hover:bg-bht-amber-bg"
+            >
+              Por Regularizar Compra ({unpurchasedRegularizationCount}) · Excel →
+            </Button>
+          )}
           <Button variant="outline" size="sm" onClick={onOpenDirectory}>
             Proveedores en Directorio →
           </Button>

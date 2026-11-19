@@ -21,44 +21,61 @@ export default function ReportesResumenTab({
 }: ReportesResumenTabProps) {
   const [activeConcept, setActiveConcept] = useState<ActiveReportConcept | null>(null);
   const { totals, pnlMonthly, momComparison, openDebtorsCount } = data;
-  const maxBar = Math.max(
+  const maxSalesBar = Math.max(
+    1,
+    ...pnlMonthly.map((m) => Math.max(m.sales_total_pen, m.gross_margin_pen))
+  );
+  const maxCashBar = Math.max(
     1,
     ...pnlMonthly.flatMap((m) => [
-      m.sales_total_pen,
-      m.gross_margin_pen,
-      m.operating_ebitda_pen,
-      m.admin_opex_pen,
-      Math.max(0, m.operating_result_pen),
       m.cash_collected_pen,
       m.merchandise_outflow_pen,
-      m.route_opex_pen,
       m.non_opex_capex_drain_pen,
-      m.pre_route_foundational_outflow_pen,
     ])
   );
 
+  const revenueBase = Math.max(1, totals.costCoveredSalesPen || totals.salesTotalPen);
+  const cogsSharePct = Math.min(
+    100,
+    Math.max(0, (totals.cogsPen / revenueBase) * 100)
+  );
+  const routeSharePct = Math.min(
+    100 - cogsSharePct,
+    Math.max(0, (totals.routeOpexPen / revenueBase) * 100)
+  );
+  const adminSharePct = Math.min(
+    100 - cogsSharePct - routeSharePct,
+    Math.max(0, (totals.adminOpexPen / revenueBase) * 100)
+  );
+  const opResultSharePct = Math.max(
+    0,
+    100 - cogsSharePct - routeSharePct - adminSharePct
+  );
+
   return (
-    <div className="min-w-0 space-y-4">
+    <div className="min-w-0 space-y-5">
       {hasScopeFilter && (
-        <Card tone="brand" padding="sm" className="text-xs text-bht-ink-strong">
+        <div className="rounded-xl border border-bht-info-line bg-bht-mist px-3.5 py-2.5 text-xs text-bht-ink-strong">
           <strong>Vista segmentada por Zona / Vendedor:</strong> Las compras de
           mercadería, gastos fijos administrativos, retiros e inversión pre-ruta
           corresponden a caja global y no se asignan a un vendedor individual.
-        </Card>
+        </div>
       )}
 
-      <Card tone="warning" padding="sm" className="text-xs text-bht-ink-strong">
-        <strong>Lectura responsable:</strong> este resumen usa costos y movimientos
-        disponibles en el ERP. No reemplaza un estado de resultados ni una conciliación
-        bancaria completa.
-      </Card>
-
       {/* Partial operating result */}
-      <section aria-label="Resultado comercial parcial" className="space-y-2">
-        <div className="flex flex-wrap items-center justify-between gap-2 px-1">
-          <h3 className="text-base sm:text-lg font-bold text-bht-navy-deep">
-            Resultado comercial y operativo
-          </h3>
+      <section aria-label="Resultado comercial parcial" className="space-y-3">
+        <div className="flex flex-wrap items-end justify-between gap-2 px-1">
+          <div>
+            <h3 className="text-base font-extrabold tracking-[-0.02em] text-bht-navy-deep sm:text-lg">
+              Resultado comercial y operativo
+            </h3>
+            <p className="mt-0.5 text-xs text-bht-ink-soft">
+              Usa costos y movimientos del ERP. No reemplaza un estado de resultados ni
+              una conciliación bancaria completa.
+              {totals.ownerSalaryRecordedPen === 0 &&
+                " · Sin sueldo de socio registrado en Caja → Gastos."}
+            </p>
+          </div>
           {momComparison && (
             <Badge tone="horizon" className="tabular-nums">
               Últ. mes ({formatMonthLabel(momComparison.currentMonth)} vs.{" "}
@@ -80,10 +97,10 @@ export default function ReportesResumenTab({
               })
             }
           >
-            <span className="text-sm font-semibold text-bht-ink-soft">
+            <span className="text-xs font-bold uppercase tracking-[0.06em] text-bht-steel">
               Ventas Totales ({totals.orderCount} ped.)
             </span>
-            <p className="text-2xl font-semibold text-bht-navy-deep tabular-nums">
+            <p className="text-2xl font-extrabold tracking-[-0.03em] text-bht-navy-deep tabular-nums">
               {formatPen(totals.salesTotalPen)}
             </p>
             <span className="inline-flex items-center rounded-lg border border-bht-line-blue bg-bht-mist px-2 py-0.5 text-xs font-semibold text-bht-navy-deep tabular-nums">
@@ -100,10 +117,10 @@ export default function ReportesResumenTab({
               })
             }
           >
-            <span className="text-sm font-semibold text-bht-ink-soft">
+            <span className="text-xs font-bold uppercase tracking-[0.06em] text-bht-steel">
               Margen bruto sobre ventas con costo
             </span>
-            <p className="text-2xl font-semibold text-bht-success tabular-nums">
+            <p className="text-2xl font-extrabold tracking-[-0.03em] text-bht-success tabular-nums">
               {formatPen(totals.grossMarginPen)}
             </p>
             <div className="flex flex-wrap items-center gap-1.5 text-xs text-bht-ink-soft tabular-nums">
@@ -121,10 +138,10 @@ export default function ReportesResumenTab({
               })
             }
           >
-            <span className="text-sm font-semibold text-bht-ink-soft">
+            <span className="text-xs font-bold uppercase tracking-[0.06em] text-bht-steel">
               Gastos Operativos de Ruta (OpEx)
             </span>
-            <p className="text-2xl font-semibold text-bht-warning tabular-nums">
+            <p className="text-2xl font-extrabold tracking-[-0.03em] text-bht-warning tabular-nums">
               {formatPen(totals.routeOpexPen)}
             </p>
             <Badge
@@ -147,11 +164,11 @@ export default function ReportesResumenTab({
               })
             }
           >
-            <span className="text-sm font-semibold text-bht-ink-soft">
+            <span className="text-xs font-bold uppercase tracking-[0.06em] text-bht-steel">
               Contribución después de gastos de ruta
             </span>
             <p
-              className={`text-2xl font-semibold tabular-nums ${
+              className={`text-2xl font-extrabold tracking-[-0.03em] tabular-nums ${
                 totals.operatingEbitdaPen >= 0
                   ? "text-bht-navy-deep"
                   : "text-bht-danger"
@@ -182,10 +199,10 @@ export default function ReportesResumenTab({
               })
             }
           >
-            <span className="text-sm font-semibold text-bht-ink-soft">
+            <span className="text-xs font-bold uppercase tracking-[0.06em] text-bht-steel">
               Gastos Fijos / Admin
             </span>
-            <p className="text-2xl font-semibold text-bht-ink-strong tabular-nums">
+            <p className="text-2xl font-extrabold tracking-[-0.03em] text-bht-ink-strong tabular-nums">
               {formatPen(totals.adminOpexPen)}
             </p>
             <span className="block text-xs text-bht-ink-soft tabular-nums">
@@ -202,11 +219,11 @@ export default function ReportesResumenTab({
               })
             }
           >
-            <span className="text-sm font-semibold text-bht-ink-soft">
+            <span className="text-xs font-bold uppercase tracking-[0.06em] text-bht-steel">
               Resultado Operativo Registrado
             </span>
             <p
-              className={`text-2xl font-semibold tabular-nums ${
+              className={`text-2xl font-extrabold tracking-[-0.03em] tabular-nums ${
                 totals.operatingResultPen >= 0
                   ? "text-bht-navy-deep"
                   : "text-bht-danger"
@@ -229,12 +246,101 @@ export default function ReportesResumenTab({
           </ConceptCardButton>
         </div>
 
-        {totals.ownerSalaryRecordedPen === 0 && (
-          <Card tone="warning" padding="sm" className="text-xs text-bht-ink-strong">
-            <strong>Resultado operativo antes de sueldo de socios:</strong> no hay
-            egresos de <strong>Sueldo de Socio</strong> registrados en este filtro.
-            Regístralos en Caja → Gastos (Gastos Fijos / Admin) para medir utilidad
-            real.
+        {/* Visual Revenue Breakdown Chart */}
+        {totals.salesTotalPen > 0 && (
+          <Card padding="md" className="space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <h4 className="text-sm font-bold text-bht-navy-deep">
+                  Estructura de cada S/ 100 de venta con costo conocido
+                </h4>
+                <p className="text-xs text-bht-ink-soft">
+                  Proporción entre costo de mercadería (COGS), logística de ruta, gastos
+                  fijos y resultado operativo.
+                </p>
+              </div>
+              <span className="text-xs font-bold text-bht-navy-deep tabular-nums">
+                Base con costo: {formatPen(totals.costCoveredSalesPen)}
+              </span>
+            </div>
+
+            <div
+              className="flex h-4 w-full overflow-hidden rounded-full bg-bht-line p-0.5 gap-0.5"
+              aria-hidden="true"
+            >
+              {cogsSharePct > 0 && (
+                <div
+                  className="h-full rounded-l-full bg-bht-navy-mid transition-all"
+                  style={{ width: `${cogsSharePct}%` }}
+                />
+              )}
+              {routeSharePct > 0 && (
+                <div
+                  className="h-full bg-bht-tone-d97706 transition-all"
+                  style={{ width: `${routeSharePct}%` }}
+                />
+              )}
+              {adminSharePct > 0 && (
+                <div
+                  className="h-full bg-bht-ink-warm transition-all"
+                  style={{ width: `${adminSharePct}%` }}
+                />
+              )}
+              {opResultSharePct > 0 && (
+                <div
+                  className="h-full rounded-r-full bg-bht-success transition-all"
+                  style={{ width: `${opResultSharePct}%` }}
+                />
+              )}
+            </div>
+
+            <div className="grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">
+              <div className="flex items-center gap-2 rounded-lg bg-bht-paper px-2.5 py-2">
+                <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-bht-navy-mid" />
+                <div className="min-w-0">
+                  <span className="block text-xs font-medium text-bht-ink-soft">
+                    Costo Mercadería
+                  </span>
+                  <strong className="text-bht-ink-strong tabular-nums">
+                    {cogsSharePct.toFixed(1)}% · {formatPen(totals.cogsPen)}
+                  </strong>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 rounded-lg bg-bht-paper px-2.5 py-2">
+                <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-bht-tone-d97706" />
+                <div className="min-w-0">
+                  <span className="block text-xs font-medium text-bht-ink-soft">
+                    OpEx Ruta
+                  </span>
+                  <strong className="text-bht-ink-strong tabular-nums">
+                    {routeSharePct.toFixed(1)}% · {formatPen(totals.routeOpexPen)}
+                  </strong>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 rounded-lg bg-bht-paper px-2.5 py-2">
+                <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-bht-ink-warm" />
+                <div className="min-w-0">
+                  <span className="block text-xs font-medium text-bht-ink-soft">
+                    Gastos Admin
+                  </span>
+                  <strong className="text-bht-ink-strong tabular-nums">
+                    {adminSharePct.toFixed(1)}% · {formatPen(totals.adminOpexPen)}
+                  </strong>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 rounded-lg bg-bht-paper px-2.5 py-2">
+                <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-bht-success" />
+                <div className="min-w-0">
+                  <span className="block text-xs font-medium text-bht-ink-soft">
+                    Resultado Op.
+                  </span>
+                  <strong className="text-bht-success tabular-nums">
+                    {opResultSharePct.toFixed(1)}% ·{" "}
+                    {formatPen(totals.operatingResultPen)}
+                  </strong>
+                </div>
+              </div>
+            </div>
           </Card>
         )}
       </section>
@@ -345,46 +451,52 @@ export default function ReportesResumenTab({
           <EmptyState title="No hay movimientos en el período y filtros seleccionados" />
         ) : (
           <>
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+            <div className="grid grid-cols-1 gap-4">
               {pnlMonthly.map((m) => {
-                const bars = [
+                const salesBars = [
                   {
-                    label: "Ventas",
+                    label: "Ventas Totales",
                     val: m.sales_total_pen,
+                    sub: `${m.order_count} ped.`,
                     color: "bg-bht-navy-deep",
                   },
                   {
                     label: "Margen Bruto",
                     val: Math.max(0, m.gross_margin_pen),
+                    sub: formatPct(m.gross_margin_pct),
                     color: "bg-bht-success",
                   },
                   {
-                    label: "Contribución ruta",
+                    label: "Contribución Ruta",
                     val: Math.max(0, m.operating_ebitda_pen),
+                    sub: formatPct(m.operating_ebitda_pct),
                     color: "bg-bht-navy-mid",
                   },
                   {
-                    label: "Gastos Admin",
-                    val: m.admin_opex_pen,
-                    color: "bg-bht-ink-warm",
-                  },
-                  {
-                    label: "Resultado Op.",
+                    label: "Resultado Operativo",
                     val: Math.max(0, m.operating_result_pen),
+                    sub: formatPct(m.operating_result_pct),
                     color: "bg-bht-cobalt",
                   },
+                ];
+                const cashBars = [
                   {
-                    label: "Cobrado",
+                    label: "Cobrado en Efectivo",
                     val: m.cash_collected_pen,
                     color: "bg-bht-tone-047857",
                   },
                   {
-                    label: "Mercadería",
+                    label: "Pagos Mercadería",
                     val: m.merchandise_outflow_pen,
                     color: "bg-bht-tone-d97706",
                   },
                   {
-                    label: "No Operativos",
+                    label: "OpEx Ruta + Admin",
+                    val: m.route_opex_pen + m.admin_opex_pen,
+                    color: "bg-bht-ink-warm",
+                  },
+                  {
+                    label: "Retiros / No OpEx",
                     val: m.non_opex_capex_drain_pen,
                     color: "bg-bht-danger-vivid",
                   },
@@ -392,50 +504,95 @@ export default function ReportesResumenTab({
                 return (
                   <div
                     key={m.period_month}
-                    className="rounded-xl border border-bht-line bg-bht-paper/60 p-3.5 space-y-2.5"
+                    className="rounded-2xl border border-bht-line bg-bht-paper/70 p-4 space-y-3.5"
                   >
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <span className="text-xs font-semibold uppercase tracking-wide text-bht-ink-strong">
-                        {formatMonthLabel(m.period_month)}
-                      </span>
-                      <span className="text-xs font-medium text-bht-ink-soft tabular-nums">
-                        {m.order_count} ped. · Resultado Op.:{" "}
-                        <strong
-                          className={
-                            m.operating_result_pen >= 0
-                              ? "text-bht-success"
-                              : "text-bht-danger"
-                          }
+                    <div className="flex flex-wrap items-center justify-between gap-2 border-b border-bht-line pb-2.5">
+                      <div>
+                        <span className="text-sm font-extrabold uppercase tracking-wide text-bht-navy-deep">
+                          {formatMonthLabel(m.period_month)}
+                        </span>
+                        <span className="ml-2 text-xs font-medium text-bht-ink-soft tabular-nums">
+                          ({m.order_count} pedidos)
+                        </span>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-2 text-xs tabular-nums">
+                        <Badge
+                          tone={m.operating_result_pen >= 0 ? "success" : "danger"}
                         >
-                          {formatPen(m.operating_result_pen)} (
+                          Resultado Op.: {formatPen(m.operating_result_pen)} (
                           {formatPct(m.operating_result_pct)})
-                        </strong>
-                      </span>
+                        </Badge>
+                        <Badge tone={m.net_cash_flow_pen >= 0 ? "brand" : "warning"}>
+                          Flujo neto: {formatPen(m.net_cash_flow_pen)}
+                        </Badge>
+                      </div>
                     </div>
-                    <div className="space-y-1.5">
-                      {bars.map((b) => {
-                        const pct = Math.min(
-                          100,
-                          Math.max(b.val > 0 ? 2 : 0, (b.val / maxBar) * 100)
-                        );
-                        return (
-                          <div key={b.label} className="space-y-0.5">
-                            <div className="flex justify-between text-xs tabular-nums">
-                              <span className="text-bht-ink-soft">{b.label}</span>
-                              <span className="font-semibold text-bht-ink-strong">
-                                {formatPen(b.val)}
-                              </span>
+
+                    <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                      {/* Panel 1: Commercial Profitability */}
+                      <div className="space-y-2 rounded-xl border border-bht-line bg-white p-3">
+                        <p className="text-xs font-bold uppercase tracking-[0.06em] text-bht-steel">
+                          1. Rentabilidad Comercial (Devengado)
+                        </p>
+                        {salesBars.map((b) => {
+                          const pct = Math.min(
+                            100,
+                            Math.max(b.val > 0 ? 3 : 0, (b.val / maxSalesBar) * 100)
+                          );
+                          return (
+                            <div key={b.label} className="space-y-1">
+                              <div className="flex items-baseline justify-between gap-2 text-xs tabular-nums">
+                                <span className="font-medium text-bht-ink-strong">
+                                  {b.label}{" "}
+                                  <span className="text-bht-ink-soft">({b.sub})</span>
+                                </span>
+                                <span className="font-bold text-bht-navy-deep">
+                                  {formatPen(b.val)}
+                                </span>
+                              </div>
+                              <div className="h-3 w-full overflow-hidden rounded-full bg-bht-paper-alt">
+                                <div
+                                  className={`h-full rounded-full ${b.color}`}
+                                  style={{ width: `${pct}%` }}
+                                  aria-hidden="true"
+                                />
+                              </div>
                             </div>
-                            <div className="h-1.5 w-full overflow-hidden rounded-full bg-bht-line">
-                              <div
-                                className={`h-full rounded-full ${b.color}`}
-                                style={{ width: `${pct}%` }}
-                                aria-hidden="true"
-                              />
+                          );
+                        })}
+                      </div>
+
+                      {/* Panel 2: Cash Movements */}
+                      <div className="space-y-2 rounded-xl border border-bht-line bg-white p-3">
+                        <p className="text-xs font-bold uppercase tracking-[0.06em] text-bht-steel">
+                          2. Flujo de Efectivo Registrado (Caja)
+                        </p>
+                        {cashBars.map((b) => {
+                          const pct = Math.min(
+                            100,
+                            Math.max(b.val > 0 ? 3 : 0, (b.val / maxCashBar) * 100)
+                          );
+                          return (
+                            <div key={b.label} className="space-y-1">
+                              <div className="flex items-baseline justify-between gap-2 text-xs tabular-nums">
+                                <span className="font-medium text-bht-ink-strong">
+                                  {b.label}
+                                </span>
+                                <span className="font-bold text-bht-ink-strong">
+                                  {formatPen(b.val)}
+                                </span>
+                              </div>
+                              <div className="h-3 w-full overflow-hidden rounded-full bg-bht-paper-alt">
+                                <div
+                                  className={`h-full rounded-full ${b.color}`}
+                                  style={{ width: `${pct}%` }}
+                                  aria-hidden="true"
+                                />
+                              </div>
                             </div>
-                          </div>
-                        );
-                      })}
+                          );
+                        })}
+                      </div>
                     </div>
                   </div>
                 );

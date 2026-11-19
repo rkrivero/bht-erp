@@ -1,4 +1,5 @@
 import type { PoolClient } from "pg";
+import { formatOperationalStatusEs } from "../labels-es";
 import {
   assertRole,
   isPartnerRole,
@@ -15,6 +16,7 @@ import {
   type RawProductRow,
   type SessionUser,
 } from "../types";
+import { recordUndoableAction, type UndoActionReceipt } from "./undo";
 
 const SALES_ORDER_COLUMNS = `
   order_id, order_code, order_date, trip_id, warehouse_id,
@@ -148,12 +150,14 @@ async function deductStockForOrderLines(
 export async function createOrder(
   client: PoolClient,
   actor: SessionUser,
-  input: CreateOrderInput
+  input: CreateOrderInput,
+  options: { skipUndoLog?: boolean } = {}
 ): Promise<{
   orderId: number;
   orderCode: string;
   operationalStatus: OrderOperationalStatus;
   requiresApproval: boolean;
+  undoAction?: UndoActionReceipt;
 }> {
   assertRole(actor, ["PARTNER_ADMIN", "PARTNER_MANAGER", "EXTERNAL_SELLER"]);
 
@@ -540,11 +544,29 @@ export async function createOrder(
     ]
   );
 
+  const undoAction = options.skipUndoLog
+    ? undefined
+    : await recordUndoableAction(client, actor, {
+        actionType: "ORDER_CREATE",
+        entityTable: "erp.sales_orders",
+        entityId: orderId,
+        entityCode: orderCode,
+        summary: `Registró pedido ${orderCode} (${input.customerNameRaw.trim()}) por S/ ${totalPen.toFixed(2)}`,
+        undoPayload: {
+          orderId,
+          orderCode,
+          operationalStatus,
+          customerName: input.customerNameRaw.trim(),
+          totalPen,
+        },
+      });
+
   return {
     orderId,
     orderCode,
     operationalStatus,
     requiresApproval,
+    undoAction,
   };
 }
 
@@ -642,7 +664,7 @@ export async function approveDiscountedOrder(
         if (nextStatus !== line.fulfillment_status) {
           await client.query(
             `UPDATE erp.sales_order_lines
-             SET fulfillment_status = $1::erp.line_fulfillment_status
+             SET fulfillment_status = $1::erp.fulfillment_status
              WHERE order_line_id = $2`,
             [nextStatus, Number(line.order_line_id)]
           );
@@ -728,12 +750,38 @@ export async function advanceWarehouseStatus(
   client: PoolClient,
   actor: SessionUser,
   orderId: number,
-  nextStatus: "PICKING" | "READY" | "IN_ROUTE" | "DELIVERED"
-): Promise<void> {
+  nextStatus: "PICKING" | "READY" | "IN_ROUTE" | "DELIVERED",
+  options: { previousTripIdOverride?: number | null; skipUndoLog?: boolean } = {}
+): Promise<{
+  orderId: number;
+  orderCode: string;
+  fromStatus: OrderOperationalStatus;
+  toStatus: "PICKING" | "READY" | "IN_ROUTE" | "DELIVERED";
+  undoAction?: UndoActionReceipt;
+}> {
   assertRole(actor, ["PARTNER_ADMIN", "PARTNER_MANAGER", "WAREHOUSE_DELIVERY"]);
 
-  const res = await client.query(
-    `SELECT order_id, operational_status::text AS status
+  const res = await client.query<{
+    order_id: string;
+    order_code: string;
+    customer_name_raw: string | null;
+    status: string;
+    picked_by_user_id: string | null;
+    picked_at: string | null;
+    delivered_by_user_id: string | null;
+    delivered_at: string | null;
+    trip_id: string | null;
+  }>(
+    `SELECT
+       order_id::text,
+       order_code,
+       customer_name_raw,
+       operational_status::text AS status,
+       picked_by_user_id::text,
+       picked_at::text,
+       delivered_by_user_id::text,
+       delivered_at::text,
+       trip_id::text
      FROM erp.sales_orders
      WHERE order_id = $1
      FOR UPDATE`,
@@ -742,7 +790,8 @@ export async function advanceWarehouseStatus(
   if (res.rowCount === 0) {
     throw new ValidationError("Pedido no encontrado");
   }
-  const currentStatus = String(res.rows[0].status) as OrderOperationalStatus;
+  const existing = res.rows[0];
+  const currentStatus = String(existing.status) as OrderOperationalStatus;
   const allowedNextByCurrent: Partial<
     Record<
       OrderOperationalStatus,
@@ -800,6 +849,48 @@ export async function advanceWarehouseStatus(
       `Avance operativo a ${nextStatus}`,
     ]
   );
+
+  const prevTripId =
+    options.previousTripIdOverride !== undefined
+      ? options.previousTripIdOverride
+      : existing.trip_id !== null
+        ? Number(existing.trip_id)
+        : null;
+
+  const undoAction = options.skipUndoLog
+    ? undefined
+    : await recordUndoableAction(client, actor, {
+        actionType: "ORDER_STATUS_ADVANCE",
+        entityTable: "erp.sales_orders",
+        entityId: orderId,
+        entityCode: existing.order_code,
+        summary: `Avanzó pedido ${existing.order_code} (${existing.customer_name_raw || "CLIENTE"}) de ${formatOperationalStatusEs(currentStatus)} a ${formatOperationalStatusEs(nextStatus)}`,
+        undoPayload: {
+          orderId,
+          orderCode: existing.order_code,
+          fromStatus: currentStatus,
+          toStatus: nextStatus,
+          previousPickedByUserId:
+            existing.picked_by_user_id !== null
+              ? Number(existing.picked_by_user_id)
+              : null,
+          previousPickedAt: existing.picked_at ?? null,
+          previousDeliveredByUserId:
+            existing.delivered_by_user_id !== null
+              ? Number(existing.delivered_by_user_id)
+              : null,
+          previousDeliveredAt: existing.delivered_at ?? null,
+          previousTripId: prevTripId,
+        },
+      });
+
+  return {
+    orderId,
+    orderCode: existing.order_code,
+    fromStatus: currentStatus,
+    toStatus: nextStatus,
+    undoAction,
+  };
 }
 
 export async function updateOrder(
@@ -1074,7 +1165,7 @@ export async function cancelOrder(
   actor: SessionUser,
   orderId: number,
   reason: string
-): Promise<void> {
+): Promise<{ orderId: number; orderCode: string; undoAction?: UndoActionReceipt }> {
   assertRole(actor, ["PARTNER_ADMIN", "PARTNER_MANAGER"]);
 
   const res = await client.query(
@@ -1089,7 +1180,7 @@ export async function cancelOrder(
   }
   const order = res.rows[0];
   if (order.status === "CANCELLED") {
-    return;
+    return { orderId, orderCode: String(order.order_code) };
   }
   if (order.status === "DELIVERED") {
     throw new ValidationError(
@@ -1143,13 +1234,24 @@ export async function cancelOrder(
   // Keep every payment and cash entry. Voiding an AR payment creates a
   // compensating cash movement instead of deleting financial history.
   const activePayments = await client.query(
-    `SELECT p.ar_payment_id, p.amount_pen, p.account_id, p.reference_doc
+    `SELECT p.ar_payment_id, p.amount_pen, p.account_id, p.reference_doc,
+            p.payment_mode::text AS payment_mode, p.payment_date::text AS payment_date,
+            p.notes, p.collected_by_user_id
      FROM erp.ar_payments p
      WHERE p.order_id = $1 AND p.voided_at IS NULL
      ORDER BY p.ar_payment_id
      FOR UPDATE`,
     [orderId]
   );
+  const voidedPaymentsSnapshot: Array<{
+    arPaymentId: number;
+    amountPen: number;
+    paymentMode: string;
+    accountId: number | null;
+    paymentDate: string | null;
+    notes: string | null;
+    collectedByUserId: number | null;
+  }> = [];
   for (const payment of activePayments.rows) {
     let reversalLedgerId: number | null = null;
     if (payment.account_id !== null) {
@@ -1187,6 +1289,18 @@ export async function cancelOrder(
        WHERE ar_payment_id = $1`,
       [payment.ar_payment_id, actor.userId, reason, reversalLedgerId]
     );
+    voidedPaymentsSnapshot.push({
+      arPaymentId: Number(payment.ar_payment_id),
+      amountPen: Number(payment.amount_pen),
+      paymentMode: String(payment.payment_mode || "CASH"),
+      accountId: payment.account_id !== null ? Number(payment.account_id) : null,
+      paymentDate: payment.payment_date ? String(payment.payment_date) : null,
+      notes: payment.notes ? String(payment.notes) : null,
+      collectedByUserId:
+        payment.collected_by_user_id !== null
+          ? Number(payment.collected_by_user_id)
+          : null,
+    });
   }
 
   // Close open ON_DEMAND purchase flags tied to cancelled order lines
@@ -1206,7 +1320,7 @@ export async function cancelOrder(
     [orderId, actor.username]
   );
 
-  // Resolve ON_DEMAND_STOCK_DEFICIT flags for SKUs on this order if stock returned to >= 0
+  // Resolve stock deficit flags for SKUs on this order if stock returned to >= 0
   await client.query(
     `UPDATE erp.audit_flags af
      SET status = 'RESOLVED',
@@ -1216,7 +1330,7 @@ export async function cancelOrder(
      LEFT JOIN erp.v_current_stock vcs
        ON vcs.warehouse_id = $2 AND vcs.product_id = sol.product_id
      WHERE sol.order_id = $1
-       AND af.flag_code = 'ON_DEMAND_STOCK_DEFICIT'
+       AND af.flag_code IN ('ON_DEMAND_STOCK_DEFICIT', 'UNPURCHASED_STOCK_DEFICIT')
        AND af.entity_table = 'erp.products'
        AND af.entity_id = (sol.product_id::text || '@' || $2::text)
        AND af.status = 'OPEN'
@@ -1273,6 +1387,28 @@ export async function cancelOrder(
       JSON.stringify({ order: afterOrder.rows[0], lines: afterLines.rows }),
     ]
   );
+
+  const undoAction = await recordUndoableAction(client, actor, {
+    actionType: "ORDER_CANCEL",
+    entityTable: "erp.sales_orders",
+    entityId: orderId,
+    entityCode: String(order.order_code),
+    summary: `Anuló pedido ${order.order_code} (${order.customer_name_raw || "CLIENTE"})`,
+    undoPayload: {
+      orderId,
+      orderCode: String(order.order_code),
+      previousStatus: String(order.status),
+      previousStockDeducted: Boolean(order.stock_deducted),
+      previousNotes: order.notes ?? null,
+      lineStatuses: beforeLines.rows.map((ln) => ({
+        orderLineId: Number(ln.order_line_id),
+        fulfillmentStatus: String(ln.fulfillment_status || "FULFILLED"),
+      })),
+      voidedPayments: voidedPaymentsSnapshot,
+    },
+  });
+
+  return { orderId, orderCode: String(order.order_code), undoAction };
 }
 
 export interface OrdersPaginationMeta {
@@ -1560,12 +1696,18 @@ export async function listCatalogForRole(
        p.cost_updated_at::text AS cost_updated_at,
        p.default_supplier_party_id,
        p.lead_time_days,
-       p.min_stock_qty
+       p.min_stock_qty,
+       COALESCE(al.aliases, ARRAY[]::text[]) AS aliases
      FROM erp.products p
      JOIN erp.warehouses w
        ON w.code = 'MAIN' AND w.is_active = TRUE
      LEFT JOIN erp.v_current_stock vcs
        ON vcs.warehouse_id = w.warehouse_id AND vcs.product_id = p.product_id
+     LEFT JOIN LATERAL (
+       SELECT array_agg(DISTINCT pa.alias_raw ORDER BY pa.alias_raw) AS aliases
+       FROM erp.product_aliases pa
+       WHERE pa.product_id = p.product_id
+     ) al ON TRUE
      WHERE p.is_active = TRUE
      ORDER BY p.name ASC`
   );
@@ -1598,6 +1740,7 @@ export async function listCatalogForRole(
           r.min_stock_qty !== null && r.min_stock_qty !== undefined
             ? Number(r.min_stock_qty)
             : null,
+        aliases: Array.isArray(r.aliases) ? r.aliases.map(String) : [],
       } satisfies RawProductRow,
       actor.role
     )

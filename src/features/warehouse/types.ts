@@ -1,3 +1,5 @@
+import type { UndoActionReceiptDto } from "@/lib/contracts";
+
 export const STATUS_TABS = [
   { id: "PREPARING", label: "Por alistar" },
   { id: "READY", label: "Listos / En ruta" },
@@ -12,4 +14,5 @@ export type NextOrderStatus = "PICKING" | "READY" | "IN_ROUTE" | "DELIVERED";
 export interface WarehouseFeedback {
   type: "ok" | "err";
   msg: string;
+  undoAction?: UndoActionReceiptDto;
 }

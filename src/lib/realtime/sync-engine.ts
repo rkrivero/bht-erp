@@ -111,6 +111,7 @@ interface RawWatermarkRow {
   quotes_sig?: string;
   trips_sig?: string;
   daily_closures_sig?: string;
+  undo_sig?: string;
 }
 
 /**
@@ -274,7 +275,9 @@ async function queryRoleWatermarks(
       (SELECT COALESCE(MAX(sync_seq), 0)::text || ':' || COUNT(*)::text
        FROM erp.route_trips) AS trips_sig,
       (SELECT COALESCE(MAX(sync_seq), 0)::text || ':' || COUNT(*)::text
-       FROM erp.daily_closures) AS daily_closures_sig
+       FROM erp.daily_closures) AS daily_closures_sig,
+      (SELECT COALESCE(MAX(sync_seq), 0)::text || ':' || COUNT(*)::text
+       FROM erp.undoable_actions) AS undo_sig
   `);
 
   const row = res.rows[0];
@@ -283,7 +286,7 @@ async function queryRoleWatermarks(
   const collectionsDigest = `${row.ar_sig}|${row.orders_fin_sig}`;
   const treasuryDigest = `${row.ledger_all_sig}|${row.cash_accounts_sig}|${row.daily_closures_sig}`;
   const purchasesDigest = `${row.purchases_sig}|${row.ap_sig}|${row.suppliers_sig}|${row.lines_ops_sig}`;
-  const partnersDigest = `${ordersDigest}|${inventoryDigest}|${collectionsDigest}|${treasuryDigest}|${purchasesDigest}|${row.users_sig}|${row.flags_sig}|${row.quotes_sig}|${row.trips_sig}|${row.daily_closures_sig}`;
+  const partnersDigest = `${ordersDigest}|${inventoryDigest}|${collectionsDigest}|${treasuryDigest}|${purchasesDigest}|${row.users_sig}|${row.flags_sig}|${row.quotes_sig}|${row.trips_sig}|${row.daily_closures_sig}|${row.undo_sig}`;
 
   return {
     orders: hashScopeDigest(roleTag, "orders", ordersDigest),

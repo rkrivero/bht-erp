@@ -20,6 +20,7 @@ import type {
   RouteTripDto,
   TreasuryResponseDto,
   TripsResponseDto,
+  UndoActionReceiptDto,
 } from "@/lib/contracts";
 import type { SellerOrderDto, SellerQuoteDto } from "@/features/seller/types";
 import type {
@@ -58,9 +59,12 @@ export function usePartnerData() {
   const [dataRefreshSeq, setDataRefreshSeq] = useState(0);
   const [feedback, setFeedback] = useState<PartnerFeedback | null>(null);
 
-  const showFeedback = useCallback((msg: string, isError = false) => {
-    setFeedback({ msg, isError });
-  }, []);
+  const showFeedback = useCallback(
+    (msg: string, isError = false, undoAction?: UndoActionReceiptDto) => {
+      setFeedback({ msg, isError, undoAction });
+    },
+    []
+  );
 
   const refreshDashboard = useCallback(
     async (changedScopes?: SyncScope[], options?: { throwOnError?: boolean }) => {
@@ -121,6 +125,9 @@ export function usePartnerData() {
           try {
             return await fetchJson<T>(url, noStoreInit, validator);
           } catch (error) {
+            if (controller.signal.aborted) {
+              return null;
+            }
             if (
               error instanceof ApiClientError &&
               (error.status === 401 || error.status === 403)
@@ -189,6 +196,8 @@ export function usePartnerData() {
             ),
           ]);
 
+        if (controller.signal.aborted) return;
+
         if (ordJson) {
           setOrders(ordJson.orders || []);
           setOrdersPagination(ordJson.pagination || null);
@@ -217,12 +226,28 @@ export function usePartnerData() {
         if (purJson) {
           setPurchasesData(purJson);
         }
-        if (ordJson || colJson || partJson || trJson || purJson || tripsJson) {
+        if (
+          ordJson ||
+          colJson ||
+          partJson ||
+          trJson ||
+          purJson ||
+          tripsJson ||
+          quotesJson
+        ) {
           setDataRefreshSeq((seq) => seq + 1);
         }
 
         if (!scopeSet && partialFailure) {
           showFeedback("Algunos módulos no pudieron actualizarse por completo.", true);
+        } else if (!partialFailure) {
+          setFeedback((prev) =>
+            prev?.isError &&
+            (prev.msg === "Algunos módulos no pudieron actualizarse por completo." ||
+              prev.msg === "Error de red cargando el panel operativo.")
+              ? null
+              : prev
+          );
         }
       } catch (err) {
         if (controller.signal.aborted) return;
@@ -270,6 +295,9 @@ export function usePartnerData() {
   const kpiQ2TopSkus = partnerData?.kpiQ2TopSkus ?? [];
   const qualityGaps = partnerData?.qualityGaps ?? [];
   const negStockCount = Number(partnerData?.negativeStockSkuCount ?? 0);
+  const unpurchasedRegularizationCount = Number(
+    partnerData?.unpurchasedRegularizationCount ?? 0
+  );
   const currentUser = partnerData?.currentUser ?? orderCurrentUser ?? null;
   const biSummary = partnerData?.biSummary ?? null;
   const dataCut = partnerData?.dataCut ?? null;
@@ -329,6 +357,7 @@ export function usePartnerData() {
     kpiQ2TopSkus,
     qualityGaps,
     negStockCount,
+    unpurchasedRegularizationCount,
     currentUser,
     biSummary,
     dataCut,

@@ -240,6 +240,7 @@ const AUDIT_FLAG_STATUS_ES: Record<string, string> = {
 
 const AUDIT_FLAG_CODE_ES: Record<string, string> = {
   EXEL_QTY_PRICE_SWAPPED_CORRECTED: "Corrección de columnas invertidas en ruta",
+  EXEL_RONY_CALIPER_ERROR_CORRECTED: "Corrección de error Rony 110 (23/07/2026)",
   PURCHASE_LINE_QTY_PRICE_SWAP: "Corrección de cantidad y costo en compra",
   PURCHASE_CURRENCY_MISMATCH_FIXED: "Corrección de moneda en compra",
   MISSING_BANK_STATEMENT_LEDGER: "Extractos bancarios históricos pendientes",
@@ -247,7 +248,23 @@ const AUDIT_FLAG_CODE_ES: Record<string, string> = {
   CANCELLED_ORDER: "Pedido anulado",
   BELOW_MIN_PRICE_APPROVAL: "Precio por debajo del mínimo",
   ON_DEMAND_PENDING_PURCHASE: "Línea bajo pedido pendiente de compra",
+  ON_DEMAND_STOCK_DEFICIT: "Déficit de stock bajo pedido",
+  UNPURCHASED_STOCK_DEFICIT: "Vendido sin compra formal (por regularizar)",
 };
+
+const UNDO_ACTION_TYPE_ES: Record<string, string> = {
+  QUOTE_STATUS_CHANGE: "Cambio de estado en cotización",
+  QUOTE_CONVERT_TO_ORDER: "Conversión de cotización a pedido",
+  ORDER_CANCEL: "Anulación de pedido",
+  ORDER_STATUS_ADVANCE: "Avance de estado en almacén",
+  ORDER_CREATE: "Registro de pedido",
+  TRIP_CLOSE: "Cierre de hoja de ruta",
+  AUDIT_FLAG_STATUS: "Cambio de estado en alerta",
+};
+
+export function formatUndoActionTypeEs(actionType: unknown): string {
+  return mapCode(UNDO_ACTION_TYPE_ES, actionType, "Acción operativa");
+}
 
 const ENTITY_TABLE_ES: Record<string, string> = {
   SALES_ORDERS: "Pedido",

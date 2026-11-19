@@ -25,8 +25,13 @@ import {
   WalletIcon,
 } from "@/components/ui/Icons";
 import { Button, Card, INPUT_CLASS, ToastBanner } from "@/components/ui/Primitives";
+import { RecentUndoStrip } from "@/components/shared/RecentUndoStrip";
 import { formatRoleEs } from "@/lib/labels-es";
-import { useLiveSync, type SyncScope } from "@/lib/realtime/useLiveSync";
+import {
+  notifyLocalSync,
+  useLiveSync,
+  type SyncScope,
+} from "@/lib/realtime/useLiveSync";
 import {
   canonicalPartnerUrl,
   partnerUrlForLegacyTab,
@@ -39,7 +44,7 @@ import { Cobranza, CobranzaModals } from "./Cobranza";
 import { Accesos } from "./Accesos";
 import { Finanzas } from "./Finanzas";
 import { Hoy } from "./Hoy";
-import { Inventario, InventarioModals } from "./Inventario";
+import { Inventario, InventarioModals, type InventorySubView } from "./Inventario";
 import { Ventas, VentasModals } from "./Ventas";
 import {
   formatActorName,
@@ -63,6 +68,8 @@ export default function PartnerWorkspace() {
   const [preselectedPurchaseTarget, setPreselectedPurchaseTarget] =
     useState<PurchaseTarget | null>(null);
   const [initialCajaSubTab, setInitialCajaSubTab] = useState<CajaSubTab | null>(null);
+  const [initialInventoryView, setInitialInventoryView] =
+    useState<InventorySubView | null>(null);
 
   const data = usePartnerData();
   const {
@@ -81,6 +88,7 @@ export default function PartnerWorkspace() {
     debtorsByCustomer,
     pendingApprovals,
     negStockCount,
+    unpurchasedRegularizationCount,
     openApCount,
     currentUser,
     appUsers,
@@ -191,6 +199,12 @@ export default function PartnerWorkspace() {
     handleTabChange("caja");
   }, [handleTabChange]);
 
+  const handleOpenRegularization = useCallback(() => {
+    setSubTabEditing(false);
+    setInitialInventoryView("regularization");
+    handleTabChange("stock");
+  }, [handleTabChange]);
+
   const handleGoToEditProduct = useCallback(
     (sku: string) => {
       setSearchSku(sku);
@@ -236,7 +250,7 @@ export default function PartnerWorkspace() {
     const items: NavTabItem<PartnerTab>[] = [
       {
         id: "control",
-        group: "Inicio",
+        group: "Operación diaria",
         label: "Hoy",
         mobileLabel: "Hoy",
         icon: <ActivityIcon className="h-4 w-4" />,
@@ -244,7 +258,7 @@ export default function PartnerWorkspace() {
       },
       {
         id: "pedidos",
-        group: "Operación",
+        group: "Operación diaria",
         label: "Pedidos",
         mobileLabel: "Pedidos",
         icon: <ShoppingBagIcon className="h-4 w-4" />,
@@ -252,47 +266,47 @@ export default function PartnerWorkspace() {
       },
       {
         id: "deudores",
-        group: "Operación",
+        group: "Operación diaria",
         label: "Cobranza",
         mobileLabel: "Cobrar",
         icon: <WalletIcon className="h-4 w-4" />,
         badgeCount: debtorsByOrder.length,
       },
       {
-        id: "caja",
-        group: "Operación",
-        label: "Caja",
-        mobileLabel: "Caja",
-        icon: <BuildingIcon className="h-4 w-4" />,
-        badgeCount: openApCount,
-      },
-      {
         id: "stock",
-        group: "Gestión",
+        group: "Operación diaria",
         label: "Inventario",
         mobileLabel: "Inventario",
         icon: <PackageIcon className="h-4 w-4" />,
         badgeCount: negStockCount,
       },
       {
-        id: "directorio",
-        group: "Gestión",
-        label: "Directorio",
-        mobileLabel: "Directorio",
-        icon: <UsersIcon className="h-4 w-4" />,
+        id: "caja",
+        group: "Finanzas y análisis",
+        label: "Caja",
+        mobileLabel: "Caja",
+        icon: <BuildingIcon className="h-4 w-4" />,
+        badgeCount: openApCount,
       },
       {
         id: "kpis",
-        group: "Análisis",
+        group: "Finanzas y análisis",
         label: "Reportes",
         mobileLabel: "Reportes",
         icon: <BarChartIcon className="h-4 w-4" />,
+      },
+      {
+        id: "directorio",
+        group: "Catálogos y control",
+        label: "Directorio",
+        mobileLabel: "Directorio",
+        icon: <UsersIcon className="h-4 w-4" />,
       },
     ];
     if (isPartnerAdmin) {
       items.push({
         id: "accesos",
-        group: "Administración",
+        group: "Catálogos y control",
         label: "Usuarios",
         mobileLabel: "Usuarios",
         icon: <LockIcon className="h-4 w-4" />,
@@ -484,9 +498,37 @@ export default function PartnerWorkspace() {
           <ToastBanner
             type={feedback.isError ? "err" : "ok"}
             message={feedback.msg}
+            action={
+              feedback.undoAction && !feedback.isError
+                ? {
+                    label:
+                      orderFlow.busyUndoId === feedback.undoAction.undoId
+                        ? "Deshaciendo..."
+                        : "Deshacer",
+                    disabled: orderFlow.busyUndoId !== null,
+                    expiresAt: feedback.undoAction.expiresAt,
+                    windowSeconds: feedback.undoAction.windowSeconds,
+                    showCountdown: !isPartnerAdmin,
+                    onClick: () =>
+                      void orderFlow.handleExecuteUndo(feedback.undoAction!.undoId),
+                  }
+                : undefined
+            }
             onDismiss={() => setFeedback(null)}
           />
         )}
+
+        <RecentUndoStrip
+          refreshKey={data.dataRefreshSeq + (feedback?.undoAction?.undoId ?? 0)}
+          activeToastUndoId={feedback?.undoAction?.undoId ?? null}
+          isAdmin={isPartnerAdmin}
+          onUndone={(restoredMsg) => {
+            showFeedback(restoredMsg);
+            notifyLocalSync(SOCIOS_SYNC_SCOPES);
+            void refreshDashboard(SOCIOS_SYNC_SCOPES);
+          }}
+          onError={(errMsg) => showFeedback(errMsg, true)}
+        />
 
         {loading && !partnerData && (
           <Card className="p-10 text-center text-sm font-medium text-bht-ink-soft">
@@ -517,7 +559,16 @@ export default function PartnerWorkspace() {
         {tab === "deudores" && <Cobranza data={data} flow={collectionsFlow} />}
 
         {tab === "stock" && (
-          <Inventario negStockCount={negStockCount} flow={inventoryFlow} />
+          <Inventario
+            negStockCount={negStockCount}
+            unpurchasedRegularizationCount={unpurchasedRegularizationCount}
+            initialView={initialInventoryView}
+            onClearInitialView={() => setInitialInventoryView(null)}
+            refreshKey={data.dataRefreshSeq}
+            onGoToPurchaseProduct={handleGoToPurchaseProduct}
+            onFeedback={showFeedback}
+            flow={inventoryFlow}
+          />
         )}
 
         {tab === "directorio" && (
@@ -553,6 +604,7 @@ export default function PartnerWorkspace() {
             handleTabChange={handleTabChange}
             handleGoToPurchaseProduct={handleGoToPurchaseProduct}
             handleGoToEditProduct={handleGoToEditProduct}
+            onOpenRegularization={handleOpenRegularization}
             setSubTabEditing={setSubTabEditing}
             showFeedback={showFeedback}
           />

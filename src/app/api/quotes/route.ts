@@ -23,7 +23,7 @@ export async function GET(req: NextRequest) {
       "EXTERNAL_SELLER",
     ]);
     const limitParam = req.nextUrl.searchParams.get("limit");
-    const limit = limitParam ? Number(limitParam) : 60;
+    const limit = limitParam ? Number(limitParam) : 250;
 
     const data = await withClient(async (client) => {
       const actor = assertRole(await requireActiveSession(client, parsedActor), [
