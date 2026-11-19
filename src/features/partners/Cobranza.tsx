@@ -87,7 +87,7 @@ export function Cobranza({ data, flow }: CobranzaProps) {
             onChange={(e) => setDebtorSearch(e.target.value)}
             aria-label="Buscar cliente o código de pedido en deudores"
             placeholder="Buscar cliente o pedido pendiente..."
-            className={`${INPUT_CLASS} py-2 pl-10 pr-8 text-xs sm:text-sm`}
+            className={`${INPUT_CLASS} pl-10 pr-8`}
           />
           {debtorSearch && (
             <button

@@ -26,36 +26,115 @@ export const REPORT_TAB_ITEMS: Array<{
   id: ReportSectionId;
   label: string;
   subtitle: string;
+  concepts: Array<{ term: string; meaning: string }>;
 }> = [
   {
     id: "resumen",
     label: "1. Resumen",
     subtitle: "P&L devengado vs. flujo de caja",
+    concepts: [
+      {
+        term: "P&L devengado",
+        meaning: "Ventas y costos reconocidos cuando ocurre la operación.",
+      },
+      {
+        term: "Margen bruto",
+        meaning: "Venta con costo conocido menos costo de mercadería.",
+      },
+      {
+        term: "EBITDA operativo",
+        meaning: "Margen bruto menos gastos operativos de ruta registrados.",
+      },
+      { term: "Flujo neto", meaning: "Cobros reales menos salidas reales de dinero." },
+    ],
   },
   {
     id: "caja_cxp",
     label: "2. Caja y CxP",
     subtitle: "Liquidez vs. vencimientos 7/15/30d",
+    concepts: [
+      { term: "Liquidez", meaning: "Dinero disponible para cubrir compromisos." },
+      { term: "CxP", meaning: "Deudas pendientes con proveedores." },
+      { term: "Vencimiento", meaning: "Fecha límite prevista para pagar." },
+      {
+        term: "Cobertura",
+        meaning: "Cuánto de los compromisos puede atender el dinero disponible.",
+      },
+    ],
   },
   {
     id: "cartera",
     label: "3. Cartera (CxC)",
     subtitle: "Aging, DSO y hoja de cobranza",
+    concepts: [
+      { term: "CxC", meaning: "Saldo que los clientes aún deben pagar." },
+      { term: "Aging", meaning: "Antigüedad de cada saldo pendiente." },
+      {
+        term: "DSO",
+        meaning: "Días promedio estimados para convertir ventas en cobros.",
+      },
+      { term: "Promesa vencida", meaning: "Compromiso de pago cuya fecha ya pasó." },
+    ],
   },
   {
     id: "comercial",
     label: "4. Comercial y Rutas",
     subtitle: "Zonas, vendedores, viajes y descuentos",
+    concepts: [
+      { term: "Margen", meaning: "Venta menos costo conocido del producto." },
+      {
+        term: "Contribución de ruta",
+        meaning: "Margen generado menos gasto operativo del viaje.",
+      },
+      { term: "Descuento", meaning: "Diferencia frente al precio de referencia." },
+      { term: "Viaje", meaning: "Salida comercial u operativa asociada a una ruta." },
+    ],
   },
   {
     id: "stock",
     label: "5. Stock y Márgenes",
     subtitle: "Valorización, cobertura y stock muerto",
+    concepts: [
+      {
+        term: "Valorización",
+        meaning: "Stock disponible multiplicado por su costo de referencia.",
+      },
+      {
+        term: "Cobertura",
+        meaning: "Días estimados que durará el inventario al ritmo reciente.",
+      },
+      {
+        term: "Stock muerto",
+        meaning: "Producto disponible sin movimiento de venta reciente.",
+      },
+      {
+        term: "Capital inmovilizado",
+        meaning: "Dinero invertido en inventario con baja rotación.",
+      },
+    ],
   },
   {
     id: "auditoria",
     label: "6. Auditoría y CSV",
     subtitle: "Semáforo de cierre y exportaciones",
+    concepts: [
+      {
+        term: "Semáforo",
+        meaning: "Estado de los controles necesarios para un cierre confiable.",
+      },
+      {
+        term: "Brecha",
+        meaning: "Dato faltante o inconsistente que requiere revisión.",
+      },
+      {
+        term: "CSV",
+        meaning: "Archivo descargable para revisar o trabajar los datos.",
+      },
+      {
+        term: "Cierre",
+        meaning: "Revisión final de consistencia antes de usar las cifras.",
+      },
+    ],
   },
 ];
 

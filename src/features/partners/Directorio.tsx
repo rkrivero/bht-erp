@@ -5,6 +5,7 @@ import { Card, SegmentedControl } from "@/components/ui/Primitives";
 import { DirectorioClientes } from "./DirectorioClientes";
 import { DirectorioProveedores } from "./DirectorioProveedores";
 import type { PartnerTab, ShowFeedback } from "./partnerShared";
+import type { CustomerDirectoryItem } from "@/lib/services/customers";
 
 type DirectorySubTab = "customers" | "suppliers";
 
@@ -12,6 +13,7 @@ interface Props {
   actorRole: string;
   showFeedback: ShowFeedback;
   handleTabChange: (tab: PartnerTab) => void;
+  onOpenCustomerOrders: (customer: CustomerDirectoryItem) => void;
   onDataChanged: () => void;
   setSubTabEditing: (editing: boolean) => void;
 }
@@ -20,6 +22,7 @@ export default function Directorio({
   actorRole,
   showFeedback,
   handleTabChange,
+  onOpenCustomerOrders,
   onDataChanged,
   setSubTabEditing,
 }: Props) {
@@ -56,6 +59,7 @@ export default function Directorio({
           actorRole={actorRole}
           showFeedback={showFeedback}
           handleTabChange={handleTabChange}
+          onOpenCustomerOrders={onOpenCustomerOrders}
           onDataChanged={onDataChanged}
           setSubTabEditing={setSubTabEditing}
         />

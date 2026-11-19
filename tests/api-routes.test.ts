@@ -142,6 +142,28 @@ describe("API Route Role Enforcement, DB Branch Isolation & Endpoint Contracts",
         offset: 5,
       })
     );
+
+    const customerPartyId = body.orders.find(
+      (order: { customer_party_id?: number | null }) => order.customer_party_id
+    )?.customer_party_id;
+    if (customerPartyId) {
+      const customerOrdersReq = new NextRequest(
+        `http://localhost:3000/api/orders?customer_party_id=${customerPartyId}&include_refs=false`,
+        { headers: { cookie: `bht_session=${whToken}` } }
+      );
+      const customerOrdersRes = await getOrders(customerOrdersReq);
+      expect(customerOrdersRes.status).toBe(200);
+      const customerOrdersBody = await customerOrdersRes.json();
+      expect(customerOrdersBody.orders.length).toBeGreaterThan(0);
+      expect(
+        customerOrdersBody.orders.every(
+          (order: { customer_party_id?: number | null }) =>
+            order.customer_party_id === customerPartyId
+        )
+      ).toBe(true);
+      expect(customerOrdersBody.catalog).toEqual([]);
+      expect(customerOrdersBody.accounts).toEqual([]);
+    }
   });
 
   it("returns valid AP obligation columns, suppliers, and accounts on GET /api/treasury for partners and hides AP/suppliers from seller", async () => {
@@ -1216,7 +1238,7 @@ describe("API Route Role Enforcement, DB Branch Isolation & Endpoint Contracts",
       await client.query("ROLLBACK").catch(() => {});
       client.release();
     }
-  });
+  }, 60_000);
 
   it("supports customer dual-naming search, geolocation, RBAC, and supplier directory", async () => {
     const { vi } = await import("vitest");

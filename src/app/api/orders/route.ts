@@ -31,7 +31,12 @@ export async function GET(req: NextRequest) {
 
     const limitParam = req.nextUrl.searchParams.get("limit");
     const offsetParam = req.nextUrl.searchParams.get("offset");
+    const customerPartyIdParam = req.nextUrl.searchParams.get("customer_party_id");
+    const includeRefs = req.nextUrl.searchParams.get("include_refs") !== "false";
     const limit = limitParam ? parsePositiveInt(limitParam, "Límite") : 80;
+    const customerPartyId = customerPartyIdParam
+      ? parsePositiveInt(customerPartyIdParam, "Cliente")
+      : null;
     const offset = offsetParam !== null && offsetParam !== "" ? Number(offsetParam) : 0;
     if (!Number.isInteger(offset) || offset < 0) {
       throw new ValidationError("Offset inválido");
@@ -54,9 +59,20 @@ export async function GET(req: NextRequest) {
         client,
         actor,
         Math.min(200, limit),
-        offset
+        offset,
+        customerPartyId
       );
       if (actor.role === "WAREHOUSE_DELIVERY") {
+        return {
+          currentUser,
+          orders,
+          pagination,
+          catalog: [],
+          customers: [],
+          accounts: [],
+        };
+      }
+      if (!includeRefs) {
         return {
           currentUser,
           orders,

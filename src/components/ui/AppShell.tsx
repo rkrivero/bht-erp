@@ -87,7 +87,7 @@ const SYNC_STATUS_CONFIG: Record<
   { label: string; dotClass: string; pillClass: string }
 > = {
   live: {
-    label: "En vivo",
+    label: "Sincronizado",
     dotClass: "bg-bht-success",
     pillClass: "border-bht-slate-line bg-bht-surface-cool text-bht-ink-deep",
   },
@@ -133,6 +133,28 @@ export function AppHeader({
   onLogout: () => void;
   withSidebar?: boolean;
 }) {
+  const [displaySyncStatus, setDisplaySyncStatus] = useState(syncStatus);
+
+  useEffect(() => {
+    if (!syncStatus) {
+      setDisplaySyncStatus(undefined);
+      return;
+    }
+
+    const browserIsOffline =
+      typeof navigator !== "undefined" && navigator.onLine === false;
+    const delayMs =
+      syncStatus === "live"
+        ? 0
+        : syncStatus === "offline" && browserIsOffline
+          ? 0
+          : syncStatus === "offline"
+            ? 2500
+            : 900;
+    const timer = window.setTimeout(() => setDisplaySyncStatus(syncStatus), delayMs);
+    return () => window.clearTimeout(timer);
+  }, [syncStatus]);
+
   const widthClass =
     maxWidth === "xl"
       ? "max-w-xl"
@@ -144,7 +166,7 @@ export function AppHeader({
             ? "max-w-7xl"
             : "max-w-2xl";
 
-  const syncCfg = syncStatus ? SYNC_STATUS_CONFIG[syncStatus] : null;
+  const syncCfg = displaySyncStatus ? SYNC_STATUS_CONFIG[displaySyncStatus] : null;
 
   return (
     <header

@@ -52,6 +52,12 @@ export function Ventas({ orders, ordersPagination, partnerQuotes, flow }: Ventas
     setSelectedPartnerQuote,
     handlePartnerConvertQuote,
     handlePartnerCancelQuote,
+    customerOrderScope,
+    customerOrdersError,
+    loadingCustomerOrders,
+    visibleOrders,
+    visibleOrdersPagination,
+    clearCustomerOrderScope,
   } = flow;
   return (
     <div className="space-y-4">
@@ -59,6 +65,7 @@ export function Ventas({ orders, ordersPagination, partnerQuotes, flow }: Ventas
         ariaLabel="Vista de pedidos y cotizaciones"
         value={salesView}
         onChange={setSalesView}
+        className="w-full sm:w-auto"
         options={[
           {
             id: "orders",
@@ -177,7 +184,9 @@ export function Ventas({ orders, ordersPagination, partnerQuotes, flow }: Ventas
         <Card padding="md" className="space-y-3">
           <div>
             <h2 className="text-sm sm:text-base font-semibold text-bht-ink-strong">
-              Todos los Pedidos
+              {customerOrderScope
+                ? `Pedidos de ${customerOrderScope.name}`
+                : "Todos los Pedidos"}
             </h2>
             <p className="text-xs text-bht-ink-soft">
               Consulta el historial completo, filtra por estado y abre cualquier pedido
@@ -185,8 +194,26 @@ export function Ventas({ orders, ordersPagination, partnerQuotes, flow }: Ventas
             </p>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="relative min-w-[200px] flex-1">
+          {customerOrderScope && (
+            <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-bht-line-blue bg-bht-mist px-3 py-2 text-xs text-bht-navy-mid">
+              <span>
+                Historial exacto por cliente ·{" "}
+                {visibleOrdersPagination?.totalCount ?? 0} pedido(s)
+              </span>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                data-compact="true"
+                onClick={clearCustomerOrderScope}
+              >
+                Ver todos
+              </Button>
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 gap-2 xl:grid-cols-[minmax(320px,1fr)_auto] xl:items-center">
+            <div className="relative min-w-0">
               <span className="pointer-events-none absolute inset-y-0 left-3.5 flex items-center text-bht-ink-muted">
                 <SearchIcon className="h-4 w-4" />
               </span>
@@ -196,13 +223,14 @@ export function Ventas({ orders, ordersPagination, partnerQuotes, flow }: Ventas
                 onChange={(e) => setMonitorSearch(e.target.value)}
                 aria-label="Buscar pedidos y ventas"
                 placeholder="Buscar por pedido, cliente o vendedor..."
-                className={`${INPUT_CLASS} py-2 pl-10 pr-8 text-xs`}
+                className={`${INPUT_CLASS} pl-10 pr-8`}
               />
             </div>
             <SegmentedControl<MonitorStatusFilter>
               ariaLabel="Filtrar pedidos y ventas por estado"
               value={monitorStatusFilter}
               onChange={setMonitorStatusFilter}
+              className="w-full xl:w-auto"
               options={[
                 { id: "ALL", label: "Todos" },
                 { id: "PENDING", label: "Pendientes" },
@@ -212,7 +240,11 @@ export function Ventas({ orders, ordersPagination, partnerQuotes, flow }: Ventas
             />
           </div>
 
-          {monitorFilteredOrders.length === 0 ? (
+          {loadingCustomerOrders ? (
+            <EmptyState title="Cargando pedidos del cliente..." />
+          ) : customerOrdersError ? (
+            <EmptyState title={customerOrdersError} />
+          ) : monitorFilteredOrders.length === 0 ? (
             <EmptyState title="No hay pedidos que coincidan con el filtro" />
           ) : (
             <div className="space-y-2">
@@ -223,18 +255,23 @@ export function Ventas({ orders, ordersPagination, partnerQuotes, flow }: Ventas
                   onClick={() => setSelectedMonitorOrder(order)}
                   className="flex w-full flex-col gap-2 rounded-xl border border-bht-line bg-white p-3 text-left transition hover:border-bht-line-blue hover:bg-bht-mist/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bht-navy-deep"
                 >
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <span className="font-semibold text-bht-navy-mid tabular-nums">
-                      {String(order.order_code)} · {String(order.order_date)}
-                    </span>
+                  <div className="flex items-start justify-between gap-3">
+                    <h3 className="min-w-0 break-words text-base font-bold leading-snug text-bht-ink-strong sm:text-lg">
+                      {String(order.customer_name)}
+                    </h3>
                     <Badge tone={operationalStatusTone(order.operational_status)}>
                       {formatOperationalStatusEs(order.operational_status)}
                     </Badge>
                   </div>
-                  <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
-                    <span className="font-medium text-bht-ink-strong">
-                      {String(order.customer_name)}
-                    </span>
+                  <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1.5 text-sm">
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                      <span className="font-semibold text-bht-cobalt-strong tabular-nums">
+                        Pedido {String(order.order_code)}
+                      </span>
+                      <span className="text-bht-ink-soft tabular-nums">
+                        Fecha: {String(order.order_date)}
+                      </span>
+                    </div>
                     <span className="font-semibold text-bht-ink-strong tabular-nums">
                       {formatPen(order.total_pen)}
                     </span>
@@ -248,10 +285,11 @@ export function Ventas({ orders, ordersPagination, partnerQuotes, flow }: Ventas
             </div>
           )}
 
-          {ordersPagination?.hasMore && (
+          {visibleOrdersPagination?.hasMore && (
             <div className="flex flex-wrap items-center justify-between gap-2 border-t border-bht-line pt-3 text-xs text-bht-ink-soft">
               <span>
-                Mostrando {orders.length} de {ordersPagination.totalCount} pedidos
+                Mostrando {visibleOrders.length} de {visibleOrdersPagination.totalCount}{" "}
+                pedidos
               </span>
               <Button
                 type="button"

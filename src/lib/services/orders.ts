@@ -1269,7 +1269,8 @@ export async function listOrdersPaginatedForRole(
   client: PoolClient,
   actor: SessionUser,
   limit = 60,
-  offset = 0
+  offset = 0,
+  customerPartyId: number | null = null
 ): Promise<{
   orders: Record<string, unknown>[];
   pagination: OrdersPaginationMeta;
@@ -1283,6 +1284,12 @@ export async function listOrdersPaginatedForRole(
 
   const safeLimit = Math.max(1, Math.min(200, Math.floor(limit || 60)));
   const safeOffset = Math.max(0, Math.floor(offset || 0));
+  const safeCustomerPartyId =
+    customerPartyId !== null &&
+    Number.isSafeInteger(customerPartyId) &&
+    customerPartyId > 0
+      ? customerPartyId
+      : null;
 
   const filterClause =
     actor.role === "WAREHOUSE_DELIVERY"
@@ -1290,11 +1297,14 @@ export async function listOrdersPaginatedForRole(
       : actor.role === "EXTERNAL_SELLER"
         ? `WHERE so.operational_status <> 'CANCELLED'`
         : `WHERE TRUE`;
+  const scopedFilterClause = `${filterClause}
+    AND ($1::bigint IS NULL OR so.customer_party_id = $1)`;
 
   const countRes = await client.query<{ total_count: number }>(
     `SELECT COUNT(*)::int AS total_count
      FROM erp.sales_orders so
-     ${filterClause}`
+     ${scopedFilterClause}`,
+    [safeCustomerPartyId]
   );
   const totalCount = Number(countRes.rows[0]?.total_count ?? 0);
 
@@ -1339,13 +1349,13 @@ export async function listOrdersPaginatedForRole(
      LEFT JOIN erp.app_users u_app ON u_app.user_id = so.approved_by_user_id
      LEFT JOIN erp.app_users u_pick ON u_pick.user_id = so.picked_by_user_id
      LEFT JOIN erp.app_users u_deliv ON u_deliv.user_id = so.delivered_by_user_id
-     ${filterClause}
+     ${scopedFilterClause}
      ORDER BY
        CASE WHEN so.source_origin = 'ERP_APP' THEN 0 ELSE 1 END ASC,
        so.order_date DESC,
        so.order_id DESC
-     LIMIT $1 OFFSET $2`,
-    [safeLimit, safeOffset]
+     LIMIT $2 OFFSET $3`,
+    [safeCustomerPartyId, safeLimit, safeOffset]
   );
 
   if (ordersRes.rowCount === 0) {

@@ -32,6 +32,7 @@ import {
   resolvePartnerNavigation,
 } from "@/lib/navigation";
 import { deleteOfflineSnapshotsForActor } from "@/lib/offline/outbox";
+import type { CustomerDirectoryItem } from "@/lib/services/customers";
 import { Cobranza, CobranzaModals } from "./Cobranza";
 import { Accesos } from "./Accesos";
 import { Finanzas } from "./Finanzas";
@@ -104,7 +105,13 @@ export default function PartnerWorkspace() {
     showFeedback,
     refreshDashboard,
   });
-  const { setMonitorSearch, setMonitorStatusFilter, setShowAllMonitor } = orderFlow;
+  const {
+    setMonitorSearch,
+    setMonitorStatusFilter,
+    setShowAllMonitor,
+    clearCustomerOrderScope,
+    openCustomerOrders,
+  } = orderFlow;
   const { setSearchSku, openEditProduct } = inventoryFlow;
 
   useEffect(() => {
@@ -289,13 +296,20 @@ export default function PartnerWorkspace() {
     event.preventDefault();
     const query = globalSearch.trim();
     if (!query) {
+      clearCustomerOrderScope();
       handleTabChange("pedidos");
       return;
     }
+    clearCustomerOrderScope();
     setMonitorSearch(query);
     setMonitorStatusFilter("ALL");
     setShowAllMonitor(true);
     handleTabChange("pedidos");
+  }
+
+  function handleOpenCustomerOrders(customer: CustomerDirectoryItem) {
+    handleTabChange("pedidos");
+    void openCustomerOrders(customer);
   }
 
   return (
@@ -411,7 +425,7 @@ export default function PartnerWorkspace() {
                 onChange={(event) => setGlobalSearch(event.target.value)}
                 placeholder="Buscar pedido, cliente o vendedor..."
                 aria-label="Buscar pedido, cliente o vendedor"
-                className={`${INPUT_CLASS} py-2.5 pl-10 pr-3 text-xs`}
+                className={`${INPUT_CLASS} pl-10 pr-3`}
               />
             </div>
             <Button
@@ -469,6 +483,7 @@ export default function PartnerWorkspace() {
             actorRole={currentUser?.role || "PARTNER_MANAGER"}
             showFeedback={showFeedback}
             handleTabChange={handleTabChange}
+            onOpenCustomerOrders={handleOpenCustomerOrders}
             onDataChanged={() =>
               void refreshDashboard(["orders", "purchases", "partners"])
             }

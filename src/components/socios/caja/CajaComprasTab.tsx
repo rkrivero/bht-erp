@@ -270,7 +270,7 @@ export function CajaComprasTab({
                 onChange={(e) => setApSearch(e.target.value)}
                 aria-label="Buscar proveedor o comprobante en cuentas por pagar"
                 placeholder="Buscar comprobante o nota..."
-                className={`${INPUT_CLASS} py-2 pl-10 pr-8 text-xs`}
+                className={`${INPUT_CLASS} pl-10 pr-8`}
               />
               {apSearch && (
                 <button
@@ -288,7 +288,7 @@ export function CajaComprasTab({
               aria-label="Filtrar CxP por proveedor"
               value={selectedSupplierId}
               onChange={(e) => setSelectedSupplierId(e.target.value)}
-              className={`${INPUT_CLASS} py-2 text-xs font-medium`}
+              className={`${INPUT_CLASS} font-medium`}
             >
               <option value="">Todos los proveedores ({suppliers.length})</option>
               {suppliers.map((s) => (
@@ -436,7 +436,7 @@ export function CajaComprasTab({
                 onChange={(e) => setPurchaseSearch(e.target.value)}
                 aria-label="Filtrar compras recientes"
                 placeholder="Buscar compra por comprobante o proveedor..."
-                className={`${INPUT_CLASS} py-2 pl-10 pr-8 text-xs`}
+                className={`${INPUT_CLASS} pl-10 pr-8`}
               />
               {purchaseSearch && (
                 <button

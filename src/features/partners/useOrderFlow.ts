@@ -1,9 +1,11 @@
 "use client";
 
-import { useDeferredValue, useMemo, useState } from "react";
+import { useDeferredValue, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ApiClientError, fetchJson } from "@/lib/api-client";
 import type { PartnerOrdersResponseDto } from "@/lib/contracts";
+import type { PaginationDto } from "@/lib/contracts";
+import type { CustomerDirectoryItem } from "@/lib/services/customers";
 import type { SellerOrderDto, SellerQuoteDto } from "@/features/seller/types";
 import { notifyLocalSync, type SyncScope } from "@/lib/realtime/useLiveSync";
 import {
@@ -62,25 +64,101 @@ export function useOrderFlow({
   const deferredMonitorSearch = useDeferredValue(monitorSearch);
   const [monitorStatusFilter, setMonitorStatusFilter] =
     useState<MonitorStatusFilter>("ALL");
+  const [customerOrderScope, setCustomerOrderScope] = useState<{
+    partyId: number;
+    name: string;
+  } | null>(null);
+  const [customerOrders, setCustomerOrders] = useState<SellerOrderDto[]>([]);
+  const [customerOrdersPagination, setCustomerOrdersPagination] =
+    useState<PaginationDto | null>(null);
+  const [loadingCustomerOrders, setLoadingCustomerOrders] = useState(false);
+  const [customerOrdersError, setCustomerOrdersError] = useState<string | null>(null);
+  const customerOrdersRequestId = useRef(0);
 
-  async function handleLoadMoreOrders() {
-    if (loadingMoreOrders || !ordersPagination?.hasMore) return;
-    setLoadingMoreOrders(true);
+  const visibleOrders = customerOrderScope ? customerOrders : orders;
+  const visibleOrdersPagination = customerOrderScope
+    ? customerOrdersPagination
+    : ordersPagination;
+
+  function clearCustomerOrderScope() {
+    customerOrdersRequestId.current += 1;
+    setCustomerOrderScope(null);
+    setCustomerOrders([]);
+    setCustomerOrdersPagination(null);
+    setCustomerOrdersError(null);
+    setLoadingCustomerOrders(false);
+  }
+
+  async function openCustomerOrders(customer: CustomerDirectoryItem) {
+    const partyId = Number(customer.party_id);
+    const requestId = customerOrdersRequestId.current + 1;
+    customerOrdersRequestId.current = requestId;
+    setCustomerOrderScope({ partyId, name: customer.display_name });
+    setCustomerOrders([]);
+    setCustomerOrdersPagination(null);
+    setCustomerOrdersError(null);
+    setMonitorSearch("");
+    setMonitorStatusFilter("ALL");
+    setShowAllMonitor(true);
+    setLoadingCustomerOrders(true);
     try {
       const data = await fetchJson<PartnerOrdersResponseDto>(
-        `/api/orders?limit=${ordersPagination.limit}&offset=${orders.length}`,
+        `/api/orders?customer_party_id=${encodeURIComponent(String(partyId))}&limit=100&offset=0&include_refs=false`,
+        { cache: "no-store" }
+      );
+      if (customerOrdersRequestId.current !== requestId) return;
+      setCustomerOrders(data.orders || []);
+      setCustomerOrdersPagination(data.pagination || null);
+    } catch (error) {
+      if (customerOrdersRequestId.current !== requestId) return;
+      if (
+        error instanceof ApiClientError &&
+        (error.status === 401 || error.status === 403)
+      ) {
+        router.push("/login");
+        return;
+      }
+      setCustomerOrdersError(
+        mutationErrorMessage(
+          error,
+          "No se pudo cargar el historial del cliente.",
+          "Error de red cargando el historial del cliente."
+        )
+      );
+    } finally {
+      if (customerOrdersRequestId.current === requestId) {
+        setLoadingCustomerOrders(false);
+      }
+    }
+  }
+
+  async function handleLoadMoreOrders() {
+    if (loadingMoreOrders || !visibleOrdersPagination?.hasMore) return;
+    setLoadingMoreOrders(true);
+    try {
+      const customerQuery = customerOrderScope
+        ? `&customer_party_id=${encodeURIComponent(String(customerOrderScope.partyId))}`
+        : "";
+      const data = await fetchJson<PartnerOrdersResponseDto>(
+        `/api/orders?limit=${visibleOrdersPagination.limit}&offset=${visibleOrders.length}&include_refs=false${customerQuery}`,
         { cache: "no-store" }
       );
       const nextRows: SellerOrderDto[] = data.orders || [];
-      setOrders((prev) => {
+      const mergeOrders = (prev: SellerOrderDto[]) => {
         const seen = new Set(prev.map((o) => Number(o.order_id)));
         const merged = [...prev];
         for (const r of nextRows) {
           if (!seen.has(Number(r.order_id))) merged.push(r);
         }
         return merged;
-      });
-      setOrdersPagination(data.pagination || null);
+      };
+      if (customerOrderScope) {
+        setCustomerOrders(mergeOrders);
+        setCustomerOrdersPagination(data.pagination || null);
+      } else {
+        setOrders(mergeOrders);
+        setOrdersPagination(data.pagination || null);
+      }
     } catch (error) {
       if (
         error instanceof ApiClientError &&
@@ -263,7 +341,7 @@ export function useOrderFlow({
 
   const monitorFilteredOrders = useMemo(() => {
     const q = deferredMonitorSearch.trim().toLowerCase();
-    return orders.filter((o) => {
+    return visibleOrders.filter((o) => {
       const status = String(o.operational_status ?? "").toUpperCase();
       if (monitorStatusFilter === "PENDING" && status !== "PENDING_PARTNER_APPROVAL") {
         return false;
@@ -287,7 +365,7 @@ export function useOrderFlow({
           .includes(q)
       );
     });
-  }, [orders, deferredMonitorSearch, monitorStatusFilter]);
+  }, [visibleOrders, deferredMonitorSearch, monitorStatusFilter]);
 
   const recentMonitorOrders = useMemo(() => {
     const hasFilter =
@@ -315,6 +393,13 @@ export function useOrderFlow({
     setMonitorSearch,
     monitorStatusFilter,
     setMonitorStatusFilter,
+    customerOrderScope,
+    customerOrdersError,
+    loadingCustomerOrders,
+    visibleOrders,
+    visibleOrdersPagination,
+    openCustomerOrders,
+    clearCustomerOrderScope,
     monitorFilteredOrders,
     recentMonitorOrders,
     handleLoadMoreOrders,

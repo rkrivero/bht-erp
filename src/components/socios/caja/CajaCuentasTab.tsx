@@ -258,7 +258,7 @@ export function CajaCuentasTab({
               onChange={(e) => setSearch(e.target.value)}
               aria-label="Filtrar movimientos de caja"
               placeholder="Buscar por descripción, cuenta, categoría o ruta..."
-              className={`${INPUT_CLASS} py-2 pl-10 pr-8 text-xs`}
+              className={`${INPUT_CLASS} pl-10 pr-8`}
             />
             {search && (
               <button

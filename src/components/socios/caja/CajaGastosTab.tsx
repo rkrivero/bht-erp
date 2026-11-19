@@ -247,7 +247,7 @@ export function CajaGastosTab({
               onChange={(e) => setSearch(e.target.value)}
               aria-label="Filtrar gastos y retiros"
               placeholder="Buscar gasto por descripción, categoría, cuenta o ruta..."
-              className={`${INPUT_CLASS} py-2 pl-10 pr-8 text-xs`}
+              className={`${INPUT_CLASS} pl-10 pr-8`}
             />
             {search && (
               <button
@@ -266,7 +266,7 @@ export function CajaGastosTab({
             aria-label="Filtrar gastos por cuenta"
             value={accountFilterId}
             onChange={(e) => setAccountFilterId(e.target.value)}
-            className={`${INPUT_CLASS} w-auto py-2 text-xs font-medium`}
+            className={`${INPUT_CLASS} w-full font-medium sm:w-auto`}
           >
             <option value="">Todas las cuentas</option>
             {accounts.map((acc) => (

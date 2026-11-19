@@ -2,7 +2,7 @@
 
 import dynamic from "next/dynamic";
 import React, { useEffect, useMemo, useState } from "react";
-import { CloseIcon } from "@/components/ui/Icons";
+import { ChevronRightIcon, CloseIcon } from "@/components/ui/Icons";
 import { Badge, Button, Card, INPUT_CLASS } from "@/components/ui/Primitives";
 import { formatMonthLabel } from "../types";
 import {
@@ -191,7 +191,7 @@ export default function ReportesWorkspace({
       {/* Global Filter Bar + Sub-tab Navigation */}
       <Card accent="horizon" padding="md" className="no-print space-y-3.5">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <div>
+          <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
               <h2 className="text-base font-bold text-bht-navy-deep sm:text-lg">
                 Centro de Reportes e Inteligencia de Negocio
@@ -200,16 +200,36 @@ export default function ReportesWorkspace({
                 <Badge tone="brand">Actualizando…</Badge>
               )}
             </div>
-            <p className="text-xs text-bht-ink-soft">
-              {activeTabMeta?.subtitle} · Análisis SQL en tiempo real
+            <p className="mt-0.5 text-xs text-bht-ink-soft">
+              {activeTabMeta?.subtitle} · Datos operativos actualizados
             </p>
+            {activeTabMeta && (
+              <details className="group mt-2 max-w-3xl">
+                <summary className="inline-flex cursor-pointer list-none items-center gap-1.5 rounded-lg text-xs font-semibold text-bht-cobalt hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bht-cobalt focus-visible:ring-offset-2 [&::-webkit-details-marker]:hidden">
+                  Guía de lectura
+                  <ChevronRightIcon
+                    aria-hidden="true"
+                    className="h-3.5 w-3.5 transition group-open:rotate-90"
+                  />
+                </summary>
+                <dl className="mt-2 grid gap-x-5 gap-y-2 rounded-xl bg-bht-surface-cool p-3 sm:grid-cols-2 xl:grid-cols-4">
+                  {activeTabMeta.concepts.map((concept) => (
+                    <div key={concept.term} className="min-w-0 text-xs leading-relaxed">
+                      <dt className="font-bold text-bht-ink-strong">{concept.term}</dt>
+                      <dd className="text-bht-ink-soft">{concept.meaning}</dd>
+                    </div>
+                  ))}
+                </dl>
+              </details>
+            )}
           </div>
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
             {hasActiveFilters && (
               <Button
                 type="button"
                 variant="outline"
                 size="sm"
+                className="flex-1 sm:flex-none"
                 onClick={() => setFilters(INITIAL_REPORT_FILTERS)}
               >
                 <CloseIcon className="h-3.5 w-3.5" />
@@ -220,6 +240,7 @@ export default function ReportesWorkspace({
               type="button"
               variant="secondary"
               size="sm"
+              className="flex-1 sm:flex-none"
               onClick={handleRetryOrRefresh}
             >
               Actualizar
@@ -231,7 +252,7 @@ export default function ReportesWorkspace({
         <div
           role="tablist"
           aria-label="Secciones de reportes"
-          className="grid grid-cols-2 gap-1.5 sm:grid-cols-3 lg:grid-cols-6"
+          className="grid grid-cols-2 gap-1.5 sm:grid-cols-3 xl:grid-cols-6"
         >
           {REPORT_TAB_ITEMS.map((item) => {
             const active = activeSection === item.id;
@@ -242,13 +263,13 @@ export default function ReportesWorkspace({
                 role="tab"
                 aria-selected={active}
                 onClick={() => setActiveSection(item.id)}
-                className={`rounded-xl border px-3 py-2 text-left text-xs font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bht-navy-deep cursor-pointer ${
+                className={`min-h-11 rounded-xl border px-3 py-2 text-left text-xs font-semibold leading-tight transition-all duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bht-navy-deep sm:text-sm cursor-pointer ${
                   active
                     ? "border-bht-navy-deep bg-bht-navy-deep text-white shadow-bht-elev-10"
                     : "border-bht-line bg-bht-paper text-bht-ink-strong hover:bg-bht-mist"
                 }`}
               >
-                <span className="block truncate">{item.label}</span>
+                <span className="block whitespace-normal">{item.label}</span>
               </button>
             );
           })}
@@ -273,7 +294,7 @@ export default function ReportesWorkspace({
                   data-compact="true"
                   aria-pressed={selected}
                   onClick={() => applyPreset(presetOpt.id)}
-                  className={`rounded-full border px-3 py-1 text-xs font-semibold transition cursor-pointer ${
+                  className={`min-h-9 rounded-full border px-3 py-1.5 text-xs font-semibold transition cursor-pointer ${
                     selected
                       ? "border-bht-navy-deep bg-bht-navy-deep text-white"
                       : "border-bht-line bg-white text-bht-ink-soft hover:bg-bht-mist"
@@ -285,7 +306,7 @@ export default function ReportesWorkspace({
             })}
           </div>
 
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-5">
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
             <div>
               <label
                 htmlFor="rep-month"
@@ -297,7 +318,7 @@ export default function ReportesWorkspace({
                 id="rep-month"
                 value={filters.month}
                 onChange={(e) => handleMonthChange(e.target.value)}
-                className={`${INPUT_CLASS} py-1.5 text-xs`}
+                className={INPUT_CLASS}
               >
                 <option value="">Todos los meses</option>
                 {filterOptions.months.map((m) => (
@@ -327,7 +348,7 @@ export default function ReportesWorkspace({
                     from: e.target.value,
                   }))
                 }
-                className={`${INPUT_CLASS} py-1.5 text-xs`}
+                className={INPUT_CLASS}
               />
             </div>
 
@@ -350,7 +371,7 @@ export default function ReportesWorkspace({
                     to: e.target.value,
                   }))
                 }
-                className={`${INPUT_CLASS} py-1.5 text-xs`}
+                className={INPUT_CLASS}
               />
             </div>
 
@@ -367,7 +388,7 @@ export default function ReportesWorkspace({
                 onChange={(e) =>
                   setFilters((prev) => ({ ...prev, zone: e.target.value }))
                 }
-                className={`${INPUT_CLASS} py-1.5 text-xs`}
+                className={INPUT_CLASS}
               >
                 <option value="">Todas las zonas</option>
                 {filterOptions.zones.map((z) => (
@@ -391,7 +412,7 @@ export default function ReportesWorkspace({
                 onChange={(e) =>
                   setFilters((prev) => ({ ...prev, sellerId: e.target.value }))
                 }
-                className={`${INPUT_CLASS} py-1.5 text-xs`}
+                className={INPUT_CLASS}
               >
                 <option value="">Todos los vendedores</option>
                 {filterOptions.sellers.map((s) => (

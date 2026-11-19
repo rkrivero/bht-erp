@@ -391,7 +391,7 @@ export default function ReportesAuditoriaTab({
                       }
                       placeholder="Nota de revisión / resolución (opcional)"
                       aria-label={`Nota de resolución para alerta ${f.flag_id}`}
-                      className={`${INPUT_CLASS} py-1.5 text-xs`}
+                      className={INPUT_CLASS}
                     />
                   )}
                 </div>

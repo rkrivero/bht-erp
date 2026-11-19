@@ -65,7 +65,7 @@ export const PurchaseLineRow = React.memo(function PurchaseLineRow({
           value={row.search}
           onChange={(e) => onSearchChange(row.key, e.target.value)}
           placeholder="Buscar código o producto..."
-          className={`${INPUT_CLASS} py-2 text-xs`}
+          className={INPUT_CLASS}
         />
         <label htmlFor={selectProdId} className="sr-only">
           Seleccionar producto #{idx + 1}
@@ -75,7 +75,7 @@ export const PurchaseLineRow = React.memo(function PurchaseLineRow({
           required
           value={row.productId === "" ? "" : String(row.productId)}
           onChange={(e) => onSelectProduct(row.key, e.target.value)}
-          className={`${INPUT_CLASS} min-w-0 w-full py-2 text-xs font-medium`}
+          className={`${INPUT_CLASS} min-w-0 font-medium`}
         >
           <option value="">-- Elegir producto --</option>
           {filteredProds.map((p) => (

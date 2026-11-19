@@ -362,7 +362,7 @@ export default function ReportesStockTab({
               onChange={(e) => setSkuSearch(e.target.value)}
               aria-label="Filtrar productos líderes por código o nombre"
               placeholder="Filtrar SKU o producto..."
-              className={`${INPUT_CLASS} py-1.5 pl-9 pr-8 text-xs`}
+              className={`${INPUT_CLASS} pl-9 pr-8`}
             />
             {skuSearch && (
               <button

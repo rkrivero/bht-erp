@@ -96,7 +96,7 @@ export function DirectorioProveedores({
               onChange={(e) => setSearchInput(e.target.value)}
               placeholder="Buscar proveedor por razón social, alias, RUC o ciudad..."
               aria-label="Buscar proveedores en directorio"
-              className={`${INPUT_CLASS} py-2 pl-9 pr-3 text-xs`}
+              className={`${INPUT_CLASS} pl-9 pr-3`}
             />
           </div>
 
@@ -105,7 +105,7 @@ export function DirectorioProveedores({
               aria-label="Filtrar estado de proveedores"
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value as CustomerStatusFilter)}
-              className={`${INPUT_CLASS} w-auto py-2 text-xs`}
+              className={`${INPUT_CLASS} w-full sm:w-auto`}
             >
               <option value="ACTIVE">Solo activos</option>
               <option value="INACTIVE">Solo inactivos</option>

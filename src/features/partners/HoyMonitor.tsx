@@ -102,7 +102,7 @@ export function HoyMonitor({
             onChange={(e) => setMonitorSearch(e.target.value)}
             aria-label="Buscar en monitor de pedidos"
             placeholder="Buscar por pedido, cliente o vendedor..."
-            className={`${INPUT_CLASS} py-2 pl-10 pr-8 text-xs`}
+            className={`${INPUT_CLASS} pl-10 pr-8`}
           />
           {monitorSearch && (
             <button

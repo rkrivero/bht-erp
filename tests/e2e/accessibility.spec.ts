@@ -141,7 +141,7 @@ test("partner today view keeps the priority queue visible and accessible", async
   };
 
   for (const [endpoint, body] of Object.entries(fixtures)) {
-    await page.route(`**/api/${endpoint}`, async (route) => {
+    await page.route(`**/api/${endpoint}**`, async (route) => {
       await route.fulfill({
         status: 200,
         contentType: "application/json",
@@ -188,6 +188,164 @@ test("partner today view keeps the priority queue visible and accessible", async
       ["critical", "serious"].includes(violation.impact || "")
     )
   ).toEqual([]);
+});
+
+test("partner directory exposes customer detail and keeps buyer hierarchy in orders", async ({
+  page,
+}, testInfo) => {
+  test.skip(
+    !testInfo.project.name.startsWith("desktop-"),
+    "Desktop pointer coverage; the same flow switches to a mobile viewport for the sheet."
+  );
+  await page.addInitScript(() => {
+    Object.defineProperty(window, "EventSource", {
+      configurable: true,
+      value: undefined,
+    });
+  });
+
+  const order = {
+    order_id: 901,
+    order_code: "PED-901",
+    order_date: "2026-11-18",
+    customer_name: "Ferretería Horizonte",
+    operational_status: "PENDING",
+    total_pen: 425,
+    created_by_name: "Socio de prueba",
+    lines: [],
+  };
+  const fixtures: Record<string, unknown> = {
+    orders: {
+      orders: [order],
+      catalog: [],
+      accounts: [],
+      pagination: { totalCount: 1, hasMore: false },
+    },
+    collections: { byOrder: [], byCustomer: [] },
+    partners: {
+      currentUser: {
+        userId: 1,
+        username: "partner-e2e",
+        fullName: "Socio de prueba",
+        role: "PARTNER_MANAGER",
+      },
+      pendingOnDemand: [],
+      negativeStockSkuCount: 0,
+    },
+    treasury: { accounts: [], ledger: [], apObligations: [] },
+    purchases: { suppliers: [], recentPurchases: [] },
+    trips: { trips: [] },
+    quotes: { quotes: [] },
+  };
+
+  for (const [endpoint, body] of Object.entries(fixtures)) {
+    await page.route(`**/api/${endpoint}**`, async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(body),
+      });
+    });
+  }
+  await page.route("**/api/customers**", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        customers: [
+          {
+            party_id: 71,
+            legal_name: "Ferretería Horizonte S.A.C.",
+            trade_name: "Ferretería Horizonte",
+            display_name: "Ferretería Horizonte",
+            doc_type: "RUC",
+            doc_number: "20601234567",
+            is_generic_doc: false,
+            phone: "999 111 222",
+            email: "ventas@horizonte.test",
+            address: "Av. Industrial 456, almacén 3",
+            city_zone: "Norte",
+            notes: "Ingreso por puerta lateral",
+            is_active: true,
+            geo_lat: -12.0464,
+            geo_lng: -77.0428,
+            geo_accuracy_m: 12,
+            geo_updated_at: "2026-11-18T10:00:00Z",
+            orders_count: 3,
+            open_balance_pen: 125,
+            last_order_date: "2026-11-18",
+            aliases: ["Horizonte"],
+            has_orders: true,
+          },
+        ],
+        zones: [{ zone: "Norte", count: 1 }],
+        stats: { totalActive: 1, withGeo: 1, withoutGeo: 0, withDebt: 1 },
+        pagination: { limit: 100, offset: 0, totalCount: 1, hasMore: false },
+      }),
+    });
+  });
+  await page.route("**/api/sync**", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        version: "e2e-static",
+        changedScopes: [],
+        allowedScopes: ["orders", "partners"],
+      }),
+    });
+  });
+
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto("/socios?tab=directory");
+  const customerCard = page
+    .getByRole("heading", { name: "Ferretería Horizonte", level: 3 })
+    .locator("xpath=ancestor::section[1]");
+  await expect(customerCard).toBeVisible();
+  await customerCard.hover();
+  await expect(
+    page.getByRole("complementary", {
+      name: "Vista rápida de Ferretería Horizonte",
+    })
+  ).toBeVisible();
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await customerCard.getByRole("button", { name: "Ver ficha" }).click();
+  await expect(page.getByRole("dialog")).toContainText("3 pedidos");
+  await page.getByRole("button", { name: "Cerrar", exact: true }).click();
+  const customerOrdersRequest = page.waitForRequest((request) => {
+    const url = new URL(request.url());
+    return (
+      url.pathname === "/api/orders" &&
+      url.searchParams.get("customer_party_id") === "71" &&
+      url.searchParams.get("include_refs") === "false"
+    );
+  });
+  await customerCard.getByRole("button", { name: "3 pedidos" }).click();
+  await customerOrdersRequest;
+
+  const buyer = page.getByRole("heading", {
+    name: "Ferretería Horizonte",
+    level: 3,
+  });
+  await expect(buyer).toBeVisible();
+  const code = page.getByText("Pedido PED-901", { exact: true });
+  const date = page.getByText("Fecha: 2026-11-18", { exact: true });
+  const hierarchy = await Promise.all([
+    buyer.evaluate((el) => getComputedStyle(el).fontSize),
+    code.evaluate((el) => getComputedStyle(el).fontSize),
+    code.evaluate((el) => getComputedStyle(el).color),
+    date.evaluate((el) => getComputedStyle(el).color),
+  ]);
+  expect(Number.parseFloat(hierarchy[0])).toBeGreaterThan(
+    Number.parseFloat(hierarchy[1])
+  );
+  expect(hierarchy[2]).not.toBe(hierarchy[3]);
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth > document.documentElement.clientWidth
+    )
+  ).toBe(false);
 });
 
 test("seller guided flow exposes four steps without overflow", async ({ page }) => {
