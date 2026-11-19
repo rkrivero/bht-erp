@@ -216,6 +216,13 @@ describe("API Route Role Enforcement, DB Branch Isolation & Endpoint Contracts",
         })
       );
       expect(repGet.status).toBe(403);
+
+      const secForbidden = await getReports(
+        new NextRequest("http://localhost:3000/api/reports?section=resumen", {
+          headers: { cookie: `bht_session=${token}` },
+        })
+      );
+      expect(secForbidden.status).toBe(403);
     }
 
     const purOk = await getPurchases(
@@ -270,6 +277,53 @@ describe("API Route Role Enforcement, DB Branch Isolation & Endpoint Contracts",
     const csvText = new TextDecoder("utf-8", { ignoreBOM: true }).decode(rawBytes);
     expect(csvText.charCodeAt(0)).toBe(0xfeff);
     expect(csvText).toContain("ap_id,supplier_party_id,supplier_name");
+
+    const badSectionRes = await getReports(
+      new NextRequest("http://localhost:3000/api/reports?section=no_existe", {
+        headers: { cookie: `bht_session=${partnerAdminToken}` },
+      })
+    );
+    expect(badSectionRes.status).toBe(400);
+
+    const invertedRangeRes = await getReports(
+      new NextRequest(
+        "http://localhost:3000/api/reports?section=resumen&from=2026-09-30&to=2026-06-01",
+        {
+          headers: { cookie: `bht_session=${partnerAdminToken}` },
+        }
+      )
+    );
+    expect(invertedRangeRes.status).toBe(400);
+
+    for (const sec of [
+      "resumen",
+      "caja_cxp",
+      "cartera",
+      "comercial",
+      "stock",
+      "auditoria",
+    ]) {
+      const secRes = await getReports(
+        new NextRequest(`http://localhost:3000/api/reports?section=${sec}`, {
+          headers: { cookie: `bht_session=${partnerManagerToken}` },
+        })
+      );
+      expect(secRes.status).toBe(200);
+      const secBody = await secRes.json();
+      expect(secBody.section).toBe(sec);
+      expect(secBody.data).toBeDefined();
+    }
+
+    for (const ds of ["valorizacion_inventario_corte", "aging_cxc_cxp_corte"]) {
+      const newCsvRes = await getReports(
+        new NextRequest(`http://localhost:3000/api/reports?dataset=${ds}&format=csv`, {
+          headers: { cookie: `bht_session=${partnerAdminToken}` },
+        })
+      );
+      expect(newCsvRes.status).toBe(200);
+      const bytes = new Uint8Array(await newCsvRes.arrayBuffer());
+      expect(Array.from(bytes.slice(0, 3))).toEqual([0xef, 0xbb, 0xbf]);
+    }
   });
 
   it("restricts access administration to PARTNER_ADMIN and protects the active admin", async () => {

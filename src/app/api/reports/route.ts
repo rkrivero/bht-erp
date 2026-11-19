@@ -9,6 +9,11 @@ import {
   getReportDatasetRows,
   isReportCsvDataset,
 } from "@/lib/services/analytics-and-reports";
+import {
+  getReportSectionData,
+  isReportSection,
+  parseReportFilters,
+} from "@/lib/services/report-sections";
 import { getLimaDateString } from "@/lib/services/orders";
 import { ValidationError } from "@/lib/types";
 
@@ -23,13 +28,37 @@ export async function GET(req: NextRequest) {
       "PARTNER_MANAGER",
     ]);
 
+    const section = (req.nextUrl.searchParams.get("section") || "").trim();
     const dataset = (req.nextUrl.searchParams.get("dataset") || "").trim();
     const format = (req.nextUrl.searchParams.get("format") || "json")
       .trim()
       .toLowerCase();
 
+    if (section) {
+      if (!isReportSection(section)) {
+        throw new ValidationError(`Sección de reporte inválida: ${section}`);
+      }
+      if (format !== "json") {
+        throw new ValidationError(
+          "Las secciones de reportes solo soportan formato JSON"
+        );
+      }
+      const filters = parseReportFilters(req.nextUrl.searchParams);
+      const data = await withClient(async (client) => {
+        assertRole(await requireActiveSession(client, parsedActor), [
+          "PARTNER_ADMIN",
+          "PARTNER_MANAGER",
+        ]);
+        return await getReportSectionData(client, section, filters);
+      });
+      return NextResponse.json(
+        { section, filters, data },
+        { headers: NO_STORE_HEADERS }
+      );
+    }
+
     if (!dataset) {
-      throw new ValidationError("Parámetro 'dataset' es obligatorio");
+      throw new ValidationError("Parámetro 'section' o 'dataset' es obligatorio");
     }
 
     if (dataset === "bi_summary") {
@@ -57,12 +86,17 @@ export async function GET(req: NextRequest) {
       throw new ValidationError(`Formato no soportado: ${format}`);
     }
 
+    const csvFilters = parseReportFilters(req.nextUrl.searchParams);
     const { headers, rows } = await withClient(async (client) => {
       assertRole(await requireActiveSession(client, parsedActor), [
         "PARTNER_ADMIN",
         "PARTNER_MANAGER",
       ]);
-      return await getReportDatasetRows(client, dataset);
+      return await getReportDatasetRows(client, dataset, {
+        from: csvFilters.from,
+        to: csvFilters.to,
+        zone: csvFilters.zone,
+      });
     });
 
     if (format === "csv") {

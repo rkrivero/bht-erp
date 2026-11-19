@@ -17,9 +17,12 @@ const DeferredSection = () => (
 const CajaWorkspace = dynamic(() => import("@/components/socios/caja/CajaWorkspace"), {
   loading: DeferredSection,
 });
-const KpisBiTab = dynamic(() => import("@/components/socios/KpisBiTab"), {
-  loading: DeferredSection,
-});
+const ReportesWorkspace = dynamic(
+  () => import("@/components/socios/reportes/ReportesWorkspace"),
+  {
+    loading: DeferredSection,
+  }
+);
 
 interface FinanzasProps {
   tab: PartnerTab;
@@ -45,7 +48,6 @@ export function Finanzas({
   showFeedback,
 }: FinanzasProps) {
   const {
-    partnerData,
     catalog,
     accounts,
     ledger,
@@ -54,13 +56,10 @@ export function Finanzas({
     recentPurchases,
     pendingOnDemand,
     routeTrips,
-    kpiQ1,
-    openDebtorsCount,
-    kpiQ2TopSkus,
-    qualityGaps,
-    biSummary,
     loadDashboard,
+    dataRefreshSeq,
   } = data;
+
   return (
     <div className="space-y-4">
       {tab === "caja" && (
@@ -82,15 +81,11 @@ export function Finanzas({
         />
       )}
 
-      {tab === "kpis" && kpiQ1 && (
-        <KpisBiTab
-          kpiQ1={kpiQ1}
-          openDebtorsCount={openDebtorsCount}
-          kpiQ2TopSkus={kpiQ2TopSkus}
-          qualityGaps={qualityGaps}
-          auditFlags={partnerData?.auditFlags}
-          auditFlagCounts={partnerData?.auditFlagCounts}
-          biSummary={biSummary}
+      {tab === "kpis" && (
+        <ReportesWorkspace
+          externalRefreshKey={dataRefreshSeq}
+          onOpenCaja={() => handleTabChange("caja")}
+          onOpenCollections={() => handleTabChange("deudores")}
           onGoToPurchaseProduct={handleGoToPurchaseProduct}
           onGoToEditProduct={handleGoToEditProduct}
           onRefresh={loadDashboard}

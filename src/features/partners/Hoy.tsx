@@ -173,12 +173,22 @@ export function Hoy({
             Primero, resuelve lo que bloquea la operación
           </h2>
           <p className="mt-1 text-sm text-[var(--ink-secondary)]">
-            Resumen financiero del negocio, alertas prioritarias y monitor en vivo.
+            Cola operativa del día, aprobaciones pendientes y monitor en vivo.
           </p>
         </div>
-        <span className="mt-2 text-xs font-medium text-[var(--ink-secondary)] sm:mt-0">
-          Hoy · America/Lima
-        </span>
+        <div className="mt-2 flex flex-wrap items-center gap-2 sm:mt-0">
+          <span className="text-xs font-medium text-[var(--ink-secondary)]">
+            Hoy · America/Lima
+          </span>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => handleTabChange("kpis")}
+          >
+            Ir a Reportes →
+          </Button>
+        </div>
       </div>
 
       {/* Primary Order Intake Action Hub */}
@@ -578,6 +588,8 @@ export function Hoy({
         routeTrips={routeTrips}
         partnerQuotes={partnerQuotes}
         flow={flow}
+        onOpenReports={() => handleTabChange("kpis")}
+        onOpenOrders={() => handleTabChange("pedidos")}
       />
     </div>
   );

@@ -2,11 +2,8 @@
 
 import React from "react";
 import { formatPen } from "@/components/socios/types";
-import {} from "@/components/shared/CollectionControls";
-import {} from "@/components/ui/Icons";
 import { Badge, Button, Card, EmptyState } from "@/components/ui/Primitives";
 import { formatQuoteStatusEs, formatRouteTripStatusEs } from "@/lib/labels-es";
-import {} from "./partnerShared";
 import type { PartnerData } from "./usePartnerData";
 import type { OrderFlow } from "./useOrderFlow";
 
@@ -14,12 +11,16 @@ interface HoyRoutesQuotesProps {
   routeTrips: PartnerData["routeTrips"];
   partnerQuotes: PartnerData["partnerQuotes"];
   flow: OrderFlow;
+  onOpenReports: () => void;
+  onOpenOrders: () => void;
 }
 
 export function HoyRoutesQuotes({
   routeTrips,
   partnerQuotes,
   flow,
+  onOpenReports,
+  onOpenOrders,
 }: HoyRoutesQuotesProps) {
   const {
     busyTripId,
@@ -29,30 +30,48 @@ export function HoyRoutesQuotes({
     handlePartnerConvertQuote,
     handlePartnerCancelQuote,
   } = flow;
-  const openTripsCount = routeTrips.filter((tr) => String(tr.status) === "OPEN").length;
+
+  const openTrips = routeTrips.filter((tr) => String(tr.status) === "OPEN");
+  const visibleTrips = openTrips.length > 0 ? openTrips : routeTrips.slice(0, 3);
+  const openQuotes = partnerQuotes.filter((q) => String(q.status) === "OPEN");
+
   return (
     <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
       <Card padding="md" className="space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
             <h2 className="text-sm sm:text-base font-semibold text-bht-ink-strong">
-              Rutas y Despachos
+              Rutas Activas
             </h2>
             <p className="text-xs text-bht-ink-soft">
-              Seguimiento de salidas de reparto y entregas registradas por almacén.
+              {openTrips.length > 0
+                ? "Salidas de reparto actualmente abiertas para control y cierre."
+                : "Sin salidas abiertas hoy; últimos 3 viajes registrados."}
             </p>
           </div>
-          <Badge tone={openTripsCount > 0 ? "warning" : "neutral"}>
-            {openTripsCount > 0
-              ? `${openTripsCount} en ruta`
-              : `${routeTrips.length} registradas`}
-          </Badge>
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge tone={openTrips.length > 0 ? "warning" : "neutral"}>
+              {openTrips.length > 0
+                ? `${openTrips.length} en ruta`
+                : `${routeTrips.length} registradas`}
+            </Badge>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              data-compact="true"
+              onClick={onOpenReports}
+            >
+              Ver rentabilidad en Reportes →
+            </Button>
+          </div>
         </div>
-        {routeTrips.length === 0 ? (
+
+        {visibleTrips.length === 0 ? (
           <EmptyState title="Sin rutas registradas" />
         ) : (
           <div className="space-y-2.5">
-            {routeTrips.slice(0, 8).map((tr) => {
+            {visibleTrips.map((tr) => {
               const tId = Number(tr.trip_id);
               const status = String(tr.status);
               const isBusy = busyTripId === tId;
@@ -111,22 +130,32 @@ export function HoyRoutesQuotes({
       </Card>
 
       <Card padding="md" className="space-y-3">
-        <div className="flex items-center justify-between gap-2">
+        <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
             <h2 className="text-sm sm:text-base font-semibold text-bht-ink-strong">
-              Ventas y Cotizaciones Comerciales ({partnerQuotes.length})
+              Cotizaciones Abiertas ({openQuotes.length})
             </h2>
             <p className="text-xs text-bht-ink-soft">
-              Revisa el detalle de cualquier venta; las abiertas también pueden
-              convertirse en pedido.
+              Cotizaciones pendientes listas para convertir en pedido de contado o
+              crédito.
             </p>
           </div>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            data-compact="true"
+            onClick={onOpenOrders}
+          >
+            Ver todas en Pedidos →
+          </Button>
         </div>
-        {partnerQuotes.length === 0 ? (
-          <EmptyState title="Sin cotizaciones recientes" />
+
+        {openQuotes.length === 0 ? (
+          <EmptyState title="No hay cotizaciones abiertas pendientes" />
         ) : (
           <div className="space-y-2.5">
-            {partnerQuotes.slice(0, 8).map((q) => {
+            {openQuotes.slice(0, 5).map((q) => {
               const qId = Number(q.quote_id);
               const status = String(q.status);
               const isBusy = busyQuoteId === qId;
@@ -148,19 +177,7 @@ export function HoyRoutesQuotes({
                         {Array.isArray(q.lines) ? q.lines.length : 0} ítem(s)
                       </p>
                     </div>
-                    <Badge
-                      tone={
-                        status === "CONVERTED"
-                          ? "success"
-                          : status === "OPEN"
-                            ? "brand"
-                            : "neutral"
-                      }
-                    >
-                      {status === "CONVERTED"
-                        ? `Pedido ${String(q.converted_order_code || q.related_cpe || "")}`.trim()
-                        : formatQuoteStatusEs(status)}
-                    </Badge>
+                    <Badge tone="brand">{formatQuoteStatusEs(status)}</Badge>
                   </div>
                   <Button
                     type="button"
@@ -172,40 +189,38 @@ export function HoyRoutesQuotes({
                   >
                     Ver detalle
                   </Button>
-                  {status === "OPEN" && (
-                    <div className="flex flex-wrap gap-1.5">
-                      <Button
-                        type="button"
-                        variant="success"
-                        size="sm"
-                        data-compact="true"
-                        disabled={isBusy}
-                        onClick={() => handlePartnerConvertQuote(qId, "CASH")}
-                      >
-                        Convertir Contado
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="primary"
-                        size="sm"
-                        data-compact="true"
-                        disabled={isBusy}
-                        onClick={() => handlePartnerConvertQuote(qId, "CREDIT")}
-                      >
-                        A Crédito
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        data-compact="true"
-                        disabled={isBusy}
-                        onClick={() => handlePartnerCancelQuote(qId)}
-                      >
-                        Anular
-                      </Button>
-                    </div>
-                  )}
+                  <div className="flex flex-wrap gap-1.5">
+                    <Button
+                      type="button"
+                      variant="success"
+                      size="sm"
+                      data-compact="true"
+                      disabled={isBusy}
+                      onClick={() => handlePartnerConvertQuote(qId, "CASH")}
+                    >
+                      Convertir Contado
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="primary"
+                      size="sm"
+                      data-compact="true"
+                      disabled={isBusy}
+                      onClick={() => handlePartnerConvertQuote(qId, "CREDIT")}
+                    >
+                      A Crédito
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      data-compact="true"
+                      disabled={isBusy}
+                      onClick={() => handlePartnerCancelQuote(qId)}
+                    >
+                      Anular
+                    </Button>
+                  </div>
                 </div>
               );
             })}

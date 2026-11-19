@@ -55,6 +55,7 @@ export function usePartnerData() {
   const [orderCurrentUser, setOrderCurrentUser] = useState<CurrentUserInfo | null>(
     null
   );
+  const [dataRefreshSeq, setDataRefreshSeq] = useState(0);
   const [feedback, setFeedback] = useState<PartnerFeedback | null>(null);
 
   const showFeedback = useCallback((msg: string, isError = false) => {
@@ -216,6 +217,9 @@ export function usePartnerData() {
         if (purJson) {
           setPurchasesData(purJson);
         }
+        if (ordJson || colJson || partJson || trJson || purJson || tripsJson) {
+          setDataRefreshSeq((seq) => seq + 1);
+        }
 
         if (!scopeSet && partialFailure) {
           showFeedback("Algunos módulos no pudieron actualizarse por completo.", true);
@@ -335,6 +339,7 @@ export function usePartnerData() {
     openApCount,
     openDebtorsCount,
     brokenPromisesCount,
+    dataRefreshSeq,
   };
 }
 

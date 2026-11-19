@@ -7,10 +7,18 @@ export const REPORT_CSV_DATASETS = [
   "margen_productos",
   "flujo_caja_egresos",
   "proveedores_cxp",
+  "valorizacion_inventario_corte",
+  "aging_cxc_cxp_corte",
 ] as const;
 
 export type ReportCsvDataset = (typeof REPORT_CSV_DATASETS)[number];
 export type ReportDataset = "bi_summary" | ReportCsvDataset;
+
+export interface ReportCsvFilters {
+  from?: string;
+  to?: string;
+  zone?: string;
+}
 
 export interface BiMonthlyPerformanceRow {
   period_month: string;
@@ -381,13 +389,49 @@ export async function getBiSummary(client: PoolClient): Promise<BiSummary> {
   );
 }
 
-/** Query one of the 5 structured accountant/Excel export datasets. */
+function buildSqlFilters(
+  filters: ReportCsvFilters | undefined,
+  cols: { fromCol?: string; toCol?: string; zoneExpr?: string },
+  initialParams: unknown[] = []
+): { whereSql: string; params: unknown[] } {
+  const clauses: string[] = [];
+  const params = [...initialParams];
+  const pushParam = (value: unknown) => {
+    params.push(value);
+    return `$${params.length}`;
+  };
+
+  if (filters?.from && cols.fromCol) {
+    clauses.push(`${cols.fromCol} >= ${pushParam(filters.from)}::date`);
+  }
+  if (filters?.to && cols.toCol) {
+    clauses.push(`${cols.toCol} <= ${pushParam(filters.to)}::date`);
+  }
+  if (filters?.zone && cols.zoneExpr) {
+    clauses.push(`${cols.zoneExpr} = ${pushParam(filters.zone)}`);
+  }
+
+  return {
+    whereSql: clauses.length > 0 ? `WHERE ${clauses.join(" AND ")}` : "",
+    params,
+  };
+}
+
+/** Query one of the 7 structured accountant/Excel export datasets. */
 export async function getReportDatasetRows(
   client: PoolClient,
-  dataset: ReportCsvDataset
+  dataset: ReportCsvDataset,
+  filters?: ReportCsvFilters
 ): Promise<{ headers: string[]; rows: Array<Record<string, unknown>> }> {
   switch (dataset) {
     case "ventas_pedidos": {
+      const zoneExpr =
+        "COALESCE(NULLIF(BTRIM(pa.city_zone), ''), NULLIF(BTRIM(rt.zone_name), ''), 'Sin zona')";
+      const { whereSql, params } = buildSqlFilters(filters, {
+        fromCol: "so.order_date",
+        toCol: "so.order_date",
+        zoneExpr,
+      });
       const res = await client.query(
         `SELECT
            so.order_id,
@@ -406,14 +450,18 @@ export async function getReportDatasetRows(
            u_pick.full_name AS picked_by_name,
            u_deliv.full_name AS delivered_by_name,
            so.source_origin::text AS source_origin,
-           so.notes
+           so.notes,
+           ${zoneExpr} AS city_zone
          FROM erp.sales_orders so
          LEFT JOIN erp.parties pa ON pa.party_id = so.customer_party_id
+         LEFT JOIN erp.route_trips rt ON rt.trip_id = so.trip_id
          LEFT JOIN erp.app_users u_create ON u_create.user_id = so.created_by_user_id
          LEFT JOIN erp.app_users u_app ON u_app.user_id = so.approved_by_user_id
          LEFT JOIN erp.app_users u_pick ON u_pick.user_id = so.picked_by_user_id
          LEFT JOIN erp.app_users u_deliv ON u_deliv.user_id = so.delivered_by_user_id
-         ORDER BY so.order_date DESC, so.order_id DESC`
+         ${whereSql}
+         ORDER BY so.order_date DESC, so.order_id DESC`,
+        params
       );
       return {
         headers: [
@@ -434,33 +482,57 @@ export async function getReportDatasetRows(
           "delivered_by_name",
           "source_origin",
           "notes",
+          "city_zone",
         ],
         rows: res.rows,
       };
     }
 
     case "deudores_cartera": {
+      const clauses: string[] = [
+        "d.operational_status NOT IN ('CANCELLED', 'PENDING_PARTNER_APPROVAL')",
+      ];
+      const params: unknown[] = [];
+      const pushParam = (v: unknown) => {
+        params.push(v);
+        return `$${params.length}`;
+      };
+      if (filters?.from) {
+        clauses.push(`d.order_date >= ${pushParam(filters.from)}::date`);
+      }
+      if (filters?.to) {
+        clauses.push(`d.order_date <= ${pushParam(filters.to)}::date`);
+      }
+      if (filters?.zone) {
+        clauses.push(
+          `COALESCE(det.effective_zone, 'Sin zona') = ${pushParam(filters.zone)}`
+        );
+      }
       const res = await client.query(
         `SELECT
-           order_id,
-           order_code,
-           order_date::text AS order_date,
-           customer_name,
-           payment_mode,
-           operational_status,
-           total_pen,
-           paid_pen,
-           balance_due_pen,
-           days_overdue,
-           aging_bucket,
-           promised_payment_date::text AS promised_payment_date,
-           promise_status,
-           payment_count,
-           last_payment_date::text AS last_payment_date,
-           created_by_name
-         FROM analytics.v_debtors_aging
-         WHERE operational_status NOT IN ('CANCELLED', 'PENDING_PARTNER_APPROVAL')
-         ORDER BY days_overdue DESC, order_id ASC`
+           d.order_id,
+           d.order_code,
+           d.order_date::text AS order_date,
+           d.customer_name,
+           d.payment_mode,
+           d.operational_status,
+           d.total_pen,
+           d.paid_pen,
+           d.balance_due_pen,
+           d.days_overdue,
+           d.aging_bucket,
+           d.promised_payment_date::text AS promised_payment_date,
+           d.promise_status,
+           d.payment_count,
+           d.last_payment_date::text AS last_payment_date,
+           d.created_by_name,
+           COALESCE(det.effective_zone, 'Sin zona') AS effective_zone,
+           det.ar_bucket
+         FROM analytics.v_debtors_aging d
+         LEFT JOIN analytics.v_report_ar_aging_detail det ON det.order_id = d.order_id
+         WHERE ${clauses.join(" AND ")}
+         ORDER BY d.days_overdue DESC, d.order_id ASC`,
+        params
       );
       return {
         headers: [
@@ -480,6 +552,8 @@ export async function getReportDatasetRows(
           "payment_count",
           "last_payment_date",
           "created_by_name",
+          "effective_zone",
+          "ar_bucket",
         ],
         rows: res.rows,
       };
@@ -545,6 +619,10 @@ export async function getReportDatasetRows(
     }
 
     case "flujo_caja_egresos": {
+      const { whereSql, params } = buildSqlFilters(filters, {
+        fromCol: "cl.tx_date",
+        toCol: "cl.tx_date",
+      });
       const res = await client.query(
         `SELECT
            cl.ledger_id,
@@ -564,7 +642,9 @@ export async function getReportDatasetRows(
          FROM erp.cash_ledger cl
          JOIN erp.cash_accounts ca ON ca.account_id = cl.account_id
          LEFT JOIN erp.parties pa ON pa.party_id = cl.party_id
-         ORDER BY cl.tx_date DESC, cl.ledger_id DESC`
+         ${whereSql}
+         ORDER BY cl.tx_date DESC, cl.ledger_id DESC`,
+        params
       );
       return {
         headers: [
@@ -588,6 +668,10 @@ export async function getReportDatasetRows(
     }
 
     case "proveedores_cxp": {
+      const { whereSql, params } = buildSqlFilters(filters, {
+        fromCol: "ap.issue_date",
+        toCol: "ap.issue_date",
+      });
       const res = await client.query(
         `SELECT
            ap.ap_id,
@@ -606,10 +690,12 @@ export async function getReportDatasetRows(
            ap.notes
          FROM erp.ap_obligations ap
          LEFT JOIN erp.parties pa ON pa.party_id = ap.supplier_party_id
+         ${whereSql}
          ORDER BY
            CASE WHEN ap.status IN ('OPEN', 'PARTIAL') THEN 0 ELSE 1 END ASC,
            ap.balance_due_pen DESC,
-           ap.issue_date ASC`
+           ap.issue_date ASC`,
+        params
       );
       return {
         headers: [
@@ -627,6 +713,146 @@ export async function getReportDatasetRows(
           "status",
           "source_origin",
           "notes",
+        ],
+        rows: res.rows,
+      };
+    }
+
+    case "valorizacion_inventario_corte": {
+      const res = await client.query(
+        `SELECT
+           product_id,
+           sku,
+           product_name,
+           category,
+           fulfillment_mode,
+           unit_of_measure,
+           stock_on_hand,
+           positive_stock_qty,
+           ref_cost_pen,
+           cost_source,
+           valuation_pen,
+           units_sold_90d,
+           daily_velocity_90d,
+           days_of_coverage,
+           last_sale_date::text AS last_sale_date,
+           days_since_last_sale,
+           dead_stock_status
+         FROM analytics.v_report_inventory_valuation
+         ORDER BY valuation_pen DESC, revenue_total_pen DESC, product_id ASC`
+      );
+      return {
+        headers: [
+          "product_id",
+          "sku",
+          "product_name",
+          "category",
+          "fulfillment_mode",
+          "unit_of_measure",
+          "stock_on_hand",
+          "positive_stock_qty",
+          "ref_cost_pen",
+          "cost_source",
+          "valuation_pen",
+          "units_sold_90d",
+          "daily_velocity_90d",
+          "days_of_coverage",
+          "last_sale_date",
+          "days_since_last_sale",
+          "dead_stock_status",
+        ],
+        rows: res.rows,
+      };
+    }
+
+    case "aging_cxc_cxp_corte": {
+      const params: unknown[] = [];
+      const arClauses: string[] = [];
+      const apClauses: string[] = [];
+      const pushParam = (value: unknown) => {
+        params.push(value);
+        return `$${params.length}`;
+      };
+      if (filters?.from) {
+        const ref = pushParam(filters.from);
+        arClauses.push(`order_date >= ${ref}::date`);
+        apClauses.push(`issue_date >= ${ref}::date`);
+      }
+      if (filters?.to) {
+        const ref = pushParam(filters.to);
+        arClauses.push(`order_date <= ${ref}::date`);
+        apClauses.push(`issue_date <= ${ref}::date`);
+      }
+      if (filters?.zone) {
+        const ref = pushParam(filters.zone);
+        arClauses.push(`effective_zone = ${ref}`);
+      }
+      const arWhere = arClauses.length > 0 ? `WHERE ${arClauses.join(" AND ")}` : "";
+      const apWhere = apClauses.length > 0 ? `WHERE ${apClauses.join(" AND ")}` : "";
+
+      const res = await client.query(
+        `SELECT * FROM (
+           SELECT
+             'CXC'::text AS ledger_side,
+             order_id AS doc_id,
+             order_code AS doc_ref,
+             order_date::text AS issue_date,
+             due_date::text AS due_date,
+             customer_party_id AS party_id,
+             customer_name AS party_name,
+             effective_zone AS city_zone,
+             operational_status AS status,
+             total_pen AS original_amount_pen,
+             paid_pen AS paid_amount_pen,
+             balance_due_pen,
+             days_overdue AS days_reference,
+             ar_bucket AS aging_bucket,
+             promised_payment_date::text AS promised_payment_date,
+             promise_status
+           FROM analytics.v_report_ar_aging_detail
+           ${arWhere}
+           UNION ALL
+           SELECT
+             'CXP'::text AS ledger_side,
+             ap_id AS doc_id,
+             doc_ref,
+             issue_date::text AS issue_date,
+             due_date::text AS due_date,
+             supplier_party_id AS party_id,
+             supplier_name AS party_name,
+             'Proveedor'::text AS city_zone,
+             status,
+             original_amount_pen,
+             paid_amount_pen,
+             balance_due_pen,
+             days_to_due AS days_reference,
+             maturity_bucket AS aging_bucket,
+             due_date::text AS promised_payment_date,
+             maturity_bucket AS promise_status
+           FROM analytics.v_report_ap_maturity
+           ${apWhere}
+         ) combined
+         ORDER BY ledger_side ASC, balance_due_pen DESC, doc_id ASC`,
+        params
+      );
+      return {
+        headers: [
+          "ledger_side",
+          "doc_id",
+          "doc_ref",
+          "issue_date",
+          "due_date",
+          "party_id",
+          "party_name",
+          "city_zone",
+          "status",
+          "original_amount_pen",
+          "paid_amount_pen",
+          "balance_due_pen",
+          "days_reference",
+          "aging_bucket",
+          "promised_payment_date",
+          "promise_status",
         ],
         rows: res.rows,
       };

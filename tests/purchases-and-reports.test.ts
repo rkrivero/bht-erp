@@ -15,6 +15,11 @@ import {
   getReportDatasetRows,
 } from "../src/lib/services/analytics-and-reports";
 import {
+  REPORT_SECTIONS,
+  getReportSectionData,
+  parseReportFilters,
+} from "../src/lib/services/report-sections";
+import {
   AuthorizationError,
   ValidationError,
   type SessionUser,
@@ -479,6 +484,73 @@ describe("Purchases, Suppliers, ON_DEMAND Fulfillment, AP Payments & BI Reports"
       expect(residualRow!.total_balance_due_pen).toBe(0);
 
       await client.query("ROLLBACK");
+    } finally {
+      client.release();
+    }
+  });
+
+  it("loads all 6 Tier-1 report sections and applies CSV/SQL filters consistently on Neon dev", async () => {
+    const client = await getPool("dev").connect();
+    try {
+      expect(REPORT_CSV_DATASETS).toHaveLength(7);
+      expect(REPORT_SECTIONS).toHaveLength(6);
+
+      const augOrders = await getReportDatasetRows(client, "ventas_pedidos", {
+        from: "2026-08-01",
+        to: "2026-08-31",
+      });
+      expect(augOrders.rows.length).toBeGreaterThan(0);
+      for (const r of augOrders.rows) {
+        expect(String(r.order_date)).toMatch(/^2026-08-/);
+      }
+
+      const resumen = await getReportSectionData(client, "resumen", {});
+      expect(resumen.pnlMonthly.length).toBeGreaterThanOrEqual(4);
+      expect(resumen.totals.salesTotalPen).toBeGreaterThan(0);
+      expect(resumen.filterOptions.months.length).toBeGreaterThanOrEqual(4);
+
+      const resumenFiltered = await getReportSectionData(client, "resumen", {
+        from: "2026-08-01",
+        to: "2026-08-31",
+        zone: "MADRE DE DIOS / LABERINTO / PUERTO",
+        sellerId: "UNASSIGNED",
+      });
+      expect(resumenFiltered.totals.orderCount).toBeGreaterThan(0);
+
+      const cajaCxp = await getReportSectionData(client, "caja_cxp", {});
+      expect(cajaCxp.liquiditySummary.totalOpenApPen).toBe(51457);
+      expect(cajaCxp.apMaturityBuckets).toHaveLength(6);
+      const bucketApSum = cajaCxp.apMaturityBuckets.reduce(
+        (s, b) => s + b.balanceDuePen,
+        0
+      );
+      expect(Number(bucketApSum.toFixed(2))).toBe(51457);
+
+      const cartera = await getReportSectionData(client, "cartera", {});
+      expect(cartera.summary.totalReceivablePen).toBe(45745);
+      expect(cartera.agingBuckets).toHaveLength(4);
+      const bucketArSum = cartera.agingBuckets.reduce((s, b) => s + b.balanceDuePen, 0);
+      expect(Number(bucketArSum.toFixed(2))).toBe(45745);
+      expect(cartera.collectionSheet.length).toBe(13);
+
+      const comercial = await getReportSectionData(client, "comercial", {});
+      expect(comercial.routeProfitability.length).toBeGreaterThanOrEqual(47);
+      expect(comercial.byZone.length).toBeGreaterThan(0);
+      expect(comercial.bySeller.length).toBeGreaterThan(0);
+
+      const stock = await getReportSectionData(client, "stock", {});
+      expect(stock.valuationSummary.totalValuationPen).toBeGreaterThan(0);
+      expect(stock.fulfillmentMix.length).toBeGreaterThanOrEqual(1);
+
+      const auditoria = await getReportSectionData(client, "auditoria", {});
+      expect(auditoria.closingReadiness.checks).toHaveLength(7);
+
+      expect(() =>
+        parseReportFilters(new URLSearchParams("from=2026-09-30&to=2026-06-01"))
+      ).toThrow(ValidationError);
+      expect(() => parseReportFilters(new URLSearchParams("from=2026-02-31"))).toThrow(
+        ValidationError
+      );
     } finally {
       client.release();
     }
