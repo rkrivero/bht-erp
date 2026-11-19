@@ -43,6 +43,89 @@ export interface AuditFlagRow {
   resolution_note: string | null;
 }
 
+export const AUDIT_FLAG_COUNTS_SELECT = `(
+  SELECT json_build_object(
+    'open_cnt', COUNT(*) FILTER (WHERE status = 'OPEN')::int,
+    'ack_cnt', COUNT(*) FILTER (WHERE status = 'ACKNOWLEDGED')::int,
+    'res_cnt', COUNT(*) FILTER (WHERE status = 'RESOLVED')::int
+  )
+  FROM erp.audit_flags
+)`;
+
+export function buildAuditFlagsSelect(
+  statusParam = "'ALL'",
+  limitParam = "80"
+): string {
+  return `COALESCE((
+    SELECT json_agg(t)
+    FROM (
+      SELECT
+        flag_id,
+        flag_code,
+        severity::text AS severity,
+        entity_table,
+        entity_id,
+        message,
+        details,
+        status,
+        source_origin::text AS source_origin,
+        created_at::text AS created_at,
+        acknowledged_at::text AS acknowledged_at,
+        acknowledged_by,
+        resolved_at::text AS resolved_at,
+        resolved_by,
+        resolution_note
+      FROM erp.audit_flags
+      WHERE (${statusParam} = 'ALL' OR status = ${statusParam})
+      ORDER BY
+        CASE status WHEN 'OPEN' THEN 0 WHEN 'ACKNOWLEDGED' THEN 1 ELSE 2 END ASC,
+        created_at DESC,
+        flag_id DESC
+      LIMIT ${limitParam}
+    ) t
+  ), '[]'::json)`;
+}
+
+export function mapAuditFlagRow(r: Record<string, unknown>): AuditFlagRow {
+  return {
+    flag_id: Number(r.flag_id),
+    flag_code: String(r.flag_code),
+    severity: String(r.severity),
+    entity_table: String(r.entity_table),
+    entity_id: String(r.entity_id),
+    message: String(r.message),
+    details:
+      r.details && typeof r.details === "object"
+        ? (r.details as Record<string, unknown>)
+        : {},
+    status: String(r.status) as AuditFlagRow["status"],
+    source_origin: String(r.source_origin),
+    created_at: String(r.created_at),
+    acknowledged_at: r.acknowledged_at ? String(r.acknowledged_at) : null,
+    acknowledged_by: r.acknowledged_by ? String(r.acknowledged_by) : null,
+    resolved_at: r.resolved_at ? String(r.resolved_at) : null,
+    resolved_by: r.resolved_by ? String(r.resolved_by) : null,
+    resolution_note: r.resolution_note ? String(r.resolution_note) : null,
+  };
+}
+
+export function mapAuditFlagCounts(raw: unknown): {
+  open: number;
+  acknowledged: number;
+  resolved: number;
+} {
+  const row = (raw && typeof raw === "object" ? raw : {}) as {
+    open_cnt?: number;
+    ack_cnt?: number;
+    res_cnt?: number;
+  };
+  return {
+    open: Number(row.open_cnt ?? 0),
+    acknowledged: Number(row.ack_cnt ?? 0),
+    resolved: Number(row.res_cnt ?? 0),
+  };
+}
+
 export async function listAuditFlags(
   client: PoolClient,
   actor: SessionUser,
@@ -61,72 +144,20 @@ export async function listAuditFlags(
   }
   const safeLimit = Math.max(1, Math.min(200, Math.floor(options.limit ?? 80)));
 
-  const countsRes = await client.query<{
-    open_cnt: number;
-    ack_cnt: number;
-    res_cnt: number;
+  const res = await client.query<{
+    counts: unknown;
+    flags: Array<Record<string, unknown>>;
   }>(
     `SELECT
-       COUNT(*) FILTER (WHERE status = 'OPEN')::int AS open_cnt,
-       COUNT(*) FILTER (WHERE status = 'ACKNOWLEDGED')::int AS ack_cnt,
-       COUNT(*) FILTER (WHERE status = 'RESOLVED')::int AS res_cnt
-     FROM erp.audit_flags`
-  );
-
-  const flagsRes = await client.query(
-    `SELECT
-       flag_id,
-       flag_code,
-       severity::text AS severity,
-       entity_table,
-       entity_id,
-       message,
-       details,
-       status,
-       source_origin::text AS source_origin,
-       created_at::text AS created_at,
-       acknowledged_at::text AS acknowledged_at,
-       acknowledged_by,
-       resolved_at::text AS resolved_at,
-       resolved_by,
-       resolution_note
-     FROM erp.audit_flags
-     WHERE ($1 = 'ALL' OR status = $1)
-     ORDER BY
-       CASE status WHEN 'OPEN' THEN 0 WHEN 'ACKNOWLEDGED' THEN 1 ELSE 2 END ASC,
-       created_at DESC,
-       flag_id DESC
-     LIMIT $2`,
+       ${AUDIT_FLAG_COUNTS_SELECT} AS counts,
+       ${buildAuditFlagsSelect("$1", "$2")} AS flags`,
     [rawStatus, safeLimit]
   );
 
-  const countsRow = countsRes.rows[0] ?? { open_cnt: 0, ack_cnt: 0, res_cnt: 0 };
+  const row = res.rows[0];
   return {
-    flags: flagsRes.rows.map((r) => ({
-      flag_id: Number(r.flag_id),
-      flag_code: String(r.flag_code),
-      severity: String(r.severity),
-      entity_table: String(r.entity_table),
-      entity_id: String(r.entity_id),
-      message: String(r.message),
-      details:
-        r.details && typeof r.details === "object"
-          ? (r.details as Record<string, unknown>)
-          : {},
-      status: String(r.status) as AuditFlagRow["status"],
-      source_origin: String(r.source_origin),
-      created_at: String(r.created_at),
-      acknowledged_at: r.acknowledged_at ? String(r.acknowledged_at) : null,
-      acknowledged_by: r.acknowledged_by ? String(r.acknowledged_by) : null,
-      resolved_at: r.resolved_at ? String(r.resolved_at) : null,
-      resolved_by: r.resolved_by ? String(r.resolved_by) : null,
-      resolution_note: r.resolution_note ? String(r.resolution_note) : null,
-    })),
-    counts: {
-      open: Number(countsRow.open_cnt ?? 0),
-      acknowledged: Number(countsRow.ack_cnt ?? 0),
-      resolved: Number(countsRow.res_cnt ?? 0),
-    },
+    flags: (row?.flags ?? []).map(mapAuditFlagRow),
+    counts: mapAuditFlagCounts(row?.counts),
   };
 }
 

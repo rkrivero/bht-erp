@@ -17,10 +17,16 @@ import {
 } from "@/lib/services/collections-and-treasury";
 import {
   DATA_CUT_SELECT,
-  getOperationalQualitySummary,
+  OPERATIONAL_QUALITY_SELECT,
   mapDataCutSummary,
+  mapOperationalQualitySummary,
 } from "@/lib/services/operational-quality";
-import { listAuditFlags } from "@/lib/services/operations-and-modules";
+import {
+  AUDIT_FLAG_COUNTS_SELECT,
+  buildAuditFlagsSelect,
+  mapAuditFlagCounts,
+  mapAuditFlagRow,
+} from "@/lib/services/operations-and-modules";
 import { type UserRole, ValidationError } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -39,6 +45,9 @@ type PartnerDashboardBundleRow = BiNonMonthlyPanelsRow & {
   open_debtors_count: number;
   period_end: string;
   data_cut: unknown;
+  operational_quality: unknown;
+  audit_flag_counts: unknown;
+  audit_flags: Array<Record<string, unknown>>;
 };
 
 const USER_ROLES: UserRole[] = [
@@ -334,6 +343,9 @@ export async function GET(req: NextRequest) {
              WHERE operational_status <> 'CANCELLED'
            ), '2026-09-29') AS period_end,
            ${DATA_CUT_SELECT} AS data_cut,
+           ${OPERATIONAL_QUALITY_SELECT} AS operational_quality,
+           ${AUDIT_FLAG_COUNTS_SELECT} AS audit_flag_counts,
+           ${buildAuditFlagsSelect("'ALL'", "60")} AS audit_flags,
            ${BI_NON_MONTHLY_SELECTS}`,
         [isPartnerAdmin]
       );
@@ -532,17 +544,9 @@ export async function GET(req: NextRequest) {
           : [],
         biSummary,
         dataCut: mapDataCutSummary(bundle?.data_cut),
-        operationalQuality: await getOperationalQualitySummary(client),
-        ...(await (async () => {
-          const auditFlagsData = await listAuditFlags(client, actor, {
-            status: "ALL",
-            limit: 60,
-          });
-          return {
-            auditFlags: auditFlagsData.flags,
-            auditFlagCounts: auditFlagsData.counts,
-          };
-        })()),
+        operationalQuality: mapOperationalQualitySummary(bundle?.operational_quality),
+        auditFlags: (bundle?.audit_flags ?? []).map(mapAuditFlagRow),
+        auditFlagCounts: mapAuditFlagCounts(bundle?.audit_flag_counts),
       };
     });
 

@@ -5,8 +5,9 @@ import type {
 } from "@/components/socios/types";
 import {
   DATA_CUT_SELECT,
-  getOperationalQualitySummary,
+  OPERATIONAL_QUALITY_SELECT,
   mapDataCutSummary,
+  mapOperationalQualitySummary,
 } from "./operational-quality";
 import { ValidationError } from "../types";
 
@@ -2022,6 +2023,7 @@ async function queryAuditoria(
   const res = await client.query<{
     filter_options: unknown;
     data_cut: unknown;
+    operational_quality: unknown;
     closing_counts: Record<string, unknown>;
     quality_gaps: Array<Record<string, unknown>>;
     audit_flags: Array<Record<string, unknown>>;
@@ -2030,6 +2032,7 @@ async function queryAuditoria(
     `SELECT
        ${FILTER_OPTIONS_SELECT},
        ${DATA_CUT_SELECT} AS data_cut,
+       ${OPERATIONAL_QUALITY_SELECT} AS operational_quality,
        json_build_object(
          'missing_sku_cost', COALESCE((SELECT item_count FROM analytics.v_data_quality_gaps WHERE gap_category = 'SALES_MISSING_SKU_COST'), 0)::int,
          'critical_open_flags', COALESCE((SELECT COUNT(*)::int FROM erp.audit_flags WHERE status = 'OPEN' AND severity = 'CRITICAL'), 0),
@@ -2174,12 +2177,11 @@ async function queryAuditoria(
       ? "ATTENTION"
       : "READY";
 
-  const operationalQuality = await getOperationalQualitySummary(client);
   const fc = row?.flag_counts ?? {};
   return {
     filterOptions: mapFilterOptions(row?.filter_options),
     dataCut: mapDataCutSummary(row?.data_cut),
-    operationalQuality,
+    operationalQuality: mapOperationalQualitySummary(row?.operational_quality),
     closingReadiness: {
       status,
       checks,

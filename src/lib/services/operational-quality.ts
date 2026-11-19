@@ -127,172 +127,173 @@ function buildMissingFields(
   return missing;
 }
 
-export async function getOperationalQualitySummary(
-  client: PoolClient
-): Promise<OperationalQualitySummary> {
-  const res = await client.query<QualityQueryRow>(
-    `WITH valid_orders AS (
-       SELECT
-         so.order_id,
-         so.order_code,
-         so.order_date,
-         so.source_origin,
-         so.customer_party_id,
-         so.created_by_user_id,
-         so.historical_status_assumed,
-         so.total_pen,
-         so.paid_pen,
-         so.balance_due_pen,
-         so.promised_payment_date,
-         so.due_date,
-         so.created_at
-       FROM erp.sales_orders so
-       WHERE so.operational_status NOT IN ('CANCELLED', 'PENDING_PARTNER_APPROVAL')
-     ),
-     app_orders_eval AS (
-       SELECT
-         vo.order_id,
-         vo.order_code,
-         vo.order_date::text AS order_date,
-         (vo.customer_party_id IS NOT NULL) AS has_customer,
-         (
-           EXISTS (SELECT 1 FROM erp.sales_order_lines sol WHERE sol.order_id = vo.order_id)
-           AND NOT EXISTS (
-             SELECT 1
-             FROM erp.sales_order_lines sol
-             JOIN erp.products p ON p.product_id = sol.product_id
-             WHERE sol.order_id = vo.order_id
-               AND COALESCE(sol.unit_cost_snapshot_pen, p.ref_cost_pen) IS NULL
-           )
-         ) AS has_lines_and_costs,
-         (vo.created_by_user_id IS NOT NULL) AS has_seller,
-         (vo.historical_status_assumed = FALSE) AS has_explicit_mode,
-         (
-           vo.paid_pen <= 0.05
-           OR EXISTS (
-             SELECT 1
-             FROM erp.ar_payments ap
-             WHERE ap.order_id = vo.order_id
-               AND ap.account_id IS NOT NULL
-           )
-         ) AS has_payment_account,
-         (
-           vo.balance_due_pen <= 0.05
-           OR vo.promised_payment_date IS NOT NULL
-           OR vo.due_date IS NOT NULL
-         ) AS has_credit_due,
-         (((vo.created_at AT TIME ZONE 'America/Lima')::date - vo.order_date) <= 1) AS within_24h
-       FROM valid_orders vo
-       WHERE vo.source_origin = 'ERP_APP'
-     ),
-     app_orders_scored AS (
-       SELECT
-         *,
-         (
-           has_customer
-           AND has_lines_and_costs
-           AND has_seller
-           AND has_explicit_mode
-           AND has_payment_account
-           AND has_credit_due
-           AND within_24h
-         ) AS is_complete_24h
-       FROM app_orders_eval
-     ),
-     sold_missing_cost AS (
-       SELECT
-         COUNT(DISTINCT p.product_id)::int AS sku_count,
-         COALESCE(SUM(sol.line_total_pen), 0)::numeric(14,2) AS impacted_pen
-       FROM erp.sales_order_lines sol
-       JOIN valid_orders vo ON vo.order_id = sol.order_id
-       JOIN erp.products p ON p.product_id = sol.product_id
-       WHERE COALESCE(sol.unit_cost_snapshot_pen, p.ref_cost_pen) IS NULL
-     ),
-     purchase_stats AS (
-       SELECT
-         COUNT(*)::int AS total_count,
-         COUNT(*) FILTER (
-           WHERE pi.has_itemized_lines = FALSE
-              OR NOT EXISTS (
-                SELECT 1
-                FROM erp.purchase_invoice_lines pil
-                WHERE pil.purchase_id = pi.purchase_id
-              )
-         )::int AS without_detail_count
-       FROM erp.purchase_invoices pi
-     ),
-     customer_stats AS (
-       SELECT
-         COUNT(*)::int AS active_count,
-         COUNT(*) FILTER (WHERE NULLIF(BTRIM(phone), '') IS NULL)::int AS missing_phone_count,
-         COUNT(*) FILTER (WHERE NULLIF(BTRIM(city_zone), '') IS NULL)::int AS missing_zone_count,
-         COUNT(*) FILTER (WHERE geo_lat IS NULL OR geo_lng IS NULL)::int AS missing_geo_count
-       FROM erp.parties
-       WHERE is_active = TRUE
-         AND party_type IN ('CUSTOMER', 'BOTH')
-     )
-     SELECT
-       COALESCE((SELECT COUNT(*)::int FROM app_orders_scored WHERE is_complete_24h), 0) AS coverage_numerator,
-       COALESCE((SELECT COUNT(*)::int FROM app_orders_scored), 0) AS coverage_denominator,
-       COALESCE((
-         SELECT json_agg(t)
-         FROM (
-           SELECT
-             order_id,
-             order_code,
-             order_date,
-             has_customer,
-             has_lines_and_costs,
-             has_seller,
-             has_explicit_mode,
-             has_payment_account,
-             has_credit_due,
-             within_24h
-           FROM app_orders_scored
-           WHERE NOT is_complete_24h
-           ORDER BY order_date DESC, order_id DESC
-           LIMIT 10
-         ) t
-       ), '[]'::json) AS incomplete_orders,
-       COALESCE((SELECT COUNT(*)::int FROM valid_orders WHERE source_origin = 'ERP_APP'), 0) AS erp_app_orders_count,
-       COALESCE((SELECT COUNT(*)::int FROM valid_orders), 0) AS total_orders_count,
-       COALESCE((SELECT COUNT(*)::int FROM valid_orders WHERE created_by_user_id IS NULL), 0) AS orders_missing_seller_count,
-       COALESCE((SELECT COUNT(*)::int FROM erp.products WHERE is_active = TRUE), 0) AS active_products_count,
-       COALESCE((SELECT COUNT(*)::int FROM erp.products WHERE is_active = TRUE AND ref_cost_pen IS NULL), 0) AS products_missing_cost_count,
-       COALESCE((SELECT sku_count FROM sold_missing_cost), 0) AS sold_skus_missing_cost_count,
-       COALESCE((SELECT impacted_pen FROM sold_missing_cost), 0) AS sold_skus_missing_cost_pen,
-       COALESCE((SELECT total_count FROM purchase_stats), 0) AS purchases_total_count,
-       COALESCE((SELECT without_detail_count FROM purchase_stats), 0) AS purchases_without_detail_count,
-       COALESCE((SELECT active_count FROM customer_stats), 0) AS active_customers_count,
-       COALESCE((SELECT missing_phone_count FROM customer_stats), 0) AS customers_missing_phone_count,
-       COALESCE((SELECT missing_zone_count FROM customer_stats), 0) AS customers_missing_zone_count,
-       COALESCE((SELECT missing_geo_count FROM customer_stats), 0) AS customers_missing_geo_count,
-       COALESCE((SELECT COUNT(*)::int FROM erp.route_trips), 0) AS trips_total_count,
-       COALESCE((SELECT COUNT(*)::int FROM erp.route_trips WHERE declared_net_cash_pen IS NULL), 0) AS trips_without_reconciliation_count,
-       COALESCE((SELECT COUNT(*)::int FROM valid_orders WHERE historical_status_assumed = TRUE), 0) AS assumed_cash_orders_count,
-       COALESCE((SELECT SUM(total_pen) FROM valid_orders WHERE historical_status_assumed = TRUE), 0) AS assumed_cash_orders_pen,
-       COALESCE((
-         SELECT COUNT(*)::int
-         FROM erp.v_current_stock
-         WHERE warehouse_code = 'MAIN'
-           AND stock_on_hand < -0.0001
-       ), 0) AS negative_stock_sku_count,
-       COALESCE((
-         SELECT COUNT(*)::int
-         FROM erp.audit_flags
-         WHERE status = 'OPEN'
-           AND flag_code = 'MISSING_BANK_STATEMENT_LEDGER'
-       ), 0) AS open_bank_audit_flags_count,
-       COALESCE((
-         SELECT COUNT(*)::int
-         FROM erp.ap_obligations
-         WHERE status IN ('OPEN', 'PARTIAL')
-           AND balance_due_pen > 0.05
-           AND due_date IS NULL
-       ), 0) AS ap_no_due_date_count`
-  );
+export const OPERATIONAL_QUALITY_SELECT = `(
+  SELECT row_to_json(oq)
+  FROM (
+    WITH valid_orders AS (
+      SELECT
+        so.order_id,
+        so.order_code,
+        so.order_date,
+        so.source_origin,
+        so.customer_party_id,
+        so.created_by_user_id,
+        so.historical_status_assumed,
+        so.total_pen,
+        so.paid_pen,
+        so.balance_due_pen,
+        so.promised_payment_date,
+        so.due_date,
+        so.created_at
+      FROM erp.sales_orders so
+      WHERE so.operational_status NOT IN ('CANCELLED', 'PENDING_PARTNER_APPROVAL')
+    ),
+    app_orders_eval AS (
+      SELECT
+        vo.order_id,
+        vo.order_code,
+        vo.order_date::text AS order_date,
+        (vo.customer_party_id IS NOT NULL) AS has_customer,
+        (
+          EXISTS (SELECT 1 FROM erp.sales_order_lines sol WHERE sol.order_id = vo.order_id)
+          AND NOT EXISTS (
+            SELECT 1
+            FROM erp.sales_order_lines sol
+            JOIN erp.products p ON p.product_id = sol.product_id
+            WHERE sol.order_id = vo.order_id
+              AND COALESCE(sol.unit_cost_snapshot_pen, p.ref_cost_pen) IS NULL
+          )
+        ) AS has_lines_and_costs,
+        (vo.created_by_user_id IS NOT NULL) AS has_seller,
+        (vo.historical_status_assumed = FALSE) AS has_explicit_mode,
+        (
+          vo.paid_pen <= 0.05
+          OR EXISTS (
+            SELECT 1
+            FROM erp.ar_payments ap
+            WHERE ap.order_id = vo.order_id
+              AND ap.account_id IS NOT NULL
+          )
+        ) AS has_payment_account,
+        (
+          vo.balance_due_pen <= 0.05
+          OR vo.promised_payment_date IS NOT NULL
+          OR vo.due_date IS NOT NULL
+        ) AS has_credit_due,
+        (((vo.created_at AT TIME ZONE 'America/Lima')::date - vo.order_date) <= 1) AS within_24h
+      FROM valid_orders vo
+      WHERE vo.source_origin = 'ERP_APP'
+    ),
+    app_orders_scored AS (
+      SELECT
+        *,
+        (
+          has_customer
+          AND has_lines_and_costs
+          AND has_seller
+          AND has_explicit_mode
+          AND has_payment_account
+          AND has_credit_due
+          AND within_24h
+        ) AS is_complete_24h
+      FROM app_orders_eval
+    ),
+    sold_missing_cost AS (
+      SELECT
+        COUNT(DISTINCT p.product_id)::int AS sku_count,
+        COALESCE(SUM(sol.line_total_pen), 0)::numeric(14,2) AS impacted_pen
+      FROM erp.sales_order_lines sol
+      JOIN valid_orders vo ON vo.order_id = sol.order_id
+      JOIN erp.products p ON p.product_id = sol.product_id
+      WHERE COALESCE(sol.unit_cost_snapshot_pen, p.ref_cost_pen) IS NULL
+    ),
+    purchase_stats AS (
+      SELECT
+        COUNT(*)::int AS total_count,
+        COUNT(*) FILTER (
+          WHERE pi.has_itemized_lines = FALSE
+             OR NOT EXISTS (
+               SELECT 1
+               FROM erp.purchase_invoice_lines pil
+               WHERE pil.purchase_id = pi.purchase_id
+             )
+        )::int AS without_detail_count
+      FROM erp.purchase_invoices pi
+    ),
+    customer_stats AS (
+      SELECT
+        COUNT(*)::int AS active_count,
+        COUNT(*) FILTER (WHERE NULLIF(BTRIM(phone), '') IS NULL)::int AS missing_phone_count,
+        COUNT(*) FILTER (WHERE NULLIF(BTRIM(city_zone), '') IS NULL)::int AS missing_zone_count,
+        COUNT(*) FILTER (WHERE geo_lat IS NULL OR geo_lng IS NULL)::int AS missing_geo_count
+      FROM erp.parties
+      WHERE is_active = TRUE
+        AND party_type IN ('CUSTOMER', 'BOTH')
+    )
+    SELECT
+      COALESCE((SELECT COUNT(*)::int FROM app_orders_scored WHERE is_complete_24h), 0) AS coverage_numerator,
+      COALESCE((SELECT COUNT(*)::int FROM app_orders_scored), 0) AS coverage_denominator,
+      COALESCE((
+        SELECT json_agg(t)
+        FROM (
+          SELECT
+            order_id,
+            order_code,
+            order_date,
+            has_customer,
+            has_lines_and_costs,
+            has_seller,
+            has_explicit_mode,
+            has_payment_account,
+            has_credit_due,
+            within_24h
+          FROM app_orders_scored
+          WHERE NOT is_complete_24h
+          ORDER BY order_date DESC, order_id DESC
+          LIMIT 10
+        ) t
+      ), '[]'::json) AS incomplete_orders,
+      COALESCE((SELECT COUNT(*)::int FROM valid_orders WHERE source_origin = 'ERP_APP'), 0) AS erp_app_orders_count,
+      COALESCE((SELECT COUNT(*)::int FROM valid_orders), 0) AS total_orders_count,
+      COALESCE((SELECT COUNT(*)::int FROM valid_orders WHERE created_by_user_id IS NULL), 0) AS orders_missing_seller_count,
+      COALESCE((SELECT COUNT(*)::int FROM erp.products WHERE is_active = TRUE), 0) AS active_products_count,
+      COALESCE((SELECT COUNT(*)::int FROM erp.products WHERE is_active = TRUE AND ref_cost_pen IS NULL), 0) AS products_missing_cost_count,
+      COALESCE((SELECT sku_count FROM sold_missing_cost), 0) AS sold_skus_missing_cost_count,
+      COALESCE((SELECT impacted_pen FROM sold_missing_cost), 0) AS sold_skus_missing_cost_pen,
+      COALESCE((SELECT total_count FROM purchase_stats), 0) AS purchases_total_count,
+      COALESCE((SELECT without_detail_count FROM purchase_stats), 0) AS purchases_without_detail_count,
+      COALESCE((SELECT active_count FROM customer_stats), 0) AS active_customers_count,
+      COALESCE((SELECT missing_phone_count FROM customer_stats), 0) AS customers_missing_phone_count,
+      COALESCE((SELECT missing_zone_count FROM customer_stats), 0) AS customers_missing_zone_count,
+      COALESCE((SELECT missing_geo_count FROM customer_stats), 0) AS customers_missing_geo_count,
+      COALESCE((SELECT COUNT(*)::int FROM erp.route_trips), 0) AS trips_total_count,
+      COALESCE((SELECT COUNT(*)::int FROM erp.route_trips WHERE declared_net_cash_pen IS NULL), 0) AS trips_without_reconciliation_count,
+      COALESCE((SELECT COUNT(*)::int FROM valid_orders WHERE historical_status_assumed = TRUE), 0) AS assumed_cash_orders_count,
+      COALESCE((SELECT SUM(total_pen) FROM valid_orders WHERE historical_status_assumed = TRUE), 0) AS assumed_cash_orders_pen,
+      COALESCE((
+        SELECT COUNT(*)::int
+        FROM erp.v_current_stock
+        WHERE warehouse_code = 'MAIN'
+          AND stock_on_hand < -0.0001
+      ), 0) AS negative_stock_sku_count,
+      COALESCE((
+        SELECT COUNT(*)::int
+        FROM erp.audit_flags
+        WHERE status = 'OPEN'
+          AND flag_code = 'MISSING_BANK_STATEMENT_LEDGER'
+      ), 0) AS open_bank_audit_flags_count,
+      COALESCE((
+        SELECT COUNT(*)::int
+        FROM erp.ap_obligations
+        WHERE status IN ('OPEN', 'PARTIAL')
+          AND balance_due_pen > 0.05
+          AND due_date IS NULL
+      ), 0) AS ap_no_due_date_count
+  ) oq
+)`;
 
-  const row = res.rows[0];
+export function mapOperationalQualitySummary(raw: unknown): OperationalQualitySummary {
+  const row = (raw && typeof raw === "object" ? raw : {}) as Partial<QualityQueryRow>;
   const numerator = asInt(row?.coverage_numerator);
   const denominator = asInt(row?.coverage_denominator);
   const coveragePct =
@@ -431,4 +432,13 @@ export async function getOperationalQualitySummary(
     apNoDueDateCount,
     startupChecklist,
   };
+}
+
+export async function getOperationalQualitySummary(
+  client: PoolClient
+): Promise<OperationalQualitySummary> {
+  const res = await client.query<{ oq: unknown }>(
+    `SELECT ${OPERATIONAL_QUALITY_SELECT} AS oq`
+  );
+  return mapOperationalQualitySummary(res.rows[0]?.oq);
 }
