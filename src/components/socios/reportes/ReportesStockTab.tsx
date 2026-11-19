@@ -12,6 +12,11 @@ import {
 import { formatFulfillmentModeEs, formatMarginStatusEs } from "@/lib/labels-es";
 import { formatPen } from "../types";
 import {
+  type ActiveReportConcept,
+  ConceptCardButton,
+  ReportConceptModal,
+} from "./ReportConceptModal";
+import {
   type ReportStockDto,
   formatDays,
   formatDeadStockStatusEs,
@@ -30,6 +35,7 @@ export default function ReportesStockTab({
   onGoToEditProduct,
 }: ReportesStockTabProps) {
   const [skuSearch, setSkuSearch] = useState("");
+  const [activeConcept, setActiveConcept] = useState<ActiveReportConcept | null>(null);
   const deferredSearch = useDeferredValue(skuSearch);
 
   const filteredTopSkus = useMemo(() => {
@@ -56,7 +62,15 @@ export default function ReportesStockTab({
         aria-label="Indicadores de valorización de stock"
         className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4"
       >
-        <Card padding="md" className="space-y-1.5">
+        <ConceptCardButton
+          onClick={() =>
+            setActiveConcept({
+              id: "valorizacion_inventario",
+              currentValue: formatPen(valuationSummary.totalValuationPen),
+              currentSubtext: `${valuationSummary.positiveStockSkuCount} SKU(s) con stock · ${valuationSummary.positiveStockMissingCostCount} sin costo`,
+            })
+          }
+        >
           <span className="text-xs font-medium text-bht-ink-soft">
             Valorización Inventario (Stock Positivo)
           </span>
@@ -67,9 +81,17 @@ export default function ReportesStockTab({
             {valuationSummary.positiveStockSkuCount} SKU(s) con stock ·{" "}
             {valuationSummary.positiveStockMissingCostCount} sin costo
           </span>
-        </Card>
+        </ConceptCardButton>
 
-        <Card padding="md" className="space-y-1.5">
+        <ConceptCardButton
+          onClick={() =>
+            setActiveConcept({
+              id: "stock_muerto_90d",
+              currentValue: formatPen(valuationSummary.deadStock90dPen),
+              currentSubtext: `${valuationSummary.deadStock90dCount} SKU(s) ≥90d · Lento 60–89d: ${valuationSummary.slowStock60dCount} (${formatPen(valuationSummary.slowStock60dPen)})`,
+            })
+          }
+        >
           <span className="text-xs font-medium text-bht-ink-soft">
             Stock Muerto (&ge; 90 días sin venta)
           </span>
@@ -81,9 +103,17 @@ export default function ReportesStockTab({
             {valuationSummary.slowStock60dCount} (
             {formatPen(valuationSummary.slowStock60dPen)})
           </span>
-        </Card>
+        </ConceptCardButton>
 
-        <Card padding="md" className="space-y-1.5">
+        <ConceptCardButton
+          onClick={() =>
+            setActiveConcept({
+              id: "reposicion_urgente_14d",
+              currentValue: `${valuationSummary.lowCoverageCount} producto(s)`,
+              currentSubtext: `Saldos negativos históricos: ${valuationSummary.negativeStockSkuCount}`,
+            })
+          }
+        >
           <span className="text-xs font-medium text-bht-ink-soft">
             Reposición Urgente (&le; 14d cobertura)
           </span>
@@ -93,9 +123,9 @@ export default function ReportesStockTab({
           <span className="block text-xs text-bht-ink-soft tabular-nums">
             Saldos negativos históricos: {valuationSummary.negativeStockSkuCount}
           </span>
-        </Card>
+        </ConceptCardButton>
 
-        <Card
+        <ConceptCardButton
           tone={
             valuationSummary.missingCostSoldSkuCount +
               valuationSummary.lowMarginSkuCount >
@@ -103,8 +133,13 @@ export default function ReportesStockTab({
               ? "warning"
               : "default"
           }
-          padding="md"
-          className="space-y-1.5"
+          onClick={() =>
+            setActiveConcept({
+              id: "riesgo_margen_stock",
+              currentValue: `${valuationSummary.lowMarginSkuCount + valuationSummary.missingCostSoldSkuCount} producto(s)`,
+              currentSubtext: `${valuationSummary.lowMarginSkuCount} margen <20% · ${valuationSummary.missingCostSoldSkuCount} vendidos sin costo`,
+            })
+          }
         >
           <span className="text-xs font-medium text-bht-ink-soft">
             Riesgo de Margen (&lt; 20% o sin costo)
@@ -117,7 +152,7 @@ export default function ReportesStockTab({
             {valuationSummary.lowMarginSkuCount} margen &lt;20% ·{" "}
             {valuationSummary.missingCostSoldSkuCount} vendidos sin costo
           </span>
-        </Card>
+        </ConceptCardButton>
       </section>
 
       {/* Mix STOCKED vs ON_DEMAND + ON_DEMAND Promotion Candidates */}
@@ -153,12 +188,29 @@ export default function ReportesStockTab({
         </Card>
 
         <Card padding="md" className="space-y-3">
-          <h3 className="text-sm font-semibold text-bht-ink-strong sm:text-base">
-            Candidatos <code>ON_DEMAND</code> Frecuentes para Pasar a Stock (
-            {onDemandCandidates.length})
-          </h3>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h3 className="text-sm font-semibold text-bht-ink-strong sm:text-base">
+              Candidatos Bajo Pedido Frecuentes para Pasar a Stock (
+              {onDemandCandidates.length})
+            </h3>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              compact
+              onClick={() =>
+                setActiveConcept({
+                  id: "candidatos_bajo_pedido",
+                  currentValue: `${onDemandCandidates.length} producto(s)`,
+                  currentSubtext: "Productos bajo pedido con demanda recurrente",
+                })
+              }
+            >
+              ¿Qué significa?
+            </Button>
+          </div>
           {onDemandCandidates.length === 0 ? (
-            <EmptyState title="Sin ventas ON_DEMAND registradas" />
+            <EmptyState title="Sin ventas bajo pedido registradas" />
           ) : (
             <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
               {onDemandCandidates.slice(0, 12).map((item) => (
@@ -204,7 +256,7 @@ export default function ReportesStockTab({
             </p>
           </div>
           {replenishmentAlerts.length === 0 ? (
-            <EmptyState title="No hay SKUs STOCKED en riesgo de cobertura" />
+            <EmptyState title="No hay productos de stock permanente en riesgo de cobertura" />
           ) : (
             <div className="space-y-2 max-h-96 overflow-y-auto pr-1">
               {replenishmentAlerts.map((item) => (
@@ -305,7 +357,7 @@ export default function ReportesStockTab({
       {marginRiskSkus.length > 0 && (
         <Card tone="warning" padding="md" className="space-y-3">
           <h3 className="text-sm font-semibold text-bht-ink-strong sm:text-base">
-            SKUs con Margen &lt; 20% o Sin Costo ({marginRiskSkus.length})
+            Productos con Margen &lt; 20% o Sin Costo ({marginRiskSkus.length})
           </h3>
           <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
             {marginRiskSkus.map((m) => (
@@ -477,6 +529,11 @@ export default function ReportesStockTab({
           </div>
         )}
       </Card>
+
+      <ReportConceptModal
+        concept={activeConcept}
+        onClose={() => setActiveConcept(null)}
+      />
     </div>
   );
 }

@@ -1,18 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { createPortal } from "react-dom";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import { formatPen } from "@/components/socios/types";
 import { CustomerDetailContent } from "@/components/directory/CustomerDetailContent";
-import {
-  EditIcon,
-  MapPinIcon,
-  NavigationIcon,
-  PhoneIcon,
-  PlusIcon,
-  SearchIcon,
-} from "@/components/ui/Icons";
+import { PlusIcon, SearchIcon } from "@/components/ui/Icons";
 import {
   Badge,
   Button,
@@ -23,7 +15,7 @@ import {
   SegmentedControl,
 } from "@/components/ui/Primitives";
 import { ApiClientError, fetchJson } from "@/lib/api-client";
-import { buildGoogleMapsUrl, formatPartySecondaryName } from "@/lib/geo";
+import { formatPartySecondaryName } from "@/lib/geo";
 import type {
   CustomerDirectoryItem,
   CustomerDirectoryStats,
@@ -105,56 +97,9 @@ export function DirectorioClientes({
   const [detailCustomer, setDetailCustomer] = useState<CustomerDirectoryItem | null>(
     null
   );
-  const [hoverPreview, setHoverPreview] = useState<{
-    customer: CustomerDirectoryItem;
-    top: number;
-    left: number;
-  } | null>(null);
-  const hoverCloseTimer = useRef<number | null>(null);
-
-  const cancelHoverClose = useCallback(() => {
-    if (hoverCloseTimer.current !== null) {
-      window.clearTimeout(hoverCloseTimer.current);
-      hoverCloseTimer.current = null;
-    }
-  }, []);
-
-  const closeHoverPreview = useCallback(() => {
-    cancelHoverClose();
-    hoverCloseTimer.current = window.setTimeout(() => setHoverPreview(null), 140);
-  }, [cancelHoverClose]);
-
-  const openHoverPreview = useCallback(
-    (customer: CustomerDirectoryItem, anchor: HTMLElement) => {
-      if (!window.matchMedia("(hover: hover) and (pointer: fine)").matches) return;
-      cancelHoverClose();
-      const rect = anchor.getBoundingClientRect();
-      const width = Math.min(380, window.innerWidth - 24);
-      const preferredLeft = rect.right + 12;
-      const left =
-        preferredLeft + width <= window.innerWidth - 12
-          ? preferredLeft
-          : Math.max(12, rect.left - width - 12);
-      const top = Math.min(
-        Math.max(12, rect.top),
-        Math.max(12, window.innerHeight - Math.min(520, window.innerHeight - 24))
-      );
-      setHoverPreview({ customer, top, left });
-    },
-    [cancelHoverClose]
-  );
-
-  useEffect(
-    () => () => {
-      if (hoverCloseTimer.current !== null)
-        window.clearTimeout(hoverCloseTimer.current);
-    },
-    []
-  );
 
   function editCustomer(customer: CustomerDirectoryItem) {
     setDetailCustomer(null);
-    setHoverPreview(null);
     setEditingCustomer(customer);
     setModalMode("edit");
   }
@@ -372,136 +317,69 @@ export function DirectorioClientes({
             <strong className="tabular-nums">{totalCount}</strong> cliente(s).
           </p>
 
-          <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+          <div className="space-y-2">
             {customers.map((cust) => {
               const secondaryName = formatPartySecondaryName(
                 cust.trade_name,
                 cust.legal_name
               );
+              const docLabel = cust.doc_number
+                ? `${cust.doc_type !== "NONE" ? cust.doc_type : "Doc."} ${cust.doc_number}`
+                : "Sin documento";
+              const phoneLabel = cust.phone ? `Tel: ${cust.phone}` : "Sin teléfono";
+              const gpsLabel =
+                cust.geo_lat !== null && cust.geo_lng !== null ? "Con GPS" : "Sin GPS";
               return (
-                <Card
+                <button
                   key={cust.party_id}
-                  padding="md"
-                  className="group space-y-3 transition duration-150 hover:border-bht-line-blue hover:shadow-bht-elev-10"
-                  onMouseEnter={(event) => openHoverPreview(cust, event.currentTarget)}
-                  onMouseLeave={closeHoverPreview}
+                  type="button"
+                  onClick={() => setDetailCustomer(cust)}
+                  className="flex w-full flex-col gap-2 rounded-xl border border-bht-line bg-white p-3 text-left transition hover:border-bht-line-blue hover:bg-bht-mist/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bht-navy-deep cursor-pointer"
                 >
-                  <div className="flex items-start justify-between gap-2">
+                  <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <div className="flex flex-wrap items-center gap-1.5">
-                        <h3 className="break-words text-sm font-bold leading-snug text-bht-ink-strong sm:text-base">
-                          {cust.display_name}
-                        </h3>
-                        {cust.city_zone && (
-                          <Badge tone="horizon">{cust.city_zone}</Badge>
-                        )}
-                        {!cust.is_active && <Badge tone="neutral">Inactivo</Badge>}
-                      </div>
-                      {secondaryName && (
-                        <p className="mt-0.5 line-clamp-2 break-words text-xs text-bht-ink-soft">
-                          Nombre / Razón social: {secondaryName}
+                      <h3 className="min-w-0 break-words text-base font-bold leading-snug text-bht-ink-strong sm:text-lg">
+                        {cust.display_name}
+                      </h3>
+                      {secondaryName && secondaryName !== cust.display_name && (
+                        <p className="mt-0.5 line-clamp-1 break-words text-xs text-bht-ink-soft">
+                          {secondaryName}
                         </p>
                       )}
                     </div>
-
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="shrink-0"
-                      onClick={() => editCustomer(cust)}
-                    >
-                      <EditIcon className="h-3.5 w-3.5" />
-                      Editar
-                    </Button>
+                    <div className="flex flex-wrap items-center justify-end gap-1.5 shrink-0">
+                      {cust.city_zone && <Badge tone="horizon">{cust.city_zone}</Badge>}
+                      {!cust.is_active && <Badge tone="neutral">Inactivo</Badge>}
+                    </div>
                   </div>
-
-                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-bht-ink-warm">
-                    {cust.doc_number && (
-                      <span className="tabular-nums">
-                        {cust.doc_type !== "NONE" ? `${cust.doc_type}: ` : "Doc: "}
-                        {cust.doc_number}
-                        {cust.is_generic_doc ? " (genérico)" : ""}
-                      </span>
-                    )}
-                    {cust.phone && (
-                      <a
-                        href={`tel:${cust.phone}`}
-                        className="inline-flex items-center gap-1 font-medium text-bht-cobalt hover:underline"
-                      >
-                        <PhoneIcon className="h-3 w-3" />
-                        {cust.phone}
-                      </a>
-                    )}
-                    {cust.address && (
-                      <span className="min-w-0 break-words">{cust.address}</span>
-                    )}
-                  </div>
-
-                  {cust.notes && (
-                    <p className="line-clamp-2 break-words text-sm text-bht-ink-soft">
-                      Ref.: {cust.notes}
-                    </p>
-                  )}
-
-                  <div className="grid gap-2 border-t border-bht-line pt-2.5 text-sm sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
-                    <div className="flex min-w-0 flex-wrap items-center gap-2 text-bht-ink-soft tabular-nums">
-                      <button
-                        type="button"
-                        onClick={() => onOpenCustomerOrders(cust)}
-                        className="rounded-lg bg-bht-cobalt-bg px-2.5 py-1.5 font-bold text-bht-cobalt-strong transition hover:bg-bht-info-line focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bht-cobalt cursor-pointer"
-                      >
+                  <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1.5 text-sm">
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                      <span className="font-semibold text-bht-cobalt-strong tabular-nums">
                         {cust.orders_count}{" "}
                         {cust.orders_count === 1 ? "pedido" : "pedidos"}
-                      </button>
+                      </span>
                       {cust.last_order_date && (
-                        <span>· Último: {cust.last_order_date}</span>
-                      )}
-                      {cust.open_balance_pen > 0.05 && (
-                        <button
-                          type="button"
-                          data-compact="true"
-                          onClick={() => handleTabChange("deudores")}
-                          className="font-semibold text-bht-danger hover:underline cursor-pointer"
-                        >
-                          Saldo: {formatPen(cust.open_balance_pen)} →
-                        </button>
+                        <span className="text-bht-ink-soft tabular-nums">
+                          Último: {cust.last_order_date}
+                        </span>
                       )}
                     </div>
-
-                    <div className="flex flex-wrap gap-2 sm:justify-end">
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setDetailCustomer(cust)}
-                      >
-                        Ver ficha
-                      </Button>
-                      {cust.geo_lat !== null && cust.geo_lng !== null ? (
-                        <a
-                          href={buildGoogleMapsUrl(cust.geo_lat, cust.geo_lng)}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex min-h-8 items-center gap-1 rounded-lg px-2 font-semibold text-bht-cobalt hover:bg-bht-cobalt-bg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bht-cobalt"
-                        >
-                          <NavigationIcon className="h-3.5 w-3.5" />
-                          Maps
-                        </a>
-                      ) : (
-                        <button
-                          type="button"
-                          data-compact="true"
-                          onClick={() => editCustomer(cust)}
-                          className="inline-flex min-h-8 items-center gap-1 rounded-lg px-2 text-xs font-medium text-bht-ink-muted hover:bg-bht-mist hover:text-bht-cobalt cursor-pointer"
-                        >
-                          <MapPinIcon className="h-3 w-3" />
-                          Sin GPS
-                        </button>
-                      )}
-                    </div>
+                    <span
+                      className={`font-semibold tabular-nums ${
+                        cust.open_balance_pen > 0.05
+                          ? "text-bht-danger"
+                          : "text-bht-ink-strong"
+                      }`}
+                    >
+                      {cust.open_balance_pen > 0.05
+                        ? `Saldo: ${formatPen(cust.open_balance_pen)}`
+                        : "Sin deuda"}
+                    </span>
                   </div>
-                </Card>
+                  <span className="text-xs text-bht-ink-soft tabular-nums">
+                    {docLabel} · {phoneLabel} · {gpsLabel}
+                  </span>
+                </button>
               );
             })}
           </div>
@@ -521,39 +399,36 @@ export function DirectorioClientes({
         </div>
       )}
 
-      {hoverPreview &&
-        createPortal(
-          <aside
-            aria-label={`Vista rápida de ${hoverPreview.customer.display_name}`}
-            className="fixed z-40 w-[min(380px,calc(100vw-24px))] overflow-y-auto rounded-2xl border border-bht-line-blue bg-white p-4 shadow-2xl"
-            style={{
-              top: hoverPreview.top,
-              left: hoverPreview.left,
-              maxHeight: "calc(100dvh - 24px)",
-            }}
-            onMouseEnter={cancelHoverClose}
-            onMouseLeave={closeHoverPreview}
-          >
-            <CustomerDetailContent
-              customer={hoverPreview.customer}
-              onEdit={() => editCustomer(hoverPreview.customer)}
-              onOpenOrders={() => onOpenCustomerOrders(hoverPreview.customer)}
-            />
-          </aside>,
-          document.body
-        )}
-
       <ModalSheet
         open={detailCustomer !== null}
         onClose={() => setDetailCustomer(null)}
-        title={detailCustomer?.display_name || "Ficha de cliente"}
-        subtitle="Datos disponibles en el directorio"
+        title={
+          detailCustomer ? `Ficha · ${detailCustomer.display_name}` : "Ficha de cliente"
+        }
+        subtitle={
+          detailCustomer
+            ? `${
+                detailCustomer.city_zone
+                  ? `Zona ${detailCustomer.city_zone}`
+                  : "Sin zona asignada"
+              } · ${detailCustomer.is_active ? "Activo" : "Inactivo"}`
+            : undefined
+        }
+        maxWidth="lg"
       >
         {detailCustomer && (
           <CustomerDetailContent
             customer={detailCustomer}
             onEdit={() => editCustomer(detailCustomer)}
-            onOpenOrders={() => onOpenCustomerOrders(detailCustomer)}
+            onOpenOrders={() => {
+              const target = detailCustomer;
+              setDetailCustomer(null);
+              onOpenCustomerOrders(target);
+            }}
+            onOpenCollections={() => {
+              setDetailCustomer(null);
+              handleTabChange("deudores");
+            }}
           />
         )}
       </ModalSheet>

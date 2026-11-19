@@ -1,9 +1,14 @@
 "use client";
 
-import React from "react";
+import React, { useState } from "react";
 import { Badge, Button, Card, EmptyState } from "@/components/ui/Primitives";
 import { formatPaymentModeEs, formatPromiseStatusEs } from "@/lib/labels-es";
 import { formatPen } from "../types";
+import {
+  type ActiveReportConcept,
+  ConceptCardButton,
+  ReportConceptModal,
+} from "./ReportConceptModal";
 import { type ReportCarteraDto, formatArBucketEs } from "./reportes-types";
 
 interface ReportesCarteraTabProps {
@@ -19,6 +24,7 @@ export default function ReportesCarteraTab({
   onSelectZone,
   onOpenCollections,
 }: ReportesCarteraTabProps) {
+  const [activeConcept, setActiveConcept] = useState<ActiveReportConcept | null>(null);
   const { summary, agingBuckets, byZone, byCustomer, collectionSheet } = data;
   const maxBucket = Math.max(1, ...agingBuckets.map((b) => b.balanceDuePen));
 
@@ -29,7 +35,15 @@ export default function ReportesCarteraTab({
         aria-label="Indicadores de cartera CxC"
         className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4"
       >
-        <Card padding="md" className="space-y-1.5">
+        <ConceptCardButton
+          onClick={() =>
+            setActiveConcept({
+              id: "cartera_total_cxc",
+              currentValue: formatPen(summary.totalReceivablePen),
+              currentSubtext: `${summary.openOrdersCount} pedido(s) en ${summary.openCustomersCount} cliente(s)`,
+            })
+          }
+        >
           <span className="text-xs font-medium text-bht-ink-soft">
             Cartera Total por Cobrar
           </span>
@@ -40,9 +54,18 @@ export default function ReportesCarteraTab({
             {summary.openOrdersCount} pedido(s) en {summary.openCustomersCount}{" "}
             cliente(s)
           </span>
-        </Card>
+        </ConceptCardButton>
 
-        <Card padding="md" className="space-y-1.5">
+        <ConceptCardButton
+          onClick={() =>
+            setActiveConcept({
+              id: "dso_estimado",
+              currentValue:
+                summary.dsoDays !== null ? `${summary.dsoDays.toFixed(1)} días` : "-",
+              currentSubtext: `Antigüedad media abierta: ${summary.avgOpenAgeDays.toFixed(1)} d (ventana ${summary.referenceWindowDays}d)`,
+            })
+          }
+        >
           <span className="text-xs font-medium text-bht-ink-soft">
             DSO Estimado (Días promedio de cobro)
           </span>
@@ -53,9 +76,17 @@ export default function ReportesCarteraTab({
             Antigüedad media abierta: {summary.avgOpenAgeDays.toFixed(1)} d (ventana{" "}
             {summary.referenceWindowDays}d)
           </span>
-        </Card>
+        </ConceptCardButton>
 
-        <Card padding="md" className="space-y-1.5">
+        <ConceptCardButton
+          onClick={() =>
+            setActiveConcept({
+              id: "saldo_mayor_30d",
+              currentValue: formatPen(summary.overdueGt30Pen),
+              currentSubtext: `Tramo crítico > 60d: ${formatPen(summary.overdueGt60Pen)}`,
+            })
+          }
+        >
           <span className="text-xs font-medium text-bht-ink-soft">
             Saldo con antigüedad &gt; 30 días
           </span>
@@ -65,12 +96,17 @@ export default function ReportesCarteraTab({
           <span className="block text-xs text-bht-ink-soft tabular-nums">
             Tramo crítico &gt; 60d: {formatPen(summary.overdueGt60Pen)}
           </span>
-        </Card>
+        </ConceptCardButton>
 
-        <Card
+        <ConceptCardButton
           tone={summary.brokenPromisesCount > 0 ? "warning" : "default"}
-          padding="md"
-          className="space-y-1.5"
+          onClick={() =>
+            setActiveConcept({
+              id: "promesas_vencidas",
+              currentValue: formatPen(summary.brokenPromisesPen),
+              currentSubtext: `${summary.brokenPromisesCount} compromiso(s) vencido(s)`,
+            })
+          }
         >
           <span className="text-xs font-medium text-bht-ink-soft">
             Promesas de Pago Vencidas
@@ -81,7 +117,7 @@ export default function ReportesCarteraTab({
           <Badge tone={summary.brokenPromisesCount > 0 ? "danger" : "success"}>
             {summary.brokenPromisesCount} compromiso(s) vencido(s)
           </Badge>
-        </Card>
+        </ConceptCardButton>
       </section>
 
       {/* AR Aging Buckets (0-15 / 16-30 / 31-60 / >60d) */}
@@ -89,7 +125,7 @@ export default function ReportesCarteraTab({
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
             <h3 className="text-sm font-semibold text-bht-ink-strong sm:text-base">
-              Antigüedad de Cartera (AR Aging: 0–15 / 16–30 / 31–60 / &gt;60 días)
+              Antigüedad de Cartera por Tramos (0–15 / 16–30 / 31–60 / &gt;60 días)
             </h3>
             <p className="mt-0.5 text-xs text-bht-ink-soft">
               Distribución del saldo por cobrar según días transcurridos desde la venta.
@@ -349,6 +385,11 @@ export default function ReportesCarteraTab({
           </div>
         )}
       </Card>
+
+      <ReportConceptModal
+        concept={activeConcept}
+        onClose={() => setActiveConcept(null)}
+      />
     </div>
   );
 }

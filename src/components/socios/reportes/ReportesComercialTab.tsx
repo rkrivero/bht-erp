@@ -1,9 +1,10 @@
 "use client";
 
-import React from "react";
-import { Badge, Card, EmptyState } from "@/components/ui/Primitives";
+import React, { useState } from "react";
+import { Badge, Button, Card, EmptyState } from "@/components/ui/Primitives";
 import { formatRouteTripStatusEs } from "@/lib/labels-es";
 import { formatPen } from "../types";
+import { type ActiveReportConcept, ReportConceptModal } from "./ReportConceptModal";
 import {
   type ReportComercialDto,
   formatInactivityTierEs,
@@ -15,6 +16,7 @@ interface ReportesComercialTabProps {
 }
 
 export default function ReportesComercialTab({ data }: ReportesComercialTabProps) {
+  const [activeConcept, setActiveConcept] = useState<ActiveReportConcept | null>(null);
   const {
     byZone,
     bySeller,
@@ -174,10 +176,24 @@ export default function ReportesComercialTab({ data }: ReportesComercialTabProps
               Rentabilidad por Ruta / Viaje (Últimos {routeProfitability.length})
             </h3>
             <p className="mt-0.5 text-xs text-bht-ink-soft">
-              Margen bruto generado en el viaje menos los gastos de ruta (
-              <code>ROUTE_OPEX</code>). Meta OpEx &le; 8% sobre ventas.
+              Margen bruto generado en el viaje menos los gastos operativos de ruta.
+              Meta de gasto de ruta &le; 8% sobre ventas.
             </p>
           </div>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            compact
+            onClick={() =>
+              setActiveConcept({
+                id: "rentabilidad_ruta",
+                currentValue: `${routeProfitability.length} viaje(s)`,
+              })
+            }
+          >
+            ¿Qué significa?
+          </Button>
         </div>
 
         {routeProfitability.length === 0 ? (
@@ -335,6 +351,21 @@ export default function ReportesComercialTab({ data }: ReportesComercialTabProps
                 Bajo piso mínimo: {discountAudit.summary.belowMinLinesCount}
               </p>
             </div>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              compact
+              onClick={() =>
+                setActiveConcept({
+                  id: "auditoria_descuentos",
+                  currentValue: formatPen(discountAudit.summary.totalDiscountPen),
+                  currentSubtext: `${discountAudit.summary.discountedLinesCount} línea(s) con descuento · ${discountAudit.summary.belowMinLinesCount} bajo piso mínimo`,
+                })
+              }
+            >
+              ¿Qué significa?
+            </Button>
           </div>
 
           {discountAudit.topLines.length === 0 ? (
@@ -467,6 +498,11 @@ export default function ReportesComercialTab({ data }: ReportesComercialTabProps
           </div>
         )}
       </Card>
+
+      <ReportConceptModal
+        concept={activeConcept}
+        onClose={() => setActiveConcept(null)}
+      />
     </div>
   );
 }

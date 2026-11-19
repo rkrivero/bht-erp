@@ -409,6 +409,16 @@ test("partner reports expose the data cut and cautious financial language", asyn
   await expect(page.getByText("Contribución después de gastos de ruta")).toBeVisible();
   await expect(page.getByText("EBITDA Operativo Estimado")).toHaveCount(0);
 
+  await page
+    .getByRole("button", { name: /Margen bruto sobre ventas con costo/ })
+    .click();
+  const conceptDialog = page.getByRole("dialog");
+  await expect(conceptDialog).toBeVisible();
+  await expect(conceptDialog).toContainText("¿Qué significa en simple?");
+  await expect(conceptDialog).toContainText("Fundamento teórico");
+  await conceptDialog.getByRole("button", { name: "Cerrar", exact: true }).click();
+  await expect(conceptDialog).toHaveCount(0);
+
   await page.getByRole("tab", { name: "Auditoría" }).click();
   await expect(
     page.getByRole("heading", { name: "Cobertura de registro completo en 24 h" })
@@ -701,16 +711,14 @@ test("partner directory exposes customer detail and keeps buyer hierarchy in ord
   for (const label of ["Lista", "Mapa"]) {
     await expect(viewTabs.getByRole("radio", { name: label })).toBeVisible();
   }
-  const customerCard = page
-    .getByRole("heading", { name: "Ferretería Horizonte", level: 3 })
-    .locator("xpath=ancestor::section[1]");
+  const customerCard = page.getByRole("button", { name: /Ferretería Horizonte/ });
   await expect(customerCard).toBeVisible();
   await customerCard.hover();
   await expect(
     page.getByRole("complementary", {
-      name: "Vista rápida de Ferretería Horizonte",
+      name: /Vista rápida/,
     })
-  ).toBeVisible();
+  ).toHaveCount(0);
 
   await page.setViewportSize({ width: 390, height: 844 });
   for (const label of ["Clientes", "Proveedores"]) {
@@ -746,9 +754,10 @@ test("partner directory exposes customer detail and keeps buyer hierarchy in ord
       () => document.documentElement.scrollWidth > document.documentElement.clientWidth
     )
   ).toBe(false);
-  await customerCard.getByRole("button", { name: "Ver ficha" }).click();
-  await expect(page.getByRole("dialog")).toContainText("3 pedidos");
-  await page.getByRole("button", { name: "Cerrar", exact: true }).click();
+  await customerCard.click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog).toBeVisible();
+  await expect(dialog).toContainText("3 pedidos");
   const customerOrdersRequest = page.waitForRequest((request) => {
     const url = new URL(request.url());
     return (
@@ -757,7 +766,7 @@ test("partner directory exposes customer detail and keeps buyer hierarchy in ord
       url.searchParams.get("include_refs") === "false"
     );
   });
-  await customerCard.getByRole("button", { name: "3 pedidos" }).click();
+  await dialog.getByRole("button", { name: "Ver pedidos (3)" }).click();
   await customerOrdersRequest;
 
   const buyer = page.getByRole("heading", {

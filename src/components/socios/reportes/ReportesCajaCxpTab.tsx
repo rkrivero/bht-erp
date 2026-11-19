@@ -1,9 +1,14 @@
 "use client";
 
-import React from "react";
+import React, { useState } from "react";
 import { Badge, Button, Card, EmptyState } from "@/components/ui/Primitives";
 import { formatAccountTypeEs, formatApStatusEs } from "@/lib/labels-es";
 import { formatPen } from "../types";
+import {
+  type ActiveReportConcept,
+  ConceptCardButton,
+  ReportConceptModal,
+} from "./ReportConceptModal";
 import { type ReportCajaCxpDto, formatMaturityBucketEs } from "./reportes-types";
 
 interface ReportesCajaCxpTabProps {
@@ -15,6 +20,7 @@ export default function ReportesCajaCxpTab({
   data,
   onOpenCaja,
 }: ReportesCajaCxpTabProps) {
+  const [activeConcept, setActiveConcept] = useState<ActiveReportConcept | null>(null);
   const {
     liquiditySummary,
     cashAccounts,
@@ -37,7 +43,15 @@ export default function ReportesCajaCxpTab({
         aria-label="Liquidez y cobertura de CxP"
         className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4"
       >
-        <Card padding="md" className="space-y-1.5">
+        <ConceptCardButton
+          onClick={() =>
+            setActiveConcept({
+              id: "saldo_cuentas_liquidas",
+              currentValue: formatPen(liquiditySummary.liquidCashPen),
+              currentSubtext: "Bancos, cajas y billeteras digitales",
+            })
+          }
+        >
           <span className="text-xs font-medium text-bht-ink-soft">
             Saldo registrado en cuentas líquidas
           </span>
@@ -47,9 +61,17 @@ export default function ReportesCajaCxpTab({
           <span className="block text-xs text-bht-ink-soft">
             Bancos, cajas y billeteras digitales
           </span>
-        </Card>
+        </ConceptCardButton>
 
-        <Card padding="md" className="space-y-1.5">
+        <ConceptCardButton
+          onClick={() =>
+            setActiveConcept({
+              id: "custodia_socios",
+              currentValue: formatPen(liquiditySummary.partnerCustodyPen),
+              currentSubtext: `Saldo total cuentas: ${formatPen(liquiditySummary.totalCashPen)}`,
+            })
+          }
+        >
           <span className="text-xs font-medium text-bht-ink-soft">
             Custodia de Socios (por rendir)
           </span>
@@ -59,9 +81,17 @@ export default function ReportesCajaCxpTab({
           <span className="block text-xs text-bht-ink-soft tabular-nums">
             Saldo total cuentas: {formatPen(liquiditySummary.totalCashPen)}
           </span>
-        </Card>
+        </ConceptCardButton>
 
-        <Card padding="md" className="space-y-1.5">
+        <ConceptCardButton
+          onClick={() =>
+            setActiveConcept({
+              id: "total_cxp_abiertas",
+              currentValue: formatPen(liquiditySummary.totalOpenApPen),
+              currentSubtext: `Vencidas + ≤30d: ${formatPen(liquiditySummary.dueWithin30dPen)}`,
+            })
+          }
+        >
           <span className="text-xs font-medium text-bht-ink-soft">
             Total CxP Abiertas
           </span>
@@ -71,12 +101,20 @@ export default function ReportesCajaCxpTab({
           <span className="block text-xs text-bht-ink-soft tabular-nums">
             Vencidas + ≤30d: {formatPen(liquiditySummary.dueWithin30dPen)}
           </span>
-        </Card>
+        </ConceptCardButton>
 
-        <Card
+        <ConceptCardButton
           tone={liquiditySummary.netLiquidityAfter30dApPen >= 0 ? "success" : "danger"}
-          padding="md"
-          className="space-y-1.5"
+          onClick={() =>
+            setActiveConcept({
+              id: "cobertura_cxp_30d",
+              currentValue: formatPen(liquiditySummary.netLiquidityAfter30dApPen),
+              currentSubtext:
+                liquiditySummary.netLiquidityAfter30dApPen >= 0
+                  ? "El saldo registrado cubre CxP ≤30d"
+                  : "El saldo registrado no cubre CxP ≤30d",
+            })
+          }
         >
           <span className="text-xs font-medium text-bht-ink-soft">
             Cobertura registrada tras CxP ≤30d
@@ -99,7 +137,7 @@ export default function ReportesCajaCxpTab({
               ? "El saldo registrado cubre CxP ≤30d"
               : "El saldo registrado no cubre CxP ≤30d"}
           </Badge>
-        </Card>
+        </ConceptCardButton>
       </section>
 
       {/* AP Maturity Horizon 7 / 15 / 30d */}
@@ -309,6 +347,11 @@ export default function ReportesCajaCxpTab({
           )}
         </Card>
       </div>
+
+      <ReportConceptModal
+        concept={activeConcept}
+        onClose={() => setActiveConcept(null)}
+      />
     </div>
   );
 }

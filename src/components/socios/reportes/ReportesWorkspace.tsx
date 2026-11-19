@@ -238,14 +238,25 @@ export default function ReportesWorkspace({
                     className="h-3.5 w-3.5 transition group-open:rotate-90"
                   />
                 </summary>
-                <dl className="mt-2 grid gap-x-5 gap-y-2 rounded-xl bg-bht-surface-cool p-3 sm:grid-cols-2 xl:grid-cols-4">
-                  {activeTabMeta.concepts.map((concept) => (
-                    <div key={concept.term} className="min-w-0 text-xs leading-relaxed">
-                      <dt className="font-bold text-bht-ink-strong">{concept.term}</dt>
-                      <dd className="text-bht-ink-soft">{concept.meaning}</dd>
-                    </div>
-                  ))}
-                </dl>
+                <div className="mt-2 space-y-2 rounded-xl bg-bht-surface-cool p-3">
+                  <dl className="grid gap-x-5 gap-y-2 sm:grid-cols-2 xl:grid-cols-4">
+                    {activeTabMeta.concepts.map((concept) => (
+                      <div
+                        key={concept.term}
+                        className="min-w-0 text-xs leading-relaxed"
+                      >
+                        <dt className="font-bold text-bht-ink-strong">
+                          {concept.term}
+                        </dt>
+                        <dd className="text-bht-ink-soft">{concept.meaning}</dd>
+                      </div>
+                    ))}
+                  </dl>
+                  <p className="border-t border-bht-line pt-2 text-xs text-bht-navy-deep">
+                    Consejo: toca cualquier tarjeta de indicador para abrir su
+                    explicación práctica y fórmula.
+                  </p>
+                </div>
               </details>
             )}
           </div>

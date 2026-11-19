@@ -1,8 +1,13 @@
 "use client";
 
-import React from "react";
+import React, { useState } from "react";
 import { Badge, Card, EmptyState } from "@/components/ui/Primitives";
 import { formatMonthLabel, formatPen } from "../types";
+import {
+  type ActiveReportConcept,
+  ConceptCardButton,
+  ReportConceptModal,
+} from "./ReportConceptModal";
 import { type ReportResumenDto, formatPct } from "./reportes-types";
 
 interface ReportesResumenTabProps {
@@ -14,6 +19,7 @@ export default function ReportesResumenTab({
   data,
   hasScopeFilter,
 }: ReportesResumenTabProps) {
+  const [activeConcept, setActiveConcept] = useState<ActiveReportConcept | null>(null);
   const { totals, pnlMonthly, momComparison, openDebtorsCount } = data;
   const maxBar = Math.max(
     1,
@@ -63,7 +69,15 @@ export default function ReportesResumenTab({
         </div>
 
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <Card padding="md" className="space-y-1.5">
+          <ConceptCardButton
+            onClick={() =>
+              setActiveConcept({
+                id: "ventas_totales",
+                currentValue: formatPen(totals.salesTotalPen),
+                currentSubtext: `${totals.orderCount} pedido(s) · Cobertura de costo: ${formatPct(totals.costCoveragePct)}`,
+              })
+            }
+          >
             <span className="text-xs font-medium text-bht-ink-soft">
               Ventas Totales ({totals.orderCount} ped.)
             </span>
@@ -73,9 +87,17 @@ export default function ReportesResumenTab({
             <span className="inline-flex items-center rounded-lg border border-bht-line-blue bg-bht-mist px-2 py-0.5 text-xs font-semibold text-bht-navy-deep tabular-nums">
               Cobertura de costo: {formatPct(totals.costCoveragePct)}
             </span>
-          </Card>
+          </ConceptCardButton>
 
-          <Card padding="md" className="space-y-1.5">
+          <ConceptCardButton
+            onClick={() =>
+              setActiveConcept({
+                id: "margen_bruto_con_costo",
+                currentValue: formatPen(totals.grossMarginPen),
+                currentSubtext: `${formatPct(totals.grossMarginPct)} margen · COGS: ${formatPen(totals.cogsPen)}`,
+              })
+            }
+          >
             <span className="text-xs font-medium text-bht-ink-soft">
               Margen bruto sobre ventas con costo
             </span>
@@ -86,9 +108,17 @@ export default function ReportesResumenTab({
               <Badge tone="success">{formatPct(totals.grossMarginPct)} margen</Badge>
               <span>COGS: {formatPen(totals.cogsPen)}</span>
             </div>
-          </Card>
+          </ConceptCardButton>
 
-          <Card padding="md" className="space-y-1.5">
+          <ConceptCardButton
+            onClick={() =>
+              setActiveConcept({
+                id: "gastos_operativos_ruta",
+                currentValue: formatPen(totals.routeOpexPen),
+                currentSubtext: `${formatPct(totals.routeOpexPct)} sobre ventas (Meta ≤ 8%)`,
+              })
+            }
+          >
             <span className="text-xs font-medium text-bht-ink-soft">
               Gastos Operativos de Ruta (OpEx)
             </span>
@@ -104,9 +134,17 @@ export default function ReportesResumenTab({
             >
               {formatPct(totals.routeOpexPct)} sobre ventas (Meta &le; 8%)
             </Badge>
-          </Card>
+          </ConceptCardButton>
 
-          <Card padding="md" className="space-y-1.5">
+          <ConceptCardButton
+            onClick={() =>
+              setActiveConcept({
+                id: "contribucion_ruta",
+                currentValue: formatPen(totals.operatingEbitdaPen),
+                currentSubtext: `${formatPct(totals.operatingEbitdaPct)} sobre venta con costo`,
+              })
+            }
+          >
             <span className="text-xs font-medium text-bht-ink-soft">
               Contribución después de gastos de ruta
             </span>
@@ -131,7 +169,7 @@ export default function ReportesResumenTab({
             >
               {formatPct(totals.operatingEbitdaPct)} sobre venta con costo
             </Badge>
-          </Card>
+          </ConceptCardButton>
         </div>
       </section>
 
@@ -151,48 +189,64 @@ export default function ReportesResumenTab({
         </div>
 
         <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-6">
-          {[
-            {
-              title: "Pagado en pedidos",
-              value: formatPen(totals.cashCollectedPen),
-              sub: `Por cobrar: ${formatPen(totals.arPendingPen)} (${openDebtorsCount} pendientes)`,
-              cls: "text-bht-success",
-            },
-            {
-              title: "Compra Mercadería",
-              value: formatPen(totals.merchandiseOutflowPen),
-              sub: "Pagos a proveedores e inventario",
-              cls: "text-bht-navy-mid",
-            },
-            {
-              title: "Retiros / No OpEx",
-              value: formatPen(totals.nonOpexCapexDrainPen),
-              sub: "Retiros socios y egresos ajenos",
-              cls: "text-bht-danger",
-            },
-            {
-              title: "Movimiento neto estimado",
-              value: formatPen(totals.netCashFlowPen),
-              sub: "Cobros − Merc. − Ruta − Retiros",
-              cls:
-                totals.netCashFlowPen >= 0 ? "text-bht-navy-deep" : "text-bht-danger",
-            },
-            {
-              title: "Depósitos Internos",
-              value: formatPen(totals.internalDepositsPen),
-              sub: "Traslados entre cajas/bancos",
-              cls: "text-bht-ink-strong",
-            },
-            {
-              title: "Pre-Ruta (Jun 23–25)",
-              value: formatPen(totals.preRouteFoundationalOutflowPen),
-              sub: "Inversión fundacional inicial",
-              cls: "text-bht-tone-4338ca",
-            },
-          ].map((item) => (
-            <div
+          {(
+            [
+              {
+                conceptId: "pagado_en_pedidos",
+                title: "Pagado en pedidos",
+                value: formatPen(totals.cashCollectedPen),
+                sub: `Por cobrar: ${formatPen(totals.arPendingPen)} (${openDebtorsCount} pendientes)`,
+                cls: "text-bht-success",
+              },
+              {
+                conceptId: "compra_mercaderia",
+                title: "Compra Mercadería",
+                value: formatPen(totals.merchandiseOutflowPen),
+                sub: "Pagos a proveedores e inventario",
+                cls: "text-bht-navy-mid",
+              },
+              {
+                conceptId: "retiros_no_opex",
+                title: "Retiros / No OpEx",
+                value: formatPen(totals.nonOpexCapexDrainPen),
+                sub: "Retiros socios y egresos ajenos",
+                cls: "text-bht-danger",
+              },
+              {
+                conceptId: "movimiento_neto_estimado",
+                title: "Movimiento neto estimado",
+                value: formatPen(totals.netCashFlowPen),
+                sub: "Cobros − Merc. − Ruta − Retiros",
+                cls:
+                  totals.netCashFlowPen >= 0 ? "text-bht-navy-deep" : "text-bht-danger",
+              },
+              {
+                conceptId: "depositos_internos",
+                title: "Depósitos Internos",
+                value: formatPen(totals.internalDepositsPen),
+                sub: "Traslados entre cajas/bancos",
+                cls: "text-bht-ink-strong",
+              },
+              {
+                conceptId: "pre_ruta",
+                title: "Pre-Ruta (Jun 23–25)",
+                value: formatPen(totals.preRouteFoundationalOutflowPen),
+                sub: "Inversión fundacional inicial",
+                cls: "text-bht-tone-4338ca",
+              },
+            ] as const
+          ).map((item) => (
+            <ConceptCardButton
               key={item.title}
-              className="rounded-2xl border border-bht-line bg-white p-3 text-xs space-y-1"
+              padding="sm"
+              className="text-xs"
+              onClick={() =>
+                setActiveConcept({
+                  id: item.conceptId,
+                  currentValue: item.value,
+                  currentSubtext: item.sub,
+                })
+              }
             >
               <span className="block font-medium text-bht-ink-soft">{item.title}</span>
               <p className={`text-base font-semibold tabular-nums ${item.cls}`}>
@@ -201,7 +255,7 @@ export default function ReportesResumenTab({
               <span className="block text-xs text-bht-ink-muted tabular-nums">
                 {item.sub}
               </span>
-            </div>
+            </ConceptCardButton>
           ))}
         </div>
       </section>
@@ -437,6 +491,11 @@ export default function ReportesResumenTab({
           </>
         )}
       </Card>
+
+      <ReportConceptModal
+        concept={activeConcept}
+        onClose={() => setActiveConcept(null)}
+      />
     </div>
   );
 }
