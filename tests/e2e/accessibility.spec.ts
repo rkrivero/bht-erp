@@ -131,11 +131,12 @@ test("partner today view keeps the priority queue visible and accessible", async
         fullName: "Socio de prueba",
         role: "PARTNER_MANAGER",
       },
+      kpiQ1: {},
       pendingOnDemand: [],
       negativeStockSkuCount: 0,
     },
     treasury: { accounts: [], ledger: [], apObligations: [] },
-    purchases: { suppliers: [], recentPurchases: [] },
+    purchases: { suppliers: [], recentPurchases: [], pendingOnDemand: [] },
     trips: { trips: [] },
     quotes: { quotes: [] },
   };
@@ -277,6 +278,11 @@ test("partner reports expose the data cut and cautious financial language", asyn
             routeOpexPct: null,
             operatingEbitdaPen: 0,
             operatingEbitdaPct: null,
+            adminOpexPen: 0,
+            totalOpexPen: 0,
+            operatingResultPen: 0,
+            operatingResultPct: null,
+            ownerSalaryRecordedPen: 0,
             cashCollectedPen: 0,
             arPendingPen: 0,
             merchandiseOutflowPen: 0,
@@ -317,6 +323,8 @@ test("partner reports expose the data cut and cautious financial language", asyn
               coveragePct: null,
               baselineMode: "NO_APP_ORDERS",
               incompleteOrders: [],
+              correctionRatePct: 0,
+              weeklyCohorts: [],
             },
             erpAppOrdersCount: 0,
             totalOrdersCount: 152,
@@ -338,6 +346,7 @@ test("partner reports expose the data cut and cautious financial language", asyn
             negativeStockSkuCount: 0,
             openBankAuditFlagsCount: 1,
             apNoDueDateCount: 1,
+            latestDailyClosure: null,
             startupChecklist: [
               {
                 code: "ERP_OPERATIONS_STARTED",
@@ -441,6 +450,159 @@ test("partner reports expose the data cut and cautious financial language", asyn
       ["critical", "serious"].includes(violation.impact || "")
     )
   ).toEqual([]);
+});
+
+test("daily close correction stays usable on mobile and desktop", async ({
+  page,
+}, testInfo) => {
+  await page.addInitScript(() => {
+    Object.defineProperty(window, "EventSource", {
+      configurable: true,
+      value: undefined,
+    });
+  });
+  const fixtures: Record<string, unknown> = {
+    orders: { orders: [], catalog: [], accounts: [], pagination: { totalCount: 0 } },
+    collections: { byOrder: [], byCustomer: [] },
+    partners: {
+      currentUser: {
+        userId: 1,
+        username: "partner-e2e",
+        fullName: "Socio de prueba",
+        role: "PARTNER_MANAGER",
+      },
+      kpiQ1: {},
+      pendingOnDemand: [],
+      negativeStockSkuCount: 0,
+    },
+    treasury: { accounts: [], ledger: [], apObligations: [] },
+    purchases: { suppliers: [], recentPurchases: [], pendingOnDemand: [] },
+    trips: { trips: [] },
+    quotes: { quotes: [] },
+  };
+  for (const [endpoint, body] of Object.entries(fixtures)) {
+    await page.route(`**/api/${endpoint}**`, async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(body),
+      });
+    });
+  }
+  await page.route("**/api/sync**", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        version: "e2e-static",
+        changedScopes: [],
+        allowedScopes: ["orders", "treasury", "partners"],
+      }),
+    });
+  });
+  const closure = {
+    closureId: 10,
+    closureDate: "2026-11-18",
+    status: "CLOSED",
+    closedByName: "Socio de prueba",
+    salesCount: 1,
+    salesTotalPen: 100,
+    collectionsTotalPen: 100,
+    expensesTotalPen: 10,
+    depositsTotalPen: 0,
+    expectedCashTotalPen: 100,
+    countedCashTotalPen: 105,
+    varianceTotalPen: 5,
+    pendingDeliveriesCount: 0,
+    pendingCollectionsCount: 0,
+    pendingAp7dCount: 0,
+    incompleteOrders24h: 0,
+    nextDayNotes: null,
+    notes: null,
+    updatedAt: "2026-11-18T23:00:00Z",
+  };
+  const account = {
+    accountId: 1,
+    code: "CAJA_RUTA",
+    name: "Caja de Ruta",
+    accountType: "CASH",
+    systemBalancePen: 100,
+    dayInPen: 100,
+    dayOutPen: 0,
+    countedBalancePen: 105,
+    variancePen: 5,
+    isReconciled: true,
+    notes: null,
+    lastReconciledAt: "2026-11-18T23:00:00Z",
+    lastReconciledBalancePen: 105,
+  };
+  await page.route("**/api/daily-closures**", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        closureDate: "2026-11-18",
+        isClosed: true,
+        hasAppliedAdjustments: true,
+        existingClosure: closure,
+        daySummary: {
+          salesCount: 1,
+          salesTotalPen: 100,
+          collectionsTotalPen: 100,
+          expensesTotalPen: 10,
+          depositsTotalPen: 0,
+          expectedCashTotalPen: 100,
+        },
+        accounts: [account],
+        pendingItems: {
+          deliveriesCount: 0,
+          deliveries: [],
+          collectionsCount: 0,
+          collectionsTotalPen: 0,
+          collections: [],
+          ap7dCount: 0,
+          ap7dTotalPen: 0,
+          ap7d: [],
+          incompleteOrders24h: 0,
+        },
+        recentClosures: [closure],
+        corrections: [
+          {
+            auditId: 1,
+            actorName: "Socio de prueba",
+            actorRole: "PARTNER_MANAGER",
+            reason: "Conteo físico verificado",
+            createdAt: "2026-11-18T23:00:00Z",
+            beforeData: {
+              closure: { ...closure, countedCashTotalPen: 100, varianceTotalPen: 0 },
+              accounts: [{ ...account, countedBalancePen: 100, variancePen: 0 }],
+            },
+            afterData: { closure, accounts: [account] },
+          },
+        ],
+      }),
+    });
+  });
+
+  await page.goto("/socios?tab=finance&view=operations");
+  await page.getByRole("radio", { name: "Cierre diario" }).click();
+  await expect(
+    page.getByRole("heading", { name: "Cierre diario de 10 minutos" })
+  ).toBeVisible();
+  await expect(page.getByLabel("Motivo de la corrección (obligatorio)")).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Historial de correcciones" })
+  ).toBeVisible();
+  await expect(page.getByText("Conteo físico verificado")).toBeVisible();
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth > document.documentElement.clientWidth
+    )
+  ).toBe(false);
+  await page.screenshot({
+    path: `/tmp/bht-cierre-${testInfo.project.name}.png`,
+    fullPage: true,
+  });
 });
 
 test("partner manager hides user administration nav and restricts access route", async ({

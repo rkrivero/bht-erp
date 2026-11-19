@@ -33,6 +33,7 @@ import {
   resolvePartnerNavigation,
 } from "@/lib/navigation";
 import { deleteOfflineSnapshotsForActor } from "@/lib/offline/outbox";
+import type { CajaSubTab } from "@/components/socios/caja/caja-utils";
 import type { CustomerDirectoryItem } from "@/lib/services/customers";
 import { Cobranza, CobranzaModals } from "./Cobranza";
 import { Accesos } from "./Accesos";
@@ -61,6 +62,7 @@ export default function PartnerWorkspace() {
   const [globalSearch, setGlobalSearch] = useState("");
   const [preselectedPurchaseTarget, setPreselectedPurchaseTarget] =
     useState<PurchaseTarget | null>(null);
+  const [initialCajaSubTab, setInitialCajaSubTab] = useState<CajaSubTab | null>(null);
 
   const data = usePartnerData();
   const {
@@ -182,6 +184,12 @@ export default function PartnerWorkspace() {
     },
     [handleTabChange]
   );
+
+  const handleGoToDailyClose = useCallback(() => {
+    setSubTabEditing(false);
+    setInitialCajaSubTab("cierre");
+    handleTabChange("caja");
+  }, [handleTabChange]);
 
   const handleGoToEditProduct = useCallback(
     (sku: string) => {
@@ -493,6 +501,7 @@ export default function PartnerWorkspace() {
             openAbonoForOrderRecord={collectionsFlow.openAbonoForOrderRecord}
             handleTabChange={handleTabChange}
             handleGoToPurchaseProduct={handleGoToPurchaseProduct}
+            onOpenDailyClose={handleGoToDailyClose}
           />
         )}
 
@@ -539,6 +548,8 @@ export default function PartnerWorkspace() {
             data={data}
             preselectedPurchaseTarget={preselectedPurchaseTarget}
             setPreselectedPurchaseTarget={setPreselectedPurchaseTarget}
+            initialCajaSubTab={initialCajaSubTab}
+            onClearInitialCajaSubTab={() => setInitialCajaSubTab(null)}
             handleTabChange={handleTabChange}
             handleGoToPurchaseProduct={handleGoToPurchaseProduct}
             handleGoToEditProduct={handleGoToEditProduct}

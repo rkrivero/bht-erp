@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import dynamic from "next/dynamic";
 import { Card, SegmentedControl } from "@/components/ui/Primitives";
 import type { RouteTripDto } from "@/lib/contracts";
 import {
@@ -20,6 +21,14 @@ import { CajaCuentasTab } from "./CajaCuentasTab";
 import { CajaGastosTab } from "./CajaGastosTab";
 import { isExpenseLedgerEntry, type CajaSubTab } from "./caja-utils";
 
+const CajaCierreTab = dynamic(() => import("./CajaCierreTab"), {
+  loading: () => (
+    <Card className="p-6 text-center text-sm text-bht-ink-soft" role="status">
+      Preparando cierre diario…
+    </Card>
+  ),
+});
+
 interface CajaWorkspaceProps {
   catalog: PartnerCatalogItem[];
   accounts: CashAccountItem[];
@@ -36,6 +45,8 @@ interface CajaWorkspaceProps {
     orderLineId?: number;
   } | null;
   onClearPreselectedTarget: () => void;
+  initialSubTab?: CajaSubTab | null;
+  onClearInitialSubTab?: () => void;
   onOpenDirectory: () => void;
   onRefresh: () => Promise<void>;
   onFeedback: (msg: string, isError?: boolean) => void;
@@ -54,6 +65,8 @@ export default function CajaWorkspace({
   dataCut = null,
   preselectedTarget,
   onClearPreselectedTarget,
+  initialSubTab = null,
+  onClearInitialSubTab,
   onOpenDirectory,
   onRefresh,
   onFeedback,
@@ -66,6 +79,13 @@ export default function CajaWorkspace({
       setSubTab("compras");
     }
   }, [preselectedTarget]);
+
+  useEffect(() => {
+    if (initialSubTab) {
+      setSubTab(initialSubTab);
+      onClearInitialSubTab?.();
+    }
+  }, [initialSubTab, onClearInitialSubTab]);
 
   const defaultAccountId = useMemo(() => {
     if (accounts.length === 0) return "";
@@ -138,6 +158,7 @@ export default function CajaWorkspace({
             onChange={setSubTab}
             options={[
               { id: "cuentas", label: "Cuentas", count: accounts.length },
+              { id: "cierre", label: "Cierre diario" },
               { id: "compras", label: "Compras", count: openDocs.length },
               { id: "gastos", label: "Gastos", count: expenseCount },
             ]}
@@ -150,6 +171,14 @@ export default function CajaWorkspace({
           accounts={accounts}
           ledger={ledger}
           defaultAccountId={defaultAccountId}
+          onRefresh={onRefresh}
+          onFeedback={onFeedback}
+          onEditingChange={onEditingChange}
+        />
+      )}
+
+      {subTab === "cierre" && (
+        <CajaCierreTab
           onRefresh={onRefresh}
           onFeedback={onFeedback}
           onEditingChange={onEditingChange}

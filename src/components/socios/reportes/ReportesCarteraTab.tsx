@@ -81,9 +81,9 @@ export default function ReportesCarteraTab({
         <ConceptCardButton
           onClick={() =>
             setActiveConcept({
-              id: "saldo_mayor_30d",
-              currentValue: formatPen(summary.overdueGt30Pen),
-              currentSubtext: `Tramo crítico > 60d: ${formatPen(summary.overdueGt60Pen)}`,
+              id: "dias_vencidos_due_date",
+              currentValue: formatPen(summary.pastDueExplicitPen),
+              currentSubtext: `> 30d antigüedad: ${formatPen(summary.overdueGt30Pen)} · Sin fecha límite: ${formatPen(summary.noDueDatePen)}`,
             })
           }
         >
@@ -94,7 +94,8 @@ export default function ReportesCarteraTab({
             {formatPen(summary.overdueGt30Pen)}
           </p>
           <span className="block text-xs text-bht-ink-soft tabular-nums">
-            Tramo crítico &gt; 60d: {formatPen(summary.overdueGt60Pen)}
+            Vencido por fecha límite: {formatPen(summary.pastDueExplicitPen)} · Sin
+            fecha: {formatPen(summary.noDueDatePen)}
           </span>
         </ConceptCardButton>
 
@@ -128,7 +129,9 @@ export default function ReportesCarteraTab({
               Antigüedad de Cartera por Tramos (0–15 / 16–30 / 31–60 / &gt;60 días)
             </h3>
             <p className="mt-0.5 text-xs text-bht-ink-soft">
-              Distribución del saldo por cobrar según días transcurridos desde la venta.
+              Antigüedad desde la fecha del pedido (media{" "}
+              {summary.avgInvoiceAgeDays.toFixed(1)} d); abajo en la Hoja de Cobranza se
+              separa vencimiento real (fecha límite) vs. antigüedad del pedido.
             </p>
           </div>
           <Button type="button" variant="outline" size="sm" onClick={onOpenCollections}>
@@ -324,10 +327,10 @@ export default function ReportesCarteraTab({
                     Pedido / Fecha
                   </th>
                   <th scope="col" className="p-2">
-                    Condición / Promesa
+                    Condición / Límite / Promesa
                   </th>
                   <th scope="col" className="p-2 text-right">
-                    Días
+                    Vencimiento / Antigüedad
                   </th>
                   <th scope="col" className="p-2 text-right">
                     Saldo Pend.
@@ -335,51 +338,71 @@ export default function ReportesCarteraTab({
                 </tr>
               </thead>
               <tbody className="divide-y divide-bht-line">
-                {collectionSheet.map((row) => (
-                  <tr key={row.order_id} className="hover:bg-bht-paper">
-                    <td className="p-2 font-medium text-bht-ink-strong">
-                      {row.effective_zone}
-                    </td>
-                    <td className="p-2">
-                      <p className="font-semibold text-bht-ink-strong">
-                        {row.customer_name}
-                      </p>
-                      <span className="text-bht-ink-soft">
-                        {row.customer_phone || "Sin teléfono"}
-                      </span>
-                    </td>
-                    <td className="whitespace-nowrap p-2 tabular-nums">
-                      <p className="font-medium text-bht-navy-deep">{row.order_code}</p>
-                      <span className="text-bht-ink-soft">{row.order_date}</span>
-                    </td>
-                    <td className="p-2">
-                      <span className="block text-bht-ink-strong">
-                        {formatPaymentModeEs(row.payment_mode)}
-                      </span>
-                      <span className="text-bht-ink-soft tabular-nums">
-                        {row.promised_payment_date
-                          ? `${row.promised_payment_date} (${formatPromiseStatusEs(row.promise_status)})`
-                          : "Sin fecha pactada"}
-                      </span>
-                    </td>
-                    <td className="whitespace-nowrap p-2 text-right tabular-nums">
-                      <Badge
-                        tone={
-                          row.days_overdue > 60
+                {collectionSheet.map((row) => {
+                  const dueTone =
+                    row.due_status === "OVERDUE"
+                      ? "danger"
+                      : row.due_status === "DUE_SOON"
+                        ? "warning"
+                        : row.due_status === "CURRENT"
+                          ? "success"
+                          : row.invoice_age_days > 60
                             ? "danger"
-                            : row.days_overdue > 30
+                            : row.invoice_age_days > 30
                               ? "warning"
-                              : "neutral"
-                        }
-                      >
-                        {row.days_overdue} d
-                      </Badge>
-                    </td>
-                    <td className="whitespace-nowrap p-2 text-right font-semibold text-bht-danger tabular-nums">
-                      {formatPen(row.balance_due_pen)}
-                    </td>
-                  </tr>
-                ))}
+                              : "neutral";
+                  const dueLabel =
+                    row.due_status === "OVERDUE"
+                      ? `Vencido ${row.days_past_due ?? row.days_overdue} d`
+                      : row.due_status === "DUE_SOON"
+                        ? "Vence pronto"
+                        : row.due_status === "CURRENT"
+                          ? "Al día"
+                          : `Antig. ${row.invoice_age_days} d`;
+                  return (
+                    <tr key={row.order_id} className="hover:bg-bht-paper">
+                      <td className="p-2 font-medium text-bht-ink-strong">
+                        {row.effective_zone}
+                      </td>
+                      <td className="p-2">
+                        <p className="font-semibold text-bht-ink-strong">
+                          {row.customer_name}
+                        </p>
+                        <span className="text-bht-ink-soft">
+                          {row.customer_phone || "Sin teléfono"}
+                        </span>
+                      </td>
+                      <td className="whitespace-nowrap p-2 tabular-nums">
+                        <p className="font-medium text-bht-navy-deep">
+                          {row.order_code}
+                        </p>
+                        <span className="text-bht-ink-soft">{row.order_date}</span>
+                      </td>
+                      <td className="p-2">
+                        <span className="block text-bht-ink-strong">
+                          {formatPaymentModeEs(row.payment_mode)}
+                        </span>
+                        <span className="block text-xs text-bht-ink-soft tabular-nums">
+                          {row.due_date ? `Vence: ${row.due_date}` : "Sin fecha límite"}
+                        </span>
+                        <span className="block text-xs text-bht-ink-soft tabular-nums">
+                          {row.promised_payment_date
+                            ? `Promesa: ${row.promised_payment_date} (${formatPromiseStatusEs(row.promise_status)})`
+                            : "Sin fecha pactada"}
+                        </span>
+                      </td>
+                      <td className="whitespace-nowrap p-2 text-right tabular-nums">
+                        <Badge tone={dueTone}>{dueLabel}</Badge>
+                        <span className="mt-1 block text-xs text-bht-ink-muted">
+                          Pedido hace {row.invoice_age_days} d
+                        </span>
+                      </td>
+                      <td className="whitespace-nowrap p-2 text-right font-semibold text-bht-danger tabular-nums">
+                        {formatPen(row.balance_due_pen)}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

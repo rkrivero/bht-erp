@@ -50,6 +50,10 @@ export interface RawProductRow {
   list_sale_price_pen: number | null;
   min_sale_price_pen: number | null;
   ref_cost_pen: number | null;
+  cost_updated_at?: string | null;
+  default_supplier_party_id?: number | null;
+  lead_time_days?: number | null;
+  min_stock_qty?: number | null;
 }
 
 export interface RawOrderLineRow {

@@ -31,6 +31,9 @@ export interface CustomerDirectoryItem {
   geo_lng: number | null;
   geo_accuracy_m: number | null;
   geo_updated_at: string | null;
+  credit_days_agreed: number | null;
+  credit_limit_pen: number | null;
+  last_contact_date: string | null;
   orders_count: number;
   open_balance_pen: number;
   last_order_date: string | null;
@@ -90,6 +93,9 @@ export interface CreateCustomerInput {
   geoLat?: number | null;
   geoLng?: number | null;
   geoAccuracyM?: number | null;
+  creditDaysAgreed?: number | null;
+  creditLimitPen?: number | null;
+  lastContactDate?: string | null;
 }
 
 export interface UpdateCustomerInput {
@@ -106,6 +112,9 @@ export interface UpdateCustomerInput {
   geoLat?: number | null;
   geoLng?: number | null;
   geoAccuracyM?: number | null;
+  creditDaysAgreed?: number | null;
+  creditLimitPen?: number | null;
+  lastContactDate?: string | null;
 }
 
 export interface ListSuppliersInput {
@@ -147,6 +156,47 @@ function normalizeOptionalText(raw: string | null | undefined): string | null {
 function normalizeOptionalEmail(raw: string | null | undefined): string | null {
   const cleaned = normalizeOptionalText(raw);
   return cleaned ? cleaned.toLowerCase() : null;
+}
+
+function validateCreditDays(raw: number | null | undefined): number | null {
+  if (raw === null || raw === undefined) return null;
+  const val = Number(raw);
+  if (!Number.isInteger(val) || val < 0 || val > 365) {
+    throw new ValidationError(
+      "Los días de crédito acordados deben estar entre 0 y 365"
+    );
+  }
+  return val;
+}
+
+function validateCreditLimit(raw: number | null | undefined): number | null {
+  if (raw === null || raw === undefined) return null;
+  const val = Number(raw);
+  if (!Number.isFinite(val) || val < 0) {
+    throw new ValidationError("El límite de crédito no puede ser negativo");
+  }
+  return Number(val.toFixed(2));
+}
+
+function validateOptionalIsoDate(
+  raw: string | null | undefined,
+  label: string
+): string | null {
+  const cleaned = normalizeOptionalText(raw);
+  if (!cleaned) return null;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(cleaned)) {
+    throw new ValidationError(`${label} debe tener formato YYYY-MM-DD`);
+  }
+  const [y, m, d] = cleaned.split("-").map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  if (
+    dt.getUTCFullYear() !== y ||
+    dt.getUTCMonth() !== m - 1 ||
+    dt.getUTCDate() !== d
+  ) {
+    throw new ValidationError(`${label} inválida`);
+  }
+  return cleaned;
 }
 
 function validateAndNormalizeGeo(
@@ -256,6 +306,15 @@ function mapCustomerRow(row: Record<string, unknown>): CustomerDirectoryItem {
         ? Number(row.geo_accuracy_m)
         : null,
     geo_updated_at: row.geo_updated_at ? String(row.geo_updated_at) : null,
+    credit_days_agreed:
+      row.credit_days_agreed !== null && row.credit_days_agreed !== undefined
+        ? Number(row.credit_days_agreed)
+        : null,
+    credit_limit_pen:
+      row.credit_limit_pen !== null && row.credit_limit_pen !== undefined
+        ? Number(row.credit_limit_pen)
+        : null,
+    last_contact_date: row.last_contact_date ? String(row.last_contact_date) : null,
     orders_count: Number(row.orders_count ?? 0),
     open_balance_pen: Number(row.open_balance_pen ?? 0),
     last_order_date: row.last_order_date ? String(row.last_order_date) : null,
@@ -309,6 +368,9 @@ async function fetchCustomerById(
        pa.geo_lng,
        pa.geo_accuracy_m,
        pa.geo_updated_at::text AS geo_updated_at,
+       pa.credit_days_agreed,
+       pa.credit_limit_pen,
+       pa.last_contact_date::text AS last_contact_date,
        COALESCE(os.orders_count, 0) AS orders_count,
        COALESCE(os.open_balance_pen, 0) AS open_balance_pen,
        os.last_order_date,
@@ -456,6 +518,9 @@ export async function listCustomers(
        pa.geo_lng,
        pa.geo_accuracy_m,
        pa.geo_updated_at::text AS geo_updated_at,
+       pa.credit_days_agreed,
+       pa.credit_limit_pen,
+       pa.last_contact_date::text AS last_contact_date,
        COALESCE(os.orders_count, 0) AS orders_count,
        COALESCE(os.open_balance_pen, 0) AS open_balance_pen,
        os.last_order_date,
@@ -567,6 +632,21 @@ export async function createCustomer(
     input.geoAccuracyM
   );
   const cityZone = normalizeZone(input.cityZone);
+  if (
+    actor.role === "EXTERNAL_SELLER" &&
+    ((input.creditDaysAgreed !== undefined && input.creditDaysAgreed !== null) ||
+      (input.creditLimitPen !== undefined && input.creditLimitPen !== null))
+  ) {
+    throw new AuthorizationError(
+      "Solo un socio puede configurar días o límite de crédito"
+    );
+  }
+  const creditDaysAgreed = validateCreditDays(input.creditDaysAgreed);
+  const creditLimitPen = validateCreditLimit(input.creditLimitPen);
+  const lastContactDate = validateOptionalIsoDate(
+    input.lastContactDate,
+    "Fecha de último contacto"
+  );
 
   if (!isGenericDoc && docNumber) {
     const dupRes = await client.query(
@@ -612,11 +692,13 @@ export async function createCustomer(
          canonical_key, party_type, doc_type, doc_number, is_generic_doc,
          legal_name, trade_name, phone, email, address, city_zone, notes,
          geo_lat, geo_lng, geo_accuracy_m, geo_updated_at,
+         credit_days_agreed, credit_limit_pen, last_contact_date,
          is_active, source_origin
        ) VALUES (
          $1, 'CUSTOMER', $2::erp.doc_id_type, $3, $4,
          $5, $6, $7, $8, $9, $10, $11,
          $12, $13, $14, CASE WHEN $12::double precision IS NOT NULL THEN NOW() ELSE NULL END,
+         $15, $16, $17::date,
          TRUE, 'ERP_APP'
        )
        RETURNING party_id`,
@@ -635,6 +717,9 @@ export async function createCustomer(
         geoLat,
         geoLng,
         geoAccuracyM,
+        creditDaysAgreed,
+        creditLimitPen,
+        lastContactDate,
       ]
     );
 
@@ -697,6 +782,9 @@ export async function updateCustomer(
       input.address,
       input.cityZone,
       input.isActive,
+      input.creditDaysAgreed,
+      input.creditLimitPen,
+      input.lastContactDate,
     ].some((val) => val !== undefined);
     if (disallowedForWarehouse) {
       throw new AuthorizationError(
@@ -709,6 +797,11 @@ export async function updateCustomer(
     if (input.isActive !== undefined) {
       throw new AuthorizationError(
         "Solo un socio puede activar o desactivar un cliente"
+      );
+    }
+    if (input.creditDaysAgreed !== undefined || input.creditLimitPen !== undefined) {
+      throw new AuthorizationError(
+        "Solo un socio puede configurar días o límite de crédito"
       );
     }
   }
@@ -825,6 +918,18 @@ export async function updateCustomer(
     isPartner && input.isActive !== undefined
       ? Boolean(input.isActive)
       : existing.is_active;
+  const nextCreditDaysAgreed =
+    isPartner && input.creditDaysAgreed !== undefined
+      ? validateCreditDays(input.creditDaysAgreed)
+      : existing.credit_days_agreed;
+  const nextCreditLimitPen =
+    isPartner && input.creditLimitPen !== undefined
+      ? validateCreditLimit(input.creditLimitPen)
+      : existing.credit_limit_pen;
+  const nextLastContactDate =
+    input.lastContactDate !== undefined
+      ? validateOptionalIsoDate(input.lastContactDate, "Fecha de último contacto")
+      : existing.last_contact_date;
 
   try {
     await client.query(
@@ -848,8 +953,11 @@ export async function updateCustomer(
              WHEN $12::double precision IS NOT NULL THEN NOW()
              ELSE NULL
            END,
+           credit_days_agreed = $16,
+           credit_limit_pen = $17,
+           last_contact_date = $18::date,
            updated_at = NOW()
-       WHERE party_id = $16`,
+       WHERE party_id = $19`,
       [
         nextTradeName,
         nextLegalName,
@@ -866,6 +974,9 @@ export async function updateCustomer(
         resolvedGeo.geoLng,
         resolvedGeo.geoAccuracyM,
         geoTouched,
+        nextCreditDaysAgreed,
+        nextCreditLimitPen,
+        nextLastContactDate,
         partyId,
       ]
     );

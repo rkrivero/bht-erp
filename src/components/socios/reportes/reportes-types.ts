@@ -227,6 +227,12 @@ export interface ReportMonthlyPnlDto {
   internal_deposits_pen: number;
   pre_route_foundational_outflow_pen: number;
   net_cash_flow_pen: number;
+  admin_opex_pen: number;
+  total_opex_pen: number;
+  operating_result_pen: number;
+  operating_result_pct: number | null;
+  owner_salary_recorded_pen: number;
+  owner_capex_debt_outflow_pen: number;
 }
 
 export interface ReportResumenDto {
@@ -253,6 +259,12 @@ export interface ReportResumenDto {
     preRouteFoundationalOutflowPen: number;
     netCashFlowPen: number;
     nonOpexVsReinvestmentPct: number;
+    adminOpexPen: number;
+    totalOpexPen: number;
+    operatingResultPen: number;
+    operatingResultPct: number | null;
+    ownerSalaryRecordedPen: number;
+    ownerCapexDebtOutflowPen: number;
   };
   momComparison: {
     currentMonth: string;
@@ -351,6 +363,9 @@ export interface ReportCarteraDto {
     brokenPromisesPen: number;
     dsoDays: number | null;
     avgOpenAgeDays: number;
+    pastDueExplicitPen: number;
+    noDueDatePen: number;
+    avgInvoiceAgeDays: number;
     referenceSalesPen: number;
     referenceWindowDays: number;
   };
@@ -391,6 +406,9 @@ export interface ReportCarteraDto {
     paid_pen: number;
     balance_due_pen: number;
     days_overdue: number;
+    invoice_age_days: number;
+    days_past_due: number | null;
+    due_status: string;
     ar_bucket: ArAgingBucketId;
     promised_payment_date: string | null;
     promise_status: string;

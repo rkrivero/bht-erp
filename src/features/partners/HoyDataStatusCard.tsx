@@ -16,6 +16,7 @@ interface HoyDataStatusCardProps {
   operationalQuality: OperationalQualitySummary | null;
   fallbackPeriodEnd?: string | null;
   onOpenTab: (tab: PartnerTab) => void;
+  onOpenDailyClose?: () => void;
 }
 
 export function HoyDataStatusCard({
@@ -23,6 +24,7 @@ export function HoyDataStatusCard({
   operationalQuality,
   fallbackPeriodEnd,
   onOpenTab,
+  onOpenDailyClose,
 }: HoyDataStatusCardProps) {
   const router = useRouter();
   const effectiveCutDate = dataCut?.lastOrderDate ?? fallbackPeriodEnd ?? null;
@@ -34,6 +36,7 @@ export function HoyDataStatusCard({
   const isStale = dataCut?.isStale ?? false;
   const bankReconciled = dataCut?.bankReconciled ?? false;
   const coverage = operationalQuality?.registrationCoverage24h;
+  const latestClosure = operationalQuality?.latestDailyClosure ?? null;
   const checklist = operationalQuality?.startupChecklist ?? [];
   const doneCount = checklist.filter((item) => item.done).length;
 
@@ -79,6 +82,28 @@ export function HoyDataStatusCard({
                 ? "Cobertura 24 h: 0 ventas ERP aún"
                 : `Cobertura 24 h: ${coverage.numerator}/${coverage.denominator} (${coverage.coveragePct?.toFixed(1) ?? "0.0"}%)`}
             </Badge>
+          )}
+          {latestClosure && (
+            <Badge
+              tone={
+                Math.abs(latestClosure.varianceTotalPen) < 0.01 ? "success" : "warning"
+              }
+              className="tabular-nums"
+            >
+              {Math.abs(latestClosure.varianceTotalPen) < 0.01
+                ? `Últ. cierre: ${formatDatePe(latestClosure.closureDate)}`
+                : `Últ. cierre: ${formatDatePe(latestClosure.closureDate)} (dif. S/ ${latestClosure.varianceTotalPen.toFixed(2)})`}
+            </Badge>
+          )}
+          {onOpenDailyClose && (
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              onClick={onOpenDailyClose}
+            >
+              Cierre diario
+            </Button>
           )}
           <Button
             type="button"

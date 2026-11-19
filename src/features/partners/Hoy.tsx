@@ -31,6 +31,7 @@ interface HoyProps {
     quantity?: number;
     orderLineId?: number;
   }) => void;
+  onOpenDailyClose?: () => void;
 }
 
 export function Hoy({
@@ -39,6 +40,7 @@ export function Hoy({
   openAbonoForOrderRecord,
   handleTabChange,
   handleGoToPurchaseProduct,
+  onOpenDailyClose,
 }: HoyProps) {
   const router = useRouter();
   const {
@@ -241,6 +243,7 @@ export function Hoy({
         operationalQuality={operationalQuality}
         fallbackPeriodEnd={kpiQ1?.period_end}
         onOpenTab={handleTabChange}
+        onOpenDailyClose={onOpenDailyClose}
       />
 
       {/* Executive Business Summary (financial + operational metrics) */}

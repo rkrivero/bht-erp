@@ -111,6 +111,19 @@ export async function POST(req: NextRequest) {
           body.geoAccuracyM !== ""
             ? Number(body.geoAccuracyM)
             : null,
+        creditDaysAgreed:
+          body.creditDaysAgreed !== undefined &&
+          body.creditDaysAgreed !== null &&
+          body.creditDaysAgreed !== ""
+            ? Number(body.creditDaysAgreed)
+            : null,
+        creditLimitPen:
+          body.creditLimitPen !== undefined &&
+          body.creditLimitPen !== null &&
+          body.creditLimitPen !== ""
+            ? Number(body.creditLimitPen)
+            : null,
+        lastContactDate: body.lastContactDate as string | null | undefined,
       });
     });
 
@@ -176,6 +189,19 @@ export async function PATCH(req: NextRequest) {
             : body.geoAccuracyM === null || body.geoAccuracyM === ""
               ? null
               : Number(body.geoAccuracyM),
+        creditDaysAgreed:
+          body.creditDaysAgreed === undefined
+            ? undefined
+            : body.creditDaysAgreed === null || body.creditDaysAgreed === ""
+              ? null
+              : Number(body.creditDaysAgreed),
+        creditLimitPen:
+          body.creditLimitPen === undefined
+            ? undefined
+            : body.creditLimitPen === null || body.creditLimitPen === ""
+              ? null
+              : Number(body.creditLimitPen),
+        lastContactDate: body.lastContactDate as string | null | undefined,
       });
     });
 

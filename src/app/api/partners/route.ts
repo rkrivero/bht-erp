@@ -599,6 +599,25 @@ export async function POST(req: NextRequest) {
               ? Number(body.minSalePricePen)
               : undefined,
           fulfillmentMode: body.fulfillmentMode || undefined,
+          minStockQty:
+            body.minStockQty === undefined
+              ? undefined
+              : body.minStockQty === null || body.minStockQty === ""
+                ? null
+                : Number(body.minStockQty),
+          leadTimeDays:
+            body.leadTimeDays === undefined
+              ? undefined
+              : body.leadTimeDays === null || body.leadTimeDays === ""
+                ? null
+                : Number(body.leadTimeDays),
+          defaultSupplierPartyId:
+            body.defaultSupplierPartyId === undefined
+              ? undefined
+              : body.defaultSupplierPartyId === null ||
+                  body.defaultSupplierPartyId === ""
+                ? null
+                : Number(body.defaultSupplierPartyId),
         });
         return { ok: true };
       }

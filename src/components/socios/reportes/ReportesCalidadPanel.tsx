@@ -109,6 +109,20 @@ export function ReportesCalidadPanel({
           : ("success" as const),
     },
     {
+      label: "Último cierre diario",
+      value: quality.latestDailyClosure
+        ? formatDatePe(quality.latestDailyClosure.closureDate)
+        : "Sin cierre registrado",
+      detail: quality.latestDailyClosure
+        ? `Por ${quality.latestDailyClosure.closedByName} · Diferencia: ${formatPen(quality.latestDailyClosure.varianceTotalPen)}`
+        : "Usa Caja → Cierre diario para conciliar saldos al fin del día.",
+      tone: quality.latestDailyClosure
+        ? Math.abs(quality.latestDailyClosure.varianceTotalPen) < 0.01
+          ? ("success" as const)
+          : ("warning" as const)
+        : ("warning" as const),
+    },
+    {
       label: "Última fecha registrada",
       value: dataCut?.lastOrderDate
         ? `Ventas: ${formatDatePe(dataCut.lastOrderDate)}`
@@ -149,7 +163,7 @@ export function ReportesCalidadPanel({
           <Badge tone="horizon">Meta S2 ≥ 90% · S4 ≥ 98%</Badge>
         </div>
 
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <div className="rounded-xl border border-bht-line bg-white p-3">
             <span className="text-xs font-medium text-bht-ink-soft">
               Completas / Realizadas (ERP)
@@ -190,7 +204,50 @@ export function ReportesCalidadPanel({
               </Badge>
             </div>
           </div>
+
+          <div className="rounded-xl border border-bht-line bg-white p-3">
+            <span className="text-xs font-medium text-bht-ink-soft">
+              Tasa de correcciones
+            </span>
+            <div className="mt-1 flex flex-wrap items-baseline justify-between gap-1.5">
+              <p className="text-2xl font-bold text-bht-navy-deep tabular-nums">
+                {coverage.correctionRatePct !== null
+                  ? `${coverage.correctionRatePct.toFixed(1)}%`
+                  : "0.0%"}
+              </p>
+              <Badge
+                tone={(coverage.correctionRatePct ?? 0) < 2 ? "success" : "danger"}
+              >
+                Meta &lt; 2%
+              </Badge>
+            </div>
+          </div>
         </div>
+
+        {coverage.weeklyCohorts.length > 0 && (
+          <div className="rounded-xl border border-bht-line bg-white p-3 space-y-2">
+            <p className="text-xs font-semibold text-bht-ink-strong">
+              Cohortes semanales (últimas semanas):
+            </p>
+            <div className="space-y-1.5">
+              {coverage.weeklyCohorts.map((cohort) => (
+                <div
+                  key={cohort.weekStart}
+                  className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-bht-paper px-2.5 py-1.5 text-xs tabular-nums"
+                >
+                  <span className="font-semibold text-bht-navy-deep">
+                    Sem. {formatDatePe(cohort.weekStart)}
+                  </span>
+                  <span className="text-bht-ink-soft">
+                    {cohort.completeOrders} / {cohort.totalOrders} (
+                    {cohort.coveragePct.toFixed(1)}%) · Correcciones:{" "}
+                    {cohort.correctionCount}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {coverage.incompleteOrders.length > 0 && (
           <div className="rounded-xl border border-bht-line bg-white p-3 space-y-2">

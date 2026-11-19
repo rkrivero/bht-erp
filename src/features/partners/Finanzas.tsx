@@ -2,6 +2,7 @@
 
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
+import type { CajaSubTab } from "@/components/socios/caja/caja-utils";
 import { Card } from "@/components/ui/Primitives";
 import type { PartnerData } from "./usePartnerData";
 import type { PartnerTab, PurchaseTarget, ShowFeedback } from "./partnerShared";
@@ -30,6 +31,8 @@ interface FinanzasProps {
   data: PartnerData;
   preselectedPurchaseTarget: PurchaseTarget | null;
   setPreselectedPurchaseTarget: (target: PurchaseTarget | null) => void;
+  initialCajaSubTab?: CajaSubTab | null;
+  onClearInitialCajaSubTab?: () => void;
   handleTabChange: (tab: PartnerTab) => void;
   handleGoToPurchaseProduct: (target: number | PurchaseTarget) => void;
   handleGoToEditProduct: (sku: string) => void;
@@ -42,6 +45,8 @@ export function Finanzas({
   data,
   preselectedPurchaseTarget,
   setPreselectedPurchaseTarget,
+  initialCajaSubTab,
+  onClearInitialCajaSubTab,
   handleTabChange,
   handleGoToPurchaseProduct,
   handleGoToEditProduct,
@@ -78,6 +83,8 @@ export function Finanzas({
           dataCut={dataCut}
           preselectedTarget={preselectedPurchaseTarget}
           onClearPreselectedTarget={() => setPreselectedPurchaseTarget(null)}
+          initialSubTab={initialCajaSubTab}
+          onClearInitialSubTab={onClearInitialCajaSubTab}
           onOpenDirectory={() => handleTabChange("directorio")}
           onRefresh={loadDashboard}
           onFeedback={showFeedback}

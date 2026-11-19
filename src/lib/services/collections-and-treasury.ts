@@ -33,6 +33,7 @@ export interface OrderDebtItem {
   orderId: number;
   orderCode: string;
   orderDate: string;
+  dueDate: string | null;
   customerKey: string;
   customerPartyId: number | null;
   customerName: string;
@@ -42,6 +43,9 @@ export interface OrderDebtItem {
   paidPen: number;
   balanceDuePen: number;
   daysOverdue: number;
+  invoiceAgeDays: number;
+  daysPastDue: number | null;
+  dueStatus: "OVERDUE" | "DUE_SOON" | "CURRENT" | "NO_DUE_DATE";
   agingBucket: "GREEN_0_7" | "AMBER_8_29" | "RED_30_PLUS";
   promisedPaymentDate: string | null;
   promiseStatus:
@@ -61,6 +65,8 @@ export interface CustomerDebtSummary {
   totalPaidPen: number;
   totalBalanceDuePen: number;
   maxDaysOverdue: number;
+  maxInvoiceAgeDays: number;
+  hasExplicitDueDate: boolean;
   agingBucket: "GREEN_0_7" | "AMBER_8_29" | "RED_30_PLUS";
   earliestPromisedPaymentDate: string | null;
   promiseStatus:
@@ -384,6 +390,7 @@ export async function listDebtors(
        order_id,
        order_code,
        order_date::text AS order_date,
+       due_date::text AS due_date,
        customer_party_id,
        customer_name,
        payment_mode,
@@ -392,6 +399,9 @@ export async function listDebtors(
        paid_pen,
        balance_due_pen,
        days_overdue,
+       invoice_age_days,
+       days_past_due,
+       due_status,
        aging_bucket,
        promised_payment_date::text AS promised_payment_date,
        promise_status,
@@ -471,6 +481,7 @@ export async function listDebtors(
       orderId,
       orderCode: String(r.order_code),
       orderDate: String(r.order_date),
+      dueDate: r.due_date ? String(r.due_date) : null,
       customerKey,
       customerPartyId,
       customerName,
@@ -480,6 +491,12 @@ export async function listDebtors(
       paidPen: Number(r.paid_pen),
       balanceDuePen: Number(r.balance_due_pen),
       daysOverdue: Number(r.days_overdue),
+      invoiceAgeDays: Number(r.invoice_age_days ?? r.days_overdue ?? 0),
+      daysPastDue:
+        r.days_past_due !== null && r.days_past_due !== undefined
+          ? Number(r.days_past_due)
+          : null,
+      dueStatus: (r.due_status || "NO_DUE_DATE") as OrderDebtItem["dueStatus"],
       agingBucket: r.aging_bucket,
       promisedPaymentDate: r.promised_payment_date ?? null,
       promiseStatus: r.promise_status,
@@ -504,6 +521,8 @@ export async function listDebtors(
         totalPaidPen: 0,
         totalBalanceDuePen: 0,
         maxDaysOverdue: 0,
+        maxInvoiceAgeDays: 0,
+        hasExplicitDueDate: false,
         agingBucket: "GREEN_0_7",
         earliestPromisedPaymentDate: item.promisedPaymentDate,
         promiseStatus: item.promiseStatus,
@@ -519,6 +538,12 @@ export async function listDebtors(
     if (item.daysOverdue > cust.maxDaysOverdue) {
       cust.maxDaysOverdue = item.daysOverdue;
       cust.agingBucket = item.agingBucket;
+    }
+    if (item.invoiceAgeDays > cust.maxInvoiceAgeDays) {
+      cust.maxInvoiceAgeDays = item.invoiceAgeDays;
+    }
+    if (item.dueDate) {
+      cust.hasExplicitDueDate = true;
     }
     if (
       item.promisedPaymentDate &&
@@ -688,6 +713,7 @@ export async function registerCashOutflow(
   const bucket = input.expenseBucket || "ROUTE_OPEX";
   if (
     bucket !== "ROUTE_OPEX" &&
+    bucket !== "ADMIN_OPEX" &&
     bucket !== "MERCHANDISE_PAYMENT" &&
     bucket !== "NON_OPEX_OR_CAPEX"
   ) {
@@ -780,6 +806,9 @@ export async function updateProductStockAndPricing(
     listSalePricePen?: number;
     minSalePricePen?: number;
     fulfillmentMode?: FulfillmentMode;
+    minStockQty?: number | null;
+    leadTimeDays?: number | null;
+    defaultSupplierPartyId?: number | null;
   }
 ): Promise<void> {
   if (!isPartnerRole(actor.role)) {
@@ -793,19 +822,60 @@ export async function updateProductStockAndPricing(
   );
   const warehouseId = Number(whRes.rows[0].warehouse_id);
 
+  const hasMinStockQty = input.minStockQty !== undefined;
+  let validatedMinStockQty: number | null = null;
+  if (hasMinStockQty && input.minStockQty !== null) {
+    const val = Number(input.minStockQty);
+    if (!Number.isFinite(val) || val < 0) {
+      throw new ValidationError("El stock mínimo no puede ser negativo");
+    }
+    validatedMinStockQty = Number(val.toFixed(4));
+  }
+
+  const hasLeadTimeDays = input.leadTimeDays !== undefined;
+  let validatedLeadTimeDays: number | null = null;
+  if (hasLeadTimeDays && input.leadTimeDays !== null) {
+    const val = Number(input.leadTimeDays);
+    if (!Number.isInteger(val) || val < 0 || val > 365) {
+      throw new ValidationError("El plazo de reposición debe estar entre 0 y 365 días");
+    }
+    validatedLeadTimeDays = val;
+  }
+
+  const hasDefaultSupplier = input.defaultSupplierPartyId !== undefined;
+  let validatedDefaultSupplierId: number | null = null;
+  if (hasDefaultSupplier && input.defaultSupplierPartyId !== null) {
+    const supId = parsePositiveInt(input.defaultSupplierPartyId, "Proveedor habitual");
+    const supCheck = await client.query(
+      `SELECT 1 FROM erp.parties WHERE party_id = $1 AND party_type IN ('SUPPLIER', 'BOTH') LIMIT 1`,
+      [supId]
+    );
+    if (supCheck.rowCount === 0) {
+      throw new ValidationError("El proveedor habitual seleccionado no existe");
+    }
+    validatedDefaultSupplierId = supId;
+  }
+
   if (
     input.refCostPen !== undefined ||
     input.listSalePricePen !== undefined ||
     input.minSalePricePen !== undefined ||
-    input.fulfillmentMode !== undefined
+    input.fulfillmentMode !== undefined ||
+    hasMinStockQty ||
+    hasLeadTimeDays ||
+    hasDefaultSupplier
   ) {
     await client.query(
       `UPDATE erp.products
        SET ref_cost_pen = COALESCE($1, ref_cost_pen),
            cost_source = CASE WHEN $1 IS NOT NULL THEN 'MANUAL_PARTNER' ELSE cost_source END,
+           cost_updated_at = CASE WHEN $1 IS NOT NULL THEN NOW() ELSE cost_updated_at END,
            list_sale_price_pen = COALESCE($2, list_sale_price_pen),
            min_sale_price_pen = COALESCE($3, min_sale_price_pen),
            fulfillment_mode = COALESCE($4::erp.fulfillment_mode, fulfillment_mode),
+           min_stock_qty = CASE WHEN $6::boolean THEN $7::numeric(14,4) ELSE min_stock_qty END,
+           lead_time_days = CASE WHEN $8::boolean THEN $9::int ELSE lead_time_days END,
+           default_supplier_party_id = CASE WHEN $10::boolean THEN $11::bigint ELSE default_supplier_party_id END,
            updated_at = NOW()
        WHERE product_id = $5`,
       [
@@ -814,6 +884,12 @@ export async function updateProductStockAndPricing(
         input.minSalePricePen ?? null,
         input.fulfillmentMode ?? null,
         input.productId,
+        hasMinStockQty,
+        validatedMinStockQty,
+        hasLeadTimeDays,
+        validatedLeadTimeDays,
+        hasDefaultSupplier,
+        validatedDefaultSupplierId,
       ]
     );
   }
