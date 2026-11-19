@@ -99,6 +99,30 @@ describe("API Route Role Enforcement, DB Branch Isolation & Endpoint Contracts",
     expect(Array.isArray(body.biSummary.lowStockAlerts)).toBe(true);
     expect(Array.isArray(body.biSummary.marginRiskSkus)).toBe(true);
     expect(Array.isArray(body.biSummary.apSummaryBySupplier)).toBe(true);
+    expect(body.dataCut).toBeDefined();
+    expect(body.dataCut.asOfLimaDate).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    expect(body.dataCut.lastOrderDate).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    expect(typeof body.dataCut.bankReconciled).toBe("boolean");
+    expect(body.operationalQuality).toBeDefined();
+    expect(body.operationalQuality.registrationCoverage24h).toBeDefined();
+    expect(body.operationalQuality.startupChecklist).toHaveLength(6);
+    expect(Array.isArray(body.users)).toBe(true);
+    expect(body.users.length).toBeGreaterThan(0);
+
+    const mgrReq = new NextRequest("http://localhost:3000/api/partners", {
+      headers: { cookie: `bht_session=${partnerManagerToken}` },
+    });
+    const mgrRes = await getPartners(mgrReq);
+    expect(mgrRes.status).toBe(200);
+    const mgrBody = await mgrRes.json();
+    expect(mgrBody.currentUser).toMatchObject({
+      userId: 2,
+      role: "PARTNER_MANAGER",
+    });
+    expect(mgrBody.dataCut).toBeDefined();
+    expect(mgrBody.operationalQuality).toBeDefined();
+    expect(mgrBody.users).toEqual([]);
+    expect(mgrBody.userAccessHistory).toEqual([]);
   });
 
   it("blocks WAREHOUSE_DELIVERY from /api/collections and strips financial fields on /api/orders", async () => {

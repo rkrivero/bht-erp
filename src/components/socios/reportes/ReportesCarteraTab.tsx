@@ -57,7 +57,7 @@ export default function ReportesCarteraTab({
 
         <Card padding="md" className="space-y-1.5">
           <span className="text-xs font-medium text-bht-ink-soft">
-            Saldo Vencido &gt; 30 días
+            Saldo con antigüedad &gt; 30 días
           </span>
           <p className="text-2xl font-semibold text-bht-warning tabular-nums">
             {formatPen(summary.overdueGt30Pen)}
@@ -251,8 +251,8 @@ export default function ReportesCarteraTab({
               Hoja de Cobranza por Zona ({collectionSheet.length} documentos)
             </h3>
             <p className="mt-0.5 text-xs text-bht-ink-soft">
-              Lista ordenada por zona y días de atraso para imprimir antes de salir a
-              ruta.
+              Lista ordenada por zona y antigüedad desde la venta para imprimir antes de
+              salir a ruta.
             </p>
           </div>
           <Button

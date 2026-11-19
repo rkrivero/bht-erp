@@ -258,6 +258,73 @@ export interface KpiQ1Summary {
   monthlyRows?: BiMonthlyRow[];
 }
 
+export interface DataCutSummary {
+  asOfLimaDate: string;
+  lastOrderDate: string | null;
+  lastPaymentDate: string | null;
+  lastCashLedgerDate: string | null;
+  lastPurchaseDate: string | null;
+  lastQuoteDate: string | null;
+  daysSinceLastOrder: number | null;
+  isStale: boolean;
+  bankReconciled: boolean;
+}
+
+export interface IncompleteOrderSummary {
+  orderId: number;
+  orderCode: string;
+  orderDate: string;
+  missingFields: string[];
+}
+
+export interface RegistrationCoverage24h {
+  numerator: number;
+  denominator: number;
+  coveragePct: number | null;
+  baselineMode: "NO_APP_ORDERS" | "ACTIVE";
+  incompleteOrders: IncompleteOrderSummary[];
+}
+
+export interface StartupChecklistItem {
+  code:
+    | "ERP_OPERATIONS_STARTED"
+    | "SOLD_SKU_COSTS"
+    | "INVENTORY_BASELINE"
+    | "BANK_RECONCILIATION"
+    | "ASSUMED_CASH_CONFIRMED"
+    | "CUSTOMERS_CONTACT_DATA";
+  label: string;
+  done: boolean;
+  pendingCount: number;
+  detail: string;
+  targetTab: "stock" | "caja" | "directorio" | "deudores" | "vendedor" | "kpis";
+}
+
+export interface OperationalQualitySummary {
+  registrationCoverage24h: RegistrationCoverage24h;
+  erpAppOrdersCount: number;
+  totalOrdersCount: number;
+  ordersMissingSellerCount: number;
+  activeProductsCount: number;
+  productsMissingCostCount: number;
+  soldSkusMissingCostCount: number;
+  soldSkusMissingCostPen: number;
+  purchasesTotalCount: number;
+  purchasesWithoutDetailCount: number;
+  activeCustomersCount: number;
+  customersMissingPhoneCount: number;
+  customersMissingZoneCount: number;
+  customersMissingGeoCount: number;
+  tripsTotalCount: number;
+  tripsWithoutReconciliationCount: number;
+  assumedCashOrdersCount: number;
+  assumedCashOrdersPen: number;
+  negativeStockSkuCount: number;
+  openBankAuditFlagsCount: number;
+  apNoDueDateCount: number;
+  startupChecklist: StartupChecklistItem[];
+}
+
 export interface AppUserItem {
   user_id: number;
   username: string;
@@ -308,4 +375,13 @@ export function formatMonthLabel(periodMonth: string): string {
     "12": "Dic",
   };
   return `${months[m] || m} ${y}`;
+}
+
+export function formatDatePe(isoDate: string | null | undefined): string {
+  if (!isoDate) return "-";
+  const match = String(isoDate)
+    .trim()
+    .match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!match) return String(isoDate);
+  return `${match[3]}/${match[2]}/${match[1]}`;
 }

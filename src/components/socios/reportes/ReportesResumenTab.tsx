@@ -39,11 +39,17 @@ export default function ReportesResumenTab({
         </Card>
       )}
 
-      {/* Accrual P&L Executive Row */}
-      <section aria-label="Rentabilidad devengada P&L" className="space-y-2">
+      <Card tone="warning" padding="sm" className="text-xs text-bht-ink-strong">
+        <strong>Lectura responsable:</strong> este resumen usa costos y movimientos
+        disponibles en el ERP. No reemplaza un estado de resultados ni una conciliación
+        bancaria completa.
+      </Card>
+
+      {/* Partial operating result */}
+      <section aria-label="Resultado comercial parcial" className="space-y-2">
         <div className="flex flex-wrap items-center justify-between gap-2 px-1">
           <h3 className="text-sm font-bold text-bht-navy-deep">
-            P&amp;L Gerencial (Rentabilidad Devengada: Venta − COGS − OpEx Ruta)
+            Resultado comercial parcial
           </h3>
           {momComparison && (
             <Badge tone="horizon" className="tabular-nums">
@@ -71,7 +77,7 @@ export default function ReportesResumenTab({
 
           <Card padding="md" className="space-y-1.5">
             <span className="text-xs font-medium text-bht-ink-soft">
-              Margen Bruto Real (s/ venta con costo)
+              Margen bruto sobre ventas con costo
             </span>
             <p className="text-2xl font-semibold text-bht-success tabular-nums">
               {formatPen(totals.grossMarginPen)}
@@ -102,7 +108,7 @@ export default function ReportesResumenTab({
 
           <Card padding="md" className="space-y-1.5">
             <span className="text-xs font-medium text-bht-ink-soft">
-              EBITDA Operativo Estimado
+              Contribución después de gastos de ruta
             </span>
             <p
               className={`text-2xl font-semibold tabular-nums ${
@@ -123,17 +129,17 @@ export default function ReportesResumenTab({
                   : "danger"
               }
             >
-              {formatPct(totals.operatingEbitdaPct)} EBITDA
+              {formatPct(totals.operatingEbitdaPct)} sobre venta con costo
             </Badge>
           </Card>
         </div>
       </section>
 
       {/* Cash Flow Summary */}
-      <section aria-label="Flujo de caja" className="space-y-2">
+      <section aria-label="Movimientos de caja registrados" className="space-y-2">
         <div className="flex flex-wrap items-center justify-between gap-2 px-1">
           <h3 className="text-sm font-bold text-bht-navy-deep">
-            Flujo de Caja Real (Cobros, Compras de Stock y Retiros)
+            Movimientos de caja registrados
           </h3>
           <Badge
             tone={totals.nonOpexVsReinvestmentPct > 30 ? "danger" : "success"}
@@ -147,9 +153,9 @@ export default function ReportesResumenTab({
         <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-6">
           {[
             {
-              title: "Cobrado Ventas",
+              title: "Pagado en pedidos",
               value: formatPen(totals.cashCollectedPen),
-              sub: `Por cobrar: ${formatPen(totals.arPendingPen)} (${openDebtorsCount} open)`,
+              sub: `Por cobrar: ${formatPen(totals.arPendingPen)} (${openDebtorsCount} pendientes)`,
               cls: "text-bht-success",
             },
             {
@@ -165,7 +171,7 @@ export default function ReportesResumenTab({
               cls: "text-bht-danger",
             },
             {
-              title: "Flujo Neto Caja",
+              title: "Movimiento neto estimado",
               value: formatPen(totals.netCashFlowPen),
               sub: "Cobros − Merc. − Ruta − Retiros",
               cls:
@@ -207,11 +213,11 @@ export default function ReportesResumenTab({
             id="pnl-monthly-heading"
             className="text-sm font-semibold text-bht-ink-strong sm:text-base"
           >
-            Comparativo Mensual — Rentabilidad Devengada vs. Caja
+            Comparativo mensual de ventas y movimientos registrados
           </h3>
           <p className="mt-0.5 text-xs text-bht-ink-soft">
-            Separa lo ganado por ventas (EBITDA) de las salidas puntuales para comprar
-            mercadería o retiros.
+            Compara ventas con costo conocido, contribución de ruta y salidas
+            registradas. Las cifras de caja requieren conciliación.
           </p>
         </div>
 
@@ -233,7 +239,7 @@ export default function ReportesResumenTab({
                     color: "bg-bht-success",
                   },
                   {
-                    label: "EBITDA Op.",
+                    label: "Contribución ruta",
                     val: Math.max(0, m.operating_ebitda_pen),
                     color: "bg-bht-navy-mid",
                   },
@@ -263,7 +269,7 @@ export default function ReportesResumenTab({
                         {formatMonthLabel(m.period_month)}
                       </span>
                       <span className="text-xs font-medium text-bht-ink-soft tabular-nums">
-                        {m.order_count} ped. · EBITDA:{" "}
+                        {m.order_count} ped. · Contribución:{" "}
                         <strong
                           className={
                             m.operating_ebitda_pen >= 0
@@ -331,7 +337,7 @@ export default function ReportesResumenTab({
                       OpEx Ruta
                     </th>
                     <th scope="col" className="p-2 text-right">
-                      EBITDA Op.
+                      Contribución ruta
                     </th>
                     <th scope="col" className="p-2 text-right">
                       Cobrado
@@ -340,7 +346,7 @@ export default function ReportesResumenTab({
                       Compra Stock
                     </th>
                     <th scope="col" className="p-2 text-right">
-                      Flujo Neto Caja
+                      Movimiento neto estimado
                     </th>
                   </tr>
                 </thead>

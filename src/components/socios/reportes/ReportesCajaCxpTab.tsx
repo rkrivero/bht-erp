@@ -27,6 +27,11 @@ export default function ReportesCajaCxpTab({
 
   return (
     <div className="min-w-0 space-y-4">
+      <Card tone="warning" padding="sm" className="text-xs text-bht-ink-strong">
+        <strong>Saldos registrados, no conciliados:</strong> confirma caja física y
+        extractos bancarios antes de usar estas cifras como dinero disponible.
+      </Card>
+
       {/* Liquidity vs AP 30d Coverage Cards */}
       <section
         aria-label="Liquidez y cobertura de CxP"
@@ -34,7 +39,7 @@ export default function ReportesCajaCxpTab({
       >
         <Card padding="md" className="space-y-1.5">
           <span className="text-xs font-medium text-bht-ink-soft">
-            Efectivo Líquido Disponible
+            Saldo registrado en cuentas líquidas
           </span>
           <p className="text-2xl font-semibold text-bht-navy-deep tabular-nums">
             {formatPen(liquiditySummary.liquidCashPen)}
@@ -74,7 +79,7 @@ export default function ReportesCajaCxpTab({
           className="space-y-1.5"
         >
           <span className="text-xs font-medium text-bht-ink-soft">
-            Cobertura Neta tras CxP ≤30d
+            Cobertura registrada tras CxP ≤30d
           </span>
           <p
             className={`text-2xl font-semibold tabular-nums ${
@@ -91,8 +96,8 @@ export default function ReportesCajaCxpTab({
             }
           >
             {liquiditySummary.netLiquidityAfter30dApPen >= 0
-              ? "Liquidez cubre vencimientos ≤30d"
-              : "Déficit frente a CxP ≤30d"}
+              ? "El saldo registrado cubre CxP ≤30d"
+              : "El saldo registrado no cubre CxP ≤30d"}
           </Badge>
         </Card>
       </section>
@@ -159,7 +164,7 @@ export default function ReportesCajaCxpTab({
       {/* Accounts Breakdown */}
       <Card padding="md" className="space-y-3">
         <h3 className="text-sm font-semibold text-bht-ink-strong sm:text-base">
-          Saldos por Caja, Banco y Custodia
+          Saldos registrados por caja, banco y custodia
         </h3>
         <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
           {cashAccounts.map((acc) => (

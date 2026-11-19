@@ -1,4 +1,13 @@
 import type { PoolClient } from "pg";
+import type {
+  DataCutSummary,
+  OperationalQualitySummary,
+} from "@/components/socios/types";
+import {
+  DATA_CUT_SELECT,
+  getOperationalQualitySummary,
+  mapDataCutSummary,
+} from "./operational-quality";
 import { ValidationError } from "../types";
 
 export const REPORT_SECTIONS = [
@@ -49,6 +58,7 @@ export interface ReportMonthlyPnlRow {
 
 export interface ReportResumenData {
   filterOptions: ReportFilterOptions;
+  dataCut: DataCutSummary;
   pnlMonthly: ReportMonthlyPnlRow[];
   totals: {
     orderCount: number;
@@ -109,6 +119,7 @@ export interface ReportApDocRow {
 
 export interface ReportCajaCxpData {
   filterOptions: ReportFilterOptions;
+  dataCut: DataCutSummary;
   cashAccounts: Array<{
     account_id: number;
     code: string;
@@ -182,6 +193,7 @@ export interface ReportArDocRow {
 
 export interface ReportCarteraData {
   filterOptions: ReportFilterOptions;
+  dataCut: DataCutSummary;
   summary: {
     totalReceivablePen: number;
     openOrdersCount: number;
@@ -219,6 +231,7 @@ export interface ReportCarteraData {
 
 export interface ReportComercialData {
   filterOptions: ReportFilterOptions;
+  dataCut: DataCutSummary;
   byZone: Array<{
     effective_zone: string;
     orders_count: number;
@@ -335,6 +348,7 @@ export interface ReportStockSkuRow {
 
 export interface ReportStockData {
   filterOptions: ReportFilterOptions;
+  dataCut: DataCutSummary;
   valuationSummary: {
     totalValuationPen: number;
     positiveStockSkuCount: number;
@@ -399,6 +413,8 @@ export interface ReportClosingCheck {
 
 export interface ReportAuditoriaData {
   filterOptions: ReportFilterOptions;
+  dataCut: DataCutSummary;
+  operationalQuality: OperationalQualitySummary;
   closingReadiness: {
     status: "READY" | "ATTENTION" | "BLOCKED";
     checks: ReportClosingCheck[];
@@ -809,11 +825,13 @@ async function queryResumen(
 
   const res = await client.query<{
     filter_options: unknown;
+    data_cut: unknown;
     pnl_monthly: Array<Record<string, unknown>>;
     open_debtors_count: number;
   }>(
     `SELECT
        ${FILTER_OPTIONS_SELECT},
+       ${DATA_CUT_SELECT} AS data_cut,
        COALESCE((SELECT json_agg(t) FROM (${pnlSelectSql}) t), '[]'::json) AS pnl_monthly,
        COALESCE((
          SELECT COUNT(*)::int
@@ -957,6 +975,7 @@ async function queryResumen(
 
   return {
     filterOptions: mapFilterOptions(row?.filter_options),
+    dataCut: mapDataCutSummary(row?.data_cut),
     pnlMonthly,
     totals,
     momComparison,
@@ -990,6 +1009,7 @@ async function queryCajaCxp(
 
   const res = await client.query<{
     filter_options: unknown;
+    data_cut: unknown;
     cash_accounts: Array<Record<string, unknown>>;
     ap_buckets: Array<Record<string, unknown>>;
     ap_docs: Array<Record<string, unknown>>;
@@ -998,6 +1018,7 @@ async function queryCajaCxp(
   }>(
     `SELECT
        ${FILTER_OPTIONS_SELECT},
+       ${DATA_CUT_SELECT} AS data_cut,
        COALESCE((
          SELECT json_agg(t)
          FROM (
@@ -1174,6 +1195,7 @@ async function queryCajaCxp(
 
   return {
     filterOptions: mapFilterOptions(row?.filter_options),
+    dataCut: mapDataCutSummary(row?.data_cut),
     cashAccounts,
     liquiditySummary: {
       liquidCashPen,
@@ -1247,6 +1269,7 @@ async function queryCartera(
 
   const res = await client.query<{
     filter_options: unknown;
+    data_cut: unknown;
     summary_stats: Record<string, unknown>;
     aging_buckets: Array<Record<string, unknown>>;
     by_zone: Array<Record<string, unknown>>;
@@ -1287,6 +1310,7 @@ async function queryCartera(
      )
      SELECT
        ${FILTER_OPTIONS_SELECT},
+       ${DATA_CUT_SELECT} AS data_cut,
        (
          SELECT json_build_object(
            'total_receivable_pen', COALESCE(SUM(balance_due_pen), 0)::numeric(14,2),
@@ -1430,6 +1454,7 @@ async function queryCartera(
 
   return {
     filterOptions: mapFilterOptions(row?.filter_options),
+    dataCut: mapDataCutSummary(row?.data_cut),
     summary: {
       totalReceivablePen,
       openOrdersCount: Number(stats.open_orders_count ?? 0),
@@ -1486,6 +1511,7 @@ async function queryComercial(
 
   const res = await client.query<{
     filter_options: unknown;
+    data_cut: unknown;
     by_zone: Array<Record<string, unknown>>;
     by_seller: Array<Record<string, unknown>>;
     top_customers: Array<Record<string, unknown>>;
@@ -1547,6 +1573,7 @@ async function queryComercial(
      )
      SELECT
        ${FILTER_OPTIONS_SELECT},
+       ${DATA_CUT_SELECT} AS data_cut,
        COALESCE((
          SELECT json_agg(t)
          FROM (
@@ -1676,6 +1703,7 @@ async function queryComercial(
   const dsum = row?.discount_summary ?? {};
   return {
     filterOptions: mapFilterOptions(row?.filter_options),
+    dataCut: mapDataCutSummary(row?.data_cut),
     byZone: (row?.by_zone ?? []).map((z) => ({
       effective_zone: String(z.effective_zone),
       orders_count: Number(z.orders_count ?? 0),
@@ -1802,6 +1830,7 @@ async function queryStock(
   void filters;
   const res = await client.query<{
     filter_options: unknown;
+    data_cut: unknown;
     val_summary: Record<string, unknown>;
     fulfillment_mix: Array<Record<string, unknown>>;
     dead_slow: Array<Record<string, unknown>>;
@@ -1812,6 +1841,7 @@ async function queryStock(
   }>(
     `SELECT
        ${FILTER_OPTIONS_SELECT},
+       ${DATA_CUT_SELECT} AS data_cut,
        (
          SELECT json_build_object(
            'total_valuation_pen', COALESCE(SUM(valuation_pen), 0)::numeric(14,2),
@@ -1928,6 +1958,7 @@ async function queryStock(
   const vs = row?.val_summary ?? {};
   return {
     filterOptions: mapFilterOptions(row?.filter_options),
+    dataCut: mapDataCutSummary(row?.data_cut),
     valuationSummary: {
       totalValuationPen: toNum(vs.total_valuation_pen),
       positiveStockSkuCount: Number(vs.positive_stock_sku_count ?? 0),
@@ -1990,6 +2021,7 @@ async function queryAuditoria(
   void filters;
   const res = await client.query<{
     filter_options: unknown;
+    data_cut: unknown;
     closing_counts: Record<string, unknown>;
     quality_gaps: Array<Record<string, unknown>>;
     audit_flags: Array<Record<string, unknown>>;
@@ -1997,6 +2029,7 @@ async function queryAuditoria(
   }>(
     `SELECT
        ${FILTER_OPTIONS_SELECT},
+       ${DATA_CUT_SELECT} AS data_cut,
        json_build_object(
          'missing_sku_cost', COALESCE((SELECT item_count FROM analytics.v_data_quality_gaps WHERE gap_category = 'SALES_MISSING_SKU_COST'), 0)::int,
          'critical_open_flags', COALESCE((SELECT COUNT(*)::int FROM erp.audit_flags WHERE status = 'OPEN' AND severity = 'CRITICAL'), 0),
@@ -2141,9 +2174,12 @@ async function queryAuditoria(
       ? "ATTENTION"
       : "READY";
 
+  const operationalQuality = await getOperationalQualitySummary(client);
   const fc = row?.flag_counts ?? {};
   return {
     filterOptions: mapFilterOptions(row?.filter_options),
+    dataCut: mapDataCutSummary(row?.data_cut),
+    operationalQuality,
     closingReadiness: {
       status,
       checks,

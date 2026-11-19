@@ -4,7 +4,7 @@ import dynamic from "next/dynamic";
 import React, { useEffect, useMemo, useState } from "react";
 import { ChevronRightIcon, CloseIcon } from "@/components/ui/Icons";
 import { Badge, Button, Card, INPUT_CLASS } from "@/components/ui/Primitives";
-import { formatMonthLabel } from "../types";
+import { formatDatePe, formatMonthLabel, type DataCutSummary } from "../types";
 import {
   type ReportAuditoriaDto,
   type ReportCajaCxpDto,
@@ -64,6 +64,9 @@ interface ReportesWorkspaceProps {
   externalRefreshKey?: number;
   onOpenCaja: () => void;
   onOpenCollections: () => void;
+  onOpenInventory?: () => void;
+  onOpenDirectory?: () => void;
+  onOpenSeller?: () => void;
   onGoToPurchaseProduct: (productId: number) => void;
   onGoToEditProduct: (sku: string) => void;
   onRefresh: () => Promise<void>;
@@ -75,6 +78,9 @@ export default function ReportesWorkspace({
   externalRefreshKey = 0,
   onOpenCaja,
   onOpenCollections,
+  onOpenInventory,
+  onOpenDirectory,
+  onOpenSeller,
   onGoToPurchaseProduct,
   onGoToEditProduct,
   onRefresh,
@@ -98,6 +104,7 @@ export default function ReportesWorkspace({
     sellers: [],
     months: [],
   });
+  const [latestDataCut, setLatestDataCut] = useState<DataCutSummary | null>(null);
 
   useEffect(() => {
     return () => onEditingChange?.(false);
@@ -131,6 +138,9 @@ export default function ReportesWorkspace({
         setLatestBySection((prev) => ({ ...prev, [activeSection]: payload }));
         if (payload.filterOptions) {
           setFilterOptions(payload.filterOptions);
+        }
+        if (payload.dataCut) {
+          setLatestDataCut(payload.dataCut);
         }
       })
       .catch((err: unknown) => {
@@ -185,6 +195,22 @@ export default function ReportesWorkspace({
   );
 
   const activeTabMeta = REPORT_TAB_ITEMS.find((t) => t.id === activeSection);
+  const latestRecordedMonth = filterOptions.months.reduce<string | null>(
+    (latest, month) => (!latest || month > latest ? month : latest),
+    null
+  );
+  const limaCurrentMonth = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Lima",
+    year: "numeric",
+    month: "2-digit",
+  })
+    .format(new Date())
+    .slice(0, 7);
+  const latestRecordedYearMonth = latestRecordedMonth?.slice(0, 7) ?? null;
+  const effectiveDataCut = displayPayload?.dataCut ?? latestDataCut;
+  const dataNeedsReview = effectiveDataCut
+    ? effectiveDataCut.isStale
+    : Boolean(latestRecordedYearMonth && latestRecordedYearMonth < limaCurrentMonth);
 
   return (
     <div className="min-w-0 space-y-4">
@@ -194,14 +220,14 @@ export default function ReportesWorkspace({
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
               <h2 className="text-base font-bold text-bht-navy-deep sm:text-lg">
-                Centro de Reportes e Inteligencia de Negocio
+                Reportes para decidir
               </h2>
               {isFetching && displayPayload && (
                 <Badge tone="brand">Actualizando…</Badge>
               )}
             </div>
             <p className="mt-0.5 text-xs text-bht-ink-soft">
-              {activeTabMeta?.subtitle} · Datos operativos actualizados
+              {activeTabMeta?.subtitle}
             </p>
             {activeTabMeta && (
               <details className="group mt-2 max-w-3xl">
@@ -245,6 +271,47 @@ export default function ReportesWorkspace({
             >
               Actualizar
             </Button>
+          </div>
+        </div>
+
+        <div
+          role="status"
+          className={`flex flex-wrap items-start justify-between gap-2 rounded-xl border p-3 text-xs ${
+            dataNeedsReview
+              ? "border-bht-warning bg-bht-warning-bg text-bht-ink-strong"
+              : "border-bht-line-blue bg-bht-mist text-bht-ink-strong"
+          }`}
+        >
+          <div className="max-w-3xl space-y-1">
+            <p className="font-semibold">
+              {effectiveDataCut?.lastOrderDate
+                ? `Ventas actualizadas hasta: ${formatDatePe(effectiveDataCut.lastOrderDate)}`
+                : latestRecordedMonth
+                  ? `Último mes con ventas registradas: ${formatMonthLabel(latestRecordedMonth)}`
+                  : "Todavía no hay un período de ventas disponible"}
+            </p>
+            {effectiveDataCut && (
+              <p className="text-bht-ink-soft tabular-nums">
+                Caja: {formatDatePe(effectiveDataCut.lastCashLedgerDate)} · Cobros:{" "}
+                {formatDatePe(effectiveDataCut.lastPaymentDate)} · Compras:{" "}
+                {formatDatePe(effectiveDataCut.lastPurchaseDate)} · Cotizaciones:{" "}
+                {formatDatePe(effectiveDataCut.lastQuoteDate)}
+              </p>
+            )}
+            <p className="text-bht-ink-soft">
+              Las cifras reflejan únicamente lo guardado en el ERP.{" "}
+              {effectiveDataCut?.bankReconciled
+                ? "Confirma la vigencia del corte antes de decidir."
+                : "Caja, bancos y resultados históricos deben leerse como no conciliados hasta completar su revisión."}
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-1.5">
+            {effectiveDataCut && !effectiveDataCut.bankReconciled && (
+              <Badge tone="warning">No conciliado</Badge>
+            )}
+            <Badge tone={dataNeedsReview ? "warning" : "horizon"}>
+              {dataNeedsReview ? "Datos desactualizados" : "Corte visible"}
+            </Badge>
           </div>
         </div>
 
@@ -502,6 +569,11 @@ export default function ReportesWorkspace({
               "closingReadiness"
             )!}
             filters={filters}
+            onOpenCaja={onOpenCaja}
+            onOpenCollections={onOpenCollections}
+            onOpenInventory={onOpenInventory}
+            onOpenDirectory={onOpenDirectory}
+            onOpenSeller={onOpenSeller}
             onRefresh={async () => {
               await onRefresh();
               handleRetryOrRefresh();

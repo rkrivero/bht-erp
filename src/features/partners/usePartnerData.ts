@@ -272,6 +272,8 @@ export function usePartnerData() {
   const negStockCount = Number(partnerData?.negativeStockSkuCount ?? 0);
   const currentUser = partnerData?.currentUser ?? orderCurrentUser ?? null;
   const biSummary = partnerData?.biSummary ?? null;
+  const dataCut = partnerData?.dataCut ?? null;
+  const operationalQuality = partnerData?.operationalQuality ?? null;
   const appUsers = partnerData?.users ?? [];
   const userAccessHistory = partnerData?.userAccessHistory ?? [];
 
@@ -329,6 +331,8 @@ export function usePartnerData() {
     negStockCount,
     currentUser,
     biSummary,
+    dataCut,
+    operationalQuality,
     appUsers,
     userAccessHistory,
     accounts,

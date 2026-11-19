@@ -350,7 +350,8 @@ export default function ReportesStockTab({
             id="stock-top-skus-heading"
             className="text-sm font-semibold text-bht-ink-strong sm:text-base"
           >
-            Productos Líderes por Ingresos y Margen Real ({filteredTopSkus.length})
+            Productos líderes por ingresos y margen con costo conocido (
+            {filteredTopSkus.length})
           </h3>
           <div className="relative w-full sm:w-64">
             <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-bht-ink-muted">

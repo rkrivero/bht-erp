@@ -8,9 +8,11 @@ import {
   AppHeader,
   BottomNav,
   DesktopSidebar,
+  type NavExtraAction,
   type NavTabItem,
 } from "@/components/ui/AppShell";
 import {
+  ActivityIcon,
   ChevronRightIcon,
   ClockIcon,
   PackageIcon,
@@ -182,6 +184,27 @@ export default function SellerWorkspace() {
         : cleanSellerName
           ? `${cleanSellerName} · Vendedor S/`
           : "Vendedor · S/";
+  const sellerExtraActions: NavExtraAction[] | undefined = useMemo(
+    () =>
+      isPartnerControlUser
+        ? [
+            {
+              id: "go-partners",
+              label: "Control Operativo",
+              icon: <ActivityIcon className="h-4 w-4" />,
+              onClick: () => router.push("/socios"),
+            },
+            {
+              id: "go-warehouse",
+              label: "Almacén y reparto",
+              icon: <PackageIcon className="h-4 w-4" />,
+              onClick: () => router.push("/almacen"),
+            },
+          ]
+        : undefined,
+    [isPartnerControlUser, router]
+  );
+
   return (
     <div className="min-h-screen bg-bht-surface-cool pb-40 md:pb-12">
       <AppHeader
@@ -195,14 +218,24 @@ export default function SellerWorkspace() {
         withSidebar
         actions={
           isPartnerControlUser ? (
-            <Button
-              variant="outline"
-              size="md"
-              onClick={() => router.push("/socios")}
-              className="min-h-[38px] sm:min-h-[40px] px-3.5 text-xs sm:text-sm"
-            >
-              Control Operativo
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="md"
+                onClick={() => router.push("/socios")}
+                className="min-h-[38px] sm:min-h-[40px] px-3.5 text-xs sm:text-sm"
+              >
+                Control Operativo
+              </Button>
+              <Button
+                variant="outline"
+                size="md"
+                onClick={() => router.push("/almacen")}
+                className="hidden sm:inline-flex min-h-[38px] sm:min-h-[40px] px-3.5 text-xs sm:text-sm"
+              >
+                Almacén
+              </Button>
+            </div>
           ) : undefined
         }
         onLogout={handleLogout}
@@ -213,6 +246,31 @@ export default function SellerWorkspace() {
         activeId={navActiveTab}
         onChange={handleTabChange}
         areaLabel="Vendedor · Campo"
+        footer={
+          isPartnerControlUser ? (
+            <div className="space-y-1.5">
+              <p className="px-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--bht-sky)]">
+                Cambiar espacio
+              </p>
+              <button
+                type="button"
+                onClick={() => router.push("/socios")}
+                className="flex min-h-9 w-full items-center gap-2 rounded-lg px-2 text-left text-xs font-semibold text-[var(--bht-sky)] transition-colors hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white cursor-pointer"
+              >
+                <ActivityIcon className="h-3.5 w-3.5" aria-hidden="true" />
+                <span>Control Operativo</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => router.push("/almacen")}
+                className="flex min-h-9 w-full items-center gap-2 rounded-lg px-2 text-left text-xs font-semibold text-[var(--bht-sky)] transition-colors hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white cursor-pointer"
+              >
+                <PackageIcon className="h-3.5 w-3.5" aria-hidden="true" />
+                <span>Almacén y reparto</span>
+              </button>
+            </div>
+          ) : undefined
+        }
       />
 
       <main
@@ -324,6 +382,7 @@ export default function SellerWorkspace() {
         activeId={navActiveTab}
         onChange={handleTabChange}
         maxWidth="2xl"
+        extraActions={sellerExtraActions}
         className="md:hidden"
       />
     </div>

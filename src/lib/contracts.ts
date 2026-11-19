@@ -7,7 +7,9 @@ import type {
   CashAccountItem,
   CashLedgerEntry,
   CurrentUserInfo,
+  DataCutSummary,
   KpiQ1Summary,
+  OperationalQualitySummary,
   PartnerCatalogItem,
   PendingOnDemandItem,
   RecentPurchaseItem,
@@ -220,6 +222,8 @@ export interface PartnerDashboardResponseDto {
   biSummary: BiSummary;
   users: AppUserItem[];
   userAccessHistory: UserAccessAuditItem[];
+  dataCut?: DataCutSummary;
+  operationalQuality?: OperationalQualitySummary;
 }
 
 export interface TreasuryResponseDto {

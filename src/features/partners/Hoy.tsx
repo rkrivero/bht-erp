@@ -2,7 +2,7 @@
 
 import React from "react";
 import { useRouter } from "next/navigation";
-import { formatPen } from "@/components/socios/types";
+import { formatDatePe, formatPen } from "@/components/socios/types";
 import {
   ActivityIcon,
   AlertTriangleIcon,
@@ -17,6 +17,7 @@ import type { PartnerData } from "./usePartnerData";
 import type { OrderFlow } from "./useOrderFlow";
 import type { CollectionsFlow } from "./useCollectionsFlow";
 import type { PriorityItem } from "./types";
+import { HoyDataStatusCard } from "./HoyDataStatusCard";
 import { HoyMonitor } from "./HoyMonitor";
 import { HoyRoutesQuotes } from "./HoyRoutesQuotes";
 
@@ -52,6 +53,8 @@ export function Hoy({
     brokenPromisesCount,
     kpiQ1,
     biSummary,
+    dataCut,
+    operationalQuality,
     accounts,
     apObligations,
     openApCount,
@@ -233,6 +236,13 @@ export function Hoy({
         </div>
       </Card>
 
+      <HoyDataStatusCard
+        dataCut={dataCut}
+        operationalQuality={operationalQuality}
+        fallbackPeriodEnd={kpiQ1?.period_end}
+        onOpenTab={handleTabChange}
+      />
+
       {/* Executive Business Summary (financial + operational metrics) */}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <button
@@ -257,6 +267,8 @@ export function Hoy({
           <p className="mt-1 text-xs text-bht-ink-soft tabular-nums">
             Cobrado: {formatPen(kpiQ1?.collected_sales_pen ?? 0)} · {totalOrdersCount}{" "}
             pedidos
+            {(dataCut?.lastOrderDate || kpiQ1?.period_end) &&
+              ` · Corte: ${formatDatePe(dataCut?.lastOrderDate ?? kpiQ1?.period_end)}`}
           </p>
         </button>
 
@@ -304,7 +316,10 @@ export function Hoy({
             {formatPen(totalCashPen)}
           </p>
           <p className="mt-1 text-xs text-bht-ink-soft tabular-nums">
-            Por pagar: {formatPen(totalApPen)} ({openApCount} obl.)
+            {dataCut?.bankReconciled === false
+              ? "Saldo registrado (no conciliado)"
+              : "Saldo registrado"}{" "}
+            · Por pagar: {formatPen(totalApPen)} ({openApCount} obl.)
           </p>
         </button>
 

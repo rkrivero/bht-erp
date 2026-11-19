@@ -166,7 +166,7 @@ export function CajaCuentasTab({
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
             <h3 className="text-sm font-semibold text-bht-ink-strong sm:text-base">
-              Saldos por Caja, Banco y Custodia
+              Saldos registrados por caja, banco y custodia
             </h3>
             <p className="text-xs text-bht-ink-soft">
               Toca una cuenta para filtrar sus movimientos en el libro inferior.

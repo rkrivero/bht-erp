@@ -508,6 +508,8 @@ describe("Purchases, Suppliers, ON_DEMAND Fulfillment, AP Payments & BI Reports"
       expect(resumen.pnlMonthly.length).toBeGreaterThanOrEqual(4);
       expect(resumen.totals.salesTotalPen).toBeGreaterThan(0);
       expect(resumen.filterOptions.months.length).toBeGreaterThanOrEqual(4);
+      expect(resumen.dataCut.lastOrderDate).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+      expect(typeof resumen.dataCut.bankReconciled).toBe("boolean");
 
       const resumenFiltered = await getReportSectionData(client, "resumen", {
         from: "2026-08-01",
@@ -544,6 +546,8 @@ describe("Purchases, Suppliers, ON_DEMAND Fulfillment, AP Payments & BI Reports"
 
       const auditoria = await getReportSectionData(client, "auditoria", {});
       expect(auditoria.closingReadiness.checks).toHaveLength(7);
+      expect(auditoria.operationalQuality.registrationCoverage24h).toBeDefined();
+      expect(auditoria.operationalQuality.startupChecklist).toHaveLength(6);
 
       expect(() =>
         parseReportFilters(new URLSearchParams("from=2026-09-30&to=2026-06-01"))
