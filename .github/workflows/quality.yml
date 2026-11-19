@@ -13,7 +13,6 @@ concurrency:
 
 env:
   BHT_DB_BRANCH: dev
-  DEV_DATABASE_URL: ${{ secrets.DEV_DATABASE_URL }}
   DATABASE_URL: postgresql://ci-main-disabled:ci-main-disabled@127.0.0.1:1/unroutable?sslmode=disable
   NEON_AUTH_BASE_URL: https://auth.invalid/database/auth
   NEON_AUTH_COOKIE_SECRET: ci-only-nonfunctional-cookie-secret-00000000000000000000
@@ -36,7 +35,7 @@ jobs:
       - run: npm run bundles:check
 
   vitest:
-    name: Vitest against Neon dev
+    name: Vitest without database credentials
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -45,7 +44,7 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - run: npm test
+      - run: npm run test:ci
 
   playwright:
     name: Playwright Chromium and PWA
