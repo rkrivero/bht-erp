@@ -23,10 +23,13 @@ from bht_etl.extractors.excel_catalogs import (
     RawCatalogProduct,
     RawCostCatalogRow,
     RawEntityRow,
+    RawOpeningStockRow,
     RawQuoteHeader,
+    RawQuoteLine,
     extract_cost_catalog,
     extract_entities,
     extract_master_products,
+    extract_opening_stocks,
     extract_quotes,
 )
 from bht_etl.extractors.excel_compras import (
@@ -158,6 +161,16 @@ class AuditFlagRecord:
     source_origin: str = "HISTORICAL_BACKFILL"
 
 
+@dataclass(frozen=True)
+class NormalizedOpeningStock:
+    sku: str
+    quantity_delta: float
+    unit_cost_pen: float | None
+    movement_date: date
+    notes: str
+    row_hash: str
+
+
 @dataclass
 class NormalizedDataset:
     raw_products: list[RawCatalogProduct]
@@ -176,6 +189,7 @@ class NormalizedDataset:
     sales_orders: list[NormalizedSalesOrder]
     cash_events: list[ExtractedDailyCashEvent]
     audit_flags: list[AuditFlagRecord]
+    opening_stocks: list[NormalizedOpeningStock] = field(default_factory=list)
 
 
 def build_normalized_dataset(raw_dir: Path, config_dir: Path) -> NormalizedDataset:
@@ -185,48 +199,112 @@ def build_normalized_dataset(raw_dir: Path, config_dir: Path) -> NormalizedDatas
     party_aliases_map = load_party_aliases(config_dir)
 
     raw_products = extract_master_products(raw_dir)
+    raw_opening_stocks = extract_opening_stocks(raw_dir)
     cost_catalog = extract_cost_catalog(raw_dir)
     raw_entities = extract_entities(raw_dir)
-    raw_quotes = extract_quotes(raw_dir, cutoff_date=exp_cfg.cutoff_date)
+    raw_quotes_extracted = extract_quotes(raw_dir, cutoff_date=exp_cfg.cutoff_date)
     raw_compras_all, compras_dedup = extract_compras_files(raw_dir, exp_cfg)
     raw_purchase_items = extract_purchase_items(raw_dir, exp_cfg)
     json_res = extract_json_documents(raw_dir)
 
+    consolidated_targets = set(exp_cfg.canonical_product_merges.values())
+
+    # Normalize quotes so consolidated SKUs (e.g. Left/Right calipers) merge cleanly into one line
+    raw_quotes: list[RawQuoteHeader] = []
+    for q in raw_quotes_extracted:
+        merged_q_lines: list[RawQuoteLine] = []
+        seen_q_idx: dict[tuple[str, float], int] = {}
+        for ql in q.lines:
+            csku = exp_cfg.resolve_canonical_sku(ql.sku) if ql.sku else None
+            desc = exp_cfg.resolve_canonical_name(csku, ql.description) if csku else ql.description
+            if csku and csku in consolidated_targets:
+                mkey = (csku, round(ql.unit_price_pen, 4))
+                if mkey in seen_q_idx:
+                    prev = merged_q_lines[seen_q_idx[mkey]]
+                    merged_q_lines[seen_q_idx[mkey]] = RawQuoteLine(
+                        line_no=prev.line_no,
+                        sku=prev.sku,
+                        description=prev.description,
+                        quantity=round(prev.quantity + ql.quantity, 4),
+                        unit_price_pen=prev.unit_price_pen,
+                        line_total_pen=round(prev.line_total_pen + ql.line_total_pen, 2),
+                    )
+                    continue
+                seen_q_idx[mkey] = len(merged_q_lines)
+            merged_q_lines.append(
+                RawQuoteLine(
+                    line_no=ql.line_no,
+                    sku=csku,
+                    description=desc,
+                    quantity=ql.quantity,
+                    unit_price_pen=ql.unit_price_pen,
+                    line_total_pen=ql.line_total_pen,
+                )
+            )
+        raw_quotes.append(
+            RawQuoteHeader(
+                source_file=q.source_file,
+                sheet_name=q.sheet_name,
+                row_num=q.row_num,
+                quote_code=q.quote_code,
+                issue_date=q.issue_date,
+                doc_type=q.doc_type,
+                customer_doc=q.customer_doc,
+                customer_name=q.customer_name,
+                currency=q.currency,
+                total_pen=q.total_pen,
+                related_cpe=q.related_cpe,
+                status=q.status,
+                notes=q.notes,
+                lines=merged_q_lines,
+                raw_payload=q.raw_payload,
+                row_hash=q.row_hash,
+            )
+        )
+
     # 1. Build SKU unit cost averages from ITEMS-COMPRAS, JSON docs, and COSTO DE PRODUCTO catalog
     ic_cost_totals: dict[str, tuple[float, float]] = defaultdict(lambda: (0.0, 0.0))
     for item in raw_purchase_items:
-        amt, qty = ic_cost_totals[item.sku]
-        ic_cost_totals[item.sku] = (amt + item.line_total_pen, qty + item.quantity)
+        csku = exp_cfg.resolve_canonical_sku(item.sku)
+        amt, qty = ic_cost_totals[csku]
+        ic_cost_totals[csku] = (amt + item.line_total_pen, qty + item.quantity)
 
     json_cost_totals: dict[str, tuple[float, float]] = defaultdict(lambda: (0.0, 0.0))
     for doc in json_res.supplier_docs:
         for line in doc.lines:
             if line.sku:
-                amt, qty = json_cost_totals[line.sku]
-                json_cost_totals[line.sku] = (amt + line.line_total_pen, qty + line.quantity)
+                csku = exp_cfg.resolve_canonical_sku(line.sku)
+                amt, qty = json_cost_totals[csku]
+                json_cost_totals[csku] = (amt + line.line_total_pen, qty + line.quantity)
 
-    raw_prod_by_sku = {rp.sku: rp for rp in raw_products}
+    # Prefer rows whose original SKU already matches its canonical SKU over absorbed secondary SKUs
+    ordered_raw_products = sorted(
+        raw_products,
+        key=lambda rp: (0 if exp_cfg.resolve_canonical_sku(rp.sku) == rp.sku else 1, rp.row_num),
+    )
+    raw_prod_by_sku: dict[str, RawCatalogProduct] = {}
+    for rp in ordered_raw_products:
+        csku = exp_cfg.resolve_canonical_sku(rp.sku)
+        raw_prod_by_sku.setdefault(csku, rp)
+
     costo_by_sku: dict[str, float] = {}
     for crow in cost_catalog:
         norm_cname = normalize_text(crow.name)
         alias_hit = prod_aliases_map.get(norm_cname)
-        if (
-            alias_hit
-            and not alias_hit.needs_review
-            and crow.unit_cost_pen is not None
-            and alias_hit.sku not in costo_by_sku
-        ):
-            cost_val = crow.unit_cost_pen
-            rp = raw_prod_by_sku.get(alias_hit.sku)
-            if (
-                crow.pack_factor > 1
-                and crow.sale_price_pen is not None
-                and rp is not None
-                and rp.sale_price_pen is not None
-                and abs((crow.sale_price_pen / crow.pack_factor) - rp.sale_price_pen) <= 0.05
-            ):
-                cost_val = round(crow.unit_cost_pen / crow.pack_factor, 4)
-            costo_by_sku[alias_hit.sku] = cost_val
+        if alias_hit and not alias_hit.needs_review and crow.unit_cost_pen is not None:
+            target_sku = exp_cfg.resolve_canonical_sku(alias_hit.sku)
+            if target_sku not in costo_by_sku:
+                cost_val = crow.unit_cost_pen
+                rp = raw_prod_by_sku.get(target_sku)
+                if (
+                    crow.pack_factor > 1
+                    and crow.sale_price_pen is not None
+                    and rp is not None
+                    and rp.sale_price_pen is not None
+                    and abs((crow.sale_price_pen / crow.pack_factor) - rp.sale_price_pen) <= 0.05
+                ):
+                    cost_val = round(crow.unit_cost_pen / crow.pack_factor, 4)
+                costo_by_sku[target_sku] = cost_val
 
         # Map range-based belt rows (e.g. FAJA INDUSTRIAL ALLWYN TIPO B B41 AL B70 / B80 AL B100)
         m_faja = re.search(
@@ -236,40 +314,45 @@ def build_normalized_dataset(raw_dir: Path, config_dir: Path) -> NormalizedDatas
         if m_faja and crow.unit_cost_pen is not None:
             faja_type = m_faja.group(1)
             lo_num, hi_num = int(m_faja.group(2)), int(m_faja.group(3))
-            for rp in raw_products:
-                m_sku = re.match(r"^ALL([A-Z])(\d+)$", rp.sku.strip().upper())
+            for rp in ordered_raw_products:
+                csku = exp_cfg.resolve_canonical_sku(rp.sku)
+                m_sku = re.match(r"^ALL([A-Z])(\d+)$", csku.strip().upper())
                 if m_sku and m_sku.group(1) == faja_type:
                     sku_num = int(m_sku.group(2))
-                    if lo_num <= sku_num <= hi_num and rp.sku not in costo_by_sku:
-                        costo_by_sku[rp.sku] = crow.unit_cost_pen
+                    if lo_num <= sku_num <= hi_num and csku not in costo_by_sku:
+                        costo_by_sku[csku] = crow.unit_cost_pen
 
     # 2. Canonical Products & price lookup for EXEL qty/price swap detection
     norm_products: list[NormalizedProduct] = []
     prod_by_sku: dict[str, NormalizedProduct] = {}
     catalog_price_lookup: dict[str, float] = {}
 
-    for rp in raw_products:
+    for rp in ordered_raw_products:
+        csku = exp_cfg.resolve_canonical_sku(rp.sku)
+        if csku in prod_by_sku:
+            continue
+        cname = exp_cfg.resolve_canonical_name(csku, rp.name)
         ref_cost: float | None = None
         cost_src = "MISSING"
-        if rp.sku in ic_cost_totals and ic_cost_totals[rp.sku][1] > 0:
-            amt, qty = ic_cost_totals[rp.sku]
+        if csku in ic_cost_totals and ic_cost_totals[csku][1] > 0:
+            amt, qty = ic_cost_totals[csku]
             ref_cost = round(amt / qty, 4)
             cost_src = "ITEMS_COMPRAS_AVG"
-        elif rp.sku in json_cost_totals and json_cost_totals[rp.sku][1] > 0:
-            amt, qty = json_cost_totals[rp.sku]
+        elif csku in json_cost_totals and json_cost_totals[csku][1] > 0:
+            amt, qty = json_cost_totals[csku]
             ref_cost = round(amt / qty, 4)
             cost_src = "QINGDAO_JSON_AVG"
-        elif rp.sku in costo_by_sku:
-            ref_cost = round(costo_by_sku[rp.sku], 4)
+        elif csku in costo_by_sku:
+            ref_cost = round(costo_by_sku[csku], 4)
             cost_src = "COSTO_CATALOG"
         elif rp.cost_inc_igv is not None and rp.cost_inc_igv > 0:
             ref_cost = round(rp.cost_inc_igv, 4)
             cost_src = "PRODUCTS_FILE"
 
-        mode = "ON_DEMAND" if rp.sku in exp_cfg.on_demand_skus else "STOCKED"
+        mode = "ON_DEMAND" if csku in exp_cfg.on_demand_skus else "STOCKED"
         np_obj = NormalizedProduct(
-            sku=rp.sku,
-            name=rp.name,
+            sku=csku,
+            name=cname,
             category=rp.category or "GENERAL",
             uom=rp.uom,
             fulfillment_mode=mode,
@@ -278,10 +361,11 @@ def build_normalized_dataset(raw_dir: Path, config_dir: Path) -> NormalizedDatas
             cost_source=cost_src,
         )
         norm_products.append(np_obj)
-        prod_by_sku[rp.sku] = np_obj
+        prod_by_sku[csku] = np_obj
 
     for alias_key, entry in prod_aliases_map.items():
-        p_obj = prod_by_sku.get(entry.sku)
+        target_sku = exp_cfg.resolve_canonical_sku(entry.sku)
+        p_obj = prod_by_sku.get(target_sku)
         if p_obj and p_obj.list_sale_price_pen:
             catalog_price_lookup[alias_key] = p_obj.list_sale_price_pen
 
@@ -380,27 +464,53 @@ def build_normalized_dataset(raw_dir: Path, config_dir: Path) -> NormalizedDatas
     merged_purchases: dict[tuple[str, str, str, str], NormalizedPurchaseInvoice] = {}
     audit_flags: list[AuditFlagRecord] = []
 
+    def _merge_purchase_lines(raw_lines: list[NormalizedPurchaseLine]) -> list[NormalizedPurchaseLine]:
+        merged: list[NormalizedPurchaseLine] = []
+        seen_idx: dict[tuple[str, float], int] = {}
+        for ln in raw_lines:
+            if ln.sku and ln.sku in consolidated_targets:
+                mkey = (ln.sku, round(ln.unit_cost_pen, 4))
+                if mkey in seen_idx:
+                    prev = merged[seen_idx[mkey]]
+                    merged[seen_idx[mkey]] = NormalizedPurchaseLine(
+                        line_no=prev.line_no,
+                        sku=prev.sku,
+                        raw_description=prev.raw_description,
+                        uom=prev.uom,
+                        quantity=round(prev.quantity + ln.quantity, 4),
+                        unit_cost_pen=prev.unit_cost_pen,
+                        line_total_pen=round(prev.line_total_pen + ln.line_total_pen, 2),
+                        anomaly_flag=prev.anomaly_flag or ln.anomaly_flag,
+                        row_hash=prev.row_hash,
+                    )
+                    continue
+                seen_idx[mkey] = len(merged)
+            merged.append(ln)
+        return merged
+
     def _build_lines_for_invoice(ruc: str, dtype: str, ser: str, num: str) -> list[NormalizedPurchaseLine]:
         ex_lines = items_by_doc.get((ruc, ser, num))
         if ex_lines:
             out: list[NormalizedPurchaseLine] = []
             for idx, it in enumerate(ex_lines, start=1):
+                csku = exp_cfg.resolve_canonical_sku(it.sku)
+                cdesc = exp_cfg.resolve_canonical_name(csku, it.description)
                 if it.anomaly_flag:
                     audit_flags.append(
                         AuditFlagRecord(
                             flag_code="PURCHASE_LINE_QTY_PRICE_SWAP",
                             severity="WARNING",
                             entity_table="erp.purchase_invoice_lines",
-                            entity_id=f"{ruc}:{ser}:{num}:{it.sku}",
-                            message=f"Corrected qty/unit cost swap on {ser}-{num} {it.sku} (qty=3, cost=270, total=810)",
-                            details={"supplier_ruc": ruc, "doc": f"{ser}-{num}", "sku": it.sku},
+                            entity_id=f"{ruc}:{ser}:{num}:{csku}",
+                            message=f"Corrected qty/unit cost swap on {ser}-{num} {csku} (qty=3, cost=270, total=810)",
+                            details={"supplier_ruc": ruc, "doc": f"{ser}-{num}", "sku": csku},
                         )
                     )
                 out.append(
                     NormalizedPurchaseLine(
                         line_no=idx,
-                        sku=it.sku if it.sku in prod_by_sku else None,
-                        raw_description=it.description,
+                        sku=csku if csku in prod_by_sku else None,
+                        raw_description=cdesc,
                         uom=it.uom,
                         quantity=it.quantity,
                         unit_cost_pen=it.unit_cost_pen,
@@ -409,13 +519,15 @@ def build_normalized_dataset(raw_dir: Path, config_dir: Path) -> NormalizedDatas
                         row_hash=it.row_hash,
                     )
                 )
-            return out
+            return _merge_purchase_lines(out)
 
         jdoc = json_docs_by_key.get((ruc, dtype, ser, num))
         if jdoc and jdoc.lines:
             out = []
             for l in jdoc.lines:
-                sku = l.sku if (l.sku and l.sku in prod_by_sku) else None
+                raw_csku = exp_cfg.resolve_canonical_sku(l.sku) if l.sku else None
+                sku = raw_csku if (raw_csku and raw_csku in prod_by_sku) else None
+                cdesc = exp_cfg.resolve_canonical_name(sku, l.description) if sku else l.description
                 qty, ucost, ltot = l.quantity, l.unit_cost_pen, l.line_total_pen
                 anom_flag = False
                 anom_key = f"{ruc}:{ser}:{num}:{sku}"
@@ -429,7 +541,7 @@ def build_normalized_dataset(raw_dir: Path, config_dir: Path) -> NormalizedDatas
                     NormalizedPurchaseLine(
                         line_no=l.line_no,
                         sku=sku,
-                        raw_description=l.description,
+                        raw_description=cdesc,
                         uom=l.uom,
                         quantity=qty,
                         unit_cost_pen=ucost,
@@ -438,7 +550,7 @@ def build_normalized_dataset(raw_dir: Path, config_dir: Path) -> NormalizedDatas
                         row_hash=stable_hash("JSON_LINE", ruc, ser, num, l.line_no, sku),
                     )
                 )
-            return out
+            return _merge_purchase_lines(out)
         return []
 
     for inv in compras_dedup:
@@ -554,7 +666,7 @@ def build_normalized_dataset(raw_dir: Path, config_dir: Path) -> NormalizedDatas
     def _resolve_sku(desc_raw: str) -> str:
         n = normalize_text(desc_raw)
         if n in prod_aliases_map:
-            return prod_aliases_map[n].sku
+            return exp_cfg.resolve_canonical_sku(prod_aliases_map[n].sku)
         raise KeyError(f"Unmapped EXEL product description {desc_raw!r} (norm={n!r})")
 
     grouped_blocks: list[list[tuple[ExtractedSaleLine, str, str]]] = []
@@ -641,7 +753,7 @@ def build_normalized_dataset(raw_dir: Path, config_dir: Path) -> NormalizedDatas
                 NormalizedSalesOrderLine(
                     line_no=lno,
                     sku=sku,
-                    raw_description=sl.product_desc_raw,
+                    raw_description=p_obj.name if sku in exp_cfg.canonical_product_names else sl.product_desc_raw,
                     quantity=sl.quantity,
                     pack_factor_applied=sl.pack_factor,
                     unit_price_pen=sl.unit_price_pen,
@@ -680,6 +792,86 @@ def build_normalized_dataset(raw_dir: Path, config_dir: Path) -> NormalizedDatas
     for ce in daily_res.cash_events:
         _trip_code_for_date(ce.tx_date)
 
+    for excl in daily_res.excluded_sale_rows:
+        audit_flags.append(
+            AuditFlagRecord(
+                flag_code="EXEL_RONY_CALIPER_ERROR_CORRECTED",
+                severity="INFO",
+                entity_table="erp.sales_orders",
+                entity_id=f"{excl['sheet_name']}:r{excl['row_num']}",
+                message=(
+                    f"Anulada fila errónea en {excl['sheet_name']} r{excl['row_num']} "
+                    f"({excl['customer']} / {excl['product']}, -{excl['quantity']} u., -S/ {excl['line_total_pen']:.2f}): "
+                    f"{excl['reason']}"
+                ),
+                details=excl,
+            )
+        )
+
+    # Compute implied opening stock as of cutoff_date without duplicating purchases <= cutoff_date
+    target_eod_by_sku: dict[str, float] = defaultdict(float)
+    for row in raw_opening_stocks:
+        csku = exp_cfg.resolve_canonical_sku(row.sku)
+        target_eod_by_sku[csku] += row.stock_eod_cutoff
+
+    overridden_opening_skus: set[str] = set()
+    for raw_sku, override_qty in exp_cfg.opening_stock_target_overrides.items():
+        csku = exp_cfg.resolve_canonical_sku(raw_sku)
+        target_eod_by_sku[csku] = float(override_qty)
+        overridden_opening_skus.add(csku)
+
+    net_le_cutoff: dict[str, float] = defaultdict(float)
+    for pinv in merged_purchases.values():
+        if pinv.issue_date <= exp_cfg.cutoff_date:
+            for pl in pinv.lines:
+                if pl.sku:
+                    net_le_cutoff[pl.sku] += pl.quantity
+    for so in sales_orders:
+        if so.order_date <= exp_cfg.cutoff_date:
+            for sl in so.lines:
+                net_le_cutoff[sl.sku] -= sl.quantity * sl.pack_factor_applied
+
+    def _fmt_opening_qty(val: float) -> str:
+        return str(int(val)) if float(val).is_integer() else f"{val:g}"
+
+    opening_stocks: list[NormalizedOpeningStock] = []
+    for csku, target_qty in sorted(target_eod_by_sku.items()):
+        net_qty = net_le_cutoff.get(csku, 0.0)
+        opening_qty = round(target_qty - net_qty, 4)
+        p_obj = prod_by_sku.get(csku)
+        if opening_qty > 0.0001 and p_obj is not None:
+            if csku in overridden_opening_skus:
+                note = (
+                    f"Saldo inicial ajustado al {exp_cfg.cutoff_date.strftime('%d/%m/%Y')}: "
+                    f"{_fmt_opening_qty(target_qty)} u. confirmadas "
+                    f"({_fmt_opening_qty(net_qty)} compras <= corte + {_fmt_opening_qty(opening_qty)} saldo inicial)"
+                )
+            else:
+                note = "Saldo inicial confirmado al 26/06/2026 (20614786851-STOCKS-CONSOLIDADO)"
+            opening_stocks.append(
+                NormalizedOpeningStock(
+                    sku=csku,
+                    quantity_delta=opening_qty,
+                    unit_cost_pen=p_obj.ref_cost_pen,
+                    movement_date=exp_cfg.cutoff_date,
+                    notes=note,
+                    row_hash=f"OPENING_2026_06_26:{csku}",
+                )
+            )
+
+    norm_aliases = [
+        ProductAliasEntry(
+            alias_raw=a.alias_raw,
+            alias_normalized=a.alias_normalized,
+            sku=exp_cfg.resolve_canonical_sku(a.sku),
+            pack_factor=a.pack_factor,
+            confidence=a.confidence,
+            needs_review=a.needs_review,
+            source=a.source,
+        )
+        for a in prod_aliases_map.values()
+    ]
+
     return NormalizedDataset(
         raw_products=raw_products,
         raw_entities=raw_entities,
@@ -689,7 +881,7 @@ def build_normalized_dataset(raw_dir: Path, config_dir: Path) -> NormalizedDatas
         daily_extraction=daily_res,
         json_extraction=json_res,
         products=norm_products,
-        product_aliases=list(prod_aliases_map.values()),
+        product_aliases=norm_aliases,
         parties=list(parties_by_key.values()),
         party_aliases=list(party_aliases_map.values()),
         trips=sorted(trips_by_code.values(), key=lambda t: (t.trip_date, t.trip_code)),
@@ -697,4 +889,5 @@ def build_normalized_dataset(raw_dir: Path, config_dir: Path) -> NormalizedDatas
         sales_orders=sales_orders,
         cash_events=daily_res.cash_events,
         audit_flags=audit_flags,
+        opening_stocks=opening_stocks,
     )

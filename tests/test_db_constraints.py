@@ -55,22 +55,30 @@ def _create_dummy_order(cur: psycopg.Cursor, wh_id: int, code: str, payment_mode
     return int(cur.fetchone()[0])
 
 
-def test_stocked_product_blocks_negative_stock_in_erp_app(db_tx: psycopg.Connection) -> None:
+def test_stocked_product_allows_negative_stock_and_logs_regularization_flag_in_erp_app(db_tx: psycopg.Connection) -> None:
     with db_tx.cursor() as cur:
         wh_id, _ = _get_main_wh_and_acct(cur)
         prod_id = _create_dummy_product(cur, "TEST-STOCKED-ZERO-001", "STOCKED")
 
-        cur.execute("SAVEPOINT sp_neg_stock;")
-        with pytest.raises(psycopg.errors.CheckViolation):
-            cur.execute(
-                """
-                INSERT INTO erp.inventory_movements
-                    (warehouse_id, product_id, movement_date, movement_type, quantity_delta, source_origin)
-                VALUES (%s, %s, %s, 'SALE_OUT', -1.0, 'ERP_APP');
-                """,
-                (wh_id, prod_id, datetime(2026, 9, 15, 12, 0, tzinfo=timezone.utc)),
-            )
-        cur.execute("ROLLBACK TO SAVEPOINT sp_neg_stock;")
+        cur.execute(
+            """
+            INSERT INTO erp.inventory_movements
+                (warehouse_id, product_id, movement_date, movement_type, quantity_delta, source_origin)
+            VALUES (%s, %s, %s, 'SALE_OUT', -1.0, 'ERP_APP');
+            """,
+            (wh_id, prod_id, datetime(2026, 9, 15, 12, 0, tzinfo=timezone.utc)),
+        )
+        cur.execute(
+            """
+            SELECT flag_code, severity, status, (details->>'resulting_stock')::numeric
+            FROM erp.audit_flags
+            WHERE entity_table = 'erp.products'
+              AND entity_id = %s
+              AND flag_code = 'UNPURCHASED_STOCK_DEFICIT';
+            """,
+            (f"{prod_id}@{wh_id}",),
+        )
+        assert cur.fetchone() == ("UNPURCHASED_STOCK_DEFICIT", "WARNING", "OPEN", Decimal("-1.0"))
 
 
 def test_on_demand_allows_zero_stock_emits_alerts_and_resolves_on_purchase_link(db_tx: psycopg.Connection) -> None:

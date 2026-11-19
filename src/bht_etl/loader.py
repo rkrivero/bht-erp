@@ -114,6 +114,9 @@ def load_to_neon(
             # 3. Route Trips
             trip_map = _upsert_route_trips(cur, ds, camioneta_wh_id, caja_ruta_id)
 
+            # 3b. Opening Stocks (verified as of cutoff_date, idempotent by source_row_hash)
+            _load_opening_stocks(cur, ds, sku_to_id=sku_to_id, main_wh_id=main_wh_id)
+
             # 4. Purchase Invoices, Lines, Inventory PURCHASE_IN, & AP/Direct Bank Cash
             purchase_map = _load_purchases_and_stock_in(
                 cur,
@@ -412,6 +415,42 @@ def _upsert_route_trips(
     )
     cur.execute("SELECT trip_code, trip_id FROM erp.route_trips;")
     return dict(cur.fetchall())
+
+
+def _load_opening_stocks(
+    cur: Any,
+    ds: NormalizedDataset,
+    sku_to_id: dict[str, int],
+    main_wh_id: int,
+) -> None:
+    if not ds.opening_stocks:
+        return
+    params = [
+        (
+            main_wh_id,
+            sku_to_id[op.sku],
+            datetime(op.movement_date.year, op.movement_date.month, op.movement_date.day, 5, 0, tzinfo=timezone.utc),
+            op.quantity_delta,
+            op.unit_cost_pen,
+            f"STOCKS-{op.movement_date.isoformat()}:{op.sku}",
+            op.notes,
+            op.row_hash,
+        )
+        for op in ds.opening_stocks
+        if op.sku in sku_to_id
+    ]
+    if params:
+        cur.executemany(
+            """
+            INSERT INTO erp.inventory_movements
+                (warehouse_id, product_id, movement_date, movement_type, quantity_delta,
+                 unit_cost_pen, reference_table, reference_id, source_origin, notes, source_row_hash)
+            VALUES (%s, %s, %s, 'OPENING', %s, %s, 'raw_staging.opening_stock_2026_06_26', %s,
+                    'HISTORICAL_BACKFILL', %s, %s)
+            ON CONFLICT (source_row_hash) DO NOTHING;
+            """,
+            params,
+        )
 
 
 def _load_purchases_and_stock_in(
