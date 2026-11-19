@@ -47,6 +47,7 @@ export default function Directorio({
           value={subTab}
           onChange={setSubTab}
           ariaLabel="Sección del directorio"
+          className="w-full sm:w-auto"
           options={[
             { id: "customers", label: "Clientes" },
             { id: "suppliers", label: "Proveedores" },

@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/Primitives";
 import { formatFulfillmentModeEs, formatUnitTitleEs } from "@/lib/labels-es";
 import {} from "./partnerShared";
-import type { InventoryFlow } from "./useInventoryFlow";
+import type { InventoryAttentionFilter, InventoryFlow } from "./useInventoryFlow";
 
 interface InventarioProps {
   negStockCount: number;
@@ -29,43 +29,94 @@ export function Inventario({ negStockCount, flow }: InventarioProps) {
     setConfirmResetNegativeOpen,
     searchSku,
     setSearchSku,
+    attentionFilter,
+    setAttentionFilter,
     setShowAllCatalog,
     showAllCatalog,
     visibleCatalog,
     filteredCatalog,
     openEditProduct,
   } = flow;
+  const attentionCards: Array<{
+    id: Exclude<InventoryAttentionFilter, "ALL">;
+    label: string;
+    description: string;
+    count: number;
+    tone: "warning" | "danger";
+  }> = [
+    {
+      id: "OUT_OF_STOCK",
+      label: "Agotados",
+      description: "Stock propio igual a 0",
+      count: inventorySummary.outOfStock,
+      tone: "danger",
+    },
+    {
+      id: "LOW_STOCK",
+      label: "Stock bajo",
+      description: "Entre 1 y 5 unidades",
+      count: inventorySummary.lowStock,
+      tone: "warning",
+    },
+    {
+      id: "NO_COST",
+      label: "Sin costo registrado",
+      description: "Falta costo de referencia",
+      count: inventorySummary.noCost,
+      tone: "danger",
+    },
+    {
+      id: "MARGIN_RISK",
+      label: "Margen en riesgo",
+      description: "Precio mínimo ≤ costo",
+      count: inventorySummary.marginRisk,
+      tone: "danger",
+    },
+  ];
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-        {[
-          {
-            label: "Stock bajo (≤5)",
-            count: inventorySummary.lowStock,
-            tone: "warning" as const,
-          },
-          {
-            label: "Productos sin costo",
-            count: inventorySummary.noCost,
-            tone: "danger" as const,
-          },
-          {
-            label: "Mínimo sin margen",
-            count: inventorySummary.marginRisk,
-            tone: "danger" as const,
-          },
-        ].map((item) => (
-          <Card
-            key={item.label}
-            padding="sm"
-            className="flex items-center justify-between gap-3"
-          >
-            <span className="text-xs font-medium text-bht-ink-soft">{item.label}</span>
-            <Badge tone={item.tone} className="tabular-nums">
-              {item.count}
-            </Badge>
-          </Card>
-        ))}
+      <div
+        className="grid grid-cols-2 gap-2 lg:grid-cols-4"
+        aria-label="Indicadores y filtros de inventario"
+      >
+        {attentionCards.map((item) => {
+          const active = attentionFilter === item.id;
+          return (
+            <button
+              key={item.id}
+              type="button"
+              aria-pressed={active}
+              aria-label={`${item.label}: ${item.count}. ${item.description}. ${
+                active ? "Filtro activo; quitar filtro" : "Filtrar inventario"
+              }`}
+              onClick={() => {
+                setAttentionFilter(active ? "ALL" : item.id);
+                setShowAllCatalog(false);
+              }}
+              className={`min-h-[76px] rounded-xl border p-3 text-left shadow-bht-elev-4 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bht-cobalt focus-visible:ring-offset-2 cursor-pointer ${
+                active
+                  ? "border-bht-cobalt bg-bht-cobalt-bg"
+                  : "border-bht-slate-line bg-white hover:border-bht-line-blue hover:bg-bht-surface-cool"
+              }`}
+            >
+              <span className="flex items-start justify-between gap-2">
+                <span
+                  className={`text-xs font-semibold leading-snug ${
+                    active ? "text-bht-cobalt-strong" : "text-bht-ink-strong"
+                  }`}
+                >
+                  {item.label}
+                </span>
+                <Badge tone={item.tone} className="tabular-nums">
+                  {item.count}
+                </Badge>
+              </span>
+              <span className="mt-1 block text-xs leading-snug text-bht-ink-soft">
+                {item.description}
+              </span>
+            </button>
+          );
+        })}
       </div>
       <Card tone={negStockCount > 0 ? "warning" : "default"} padding="md">
         <details className="group">

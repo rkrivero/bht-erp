@@ -6,6 +6,9 @@ import { notifyLocalSync } from "@/lib/realtime/useLiveSync";
 import { mutationErrorMessage, postJson, type ShowFeedback } from "./partnerShared";
 import type { PartnerData } from "./usePartnerData";
 
+export type InventoryAttentionFilter =
+  "ALL" | "OUT_OF_STOCK" | "LOW_STOCK" | "NO_COST" | "MARGIN_RISK";
+
 interface ResetNegativeStockResponse {
   adjustedSkuCount?: number;
 }
@@ -15,6 +18,51 @@ interface InventoryFlowDeps {
   setFeedback: PartnerData["setFeedback"];
   showFeedback: ShowFeedback;
   refreshDashboard: PartnerData["refreshDashboard"];
+}
+
+export function summarizeInventory(catalog: PartnerCatalogItem[]) {
+  const outOfStock = catalog.filter(
+    (product) => product.fulfillment_mode === "STOCKED" && product.stock_on_hand === 0
+  ).length;
+  const lowStock = catalog.filter(
+    (product) =>
+      product.fulfillment_mode === "STOCKED" &&
+      product.stock_on_hand > 0 &&
+      product.stock_on_hand <= 5
+  ).length;
+  const noCost = catalog.filter((product) => product.ref_cost_pen === null).length;
+  const marginRisk = catalog.filter(
+    (product) =>
+      product.ref_cost_pen !== null &&
+      product.min_sale_price_pen !== null &&
+      product.min_sale_price_pen <= product.ref_cost_pen
+  ).length;
+  return { outOfStock, lowStock, noCost, marginRisk };
+}
+
+function matchesInventoryAttention(
+  product: PartnerCatalogItem,
+  filter: InventoryAttentionFilter
+) {
+  if (filter === "OUT_OF_STOCK") {
+    return product.fulfillment_mode === "STOCKED" && product.stock_on_hand === 0;
+  }
+  if (filter === "LOW_STOCK") {
+    return (
+      product.fulfillment_mode === "STOCKED" &&
+      product.stock_on_hand > 0 &&
+      product.stock_on_hand <= 5
+    );
+  }
+  if (filter === "NO_COST") return product.ref_cost_pen === null;
+  if (filter === "MARGIN_RISK") {
+    return (
+      product.ref_cost_pen !== null &&
+      product.min_sale_price_pen !== null &&
+      product.min_sale_price_pen <= product.ref_cost_pen
+    );
+  }
+  return true;
 }
 
 /** Catalog search, product edit draft and negative-stock regularization. */
@@ -28,6 +76,8 @@ export function useInventoryFlow({
   const [confirmResetNegativeOpen, setConfirmResetNegativeOpen] = useState(false);
   const [searchSku, setSearchSku] = useState("");
   const deferredSearchSku = useDeferredValue(searchSku);
+  const [attentionFilter, setAttentionFilter] =
+    useState<InventoryAttentionFilter>("ALL");
   const [showAllCatalog, setShowAllCatalog] = useState(false);
   const [editingProd, setEditingProd] = useState<PartnerCatalogItem | null>(null);
   const [editStock, setEditStock] = useState("");
@@ -109,28 +159,16 @@ export function useInventoryFlow({
 
   const filteredCatalog = useMemo(() => {
     const q = deferredSearchSku.trim().toLowerCase();
-    if (!q) return catalog;
-    return catalog.filter(
-      (p) => p.name.toLowerCase().includes(q) || p.sku.toLowerCase().includes(q)
-    );
-  }, [catalog, deferredSearchSku]);
+    return catalog.filter((product) => {
+      const matchesSearch =
+        !q ||
+        product.name.toLowerCase().includes(q) ||
+        product.sku.toLowerCase().includes(q);
+      return matchesSearch && matchesInventoryAttention(product, attentionFilter);
+    });
+  }, [attentionFilter, catalog, deferredSearchSku]);
 
-  const inventorySummary = useMemo(() => {
-    const lowStock = catalog.filter(
-      (product) =>
-        product.fulfillment_mode === "STOCKED" &&
-        product.stock_on_hand >= 0 &&
-        product.stock_on_hand <= 5
-    ).length;
-    const noCost = catalog.filter((product) => product.ref_cost_pen === null).length;
-    const marginRisk = catalog.filter(
-      (product) =>
-        product.ref_cost_pen !== null &&
-        product.min_sale_price_pen !== null &&
-        product.min_sale_price_pen <= product.ref_cost_pen
-    ).length;
-    return { lowStock, noCost, marginRisk };
-  }, [catalog]);
+  const inventorySummary = useMemo(() => summarizeInventory(catalog), [catalog]);
 
   const visibleCatalog = useMemo(
     () => (showAllCatalog ? filteredCatalog : filteredCatalog.slice(0, 40)),
@@ -143,6 +181,8 @@ export function useInventoryFlow({
     setConfirmResetNegativeOpen,
     searchSku,
     setSearchSku,
+    attentionFilter,
+    setAttentionFilter,
     showAllCatalog,
     setShowAllCatalog,
     editingProd,

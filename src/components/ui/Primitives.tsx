@@ -231,7 +231,7 @@ export function SegmentedControl<T extends string>({
 
   return (
     <div
-      className={`flex min-w-0 gap-1 rounded-xl border border-bht-line bg-bht-paper-alt p-1 ${className}`}
+      className={`no-scrollbar flex min-w-0 max-w-full gap-1 overflow-x-auto rounded-xl border border-bht-line bg-bht-paper-alt p-1 ${className}`}
       role="radiogroup"
       aria-label={ariaLabel}
     >
@@ -249,13 +249,13 @@ export function SegmentedControl<T extends string>({
             tabIndex={active || (!hasMatch && idx === 0) ? 0 : -1}
             onClick={() => onChange(opt.id)}
             onKeyDown={(e) => handleKeyDown(e, idx)}
-            className={`min-h-11 min-w-0 flex-1 rounded-lg border px-2.5 py-2 text-xs font-semibold leading-tight transition-all duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bht-navy-deep focus-visible:ring-offset-1 sm:px-3 sm:text-sm cursor-pointer ${
+            className={`min-h-11 min-w-max flex-1 shrink-0 rounded-lg border px-2.5 py-2 text-xs font-semibold leading-tight transition-all duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bht-navy-deep focus-visible:ring-offset-1 sm:px-3 sm:text-sm cursor-pointer ${
               active
                 ? "border-bht-line-blue bg-white text-bht-navy-deep shadow-bht-elev-10"
                 : "border-transparent text-bht-ink-soft hover:text-bht-navy-deep"
             }`}
           >
-            <span className="whitespace-normal">{opt.label}</span>
+            <span className="whitespace-nowrap">{opt.label}</span>
             {opt.count !== undefined && (
               <span
                 className={`ml-1.5 inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] tabular-nums ${

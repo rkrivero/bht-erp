@@ -217,7 +217,52 @@ test("partner directory exposes customer detail and keeps buyer hierarchy in ord
   const fixtures: Record<string, unknown> = {
     orders: {
       orders: [order],
-      catalog: [],
+      catalog: [
+        {
+          product_id: 10,
+          sku: "SKU-AGOTADO",
+          name: "Producto agotado",
+          unit_of_measure: "UND",
+          fulfillment_mode: "STOCKED",
+          stock_on_hand: 0,
+          list_sale_price_pen: 20,
+          min_sale_price_pen: 15,
+          ref_cost_pen: 10,
+        },
+        {
+          product_id: 11,
+          sku: "SKU-BAJO",
+          name: "Producto bajo",
+          unit_of_measure: "UND",
+          fulfillment_mode: "STOCKED",
+          stock_on_hand: 3,
+          list_sale_price_pen: 20,
+          min_sale_price_pen: 15,
+          ref_cost_pen: 10,
+        },
+        {
+          product_id: 12,
+          sku: "SKU-SIN-COSTO",
+          name: "Producto sin costo",
+          unit_of_measure: "UND",
+          fulfillment_mode: "ON_DEMAND",
+          stock_on_hand: 0,
+          list_sale_price_pen: 20,
+          min_sale_price_pen: 15,
+          ref_cost_pen: null,
+        },
+        {
+          product_id: 13,
+          sku: "SKU-MARGEN",
+          name: "Producto con margen en riesgo",
+          unit_of_measure: "UND",
+          fulfillment_mode: "STOCKED",
+          stock_on_hand: 8,
+          list_sale_price_pen: 20,
+          min_sale_price_pen: 10,
+          ref_cost_pen: 10,
+        },
+      ],
       accounts: [],
       pagination: { totalCount: 1, hasMore: false },
     },
@@ -298,6 +343,30 @@ test("partner directory exposes customer detail and keeps buyer hierarchy in ord
 
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.goto("/socios?tab=directory");
+  const directoryTabs = page.getByRole("radiogroup", {
+    name: "Sección del directorio",
+  });
+  const viewTabs = page.getByRole("radiogroup", { name: "Vista de clientes" });
+  for (const label of ["Clientes", "Proveedores"]) {
+    const tab = directoryTabs.getByRole("radio", { name: label });
+    await expect(tab).toBeVisible();
+    expect(
+      await tab
+        .locator("span")
+        .first()
+        .evaluate((element) => {
+          const styles = getComputedStyle(element);
+          return {
+            height: element.getBoundingClientRect().height,
+            lineHeight: Number.parseFloat(styles.lineHeight),
+            whiteSpace: styles.whiteSpace,
+          };
+        })
+    ).toMatchObject({ whiteSpace: "nowrap" });
+  }
+  for (const label of ["Lista", "Mapa"]) {
+    await expect(viewTabs.getByRole("radio", { name: label })).toBeVisible();
+  }
   const customerCard = page
     .getByRole("heading", { name: "Ferretería Horizonte", level: 3 })
     .locator("xpath=ancestor::section[1]");
@@ -310,6 +379,39 @@ test("partner directory exposes customer detail and keeps buyer hierarchy in ord
   ).toBeVisible();
 
   await page.setViewportSize({ width: 390, height: 844 });
+  for (const label of ["Clientes", "Proveedores"]) {
+    const tab = directoryTabs.getByRole("radio", { name: label });
+    const metrics = await tab
+      .locator("span")
+      .first()
+      .evaluate((element) => {
+        const styles = getComputedStyle(element);
+        return {
+          height: element.getBoundingClientRect().height,
+          lineHeight: Number.parseFloat(styles.lineHeight),
+        };
+      });
+    expect(metrics.height).toBeLessThanOrEqual(metrics.lineHeight + 1);
+  }
+  for (const label of ["Lista", "Mapa"]) {
+    const tab = viewTabs.getByRole("radio", { name: label });
+    const metrics = await tab
+      .locator("span")
+      .first()
+      .evaluate((element) => {
+        const styles = getComputedStyle(element);
+        return {
+          height: element.getBoundingClientRect().height,
+          lineHeight: Number.parseFloat(styles.lineHeight),
+        };
+      });
+    expect(metrics.height).toBeLessThanOrEqual(metrics.lineHeight + 1);
+  }
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth > document.documentElement.clientWidth
+    )
+  ).toBe(false);
   await customerCard.getByRole("button", { name: "Ver ficha" }).click();
   await expect(page.getByRole("dialog")).toContainText("3 pedidos");
   await page.getByRole("button", { name: "Cerrar", exact: true }).click();
@@ -341,6 +443,25 @@ test("partner directory exposes customer detail and keeps buyer hierarchy in ord
     Number.parseFloat(hierarchy[1])
   );
   expect(hierarchy[2]).not.toBe(hierarchy[3]);
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth > document.documentElement.clientWidth
+    )
+  ).toBe(false);
+
+  await page.goto("/socios?tab=inventory");
+  for (const label of [
+    /Agotados: 1\./,
+    /Stock bajo: 1\./,
+    /Sin costo registrado: 1\./,
+    /Margen en riesgo: 1\./,
+  ]) {
+    await expect(page.getByRole("button", { name: label })).toBeVisible();
+  }
+  await page.getByRole("button", { name: /Agotados: 1\./ }).click();
+  await expect(page.getByText("Mostrando 1 de 1 productos")).toBeVisible();
+  await expect(page.getByText("Producto agotado", { exact: true })).toBeVisible();
+  await expect(page.getByText("Producto bajo", { exact: true })).toHaveCount(0);
   expect(
     await page.evaluate(
       () => document.documentElement.scrollWidth > document.documentElement.clientWidth
