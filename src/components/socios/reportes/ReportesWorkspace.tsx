@@ -4,6 +4,7 @@ import dynamic from "next/dynamic";
 import React, { useEffect, useMemo, useState } from "react";
 import { ChevronRightIcon, CloseIcon } from "@/components/ui/Icons";
 import { Badge, Button, Card, INPUT_CLASS } from "@/components/ui/Primitives";
+import type { UndoActionReceiptDto } from "@/lib/contracts";
 import { formatDatePe, formatMonthLabel, type DataCutSummary } from "../types";
 import {
   type ReportAuditoriaDto,
@@ -70,7 +71,11 @@ interface ReportesWorkspaceProps {
   onGoToPurchaseProduct: (productId: number) => void;
   onGoToEditProduct: (sku: string) => void;
   onRefresh: () => Promise<void>;
-  onFeedback: (msg: string, isError?: boolean) => void;
+  onFeedback: (
+    msg: string,
+    isError?: boolean,
+    undoAction?: UndoActionReceiptDto
+  ) => void;
   onEditingChange?: (editing: boolean) => void;
 }
 
@@ -285,52 +290,11 @@ export default function ReportesWorkspace({
           </div>
         </div>
 
-        <div
-          role="status"
-          className={`flex flex-wrap items-start justify-between gap-2 rounded-xl border p-3 text-xs sm:text-sm ${
-            dataNeedsReview
-              ? "border-bht-warning bg-bht-warning-bg text-bht-ink-strong"
-              : "border-bht-line-blue bg-bht-mist text-bht-ink-strong"
-          }`}
-        >
-          <div className="max-w-3xl space-y-1">
-            <p className="font-semibold">
-              {effectiveDataCut?.lastOrderDate
-                ? `Ventas actualizadas hasta: ${formatDatePe(effectiveDataCut.lastOrderDate)}`
-                : latestRecordedMonth
-                  ? `Último mes con ventas registradas: ${formatMonthLabel(latestRecordedMonth)}`
-                  : "Todavía no hay un período de ventas disponible"}
-            </p>
-            {effectiveDataCut && (
-              <p className="text-bht-ink-soft tabular-nums">
-                Caja: {formatDatePe(effectiveDataCut.lastCashLedgerDate)} · Cobros:{" "}
-                {formatDatePe(effectiveDataCut.lastPaymentDate)} · Compras:{" "}
-                {formatDatePe(effectiveDataCut.lastPurchaseDate)} · Cotizaciones:{" "}
-                {formatDatePe(effectiveDataCut.lastQuoteDate)}
-              </p>
-            )}
-            <p className="text-bht-ink-soft">
-              Las cifras reflejan únicamente lo guardado en el ERP.{" "}
-              {effectiveDataCut?.bankReconciled
-                ? "Confirma la vigencia del corte antes de decidir."
-                : "Caja, bancos y resultados históricos deben leerse como no conciliados hasta completar su revisión."}
-            </p>
-          </div>
-          <div className="flex flex-wrap items-center gap-1.5">
-            {effectiveDataCut && !effectiveDataCut.bankReconciled && (
-              <Badge tone="warning">No conciliado</Badge>
-            )}
-            <Badge tone={dataNeedsReview ? "warning" : "horizon"}>
-              {dataNeedsReview ? "Datos desactualizados" : "Corte visible"}
-            </Badge>
-          </div>
-        </div>
-
-        {/* 6 Sub-tabs */}
+        {/* 6 Sub-tabs — primary report navigation */}
         <div
           role="tablist"
           aria-label="Secciones de reportes"
-          className="grid grid-cols-2 gap-1.5 sm:grid-cols-3 xl:grid-cols-6"
+          className="grid grid-cols-2 gap-2 rounded-2xl border border-bht-line-blue bg-bht-mist p-1.5 sm:grid-cols-3 xl:grid-cols-6"
         >
           {REPORT_TAB_ITEMS.map((item) => {
             const active = activeSection === item.id;
@@ -341,13 +305,22 @@ export default function ReportesWorkspace({
                 role="tab"
                 aria-selected={active}
                 onClick={() => setActiveSection(item.id)}
-                className={`min-h-11 rounded-xl border px-3 py-2 text-left text-xs font-semibold leading-tight transition-all duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bht-navy-deep sm:text-sm cursor-pointer ${
+                className={`min-h-11 rounded-xl border px-3 py-2.5 text-left transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bht-navy-deep cursor-pointer ${
                   active
                     ? "border-bht-navy-deep bg-bht-navy-deep text-white shadow-bht-elev-10"
-                    : "border-bht-line bg-bht-paper text-bht-ink-strong hover:bg-bht-mist"
+                    : "border-transparent bg-white/85 text-bht-navy-deep hover:border-bht-line-blue hover:bg-white"
                 }`}
               >
-                <span className="block whitespace-normal">{item.label}</span>
+                <span className="block text-xs font-extrabold leading-tight sm:text-sm">
+                  {item.label}
+                </span>
+                <span
+                  className={`mt-0.5 hidden line-clamp-1 text-xs leading-snug xl:block ${
+                    active ? "text-bht-tone-cbd9e7" : "text-bht-ink-soft"
+                  }`}
+                >
+                  {item.subtitle}
+                </span>
               </button>
             );
           })}
@@ -355,33 +328,60 @@ export default function ReportesWorkspace({
 
         {/* Period, Zone & Seller Filters */}
         <div className="space-y-2.5 border-t border-bht-line pt-3">
-          <div className="flex flex-wrap items-center gap-1.5">
-            {(
-              [
-                { id: "ALL", label: "Todo el histórico" },
-                { id: "THIS_MONTH", label: "Este mes" },
-                { id: "LAST_30D", label: "Últ. 30 días" },
-                { id: "LAST_90D", label: "Últ. 90 días" },
-              ] as const
-            ).map((presetOpt) => {
-              const selected = filters.preset === presetOpt.id;
-              return (
-                <button
-                  key={presetOpt.id}
-                  type="button"
-                  data-compact="true"
-                  aria-pressed={selected}
-                  onClick={() => applyPreset(presetOpt.id)}
-                  className={`min-h-9 rounded-full border px-3 py-1.5 text-xs font-semibold transition cursor-pointer ${
-                    selected
-                      ? "border-bht-navy-deep bg-bht-navy-deep text-white"
-                      : "border-bht-line bg-white text-bht-ink-soft hover:bg-bht-mist"
-                  }`}
-                >
-                  {presetOpt.label}
-                </button>
-              );
-            })}
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex flex-wrap items-center gap-1.5">
+              {(
+                [
+                  { id: "ALL", label: "Todo el histórico" },
+                  { id: "THIS_MONTH", label: "Este mes" },
+                  { id: "LAST_30D", label: "Últ. 30 días" },
+                  { id: "LAST_90D", label: "Últ. 90 días" },
+                ] as const
+              ).map((presetOpt) => {
+                const selected = filters.preset === presetOpt.id;
+                return (
+                  <button
+                    key={presetOpt.id}
+                    type="button"
+                    data-compact="true"
+                    aria-pressed={selected}
+                    onClick={() => applyPreset(presetOpt.id)}
+                    className={`min-h-8 rounded-full border px-3 py-1 text-xs font-semibold transition cursor-pointer ${
+                      selected
+                        ? "border-bht-cobalt bg-bht-cobalt text-white"
+                        : "border-bht-line bg-white text-bht-ink-soft hover:bg-bht-mist"
+                    }`}
+                  >
+                    {presetOpt.label}
+                  </button>
+                );
+              })}
+            </div>
+
+            <div
+              role="status"
+              className="flex flex-wrap items-center gap-1.5 text-xs text-bht-ink-soft"
+            >
+              <span className="font-semibold text-bht-ink-strong">
+                {effectiveDataCut?.lastOrderDate
+                  ? `Ventas actualizadas hasta: ${formatDatePe(effectiveDataCut.lastOrderDate)}`
+                  : latestRecordedMonth
+                    ? `Último mes con ventas registradas: ${formatMonthLabel(latestRecordedMonth)}`
+                    : "Todavía no hay un período de ventas disponible"}
+              </span>
+              {effectiveDataCut && (
+                <span className="hidden tabular-nums lg:inline">
+                  · Caja: {formatDatePe(effectiveDataCut.lastCashLedgerDate)} · Compras:{" "}
+                  {formatDatePe(effectiveDataCut.lastPurchaseDate)}
+                </span>
+              )}
+              {effectiveDataCut && !effectiveDataCut.bankReconciled && (
+                <Badge tone="neutral">No conciliado</Badge>
+              )}
+              <Badge tone={dataNeedsReview ? "warning" : "horizon"}>
+                {dataNeedsReview ? "Datos desactualizados" : "Corte visible"}
+              </Badge>
+            </div>
           </div>
 
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">

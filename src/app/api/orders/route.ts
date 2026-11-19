@@ -205,18 +205,23 @@ export async function POST(req: NextRequest) {
           }
           if (action === "advance") {
             const orderId = parsePositiveInt(body.orderId, "Pedido");
-            await advanceWarehouseStatus(client, actor, orderId, body.nextStatus);
-            return { ok: true };
+            const adv = await advanceWarehouseStatus(
+              client,
+              actor,
+              orderId,
+              body.nextStatus
+            );
+            return { ok: true, undoAction: adv.undoAction };
           }
           if (action === "cancel") {
             const orderId = parsePositiveInt(body.orderId, "Pedido");
-            await cancelOrder(
+            const cancelled = await cancelOrder(
               client,
               actor,
               orderId,
               String(body.reason || "Anulado desde app")
             );
-            return { ok: true };
+            return { ok: true, undoAction: cancelled.undoAction };
           }
           if (action === "log_cancelled_draft") {
             assertRole(actor, ["PARTNER_ADMIN", "PARTNER_MANAGER", "EXTERNAL_SELLER"]);

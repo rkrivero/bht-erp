@@ -37,6 +37,7 @@ interface CajaWorkspaceProps {
   suppliers: SupplierItem[];
   recentPurchases: RecentPurchaseItem[];
   pendingOnDemand: PendingOnDemandItem[];
+  unpurchasedRegularizationCount?: number;
   routeTrips?: RouteTripDto[];
   dataCut?: DataCutSummary | null;
   preselectedTarget: {
@@ -48,6 +49,7 @@ interface CajaWorkspaceProps {
   initialSubTab?: CajaSubTab | null;
   onClearInitialSubTab?: () => void;
   onOpenDirectory: () => void;
+  onOpenRegularization?: () => void;
   onRefresh: () => Promise<void>;
   onFeedback: (msg: string, isError?: boolean) => void;
   onEditingChange?: (editing: boolean) => void;
@@ -61,6 +63,7 @@ export default function CajaWorkspace({
   suppliers,
   recentPurchases,
   pendingOnDemand,
+  unpurchasedRegularizationCount = 0,
   routeTrips = [],
   dataCut = null,
   preselectedTarget,
@@ -68,6 +71,7 @@ export default function CajaWorkspace({
   initialSubTab = null,
   onClearInitialSubTab,
   onOpenDirectory,
+  onOpenRegularization,
   onRefresh,
   onFeedback,
   onEditingChange,
@@ -115,37 +119,32 @@ export default function CajaWorkspace({
 
   return (
     <div className="min-w-0 space-y-4">
-      {dataCut?.bankReconciled !== true && (
-        <Card
-          tone="warning"
-          padding="sm"
-          className="text-xs sm:text-sm text-bht-ink-strong"
-        >
-          <strong>Saldos registrados, no conciliados:</strong> confirma caja física y
-          extractos bancarios antes de usar estas cifras como dinero disponible.
-          {dataCut?.lastCashLedgerDate &&
-            ` · Último movimiento: ${formatDatePe(dataCut.lastCashLedgerDate)}`}
-        </Card>
-      )}
-
       <Card accent="horizon" padding="md" className="space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="grid flex-1 grid-cols-2 gap-4 sm:flex sm:flex-wrap sm:items-center sm:gap-6">
             <div>
-              <span className="text-xs sm:text-sm font-medium text-bht-ink-soft">
+              <span className="text-xs font-bold uppercase tracking-[0.06em] text-bht-steel">
                 Saldo registrado en cuentas
               </span>
-              <p className="mt-0.5 text-xl font-bold text-bht-navy-deep tabular-nums sm:text-2xl">
+              <p className="mt-1 text-xl font-extrabold tracking-[-0.03em] text-bht-navy-deep tabular-nums sm:text-2xl">
                 {formatPen(totalCashPen)}
               </p>
+              {dataCut?.bankReconciled !== true && (
+                <span className="mt-0.5 block text-xs font-medium text-bht-ink-soft">
+                  Pendiente de conciliación bancaria
+                  {dataCut?.lastCashLedgerDate
+                    ? ` · Últ. mov.: ${formatDatePe(dataCut.lastCashLedgerDate)}`
+                    : ""}
+                </span>
+              )}
             </div>
             <div>
-              <span className="text-xs sm:text-sm font-medium text-bht-ink-soft">
+              <span className="text-xs font-bold uppercase tracking-[0.06em] text-bht-steel">
                 Cuentas por pagar (CxP)
               </span>
-              <p className="mt-0.5 text-xl font-bold text-bht-danger tabular-nums sm:text-2xl">
+              <p className="mt-1 text-xl font-extrabold tracking-[-0.03em] text-bht-danger tabular-nums sm:text-2xl">
                 {formatPen(totalOpenApPen)}
-                <span className="ml-1.5 text-xs font-normal text-bht-ink-soft">
+                <span className="ml-1.5 text-xs font-semibold text-bht-ink-soft">
                   ({openDocs.length})
                 </span>
               </p>
@@ -193,10 +192,12 @@ export default function CajaWorkspace({
           suppliers={suppliers}
           recentPurchases={recentPurchases}
           pendingOnDemand={pendingOnDemand}
+          unpurchasedRegularizationCount={unpurchasedRegularizationCount}
           defaultAccountId={defaultAccountId}
           preselectedTarget={preselectedTarget}
           onClearPreselectedTarget={onClearPreselectedTarget}
           onOpenDirectory={onOpenDirectory}
+          onOpenRegularization={onOpenRegularization}
           onRefresh={onRefresh}
           onFeedback={onFeedback}
           onEditingChange={onEditingChange}

@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useEffect, useId, useRef } from "react";
+import React, { useEffect, useId, useRef, useState } from "react";
+import { parseIsoTimestampMs } from "@/lib/undo-client";
 import { AlertTriangleIcon, CheckIcon, CloseIcon } from "./Icons";
 
 export type Tone =
@@ -231,7 +232,7 @@ export function SegmentedControl<T extends string>({
 
   return (
     <div
-      className={`no-scrollbar flex min-w-0 max-w-full gap-1 overflow-x-auto rounded-xl border border-bht-line bg-bht-paper-alt p-1 ${className}`}
+      className={`no-scrollbar flex min-w-0 max-w-full gap-1.5 overflow-x-auto rounded-xl border border-bht-line-blue bg-bht-mist p-1.5 ${className}`}
       role="radiogroup"
       aria-label={ariaLabel}
     >
@@ -249,19 +250,19 @@ export function SegmentedControl<T extends string>({
             tabIndex={active || (!hasMatch && idx === 0) ? 0 : -1}
             onClick={() => onChange(opt.id)}
             onKeyDown={(e) => handleKeyDown(e, idx)}
-            className={`min-h-11 min-w-max flex-1 shrink-0 rounded-lg border px-2.5 py-2 text-xs font-semibold leading-tight transition-all duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bht-navy-deep focus-visible:ring-offset-1 sm:px-3 sm:text-sm cursor-pointer ${
+            className={`min-h-11 min-w-max flex-1 shrink-0 rounded-lg border px-3 py-2 text-xs font-bold leading-tight transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bht-navy-deep focus-visible:ring-offset-1 sm:px-4 sm:text-sm cursor-pointer ${
               active
-                ? "border-bht-line-blue bg-white text-bht-navy-deep shadow-bht-elev-10"
-                : "border-transparent text-bht-ink-soft hover:text-bht-navy-deep"
+                ? "border-bht-navy-deep bg-bht-navy-deep text-white shadow-bht-elev-10"
+                : "border-transparent bg-white/75 text-bht-navy-soft hover:border-bht-line-blue hover:bg-white hover:text-bht-navy-deep"
             }`}
           >
             <span className="whitespace-nowrap">{opt.label}</span>
             {opt.count !== undefined && (
               <span
-                className={`ml-1.5 inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] tabular-nums ${
+                className={`ml-2 inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold tabular-nums ${
                   active
-                    ? "bg-bht-navy-deep text-white"
-                    : "bg-bht-line text-bht-ink-soft"
+                    ? "bg-bht-navy-mid text-white"
+                    : "bg-bht-mist text-bht-navy-deep"
                 }`}
               >
                 {opt.count}
@@ -274,17 +275,79 @@ export function SegmentedControl<T extends string>({
   );
 }
 
+export interface ToastBannerAction {
+  label: string;
+  onClick: () => void;
+  disabled?: boolean;
+  expiresAt?: string;
+  windowSeconds?: number;
+  showCountdown?: boolean;
+}
+
+function formatToastCountdown(seconds: number): string {
+  const safe = Math.max(0, Math.floor(seconds));
+  const mins = Math.floor(safe / 60);
+  const secs = safe % 60;
+  return `${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
+}
+
 export function ToastBanner({
   type,
   message,
+  action,
   onDismiss,
   className = "",
 }: {
   type: "ok" | "warn" | "err";
   message: string;
+  action?: ToastBannerAction;
   onDismiss?: () => void;
   className?: string;
 }) {
+  const [anchorDeadlineMs, setAnchorDeadlineMs] = useState<number>(() => {
+    if (action?.windowSeconds && action.windowSeconds > 0) {
+      return Date.now() + action.windowSeconds * 1000;
+    }
+    return action?.expiresAt ? parseIsoTimestampMs(action.expiresAt) : Number.NaN;
+  });
+  const [nowMs, setNowMs] = useState(() => Date.now());
+  const parsedExpiresMs = action?.expiresAt
+    ? parseIsoTimestampMs(action.expiresAt)
+    : Number.NaN;
+  const effectiveDeadlineMs =
+    Number.isFinite(anchorDeadlineMs) && action?.windowSeconds
+      ? anchorDeadlineMs
+      : parsedExpiresMs;
+  const trackCountdown = Boolean(
+    action?.showCountdown && Number.isFinite(effectiveDeadlineMs)
+  );
+
+  useEffect(() => {
+    const now = Date.now();
+    setNowMs(now);
+    if (action?.windowSeconds && action.windowSeconds > 0) {
+      setAnchorDeadlineMs(now + action.windowSeconds * 1000);
+    } else if (action?.expiresAt) {
+      setAnchorDeadlineMs(parseIsoTimestampMs(action.expiresAt));
+    } else {
+      setAnchorDeadlineMs(Number.NaN);
+    }
+  }, [action?.expiresAt, action?.windowSeconds]);
+
+  useEffect(() => {
+    if (!trackCountdown) return;
+    const timer = window.setInterval(() => {
+      setNowMs(Date.now());
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [trackCountdown]);
+
+  const remainingSeconds = trackCountdown
+    ? Math.max(0, Math.ceil((effectiveDeadlineMs - nowMs) / 1000))
+    : null;
+  const showActionButton =
+    Boolean(action) && (!trackCountdown || (remainingSeconds ?? 0) > 0);
+
   const styles =
     type === "ok"
       ? "border-bht-success-line bg-bht-success-bg text-bht-tone-14532d"
@@ -300,7 +363,7 @@ export function ToastBanner({
       aria-atomic="true"
       className={`flex items-start justify-between gap-3 rounded-xl border px-3.5 py-3 text-xs sm:text-sm font-medium shadow-xs ${styles} ${className}`}
     >
-      <div className="flex items-start gap-2.5">
+      <div className="flex min-w-0 flex-1 items-start gap-2.5">
         <span className="mt-0.5 flex-shrink-0">
           {type === "ok" ? (
             <CheckIcon className="h-4 w-4 text-bht-success" />
@@ -312,19 +375,37 @@ export function ToastBanner({
             />
           )}
         </span>
-        <span>{message}</span>
+        <span className="min-w-0 flex-1">{message}</span>
       </div>
-      {onDismiss && (
-        <button
-          type="button"
-          data-compact="true"
-          onClick={onDismiss}
-          aria-label="Cerrar notificación"
-          className="rounded-lg p-1 opacity-75 transition hover:bg-black/5 hover:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bht-navy-deep cursor-pointer"
-        >
-          <CloseIcon className="h-4 w-4" />
-        </button>
-      )}
+      <div className="flex flex-shrink-0 items-center gap-1.5">
+        {showActionButton && action && (
+          <button
+            type="button"
+            data-compact="true"
+            disabled={action.disabled}
+            onClick={action.onClick}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-bht-line bg-white/90 px-2.5 py-1 text-xs font-semibold text-bht-ink-strong shadow-xs transition hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bht-navy-deep disabled:opacity-50 cursor-pointer"
+          >
+            <span>{action.label}</span>
+            {trackCountdown && remainingSeconds !== null && (
+              <span className="text-xs font-medium text-bht-ink-soft tabular-nums">
+                ({formatToastCountdown(remainingSeconds)})
+              </span>
+            )}
+          </button>
+        )}
+        {onDismiss && (
+          <button
+            type="button"
+            data-compact="true"
+            onClick={onDismiss}
+            aria-label="Cerrar notificación"
+            className="rounded-lg p-1 opacity-75 transition hover:bg-black/5 hover:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bht-navy-deep cursor-pointer"
+          >
+            <CloseIcon className="h-4 w-4" />
+          </button>
+        )}
+      </div>
     </div>
   );
 }

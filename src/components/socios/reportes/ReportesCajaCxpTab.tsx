@@ -30,14 +30,13 @@ export default function ReportesCajaCxpTab({
   } = data;
 
   const maxBucketAmount = Math.max(1, ...apMaturityBuckets.map((b) => b.balanceDuePen));
+  const totalBucketsPen = Math.max(
+    1,
+    apMaturityBuckets.reduce((s, b) => s + b.balanceDuePen, 0)
+  );
 
   return (
     <div className="min-w-0 space-y-4">
-      <Card tone="warning" padding="sm" className="text-xs text-bht-ink-strong">
-        <strong>Saldos registrados, no conciliados:</strong> confirma caja física y
-        extractos bancarios antes de usar estas cifras como dinero disponible.
-      </Card>
-
       {/* Liquidity vs AP 30d Coverage Cards */}
       <section
         aria-label="Liquidez y cobertura de CxP"
@@ -166,6 +165,8 @@ export default function ReportesCajaCxpTab({
                 (b.balanceDuePen / maxBucketAmount) * 100
               )
             );
+            const sharePct =
+              b.balanceDuePen > 0 ? (b.balanceDuePen / totalBucketsPen) * 100 : 0;
             const barColor =
               b.bucket === "OVERDUE"
                 ? "bg-bht-danger-vivid"
@@ -177,16 +178,16 @@ export default function ReportesCajaCxpTab({
                 key={b.bucket}
                 className="rounded-xl border border-bht-line bg-bht-paper/60 p-3 text-xs space-y-1.5"
               >
-                <span className="block font-medium text-bht-ink-soft">
+                <span className="block font-semibold text-bht-ink-soft">
                   {formatMaturityBucketEs(b.bucket)}
                 </span>
-                <p className="text-base font-semibold text-bht-ink-strong tabular-nums">
+                <p className="text-base font-extrabold text-bht-ink-strong tabular-nums">
                   {formatPen(b.balanceDuePen)}
                 </p>
                 <span className="block text-xs text-bht-ink-muted tabular-nums">
-                  {b.docsCount} doc(s)
+                  {b.docsCount} doc(s) · {sharePct.toFixed(0)}%
                 </span>
-                <div className="h-1.5 w-full overflow-hidden rounded-full bg-bht-line">
+                <div className="h-2.5 w-full overflow-hidden rounded-full bg-bht-line">
                   <div
                     className={`h-full rounded-full ${barColor}`}
                     style={{ width: `${pct}%` }}

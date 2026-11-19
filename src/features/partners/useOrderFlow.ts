@@ -3,14 +3,19 @@
 import { useDeferredValue, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ApiClientError, fetchJson } from "@/lib/api-client";
-import type { PartnerOrdersResponseDto } from "@/lib/contracts";
-import type { PaginationDto } from "@/lib/contracts";
+import type {
+  PaginationDto,
+  PartnerOrdersResponseDto,
+  UndoActionReceiptDto,
+} from "@/lib/contracts";
 import type { CustomerDirectoryItem } from "@/lib/services/customers";
 import type { SellerOrderDto, SellerQuoteDto } from "@/features/seller/types";
 import { notifyLocalSync, type SyncScope } from "@/lib/realtime/useLiveSync";
+import { executeUndoRequest } from "@/lib/undo-client";
 import {
   mutationErrorMessage,
   postJson,
+  SOCIOS_SYNC_SCOPES,
   type MonitorStatusFilter,
   type ShowFeedback,
 } from "./partnerShared";
@@ -18,6 +23,11 @@ import type { PartnerData } from "./usePartnerData";
 
 interface QuoteConversionResponse {
   order?: { orderCode?: string };
+  undoAction?: UndoActionReceiptDto;
+}
+
+interface UndoReceiptResponse {
+  undoAction?: UndoActionReceiptDto;
 }
 
 type RefreshDashboard = (
@@ -49,6 +59,7 @@ export function useOrderFlow({
   const [loadingMoreOrders, setLoadingMoreOrders] = useState(false);
   const [busyTripId, setBusyTripId] = useState<number | null>(null);
   const [busyQuoteId, setBusyQuoteId] = useState<number | null>(null);
+  const [busyUndoId, setBusyUndoId] = useState<number | null>(null);
   const [selectedMonitorOrder, setSelectedMonitorOrder] =
     useState<SellerOrderDto | null>(null);
   const [selectedPartnerQuote, setSelectedPartnerQuote] =
@@ -180,19 +191,41 @@ export function useOrderFlow({
     }
   }
 
+  async function handleExecuteUndo(undoId: number) {
+    if (busyUndoId !== null) return;
+    setBusyUndoId(undoId);
+    try {
+      const res = await executeUndoRequest(undoId);
+      showFeedback(res.restoredMessage);
+      notifyLocalSync(SOCIOS_SYNC_SCOPES);
+      await refreshDashboard(SOCIOS_SYNC_SCOPES);
+    } catch (error) {
+      showFeedback(
+        mutationErrorMessage(
+          error,
+          "No se pudo deshacer la acción.",
+          "Error de red al deshacer la acción."
+        ),
+        true
+      );
+    } finally {
+      setBusyUndoId(null);
+    }
+  }
+
   // Cierre de ruta: se da por conciliada; el efectivo del día equivale a las ventas de la ruta.
   async function handlePartnerTripAction(tripId: number, salesPen: number) {
     if (busyTripId === tripId) return;
     setBusyTripId(tripId);
     try {
       const declaredNetCashPen = Math.max(0, Number(salesPen) || 0);
-      await postJson("/api/trips", {
+      const res = await postJson<UndoReceiptResponse>("/api/trips", {
         action: "close_trip",
         tripId,
         nextStatus: "RECONCILED",
         declaredNetCashPen,
       });
-      showFeedback("Ruta cerrada correctamente.");
+      showFeedback("Ruta cerrada correctamente.", false, res.undoAction);
       notifyLocalSync(["orders", "partners"]);
       await refreshDashboard(["orders", "partners"]);
     } catch (error) {
@@ -224,7 +257,9 @@ export function useOrderFlow({
         creditDays: paymentMode === "CREDIT" ? 7 : undefined,
       });
       showFeedback(
-        `Cotización convertida en pedido ${data.order?.orderCode || ""} correctamente.`
+        `Cotización convertida en pedido ${data.order?.orderCode || ""} correctamente.`,
+        false,
+        data.undoAction
       );
       notifyLocalSync(["orders", "inventory", "collections", "treasury", "partners"]);
       await refreshDashboard(["orders", "inventory", "collections", "partners"]);
@@ -246,12 +281,12 @@ export function useOrderFlow({
     if (busyQuoteId === quoteId) return;
     setBusyQuoteId(quoteId);
     try {
-      await postJson("/api/quotes", {
+      const res = await postJson<UndoReceiptResponse>("/api/quotes", {
         action: "update_status",
         quoteId,
         nextStatus: "CANCELLED",
       });
-      showFeedback("Cotización anulada correctamente.");
+      showFeedback("Cotización anulada correctamente.", false, res.undoAction);
       notifyLocalSync(["orders", "partners"]);
       await refreshDashboard(["orders", "partners"]);
     } catch (error) {
@@ -299,7 +334,7 @@ export function useOrderFlow({
     setFeedback(null);
     setBusyCancelOrderId(orderId);
     try {
-      await postJson("/api/orders", {
+      const res = await postJson<UndoReceiptResponse>("/api/orders", {
         action: "cancel",
         orderId,
         reason: cancelOrderReason.trim() || "Anulado desde panel de control",
@@ -309,7 +344,7 @@ export function useOrderFlow({
       if (selectedMonitorOrder && Number(selectedMonitorOrder.order_id) === orderId) {
         setSelectedMonitorOrder(null);
       }
-      showFeedback(`Pedido ${orderCode} anulado correctamente.`);
+      showFeedback(`Pedido ${orderCode} anulado correctamente.`, false, res.undoAction);
       notifyLocalSync([
         "orders",
         "inventory",
@@ -377,6 +412,7 @@ export function useOrderFlow({
     loadingMoreOrders,
     busyTripId,
     busyQuoteId,
+    busyUndoId,
     selectedMonitorOrder,
     setSelectedMonitorOrder,
     selectedPartnerQuote,
@@ -403,6 +439,7 @@ export function useOrderFlow({
     monitorFilteredOrders,
     recentMonitorOrders,
     handleLoadMoreOrders,
+    handleExecuteUndo,
     handlePartnerTripAction,
     handlePartnerConvertQuote,
     handlePartnerCancelQuote,

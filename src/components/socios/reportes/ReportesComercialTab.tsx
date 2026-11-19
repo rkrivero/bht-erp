@@ -26,6 +26,9 @@ export default function ReportesComercialTab({ data }: ReportesComercialTabProps
     inactiveCustomers,
   } = data;
 
+  const maxZoneSales = Math.max(1, ...byZone.map((z) => z.sales_total_pen));
+  const maxSellerSales = Math.max(1, ...bySeller.map((s) => s.sales_total_pen));
+
   return (
     <div className="min-w-0 space-y-4">
       {/* Sales & Margin by Zone + by Seller */}
@@ -40,12 +43,74 @@ export default function ReportesComercialTab({ data }: ReportesComercialTabProps
           {byZone.length === 0 ? (
             <EmptyState title="Sin ventas por zona en este filtro" />
           ) : (
-            <div
-              tabIndex={0}
-              role="region"
-              aria-labelledby="sales-zone-heading"
-              className="table-wrapper"
-            >
+            <>
+              <div className="space-y-2 rounded-xl border border-bht-line bg-bht-paper/60 p-3">
+                {byZone.slice(0, 6).map((z) => {
+                  const pctWidth = Math.min(
+                    100,
+                    Math.max(4, (z.sales_total_pen / maxZoneSales) * 100)
+                  );
+                  const collectedShare =
+                    z.sales_total_pen > 0
+                      ? Math.min(
+                          100,
+                          Math.max(
+                            0,
+                            ((z.sales_total_pen - z.ar_pending_pen) /
+                              z.sales_total_pen) *
+                              100
+                          )
+                        )
+                      : 100;
+                  return (
+                    <div key={`bar-${z.effective_zone}`} className="space-y-1 text-xs">
+                      <div className="flex items-center justify-between gap-2 tabular-nums">
+                        <span className="truncate font-semibold text-bht-ink-strong">
+                          {z.effective_zone}{" "}
+                          <span className="font-normal text-bht-ink-soft">
+                            ({z.orders_count} ped. · Margen{" "}
+                            {formatPct(z.gross_margin_pct)})
+                          </span>
+                        </span>
+                        <span className="font-bold text-bht-navy-deep">
+                          {formatPen(z.sales_total_pen)}
+                        </span>
+                      </div>
+                      <div className="h-2.5 w-full overflow-hidden rounded-full bg-bht-line">
+                        <div
+                          className="flex h-full overflow-hidden rounded-full"
+                          style={{ width: `${pctWidth}%` }}
+                          aria-hidden="true"
+                        >
+                          <div
+                            className="h-full bg-bht-navy-deep"
+                            style={{ width: `${collectedShare}%` }}
+                          />
+                          <div
+                            className="h-full bg-bht-danger-vivid"
+                            style={{ width: `${100 - collectedShare}%` }}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+                <div className="flex items-center gap-4 pt-1 text-xs text-bht-ink-soft">
+                  <span className="inline-flex items-center gap-1.5">
+                    <span className="h-2 w-2 rounded-full bg-bht-navy-deep" /> Cobrado
+                  </span>
+                  <span className="inline-flex items-center gap-1.5">
+                    <span className="h-2 w-2 rounded-full bg-bht-danger-vivid" /> Por
+                    cobrar
+                  </span>
+                </div>
+              </div>
+              <div
+                tabIndex={0}
+                role="region"
+                aria-labelledby="sales-zone-heading"
+                className="table-wrapper"
+              >
               <table className="w-full text-left text-sm">
                 <thead className="border-b border-bht-line bg-bht-paper text-xs font-semibold uppercase tracking-wide text-bht-ink-soft">
                   <tr>
@@ -90,6 +155,7 @@ export default function ReportesComercialTab({ data }: ReportesComercialTabProps
                 </tbody>
               </table>
             </div>
+            </>
           )}
         </Card>
 
@@ -103,12 +169,59 @@ export default function ReportesComercialTab({ data }: ReportesComercialTabProps
           {bySeller.length === 0 ? (
             <EmptyState title="Sin ventas por vendedor en este filtro" />
           ) : (
-            <div
-              tabIndex={0}
-              role="region"
-              aria-labelledby="sales-seller-heading"
-              className="table-wrapper"
-            >
+            <>
+              <div className="space-y-2 rounded-xl border border-bht-line bg-bht-paper/60 p-3">
+                {bySeller.map((s) => {
+                  const pctWidth = Math.min(
+                    100,
+                    Math.max(4, (s.sales_total_pen / maxSellerSales) * 100)
+                  );
+                  const collectedRate = Math.min(
+                    100,
+                    Math.max(0, s.collection_rate_pct ?? 0)
+                  );
+                  return (
+                    <div
+                      key={`bar-${s.seller_user_id ?? "unassigned"}-${s.seller_name}`}
+                      className="space-y-1 text-xs"
+                    >
+                      <div className="flex items-center justify-between gap-2 tabular-nums">
+                        <span className="truncate font-semibold text-bht-ink-strong">
+                          {s.seller_name}{" "}
+                          <span className="font-normal text-bht-ink-soft">
+                            (Cobrado {formatPct(s.collection_rate_pct, 0)})
+                          </span>
+                        </span>
+                        <span className="font-bold text-bht-navy-deep">
+                          {formatPen(s.sales_total_pen)}
+                        </span>
+                      </div>
+                      <div className="h-2.5 w-full overflow-hidden rounded-full bg-bht-line">
+                        <div
+                          className="flex h-full overflow-hidden rounded-full"
+                          style={{ width: `${pctWidth}%` }}
+                          aria-hidden="true"
+                        >
+                          <div
+                            className="h-full bg-bht-success"
+                            style={{ width: `${collectedRate}%` }}
+                          />
+                          <div
+                            className="h-full bg-bht-tone-d97706"
+                            style={{ width: `${100 - collectedRate}%` }}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+              <div
+                tabIndex={0}
+                role="region"
+                aria-labelledby="sales-seller-heading"
+                className="table-wrapper"
+              >
               <table className="w-full text-left text-sm">
                 <thead className="border-b border-bht-line bg-bht-paper text-xs font-semibold uppercase tracking-wide text-bht-ink-soft">
                   <tr>
@@ -161,6 +274,7 @@ export default function ReportesComercialTab({ data }: ReportesComercialTabProps
                 </tbody>
               </table>
             </div>
+            </>
           )}
         </Card>
       </div>

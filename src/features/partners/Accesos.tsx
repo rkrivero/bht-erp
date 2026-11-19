@@ -1,7 +1,8 @@
 "use client";
 
+import { useState } from "react";
 import dynamic from "next/dynamic";
-import { Button, Card } from "@/components/ui/Primitives";
+import { Button, Card, SegmentedControl } from "@/components/ui/Primitives";
 import type { PartnerData } from "./usePartnerData";
 import type { ShowFeedback } from "./partnerShared";
 
@@ -19,6 +20,17 @@ const UserManagementPanel = dynamic(
   }
 );
 
+const AdminUndoPanel = dynamic(() => import("@/components/socios/AdminUndoPanel"), {
+  loading: () => (
+    <Card
+      className="p-8 text-center text-sm font-medium text-bht-ink-soft"
+      role="status"
+    >
+      Preparando centro de reversión…
+    </Card>
+  ),
+});
+
 interface AccesosProps {
   data: PartnerData;
   setSubTabEditing: (editing: boolean) => void;
@@ -32,6 +44,7 @@ export function Accesos({
   showFeedback,
   onGoBackHome,
 }: AccesosProps) {
+  const [adminSection, setAdminSection] = useState<"users" | "undo">("users");
   const { currentUser, appUsers, userAccessHistory, loadDashboard } = data;
   if (!currentUser) {
     return (
@@ -64,13 +77,33 @@ export function Accesos({
     );
   }
   return (
-    <UserManagementPanel
-      currentUser={currentUser}
-      users={appUsers}
-      userAccessHistory={userAccessHistory}
-      onRefresh={loadDashboard}
-      onFeedback={showFeedback}
-      onEditingChange={setSubTabEditing}
-    />
+    <div className="space-y-4">
+      <SegmentedControl<"users" | "undo">
+        ariaLabel="Secciones de administración"
+        value={adminSection}
+        onChange={setAdminSection}
+        className="w-full sm:w-auto"
+        options={[
+          { id: "users", label: "Usuarios y permisos", count: appUsers.length },
+          { id: "undo", label: "Deshacer acciones (Admin)" },
+        ]}
+      />
+      {adminSection === "undo" ? (
+        <AdminUndoPanel
+          onRefreshDashboard={loadDashboard}
+          onFeedback={showFeedback}
+          onEditingChange={setSubTabEditing}
+        />
+      ) : (
+        <UserManagementPanel
+          currentUser={currentUser}
+          users={appUsers}
+          userAccessHistory={userAccessHistory}
+          onRefresh={loadDashboard}
+          onFeedback={showFeedback}
+          onEditingChange={setSubTabEditing}
+        />
+      )}
+    </div>
   );
 }

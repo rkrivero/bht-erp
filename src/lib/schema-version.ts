@@ -1,6 +1,6 @@
 import type { PoolClient } from "pg";
 
-export const REQUIRED_SCHEMA_VERSION = "019_daily_closure_correction_audit";
+export const REQUIRED_SCHEMA_VERSION = "022_operational_undo_audit";
 
 const verifiedBranches = new Set<"dev" | "main">();
 

@@ -605,6 +605,12 @@ describe("Order Lifecycle Service (Soles Discount Floor, Approval, Stock & 4-Res
             [orderIds]
           );
           await cleanClient.query(
+            `DELETE FROM erp.undoable_actions
+             WHERE entity_table = 'erp.sales_orders'
+               AND entity_id = ANY($1::text[])`,
+            [orderIds.map(String)]
+          );
+          await cleanClient.query(
             `DELETE FROM erp.sales_orders WHERE order_id = ANY($1)`,
             [orderIds]
           );

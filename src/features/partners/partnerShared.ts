@@ -1,4 +1,5 @@
 import { ApiClientError, fetchJson } from "@/lib/api-client";
+import type { UndoActionReceiptDto } from "@/lib/contracts";
 import type { SellerOrderDto } from "@/features/seller/types";
 import type { SyncScope } from "@/lib/realtime/useLiveSync";
 import type { LegacyPartnerTab } from "@/lib/navigation";
@@ -18,9 +19,14 @@ export interface PartnerAbonoOrder {
 export interface PartnerFeedback {
   msg: string;
   isError?: boolean;
+  undoAction?: UndoActionReceiptDto;
 }
 
-export type ShowFeedback = (msg: string, isError?: boolean) => void;
+export type ShowFeedback = (
+  msg: string,
+  isError?: boolean,
+  undoAction?: UndoActionReceiptDto
+) => void;
 
 export type PurchaseTarget = {
   productId: number;

@@ -57,8 +57,8 @@ export function DesktopSidebar<T extends string>({
             <React.Fragment key={item.id}>
               {showGroupHeader && (
                 <p
-                  className={`px-3 pb-1 text-xs font-semibold uppercase tracking-[0.12em] text-[var(--bht-sky)] ${
-                    idx === 0 ? "pt-0" : "pt-3"
+                  className={`px-3 pb-1 text-xs font-bold uppercase tracking-[0.14em] text-[var(--bht-sky)] ${
+                    idx === 0 ? "pt-0" : "mt-2 border-t border-white/10 pt-3"
                   }`}
                 >
                   {item.group}
@@ -68,22 +68,36 @@ export function DesktopSidebar<T extends string>({
                 type="button"
                 aria-current={active ? "page" : undefined}
                 onClick={() => onChange(item.id)}
-                className={`flex min-h-11 w-full items-center gap-3 rounded-xl px-3 text-left text-sm font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white cursor-pointer ${
+                className={`relative flex min-h-11 w-full items-center gap-3 rounded-xl px-3 text-left text-sm font-semibold transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white cursor-pointer ${
                   active
-                    ? "bg-white text-[var(--bht-navy)]"
+                    ? "bg-white font-bold text-[var(--bht-navy)] shadow-bht-elev-10"
                     : "text-[var(--bht-sky)] hover:bg-white/10 hover:text-white"
                 }`}
               >
+                {active && (
+                  <span
+                    aria-hidden="true"
+                    className="
+                      absolute left-1 top-2.5 bottom-2.5 w-1 rounded-full bg-bht-cobalt
+                    "
+                  />
+                )}
                 <span
                   aria-hidden="true"
-                  className="flex h-5 w-5 items-center justify-center"
+                  className={`flex h-5 w-5 items-center justify-center ${
+                    active ? "text-bht-cobalt" : ""
+                  }`}
                 >
                   {item.icon}
                 </span>
                 <span className="min-w-0 flex-1 truncate">{item.label}</span>
                 {item.badgeCount !== undefined && item.badgeCount > 0 && (
                   <span
-                    className={`rounded-full px-2 py-0.5 text-[10px] tabular-nums ${active ? "bg-[var(--bht-sky)]" : "bg-white/10 text-white"}`}
+                    className={`rounded-full px-2 py-0.5 text-[10px] font-bold tabular-nums ${
+                      active
+                        ? "bg-bht-navy-deep text-white"
+                        : "bg-white/15 text-white"
+                    }`}
                   >
                     {item.badgeCount > 99 ? "99+" : item.badgeCount}
                   </span>

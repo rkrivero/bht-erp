@@ -513,6 +513,7 @@ export function useSellerOrderFlow({
           : saved.requiresApproval
             ? `Pedido ${saved.orderCode} registrado. Estado: pendiente de aprobación de Socio o Gerencia. Siguiente acción: esperar la decisión autorizada.`
             : `Pedido ${saved.orderCode} registrado. Estado: enviado a Almacén. Siguiente acción: consultar su avance en Ventas.`,
+        undoAction: wasEditing ? undefined : saved.undoAction,
       });
       notifyLocalSync(["orders", "inventory", "collections", "treasury", "partners"]);
       await loadAll({ silent: true });

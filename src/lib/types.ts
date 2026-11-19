@@ -54,6 +54,7 @@ export interface RawProductRow {
   default_supplier_party_id?: number | null;
   lead_time_days?: number | null;
   min_stock_qty?: number | null;
+  aliases?: string[];
 }
 
 export interface RawOrderLineRow {

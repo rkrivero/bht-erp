@@ -1,11 +1,19 @@
 import type { Metadata, Viewport } from "next";
-import { Plus_Jakarta_Sans } from "next/font/google";
+import { JetBrains_Mono, Plus_Jakarta_Sans } from "next/font/google";
 import PwaRuntime from "@/components/pwa/PwaRuntime";
 import "./globals.css";
 
 const plusJakarta = Plus_Jakarta_Sans({
   subsets: ["latin"],
+  weight: ["400", "500", "600", "700", "800"],
   variable: "--font-plus-jakarta",
+  display: "swap",
+});
+
+const jetbrainsMono = JetBrains_Mono({
+  subsets: ["latin"],
+  weight: ["500", "600", "700"],
+  variable: "--font-jetbrains-mono",
   display: "swap",
 });
 
@@ -35,7 +43,11 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="es" className={plusJakarta.variable}>
+    <html
+      lang="es"
+      data-scroll-behavior="smooth"
+      className={`${plusJakarta.variable} ${jetbrainsMono.variable}`}
+    >
       <body className="min-h-screen bg-[var(--bg-canvas)] text-[var(--ink-primary)] antialiased">
         <a
           href="#main-content"

@@ -57,20 +57,17 @@ export const REPORT_TAB_ITEMS: Array<{
     ],
   },
   {
-    id: "caja_cxp",
-    label: "Caja y CxP",
-    subtitle: "Saldos registrados vs. vencimientos 7/15/30d",
+    id: "comercial",
+    label: "Comercial",
+    subtitle: "Zonas, vendedores, viajes y descuentos",
     concepts: [
+      { term: "Margen", meaning: "Venta menos costo conocido del producto." },
       {
-        term: "Saldo registrado",
-        meaning: "Movimientos acumulados en el ERP; requiere conciliación bancaria.",
+        term: "Contribución de ruta",
+        meaning: "Margen generado menos gasto operativo del viaje.",
       },
-      { term: "CxP", meaning: "Deudas pendientes con proveedores." },
-      { term: "Vencimiento", meaning: "Fecha límite prevista para pagar." },
-      {
-        term: "Cobertura",
-        meaning: "Cuánto de los compromisos cubren los saldos registrados.",
-      },
+      { term: "Descuento", meaning: "Diferencia frente al precio de referencia." },
+      { term: "Viaje", meaning: "Salida comercial u operativa asociada a una ruta." },
     ],
   },
   {
@@ -88,17 +85,20 @@ export const REPORT_TAB_ITEMS: Array<{
     ],
   },
   {
-    id: "comercial",
-    label: "Comercial",
-    subtitle: "Zonas, vendedores, viajes y descuentos",
+    id: "caja_cxp",
+    label: "Caja y CxP",
+    subtitle: "Saldos registrados vs. vencimientos 7/15/30d",
     concepts: [
-      { term: "Margen", meaning: "Venta menos costo conocido del producto." },
       {
-        term: "Contribución de ruta",
-        meaning: "Margen generado menos gasto operativo del viaje.",
+        term: "Saldo registrado",
+        meaning: "Movimientos acumulados en el ERP; requiere conciliación bancaria.",
       },
-      { term: "Descuento", meaning: "Diferencia frente al precio de referencia." },
-      { term: "Viaje", meaning: "Salida comercial u operativa asociada a una ruta." },
+      { term: "CxP", meaning: "Deudas pendientes con proveedores." },
+      { term: "Vencimiento", meaning: "Fecha límite prevista para pagar." },
+      {
+        term: "Cobertura",
+        meaning: "Cuánto de los compromisos cubren los saldos registrados.",
+      },
     ],
   },
   {

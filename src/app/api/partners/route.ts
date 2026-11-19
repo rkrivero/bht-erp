@@ -40,6 +40,7 @@ type PartnerDashboardBundleRow = BiNonMonthlyPanelsRow & {
   gaps: Array<Record<string, unknown>>;
   on_demand: Array<Record<string, unknown>>;
   neg_count: number;
+  unpurchased_reg_count: number;
   users: Array<Record<string, unknown>>;
   user_access_history: Array<Record<string, unknown>>;
   open_debtors_count: number;
@@ -290,6 +291,11 @@ export async function GET(req: NextRequest) {
              WHERE warehouse_code = 'MAIN'
                AND stock_on_hand < -0.0001
            ), 0) AS neg_count,
+           COALESCE((
+             SELECT COUNT(*)::int
+             FROM analytics.v_unpurchased_sales_regularization
+             WHERE has_sold_deficit = TRUE
+           ), 0) AS unpurchased_reg_count,
            CASE
              WHEN $1::boolean THEN COALESCE((
                SELECT json_agg(t)
@@ -512,6 +518,7 @@ export async function GET(req: NextRequest) {
               : null,
         })),
         negativeStockSkuCount: Number(bundle?.neg_count ?? 0),
+        unpurchasedRegularizationCount: Number(bundle?.unpurchased_reg_count ?? 0),
         users: isPartnerAdmin
           ? (bundle?.users ?? []).map((u) => ({
               user_id: Number(u.user_id),
