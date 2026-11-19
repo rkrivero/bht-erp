@@ -1,3 +1,5 @@
+import type { DataCutSummary, OperationalQualitySummary } from "../types";
+
 export type ReportSectionId =
   "resumen" | "caja_cxp" | "cartera" | "comercial" | "stock" | "auditoria";
 
@@ -30,41 +32,50 @@ export const REPORT_TAB_ITEMS: Array<{
 }> = [
   {
     id: "resumen",
-    label: "1. Resumen",
-    subtitle: "P&L devengado vs. flujo de caja",
+    label: "Resumen",
+    subtitle: "Ventas, margen conocido y movimientos de caja registrados",
     concepts: [
       {
-        term: "P&L devengado",
-        meaning: "Ventas y costos reconocidos cuando ocurre la operación.",
+        term: "Resultado parcial",
+        meaning:
+          "Ventas con costo conocido menos mercadería y gastos de ruta registrados.",
       },
       {
         term: "Margen bruto",
         meaning: "Venta con costo conocido menos costo de mercadería.",
       },
       {
-        term: "EBITDA operativo",
-        meaning: "Margen bruto menos gastos operativos de ruta registrados.",
+        term: "Contribución de ruta",
+        meaning:
+          "Margen bruto menos gastos de ruta. No incluye todos los gastos del negocio.",
       },
-      { term: "Flujo neto", meaning: "Cobros reales menos salidas reales de dinero." },
+      {
+        term: "Movimiento neto estimado",
+        meaning:
+          "Pagos acumulados en pedidos menos salidas registradas; requiere conciliación.",
+      },
     ],
   },
   {
     id: "caja_cxp",
-    label: "2. Caja y CxP",
-    subtitle: "Liquidez vs. vencimientos 7/15/30d",
+    label: "Caja y CxP",
+    subtitle: "Saldos registrados vs. vencimientos 7/15/30d",
     concepts: [
-      { term: "Liquidez", meaning: "Dinero disponible para cubrir compromisos." },
+      {
+        term: "Saldo registrado",
+        meaning: "Movimientos acumulados en el ERP; requiere conciliación bancaria.",
+      },
       { term: "CxP", meaning: "Deudas pendientes con proveedores." },
       { term: "Vencimiento", meaning: "Fecha límite prevista para pagar." },
       {
         term: "Cobertura",
-        meaning: "Cuánto de los compromisos puede atender el dinero disponible.",
+        meaning: "Cuánto de los compromisos cubren los saldos registrados.",
       },
     ],
   },
   {
     id: "cartera",
-    label: "3. Cartera (CxC)",
+    label: "Cartera",
     subtitle: "Aging, DSO y hoja de cobranza",
     concepts: [
       { term: "CxC", meaning: "Saldo que los clientes aún deben pagar." },
@@ -78,7 +89,7 @@ export const REPORT_TAB_ITEMS: Array<{
   },
   {
     id: "comercial",
-    label: "4. Comercial y Rutas",
+    label: "Comercial",
     subtitle: "Zonas, vendedores, viajes y descuentos",
     concepts: [
       { term: "Margen", meaning: "Venta menos costo conocido del producto." },
@@ -92,7 +103,7 @@ export const REPORT_TAB_ITEMS: Array<{
   },
   {
     id: "stock",
-    label: "5. Stock y Márgenes",
+    label: "Stock",
     subtitle: "Valorización, cobertura y stock muerto",
     concepts: [
       {
@@ -115,7 +126,7 @@ export const REPORT_TAB_ITEMS: Array<{
   },
   {
     id: "auditoria",
-    label: "6. Auditoría y CSV",
+    label: "Auditoría",
     subtitle: "Semáforo de cierre y exportaciones",
     concepts: [
       {
@@ -156,14 +167,14 @@ export const REPORT_CSV_CARDS = [
   {
     id: "margen_productos",
     title: "3. Inventario, Costos y Márgenes",
-    subtitle: "Catálogo, stock actual, costo ref., margen real y alertas",
+    subtitle: "Catálogo, stock actual, costos conocidos y alertas",
     supportsDateFilter: false,
     supportsZoneFilter: false,
   },
   {
     id: "flujo_caja_egresos",
-    title: "4. Flujo de Caja y Egresos",
-    subtitle: "Ingresos, OpEx ruta, compras, retiros y depósitos",
+    title: "4. Movimientos de Caja y Egresos",
+    subtitle: "Ingresos, OpEx ruta, compras, retiros y depósitos registrados",
     supportsDateFilter: true,
     supportsZoneFilter: false,
   },
@@ -220,6 +231,7 @@ export interface ReportMonthlyPnlDto {
 
 export interface ReportResumenDto {
   filterOptions: ReportFilterOptionsDto;
+  dataCut?: DataCutSummary;
   pnlMonthly: ReportMonthlyPnlDto[];
   totals: {
     orderCount: number;
@@ -258,6 +270,7 @@ export type ApMaturityBucketId =
 
 export interface ReportCajaCxpDto {
   filterOptions: ReportFilterOptionsDto;
+  dataCut?: DataCutSummary;
   cashAccounts: Array<{
     account_id: number;
     code: string;
@@ -327,6 +340,7 @@ export type ArAgingBucketId = "0_15" | "16_30" | "31_60" | "GT_60";
 
 export interface ReportCarteraDto {
   filterOptions: ReportFilterOptionsDto;
+  dataCut?: DataCutSummary;
   summary: {
     totalReceivablePen: number;
     openOrdersCount: number;
@@ -386,6 +400,7 @@ export interface ReportCarteraDto {
 
 export interface ReportComercialDto {
   filterOptions: ReportFilterOptionsDto;
+  dataCut?: DataCutSummary;
   byZone: Array<{
     effective_zone: string;
     orders_count: number;
@@ -502,6 +517,7 @@ export interface ReportStockSkuDto {
 
 export interface ReportStockDto {
   filterOptions: ReportFilterOptionsDto;
+  dataCut?: DataCutSummary;
   valuationSummary: {
     totalValuationPen: number;
     positiveStockSkuCount: number;
@@ -558,6 +574,8 @@ export interface ReportStockDto {
 
 export interface ReportAuditoriaDto {
   filterOptions: ReportFilterOptionsDto;
+  dataCut?: DataCutSummary;
+  operationalQuality?: OperationalQualitySummary;
   closingReadiness: {
     status: "READY" | "ATTENTION" | "BLOCKED";
     checks: Array<{

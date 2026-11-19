@@ -207,10 +207,10 @@ export function CajaGastosTab({
           className="flex items-center justify-between gap-3 sm:col-span-2 lg:col-span-1"
         >
           <div className="min-w-0">
-            <span className="block text-xs font-medium text-bht-ink-strong">
+            <span className="block text-sm font-semibold text-bht-ink-strong">
               Registrar salida de caja
             </span>
-            <span className="text-[11px] text-bht-ink-soft">
+            <span className="text-xs text-bht-ink-soft">
               Ruta diaria, viáticos o retiro
             </span>
           </div>
@@ -227,7 +227,7 @@ export function CajaGastosTab({
 
       <Card padding="md" className="space-y-3">
         <div>
-          <h3 className="text-sm font-semibold text-bht-ink-strong sm:text-base">
+          <h3 className="text-base font-bold text-bht-ink-strong sm:text-lg">
             Historial de Gastos y Retiros ({filteredExpenses.length})
           </h3>
           <p className="text-xs text-bht-ink-soft">

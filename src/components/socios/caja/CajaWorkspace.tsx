@@ -4,10 +4,12 @@ import { useEffect, useMemo, useState } from "react";
 import { Card, SegmentedControl } from "@/components/ui/Primitives";
 import type { RouteTripDto } from "@/lib/contracts";
 import {
+  formatDatePe,
   formatPen,
   type ApObligationItem,
   type CashAccountItem,
   type CashLedgerEntry,
+  type DataCutSummary,
   type PartnerCatalogItem,
   type PendingOnDemandItem,
   type RecentPurchaseItem,
@@ -27,6 +29,7 @@ interface CajaWorkspaceProps {
   recentPurchases: RecentPurchaseItem[];
   pendingOnDemand: PendingOnDemandItem[];
   routeTrips?: RouteTripDto[];
+  dataCut?: DataCutSummary | null;
   preselectedTarget: {
     productId: number;
     quantity?: number;
@@ -48,6 +51,7 @@ export default function CajaWorkspace({
   recentPurchases,
   pendingOnDemand,
   routeTrips = [],
+  dataCut = null,
   preselectedTarget,
   onClearPreselectedTarget,
   onOpenDirectory,
@@ -91,19 +95,32 @@ export default function CajaWorkspace({
 
   return (
     <div className="min-w-0 space-y-4">
+      {dataCut?.bankReconciled !== true && (
+        <Card
+          tone="warning"
+          padding="sm"
+          className="text-xs sm:text-sm text-bht-ink-strong"
+        >
+          <strong>Saldos registrados, no conciliados:</strong> confirma caja física y
+          extractos bancarios antes de usar estas cifras como dinero disponible.
+          {dataCut?.lastCashLedgerDate &&
+            ` · Último movimiento: ${formatDatePe(dataCut.lastCashLedgerDate)}`}
+        </Card>
+      )}
+
       <Card accent="horizon" padding="md" className="space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="grid flex-1 grid-cols-2 gap-4 sm:flex sm:flex-wrap sm:items-center sm:gap-6">
             <div>
-              <span className="text-xs font-medium text-bht-ink-soft">
-                Efectivo en cuentas
+              <span className="text-xs sm:text-sm font-medium text-bht-ink-soft">
+                Saldo registrado en cuentas
               </span>
               <p className="mt-0.5 text-xl font-bold text-bht-navy-deep tabular-nums sm:text-2xl">
                 {formatPen(totalCashPen)}
               </p>
             </div>
             <div>
-              <span className="text-xs font-medium text-bht-ink-soft">
+              <span className="text-xs sm:text-sm font-medium text-bht-ink-soft">
                 Cuentas por pagar (CxP)
               </span>
               <p className="mt-0.5 text-xl font-bold text-bht-danger tabular-nums sm:text-2xl">

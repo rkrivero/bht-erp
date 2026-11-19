@@ -10,6 +10,14 @@ export interface NavTabItem<T extends string = string> {
   mobileLabel?: string;
   icon: React.ReactNode;
   badgeCount?: number;
+  group?: string;
+}
+
+export interface NavExtraAction {
+  id: string;
+  label: string;
+  icon: React.ReactNode;
+  onClick: () => void;
 }
 
 export type LiveSyncStatus = "live" | "syncing" | "paused" | "offline";
@@ -35,41 +43,53 @@ export function DesktopSidebar<T extends string>({
         </span>
         <div className="min-w-0">
           <p className="text-sm font-bold leading-tight">Blue Horizon Trade</p>
-          <p className="mt-1 truncate text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--bht-sky)]">
+          <p className="mt-1 truncate text-xs font-semibold uppercase tracking-[0.04em] text-[var(--bht-sky)]">
             {areaLabel}
           </p>
         </div>
       </div>
       <nav aria-label="Secciones principales" className="grid gap-1">
-        {items.map((item) => {
+        {items.map((item, idx) => {
           const active = item.id === activeId;
+          const prevGroup = idx > 0 ? items[idx - 1]?.group : undefined;
+          const showGroupHeader = Boolean(item.group && item.group !== prevGroup);
           return (
-            <button
-              key={item.id}
-              type="button"
-              aria-current={active ? "page" : undefined}
-              onClick={() => onChange(item.id)}
-              className={`flex min-h-11 w-full items-center gap-3 rounded-xl px-3 text-left text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white ${
-                active
-                  ? "bg-white text-[var(--bht-navy)]"
-                  : "text-[var(--bht-sky)] hover:bg-white/10 hover:text-white"
-              }`}
-            >
-              <span
-                aria-hidden="true"
-                className="flex h-5 w-5 items-center justify-center"
-              >
-                {item.icon}
-              </span>
-              <span className="min-w-0 flex-1 truncate">{item.label}</span>
-              {item.badgeCount !== undefined && item.badgeCount > 0 && (
-                <span
-                  className={`rounded-full px-2 py-0.5 text-[10px] tabular-nums ${active ? "bg-[var(--bht-sky)]" : "bg-white/10 text-white"}`}
+            <React.Fragment key={item.id}>
+              {showGroupHeader && (
+                <p
+                  className={`px-3 pb-1 text-xs font-semibold uppercase tracking-[0.12em] text-[var(--bht-sky)] ${
+                    idx === 0 ? "pt-0" : "pt-3"
+                  }`}
                 >
-                  {item.badgeCount > 99 ? "99+" : item.badgeCount}
-                </span>
+                  {item.group}
+                </p>
               )}
-            </button>
+              <button
+                type="button"
+                aria-current={active ? "page" : undefined}
+                onClick={() => onChange(item.id)}
+                className={`flex min-h-11 w-full items-center gap-3 rounded-xl px-3 text-left text-sm font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white cursor-pointer ${
+                  active
+                    ? "bg-white text-[var(--bht-navy)]"
+                    : "text-[var(--bht-sky)] hover:bg-white/10 hover:text-white"
+                }`}
+              >
+                <span
+                  aria-hidden="true"
+                  className="flex h-5 w-5 items-center justify-center"
+                >
+                  {item.icon}
+                </span>
+                <span className="min-w-0 flex-1 truncate">{item.label}</span>
+                {item.badgeCount !== undefined && item.badgeCount > 0 && (
+                  <span
+                    className={`rounded-full px-2 py-0.5 text-[10px] tabular-nums ${active ? "bg-[var(--bht-sky)]" : "bg-white/10 text-white"}`}
+                  >
+                    {item.badgeCount > 99 ? "99+" : item.badgeCount}
+                  </span>
+                )}
+              </button>
+            </React.Fragment>
           );
         })}
       </nav>
@@ -180,7 +200,7 @@ export function AppHeader({
             <HorizonLogo className="h-full w-full" />
           </span>
           <div className="min-w-0 flex-1">
-            <h1 className="line-clamp-2 text-sm font-semibold leading-tight tracking-[-0.02em] text-bht-ink-deep min-[380px]:text-base sm:truncate sm:text-lg">
+            <h1 className="line-clamp-2 text-base font-bold leading-tight tracking-[-0.02em] text-bht-ink-deep sm:truncate sm:text-xl">
               {title}
             </h1>
             <div className="mt-1 flex flex-wrap items-center gap-2">
@@ -271,7 +291,7 @@ export function DesktopTabBar<T extends string>({
             type="button"
             aria-current={active ? "page" : undefined}
             onClick={() => onChange(item.id)}
-            className={`flex flex-shrink-0 items-center gap-2 rounded-lg border px-3.5 py-2 text-xs font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bht-cobalt focus-visible:ring-offset-1 cursor-pointer ${
+            className={`flex flex-shrink-0 items-center gap-2 rounded-lg border px-3.5 py-2 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bht-cobalt focus-visible:ring-offset-1 cursor-pointer ${
               active
                 ? "border-bht-tone-b9d3fa bg-bht-tone-eaf2fe text-bht-cobalt"
                 : "border-transparent text-bht-slate-text hover:bg-bht-surface-cool hover:text-bht-ink-deep"
@@ -309,6 +329,7 @@ export function BottomNav<T extends string>({
   maxWidth = "2xl",
   className = "",
   visibleCount = 4,
+  extraActions,
 }: {
   items: NavTabItem<T>[];
   activeId: T;
@@ -316,6 +337,7 @@ export function BottomNav<T extends string>({
   maxWidth?: "2xl" | "full";
   className?: string;
   visibleCount?: number;
+  extraActions?: NavExtraAction[];
 }) {
   const [moreOpen, setMoreOpen] = useState(false);
   const moreRef = useRef<HTMLDivElement>(null);
@@ -382,7 +404,7 @@ export function BottomNav<T extends string>({
             </button>
           );
         })}
-        {extraItems.length > 0 && (
+        {(extraItems.length > 0 || (extraActions && extraActions.length > 0)) && (
           <div ref={moreRef} className="relative flex min-w-0 flex-1">
             {moreOpen && (
               <div className="absolute bottom-full right-0 mb-3 w-56 rounded-xl border border-bht-slate-line bg-white p-1.5 shadow-lg">
@@ -407,6 +429,30 @@ export function BottomNav<T extends string>({
                     )}
                   </button>
                 ))}
+                {extraActions && extraActions.length > 0 && (
+                  <div
+                    className={
+                      extraItems.length > 0
+                        ? "mt-1.5 border-t border-bht-slate-line pt-1.5"
+                        : ""
+                    }
+                  >
+                    {extraActions.map((action) => (
+                      <button
+                        key={action.id}
+                        type="button"
+                        onClick={() => {
+                          setMoreOpen(false);
+                          action.onClick();
+                        }}
+                        className="flex min-h-11 w-full items-center gap-3 rounded-lg px-3 text-left text-sm font-medium text-bht-navy-deep hover:bg-bht-surface-cool focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bht-cobalt-vivid cursor-pointer"
+                      >
+                        <span aria-hidden="true">{action.icon}</span>
+                        <span className="flex-1">{action.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
             <button

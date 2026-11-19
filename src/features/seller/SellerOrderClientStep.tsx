@@ -153,7 +153,7 @@ export default function SellerOrderClientStep({ flow }: { flow: SellerOrderFlow 
                     selectedCustomer.trade_name,
                     selectedCustomer.legal_name
                   )) && (
-                  <p className="truncate text-[11px] text-bht-ink-soft">
+                  <p className="truncate text-xs text-bht-ink-soft">
                     {[
                       formatPartySecondaryName(
                         selectedCustomer.trade_name,
@@ -178,7 +178,7 @@ export default function SellerOrderClientStep({ flow }: { flow: SellerOrderFlow 
                       )}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1 rounded-lg border border-bht-slate-line bg-white px-2.5 py-1 text-[11px] font-semibold text-bht-cobalt hover:bg-bht-cobalt-bg"
+                      className="inline-flex items-center gap-1 rounded-lg border border-bht-slate-line bg-white px-2.5 py-1 text-xs font-semibold text-bht-cobalt hover:bg-bht-cobalt-bg"
                     >
                       <NavigationIcon className="h-3 w-3" />
                       Maps
@@ -230,7 +230,7 @@ export default function SellerOrderClientStep({ flow }: { flow: SellerOrderFlow 
                           {c.name}
                         </div>
                         {secondary && (
-                          <div className="truncate text-[11px] text-bht-ink-soft">
+                          <div className="truncate text-xs text-bht-ink-soft">
                             {secondary}
                           </div>
                         )}

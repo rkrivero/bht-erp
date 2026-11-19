@@ -101,7 +101,7 @@ export function Inventario({ negStockCount, flow }: InventarioProps) {
             >
               <span className="flex items-start justify-between gap-2">
                 <span
-                  className={`text-xs font-semibold leading-snug ${
+                  className={`text-sm font-semibold leading-snug ${
                     active ? "text-bht-cobalt-strong" : "text-bht-ink-strong"
                   }`}
                 >
@@ -122,7 +122,7 @@ export function Inventario({ negStockCount, flow }: InventarioProps) {
         <details className="group">
           <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bht-navy-deep">
             <div>
-              <h2 className="text-sm font-semibold text-bht-ink-strong sm:text-base">
+              <h2 className="text-base font-bold text-bht-ink-strong sm:text-lg">
                 Administración · Regularización histórica
               </h2>
               <p className="mt-0.5 text-xs text-bht-ink-soft">
@@ -214,11 +214,11 @@ export function Inventario({ negStockCount, flow }: InventarioProps) {
               {visibleCatalog.map((p) => (
                 <div
                   key={p.product_id}
-                  className="rounded-xl border border-bht-line bg-bht-paper p-3 space-y-2 text-xs"
+                  className="rounded-xl border border-bht-line bg-bht-paper p-3 space-y-2 text-sm"
                 >
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0 flex-1">
-                      <p className="text-sm font-semibold text-bht-ink-strong">
+                      <p className="text-base font-bold text-bht-ink-strong">
                         {p.name}
                       </p>
                       <p className="text-xs text-bht-ink-muted">{p.sku}</p>
@@ -298,7 +298,7 @@ export function Inventario({ negStockCount, flow }: InventarioProps) {
               aria-label="Inventario y precios de catálogo"
               className="table-wrapper hidden md:block"
             >
-              <table className="w-full text-left text-xs">
+              <table className="w-full text-left text-sm">
                 <thead className="border-b border-bht-line bg-bht-paper text-xs font-semibold uppercase tracking-wide text-bht-ink-soft">
                   <tr>
                     <th scope="col" className="whitespace-nowrap p-2.5">

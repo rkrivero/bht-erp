@@ -69,8 +69,10 @@ export function Cobranza({ data, flow }: CobranzaProps) {
           },
         ].map((item) => (
           <Card key={item.label} padding="sm" className="space-y-1">
-            <p className="text-xs text-bht-ink-soft">{item.label}</p>
-            <p className={`text-lg font-semibold tabular-nums ${item.tone}`}>
+            <p className="text-xs sm:text-sm font-medium text-bht-ink-soft">
+              {item.label}
+            </p>
+            <p className={`text-xl font-bold sm:text-2xl tabular-nums ${item.tone}`}>
               S/ {item.amount.toFixed(2)}
             </p>
           </Card>
@@ -110,7 +112,7 @@ export function Cobranza({ data, flow }: CobranzaProps) {
 
       <div className="grid gap-4 lg:grid-cols-2">
         <Card padding="md" className="space-y-3">
-          <h2 className="text-sm sm:text-base font-semibold text-bht-ink-strong">
+          <h2 className="text-base sm:text-lg font-bold text-bht-ink-strong">
             Ranking de Clientes Deudores ({filteredDebtorsByCustomer.length})
           </h2>
           {filteredDebtorsByCustomer.length === 0 ? (
@@ -138,7 +140,7 @@ export function Cobranza({ data, flow }: CobranzaProps) {
                     aria-label={`Ver pedidos y productos que debe ${String(c.customerName)}`}
                     className="min-w-0 flex-1 rounded-lg px-1 py-0.5 text-left transition hover:bg-bht-mist/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bht-navy-deep/45 cursor-pointer"
                   >
-                    <p className="truncate text-sm font-semibold text-bht-ink-strong">
+                    <p className="truncate text-base font-bold text-bht-ink-strong">
                       {String(c.customerName)}
                     </p>
                     <p className="mt-0.5 text-xs text-bht-ink-soft tabular-nums">
@@ -179,7 +181,7 @@ export function Cobranza({ data, flow }: CobranzaProps) {
         </Card>
 
         <Card padding="md" className="space-y-3">
-          <h2 className="text-sm sm:text-base font-semibold text-bht-ink-strong">
+          <h2 className="text-base sm:text-lg font-bold text-bht-ink-strong">
             Pedidos Pendientes de Cobro y Fechas Pactadas (
             {filteredDebtorsByOrder.length})
           </h2>
@@ -206,7 +208,7 @@ export function Cobranza({ data, flow }: CobranzaProps) {
                       className="w-full space-y-2 rounded-lg text-left transition hover:bg-bht-mist/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bht-navy-deep/45 cursor-pointer"
                     >
                       <div className="flex flex-wrap items-center justify-between gap-1.5">
-                        <span className="text-xs font-semibold text-bht-ink-strong">
+                        <span className="text-sm sm:text-base font-bold text-bht-ink-strong">
                           {String(o.orderCode)} · {String(o.customerName)}
                         </span>
                         <Badge tone="danger" className="tabular-nums">

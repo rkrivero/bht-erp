@@ -8,6 +8,7 @@ import {
   AppHeader,
   BottomNav,
   DesktopSidebar,
+  type NavExtraAction,
   type NavTabItem,
 } from "@/components/ui/AppShell";
 import {
@@ -221,11 +222,13 @@ export default function PartnerWorkspace() {
     () => appUsers.filter((u) => u.is_active).length,
     [appUsers]
   );
+  const isPartnerAdmin = currentUser?.role === "PARTNER_ADMIN";
 
-  const navItems: NavTabItem<PartnerTab>[] = useMemo(
-    () => [
+  const navItems: NavTabItem<PartnerTab>[] = useMemo(() => {
+    const items: NavTabItem<PartnerTab>[] = [
       {
         id: "control",
+        group: "Inicio",
         label: "Hoy",
         mobileLabel: "Hoy",
         icon: <ActivityIcon className="h-4 w-4" />,
@@ -233,6 +236,7 @@ export default function PartnerWorkspace() {
       },
       {
         id: "pedidos",
+        group: "Operación",
         label: "Pedidos",
         mobileLabel: "Pedidos",
         icon: <ShoppingBagIcon className="h-4 w-4" />,
@@ -240,13 +244,23 @@ export default function PartnerWorkspace() {
       },
       {
         id: "deudores",
+        group: "Operación",
         label: "Cobranza",
         mobileLabel: "Cobrar",
         icon: <WalletIcon className="h-4 w-4" />,
         badgeCount: debtorsByOrder.length,
       },
       {
+        id: "caja",
+        group: "Operación",
+        label: "Caja",
+        mobileLabel: "Caja",
+        icon: <BuildingIcon className="h-4 w-4" />,
+        badgeCount: openApCount,
+      },
+      {
         id: "stock",
+        group: "Gestión",
         label: "Inventario",
         mobileLabel: "Inventario",
         icon: <PackageIcon className="h-4 w-4" />,
@@ -254,42 +268,61 @@ export default function PartnerWorkspace() {
       },
       {
         id: "directorio",
+        group: "Gestión",
         label: "Directorio",
         mobileLabel: "Directorio",
         icon: <UsersIcon className="h-4 w-4" />,
       },
       {
-        id: "caja",
-        label: "Caja",
-        mobileLabel: "Caja",
-        icon: <BuildingIcon className="h-4 w-4" />,
-        badgeCount: openApCount,
-      },
-      {
         id: "kpis",
+        group: "Análisis",
         label: "Reportes",
         mobileLabel: "Reportes",
         icon: <BarChartIcon className="h-4 w-4" />,
       },
-      {
+    ];
+    if (isPartnerAdmin) {
+      items.push({
         id: "accesos",
+        group: "Administración",
         label: "Usuarios",
         mobileLabel: "Usuarios",
         icon: <LockIcon className="h-4 w-4" />,
         badgeCount: activeUsersCount || undefined,
+      });
+    }
+    return items;
+  }, [
+    pendingApprovals.length,
+    ordersPagination?.totalCount,
+    debtorsByOrder.length,
+    openApCount,
+    negStockCount,
+    isPartnerAdmin,
+    activeUsersCount,
+  ]);
+
+  const mobileExtraActions: NavExtraAction[] = useMemo(
+    () => [
+      {
+        id: "go-seller",
+        label: "Tomar pedido",
+        icon: <PlusIcon className="h-4 w-4" />,
+        onClick: () => router.push("/vendedor"),
+      },
+      {
+        id: "go-warehouse",
+        label: "Almacén y reparto",
+        icon: <PackageIcon className="h-4 w-4" />,
+        onClick: () => router.push("/almacen"),
       },
     ],
-    [
-      pendingApprovals.length,
-      ordersPagination?.totalCount,
-      debtorsByOrder.length,
-      negStockCount,
-      openApCount,
-      activeUsersCount,
-    ]
+    [router]
   );
 
-  const activeTabLabel = navItems.find((item) => item.id === tab)?.label ?? "Hoy";
+  const activeTabLabel =
+    navItems.find((item) => item.id === tab)?.label ??
+    (tab === "accesos" ? "Usuarios" : "Hoy");
   const navActiveTab: PartnerTab = tab;
 
   function handleGlobalSearchSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -347,24 +380,24 @@ export default function PartnerWorkspace() {
         areaLabel="Socios · Control"
         footer={
           <div className="space-y-1.5">
-            <p className="px-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--bht-sky)]">
-              Otros módulos
+            <p className="px-2 text-xs font-semibold uppercase tracking-[0.12em] text-[var(--bht-sky)]">
+              Espacios de campo
             </p>
             <button
               type="button"
               onClick={() => router.push("/vendedor")}
-              className="flex min-h-9 w-full items-center gap-2 rounded-lg px-2 text-left text-xs font-semibold text-[var(--bht-sky)] transition-colors hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white cursor-pointer"
+              className="flex min-h-9 w-full items-center gap-2 rounded-lg px-2 text-left text-sm font-semibold text-[var(--bht-sky)] transition-colors hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white cursor-pointer"
             >
               <PlusIcon className="h-3.5 w-3.5" aria-hidden="true" />
-              <span>Nuevo pedido</span>
+              <span>Tomar pedido</span>
             </button>
             <button
               type="button"
               onClick={() => router.push("/almacen")}
-              className="flex min-h-9 w-full items-center gap-2 rounded-lg px-2 text-left text-xs font-semibold text-[var(--bht-sky)] transition-colors hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white cursor-pointer"
+              className="flex min-h-9 w-full items-center gap-2 rounded-lg px-2 text-left text-sm font-semibold text-[var(--bht-sky)] transition-colors hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white cursor-pointer"
             >
               <PackageIcon className="h-3.5 w-3.5" aria-hidden="true" />
-              <span>Almacén</span>
+              <span>Almacén y reparto</span>
             </button>
           </div>
         }
@@ -398,7 +431,7 @@ export default function PartnerWorkspace() {
         )}
 
         <div className="flex flex-col gap-3 rounded-xl border border-bht-slate-line bg-white p-3 sm:flex-row sm:items-center sm:justify-between sm:p-3.5">
-          <div className="flex min-w-0 items-center gap-2 text-xs text-bht-ink-muted">
+          <div className="flex min-w-0 items-center gap-2 text-sm text-bht-ink-muted">
             <span className="font-medium text-bht-ink-soft">Inicio</span>
             <ChevronRightIcon
               className="h-3.5 w-3.5 text-bht-tone-a8a49c"
@@ -496,6 +529,7 @@ export default function PartnerWorkspace() {
             data={data}
             setSubTabEditing={setSubTabEditing}
             showFeedback={showFeedback}
+            onGoBackHome={() => handleTabChange("control")}
           />
         )}
 
@@ -526,6 +560,7 @@ export default function PartnerWorkspace() {
         activeId={navActiveTab}
         onChange={handleTabChange}
         maxWidth="full"
+        extraActions={mobileExtraActions}
         className="md:hidden"
       />
     </div>

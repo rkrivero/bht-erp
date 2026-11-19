@@ -190,6 +190,350 @@ test("partner today view keeps the priority queue visible and accessible", async
   ).toEqual([]);
 });
 
+test("partner reports expose the data cut and cautious financial language", async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    Object.defineProperty(window, "EventSource", {
+      configurable: true,
+      value: undefined,
+    });
+  });
+
+  const fixtures: Record<string, unknown> = {
+    orders: { orders: [], catalog: [], accounts: [], pagination: { totalCount: 0 } },
+    collections: { byOrder: [], byCustomer: [] },
+    partners: {
+      currentUser: {
+        userId: 1,
+        username: "partner-e2e",
+        fullName: "Socio de prueba",
+        role: "PARTNER_MANAGER",
+      },
+      pendingOnDemand: [],
+      negativeStockSkuCount: 0,
+    },
+    treasury: { accounts: [], ledger: [], apObligations: [] },
+    purchases: { suppliers: [], recentPurchases: [] },
+    trips: { trips: [] },
+    quotes: { quotes: [] },
+  };
+
+  for (const [endpoint, body] of Object.entries(fixtures)) {
+    await page.route(`**/api/${endpoint}**`, async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(body),
+      });
+    });
+  }
+  await page.route("**/api/sync**", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        version: "e2e-static",
+        changedScopes: [],
+        allowedScopes: [
+          "orders",
+          "inventory",
+          "collections",
+          "treasury",
+          "purchases",
+          "partners",
+        ],
+      }),
+    });
+  });
+  await page.route("**/api/reports?section=resumen**", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        data: {
+          filterOptions: { zones: [], sellers: [], months: ["2026-09-01"] },
+          dataCut: {
+            asOfLimaDate: "2026-11-18",
+            lastOrderDate: "2026-09-29",
+            lastPaymentDate: "2026-09-29",
+            lastCashLedgerDate: "2026-09-29",
+            lastPurchaseDate: "2026-09-25",
+            lastQuoteDate: "2026-11-12",
+            daysSinceLastOrder: 50,
+            isStale: true,
+            bankReconciled: false,
+          },
+          pnlMonthly: [],
+          totals: {
+            orderCount: 0,
+            salesTotalPen: 0,
+            costCoveredSalesPen: 0,
+            costCoveragePct: null,
+            cogsPen: 0,
+            grossMarginPen: 0,
+            grossMarginPct: null,
+            routeOpexPen: 0,
+            routeOpexPct: null,
+            operatingEbitdaPen: 0,
+            operatingEbitdaPct: null,
+            cashCollectedPen: 0,
+            arPendingPen: 0,
+            merchandiseOutflowPen: 0,
+            nonOpexCapexDrainPen: 0,
+            internalDepositsPen: 0,
+            preRouteFoundationalOutflowPen: 0,
+            netCashFlowPen: 0,
+            nonOpexVsReinvestmentPct: 0,
+          },
+          momComparison: null,
+          openDebtorsCount: 0,
+        },
+      }),
+    });
+  });
+  await page.route("**/api/reports?section=auditoria**", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        data: {
+          filterOptions: { zones: [], sellers: [], months: ["2026-09-01"] },
+          dataCut: {
+            asOfLimaDate: "2026-11-18",
+            lastOrderDate: "2026-09-29",
+            lastPaymentDate: "2026-09-29",
+            lastCashLedgerDate: "2026-09-29",
+            lastPurchaseDate: "2026-09-25",
+            lastQuoteDate: "2026-11-12",
+            daysSinceLastOrder: 50,
+            isStale: true,
+            bankReconciled: false,
+          },
+          operationalQuality: {
+            registrationCoverage24h: {
+              numerator: 0,
+              denominator: 0,
+              coveragePct: null,
+              baselineMode: "NO_APP_ORDERS",
+              incompleteOrders: [],
+            },
+            erpAppOrdersCount: 0,
+            totalOrdersCount: 152,
+            ordersMissingSellerCount: 152,
+            activeProductsCount: 194,
+            productsMissingCostCount: 42,
+            soldSkusMissingCostCount: 10,
+            soldSkusMissingCostPen: 19550,
+            purchasesTotalCount: 72,
+            purchasesWithoutDetailCount: 52,
+            activeCustomersCount: 110,
+            customersMissingPhoneCount: 110,
+            customersMissingZoneCount: 110,
+            customersMissingGeoCount: 110,
+            tripsTotalCount: 47,
+            tripsWithoutReconciliationCount: 45,
+            assumedCashOrdersCount: 97,
+            assumedCashOrdersPen: 248981.1,
+            negativeStockSkuCount: 0,
+            openBankAuditFlagsCount: 1,
+            apNoDueDateCount: 1,
+            startupChecklist: [
+              {
+                code: "ERP_OPERATIONS_STARTED",
+                label: "Operación diaria iniciada en el ERP",
+                done: false,
+                pendingCount: 1,
+                detail: "Aún hay 0 ventas registradas desde el ERP.",
+                targetTab: "vendedor",
+              },
+              {
+                code: "SOLD_SKU_COSTS",
+                label: "Costos completos en SKUs vendidos",
+                done: false,
+                pendingCount: 10,
+                detail: "10 SKU(s) vendidos sin costo conocido.",
+                targetTab: "stock",
+              },
+              {
+                code: "INVENTORY_BASELINE",
+                label: "Conteo físico y stock regularizado",
+                done: true,
+                pendingCount: 0,
+                detail: "Sin saldos negativos pendientes en almacén principal.",
+                targetTab: "stock",
+              },
+              {
+                code: "BANK_RECONCILIATION",
+                label: "Bancos y extractos conciliados",
+                done: false,
+                pendingCount: 1,
+                detail: "Faltan extractos bancarios históricos.",
+                targetTab: "caja",
+              },
+              {
+                code: "ASSUMED_CASH_CONFIRMED",
+                label: "Ventas históricas asumidas revisadas",
+                done: false,
+                pendingCount: 97,
+                detail: "97 venta(s) históricas siguen asumidas como contado.",
+                targetTab: "deudores",
+              },
+              {
+                code: "CUSTOMERS_CONTACT_DATA",
+                label: "Teléfono y zona en clientes activos",
+                done: false,
+                pendingCount: 110,
+                detail: "110 sin teléfono y 110 sin zona.",
+                targetTab: "directorio",
+              },
+            ],
+          },
+          closingReadiness: { status: "BLOCKED", checks: [] },
+          qualityGaps: [],
+          auditFlags: [],
+          auditFlagCounts: { open: 0, acknowledged: 0, resolved: 0 },
+        },
+      }),
+    });
+  });
+
+  await page.goto("/socios?tab=finance&view=analytics");
+  await expect(
+    page.getByRole("heading", { name: "Reportes para decidir" })
+  ).toBeVisible();
+  await expect(page.getByText("Ventas actualizadas hasta: 29/09/2026")).toBeVisible();
+  await expect(
+    page.getByText(/No reemplaza un estado de resultados ni una conciliación bancaria/)
+  ).toBeVisible();
+  await expect(page.getByText("Contribución después de gastos de ruta")).toBeVisible();
+  await expect(page.getByText("EBITDA Operativo Estimado")).toHaveCount(0);
+
+  await page
+    .getByRole("button", { name: /Margen bruto sobre ventas con costo/ })
+    .click();
+  const conceptDialog = page.getByRole("dialog");
+  await expect(conceptDialog).toBeVisible();
+  await expect(conceptDialog).toContainText("¿Qué significa en simple?");
+  await expect(conceptDialog).toContainText("Fundamento teórico");
+  await conceptDialog.getByRole("button", { name: "Cerrar", exact: true }).click();
+  await expect(conceptDialog).toHaveCount(0);
+
+  await page.getByRole("tab", { name: "Auditoría" }).click();
+  await expect(
+    page.getByRole("heading", { name: "Cobertura de registro completo en 24 h" })
+  ).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Lista de Verificación de Inicio Operativo" })
+  ).toBeVisible();
+  await expect(page.getByText("Operación diaria iniciada en el ERP")).toBeVisible();
+
+  const overflow = await page.evaluate(
+    () => document.documentElement.scrollWidth > document.documentElement.clientWidth
+  );
+  expect(overflow).toBe(false);
+
+  const results = await new AxeBuilder({ page })
+    .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"])
+    .analyze();
+  expect(
+    results.violations.filter((violation) =>
+      ["critical", "serious"].includes(violation.impact || "")
+    )
+  ).toEqual([]);
+});
+
+test("partner manager hides user administration nav and restricts access route", async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    Object.defineProperty(window, "EventSource", {
+      configurable: true,
+      value: undefined,
+    });
+  });
+
+  const fixtures: Record<string, unknown> = {
+    orders: { orders: [], catalog: [], accounts: [], pagination: { totalCount: 0 } },
+    collections: { byOrder: [], byCustomer: [] },
+    partners: {
+      currentUser: {
+        userId: 2,
+        username: "partner-mgr-e2e",
+        fullName: "Socio Gerente",
+        role: "PARTNER_MANAGER",
+      },
+      kpiQ1: {},
+      pendingOnDemand: [],
+      negativeStockSkuCount: 0,
+      users: [],
+      userAccessHistory: [],
+    },
+    treasury: { accounts: [], ledger: [], apObligations: [] },
+    purchases: { suppliers: [], recentPurchases: [] },
+    trips: { trips: [] },
+    quotes: { quotes: [] },
+  };
+
+  for (const [endpoint, body] of Object.entries(fixtures)) {
+    await page.route(`**/api/${endpoint}**`, async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(body),
+      });
+    });
+  }
+  await page.route("**/api/sync**", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        version: "e2e-static",
+        changedScopes: [],
+        allowedScopes: [
+          "orders",
+          "inventory",
+          "collections",
+          "treasury",
+          "purchases",
+          "partners",
+        ],
+      }),
+    });
+  });
+
+  await page.goto("/socios?tab=access");
+  await expect(
+    page.getByRole("heading", { name: "Administración de usuarios y roles" })
+  ).toBeVisible();
+  await expect(
+    page.getByText(/Solo el usuario Administrador \(PARTNER_ADMIN\) puede consultar/)
+  ).toBeVisible();
+  await expect(page.getByRole("button", { name: "Volver a Hoy" })).toBeVisible();
+  await expect(
+    page
+      .getByRole("navigation", { name: "Secciones principales" })
+      .getByRole("button", {
+        name: "Usuarios",
+      })
+  ).toHaveCount(0);
+
+  const overflow = await page.evaluate(
+    () => document.documentElement.scrollWidth > document.documentElement.clientWidth
+  );
+  expect(overflow).toBe(false);
+
+  const results = await new AxeBuilder({ page })
+    .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"])
+    .analyze();
+  expect(
+    results.violations.filter((violation) =>
+      ["critical", "serious"].includes(violation.impact || "")
+    )
+  ).toEqual([]);
+});
+
 test("partner directory exposes customer detail and keeps buyer hierarchy in orders", async ({
   page,
 }, testInfo) => {
@@ -367,16 +711,14 @@ test("partner directory exposes customer detail and keeps buyer hierarchy in ord
   for (const label of ["Lista", "Mapa"]) {
     await expect(viewTabs.getByRole("radio", { name: label })).toBeVisible();
   }
-  const customerCard = page
-    .getByRole("heading", { name: "Ferretería Horizonte", level: 3 })
-    .locator("xpath=ancestor::section[1]");
+  const customerCard = page.getByRole("button", { name: /Ferretería Horizonte/ });
   await expect(customerCard).toBeVisible();
   await customerCard.hover();
   await expect(
     page.getByRole("complementary", {
-      name: "Vista rápida de Ferretería Horizonte",
+      name: /Vista rápida/,
     })
-  ).toBeVisible();
+  ).toHaveCount(0);
 
   await page.setViewportSize({ width: 390, height: 844 });
   for (const label of ["Clientes", "Proveedores"]) {
@@ -412,9 +754,10 @@ test("partner directory exposes customer detail and keeps buyer hierarchy in ord
       () => document.documentElement.scrollWidth > document.documentElement.clientWidth
     )
   ).toBe(false);
-  await customerCard.getByRole("button", { name: "Ver ficha" }).click();
-  await expect(page.getByRole("dialog")).toContainText("3 pedidos");
-  await page.getByRole("button", { name: "Cerrar", exact: true }).click();
+  await customerCard.click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog).toBeVisible();
+  await expect(dialog).toContainText("3 pedidos");
   const customerOrdersRequest = page.waitForRequest((request) => {
     const url = new URL(request.url());
     return (
@@ -423,7 +766,7 @@ test("partner directory exposes customer detail and keeps buyer hierarchy in ord
       url.searchParams.get("include_refs") === "false"
     );
   });
-  await customerCard.getByRole("button", { name: "3 pedidos" }).click();
+  await dialog.getByRole("button", { name: "Ver pedidos (3)" }).click();
   await customerOrdersRequest;
 
   const buyer = page.getByRole("heading", {

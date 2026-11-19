@@ -17,6 +17,7 @@ import {
 } from "@/lib/labels-es";
 import { notifyLocalSync } from "@/lib/realtime/useLiveSync";
 import { formatPen } from "../types";
+import { ReportesCalidadPanel } from "./ReportesCalidadPanel";
 import {
   type ReportAuditoriaDto,
   type ReportFilterState,
@@ -28,6 +29,11 @@ import {
 interface ReportesAuditoriaTabProps {
   data: ReportAuditoriaDto;
   filters: ReportFilterState;
+  onOpenCaja?: () => void;
+  onOpenCollections?: () => void;
+  onOpenInventory?: () => void;
+  onOpenDirectory?: () => void;
+  onOpenSeller?: () => void;
   onRefresh: () => Promise<void>;
   onFeedback: (msg: string, isError?: boolean) => void;
 }
@@ -35,6 +41,11 @@ interface ReportesAuditoriaTabProps {
 export default function ReportesAuditoriaTab({
   data,
   filters,
+  onOpenCaja,
+  onOpenCollections,
+  onOpenInventory,
+  onOpenDirectory,
+  onOpenSeller,
   onRefresh,
   onFeedback,
 }: ReportesAuditoriaTabProps) {
@@ -146,6 +157,18 @@ export default function ReportesAuditoriaTab({
 
   return (
     <div className="min-w-0 space-y-4">
+      {data.operationalQuality && (
+        <ReportesCalidadPanel
+          dataCut={data.dataCut}
+          quality={data.operationalQuality}
+          onOpenCaja={onOpenCaja}
+          onOpenCollections={onOpenCollections}
+          onOpenInventory={onOpenInventory}
+          onOpenDirectory={onOpenDirectory}
+          onOpenSeller={onOpenSeller}
+        />
+      )}
+
       {/* Closing Readiness Semaphore */}
       <Card
         tone={closingBadge.tone === "success" ? "success" : "warning"}
@@ -154,7 +177,7 @@ export default function ReportesAuditoriaTab({
       >
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
-            <h3 className="text-sm font-semibold text-bht-ink-strong sm:text-base">
+            <h3 className="text-base font-bold text-bht-ink-strong sm:text-lg">
               Semáforo de Cierre Contable y Operativo
             </h3>
             <p className="mt-0.5 text-xs text-bht-ink-soft">
@@ -194,7 +217,7 @@ export default function ReportesAuditoriaTab({
       {/* CSV Download Center (7 datasets) */}
       <Card tone="success" padding="md" className="space-y-3">
         <div>
-          <h3 className="text-sm font-semibold text-bht-ink-strong sm:text-base">
+          <h3 className="text-base font-bold text-bht-ink-strong sm:text-lg">
             Centro de Descargas Contables y Excel (7 Reportes CSV)
           </h3>
           <p className="mt-0.5 text-xs text-bht-ink-soft">
@@ -212,7 +235,6 @@ export default function ReportesAuditoriaTab({
                 key={ds.id}
                 type="button"
                 disabled={downloadingDataset !== null}
-                aria-label={`Descargar reporte ${ds.title} en formato CSV`}
                 onClick={() =>
                   handleDownloadCsv(
                     ds.id,
@@ -230,7 +252,7 @@ export default function ReportesAuditoriaTab({
                   <p className="mt-1 text-xs text-bht-ink-soft">{ds.subtitle}</p>
                 </div>
                 <span className="mt-3 inline-flex items-center justify-center gap-1.5 rounded-lg bg-bht-navy-deep px-2.5 py-1.5 text-xs font-semibold text-white">
-                  <DownloadIcon className="h-3.5 w-3.5" />
+                  <DownloadIcon aria-hidden="true" className="h-3.5 w-3.5" />
                   {busy ? "Descargando..." : "Descargar CSV"}
                 </span>
               </button>
@@ -241,7 +263,7 @@ export default function ReportesAuditoriaTab({
 
       {/* Data Quality Gaps */}
       <Card padding="md" className="space-y-3">
-        <h3 className="text-sm font-semibold text-bht-ink-strong sm:text-base">
+        <h3 className="text-base font-bold text-bht-ink-strong sm:text-lg">
           Calidad de Datos e Integridad Operativa
         </h3>
         <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
@@ -267,7 +289,7 @@ export default function ReportesAuditoriaTab({
       <Card padding="md" className="space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
-            <h3 className="text-sm font-semibold text-bht-ink-strong sm:text-base">
+            <h3 className="text-base font-bold text-bht-ink-strong sm:text-lg">
               Alertas Operativas y Auditoría
             </h3>
             <p className="text-xs text-bht-ink-soft">

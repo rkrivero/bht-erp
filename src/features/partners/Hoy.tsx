@@ -2,7 +2,7 @@
 
 import React from "react";
 import { useRouter } from "next/navigation";
-import { formatPen } from "@/components/socios/types";
+import { formatDatePe, formatPen } from "@/components/socios/types";
 import {
   ActivityIcon,
   AlertTriangleIcon,
@@ -17,6 +17,7 @@ import type { PartnerData } from "./usePartnerData";
 import type { OrderFlow } from "./useOrderFlow";
 import type { CollectionsFlow } from "./useCollectionsFlow";
 import type { PriorityItem } from "./types";
+import { HoyDataStatusCard } from "./HoyDataStatusCard";
 import { HoyMonitor } from "./HoyMonitor";
 import { HoyRoutesQuotes } from "./HoyRoutesQuotes";
 
@@ -52,6 +53,8 @@ export function Hoy({
     brokenPromisesCount,
     kpiQ1,
     biSummary,
+    dataCut,
+    operationalQuality,
     accounts,
     apObligations,
     openApCount,
@@ -203,10 +206,10 @@ export function Hoy({
               <ShoppingBagIcon className="h-5 w-5" />
             </div>
             <div className="min-w-0">
-              <h2 className="text-sm sm:text-base font-semibold text-bht-navy-deep">
+              <h2 className="text-base sm:text-lg font-bold text-bht-navy-deep">
                 Toma Rápida de Pedidos y Ventas
               </h2>
-              <p className="mt-0.5 text-xs text-bht-ink-soft">
+              <p className="mt-0.5 text-xs sm:text-sm text-bht-ink-soft">
                 Registra pedidos nuevos, busca clientes y cobra en ruta directamente.
               </p>
             </div>
@@ -233,6 +236,13 @@ export function Hoy({
         </div>
       </Card>
 
+      <HoyDataStatusCard
+        dataCut={dataCut}
+        operationalQuality={operationalQuality}
+        fallbackPeriodEnd={kpiQ1?.period_end}
+        onOpenTab={handleTabChange}
+      />
+
       {/* Executive Business Summary (financial + operational metrics) */}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <button
@@ -241,7 +251,7 @@ export function Hoy({
           className="group rounded-2xl border border-bht-line bg-white p-4 text-left shadow-bht-elev-13 transition hover:border-bht-navy-mid/45 hover:shadow-bht-elev-14 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bht-navy-deep"
         >
           <div className="flex items-center justify-between gap-2">
-            <span className="text-xs font-medium text-bht-ink-warm">
+            <span className="text-sm font-semibold text-bht-ink-warm">
               Ventas y Cobranza
             </span>
             <span
@@ -257,6 +267,8 @@ export function Hoy({
           <p className="mt-1 text-xs text-bht-ink-soft tabular-nums">
             Cobrado: {formatPen(kpiQ1?.collected_sales_pen ?? 0)} · {totalOrdersCount}{" "}
             pedidos
+            {(dataCut?.lastOrderDate || kpiQ1?.period_end) &&
+              ` · Corte: ${formatDatePe(dataCut?.lastOrderDate ?? kpiQ1?.period_end)}`}
           </p>
         </button>
 
@@ -266,7 +278,7 @@ export function Hoy({
           className="group rounded-2xl border border-bht-line bg-white p-4 text-left shadow-bht-elev-13 transition hover:border-bht-navy-mid/45 hover:shadow-bht-elev-14 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bht-navy-deep"
         >
           <div className="flex items-center justify-between gap-2">
-            <span className="text-xs font-medium text-bht-ink-warm">
+            <span className="text-sm font-semibold text-bht-ink-warm">
               Cartera por Cobrar
             </span>
             <span
@@ -290,7 +302,7 @@ export function Hoy({
           className="group rounded-2xl border border-bht-line bg-white p-4 text-left shadow-bht-elev-13 transition hover:border-bht-navy-mid/45 hover:shadow-bht-elev-14 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bht-navy-deep"
         >
           <div className="flex items-center justify-between gap-2">
-            <span className="text-xs font-medium text-bht-ink-warm">
+            <span className="text-sm font-semibold text-bht-ink-warm">
               Caja y Compras (CxP)
             </span>
             <span
@@ -304,7 +316,10 @@ export function Hoy({
             {formatPen(totalCashPen)}
           </p>
           <p className="mt-1 text-xs text-bht-ink-soft tabular-nums">
-            Por pagar: {formatPen(totalApPen)} ({openApCount} obl.)
+            {dataCut?.bankReconciled === false
+              ? "Saldo registrado (no conciliado)"
+              : "Saldo registrado"}{" "}
+            · Por pagar: {formatPen(totalApPen)} ({openApCount} obl.)
           </p>
         </button>
 
@@ -314,7 +329,7 @@ export function Hoy({
           className="group rounded-2xl border border-bht-line bg-white p-4 text-left shadow-bht-elev-13 transition hover:border-bht-navy-mid/45 hover:shadow-bht-elev-14 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bht-navy-deep"
         >
           <div className="flex items-center justify-between gap-2">
-            <span className="text-xs font-medium text-bht-ink-warm">
+            <span className="text-sm font-semibold text-bht-ink-warm">
               Inventario y Alertas
             </span>
             <span
@@ -337,7 +352,7 @@ export function Hoy({
       <Card padding="none" className="overflow-hidden border-[var(--border-strong)]">
         <div className="flex items-center justify-between gap-3 border-b border-[var(--border-hairline)] px-4 py-3.5 sm:px-5">
           <div>
-            <h3 className="text-base font-bold text-[var(--bht-navy)]">
+            <h3 className="text-base sm:text-lg font-bold text-[var(--bht-navy)]">
               Cola priorizada
             </h3>
             <p className="mt-0.5 text-xs text-[var(--ink-secondary)]">
@@ -377,14 +392,14 @@ export function Hoy({
                 </span>
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
-                    <h4 className="text-sm font-semibold text-[var(--bht-ink)]">
+                    <h4 className="text-sm sm:text-base font-semibold text-[var(--bht-ink)]">
                       {item.title}
                     </h4>
                     <span className="text-xs font-semibold text-[var(--ink-secondary)]">
                       {item.dueLabel}
                     </span>
                   </div>
-                  <p className="mt-1 text-xs text-[var(--ink-secondary)]">
+                  <p className="mt-1 text-xs sm:text-sm text-[var(--ink-secondary)]">
                     {item.summary}
                   </p>
                 </div>
@@ -424,7 +439,7 @@ export function Hoy({
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="flex items-center gap-2">
               <AlertTriangleIcon className="h-4 w-4 text-bht-warning" />
-              <h2 className="text-sm sm:text-base font-semibold text-bht-ink-strong">
+              <h2 className="text-base sm:text-lg font-bold text-bht-ink-strong">
                 Aprobación de Descuentos bajo el Precio Mínimo
               </h2>
             </div>
@@ -534,7 +549,7 @@ export function Hoy({
       {pendingOnDemand.length > 0 && (
         <Card tone="horizon" accent="horizon" padding="md" className="space-y-3">
           <div className="flex items-center justify-between gap-2">
-            <h2 className="text-sm sm:text-base font-semibold text-bht-navy-deep">
+            <h2 className="text-base sm:text-lg font-bold text-bht-navy-deep">
               Pedidos Bajo Pedido Pendientes de Compra ({pendingOnDemand.length})
             </h2>
           </div>

@@ -3,8 +3,19 @@
 import { useCallback, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { signOutFromERP } from "@/lib/auth/logout-client";
-import { AppHeader, BottomNav, type NavTabItem } from "@/components/ui/AppShell";
-import { CheckIcon, PackageIcon, TruckIcon } from "@/components/ui/Icons";
+import {
+  AppHeader,
+  BottomNav,
+  type NavExtraAction,
+  type NavTabItem,
+} from "@/components/ui/AppShell";
+import {
+  ActivityIcon,
+  CheckIcon,
+  PackageIcon,
+  ShoppingBagIcon,
+  TruckIcon,
+} from "@/components/ui/Icons";
 import {
   Button,
   Card,
@@ -147,6 +158,30 @@ export default function WarehouseWorkspace() {
     });
   }, [activeTab, checkedLines, orders, preparingFilter, warehouseSearch]);
 
+  const isPartnerUser =
+    currentUser?.role === "PARTNER_ADMIN" || currentUser?.role === "PARTNER_MANAGER";
+
+  const warehouseExtraActions: NavExtraAction[] | undefined = useMemo(
+    () =>
+      isPartnerUser
+        ? [
+            {
+              id: "go-partners",
+              label: "Control Operativo",
+              icon: <ActivityIcon className="h-4 w-4" />,
+              onClick: () => router.push("/socios"),
+            },
+            {
+              id: "go-seller",
+              label: "Nuevo pedido",
+              icon: <ShoppingBagIcon className="h-4 w-4" />,
+              onClick: () => router.push("/vendedor"),
+            },
+          ]
+        : undefined,
+    [isPartnerUser, router]
+  );
+
   return (
     <div className="min-h-screen bg-bht-paper pb-24 md:pb-12">
       <AppHeader
@@ -158,16 +193,25 @@ export default function WarehouseWorkspace() {
         onSyncClick={() => void triggerSync({ force: true })}
         maxWidth="5xl"
         actions={
-          currentUser?.role === "PARTNER_ADMIN" ||
-          currentUser?.role === "PARTNER_MANAGER" ? (
-            <Button
-              variant="outline"
-              size="md"
-              onClick={() => router.push("/socios")}
-              className="min-h-[38px] sm:min-h-[40px] px-3.5 text-xs sm:text-sm"
-            >
-              Control Operativo
-            </Button>
+          isPartnerUser ? (
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="md"
+                onClick={() => router.push("/socios")}
+                className="min-h-[38px] sm:min-h-[40px] px-3.5 text-xs sm:text-sm"
+              >
+                Control Operativo
+              </Button>
+              <Button
+                variant="outline"
+                size="md"
+                onClick={() => router.push("/vendedor")}
+                className="hidden sm:inline-flex min-h-[38px] sm:min-h-[40px] px-3.5 text-xs sm:text-sm"
+              >
+                Nuevo pedido
+              </Button>
+            </div>
           ) : undefined
         }
         onLogout={handleLogout}
@@ -347,6 +391,7 @@ export default function WarehouseWorkspace() {
         onChange={setActiveTab}
         maxWidth="full"
         visibleCount={3}
+        extraActions={warehouseExtraActions}
         className="md:hidden"
       />
     </div>

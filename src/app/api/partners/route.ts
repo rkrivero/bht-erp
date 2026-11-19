@@ -15,7 +15,18 @@ import {
   resetHistoricalNegativeStock,
   updateProductStockAndPricing,
 } from "@/lib/services/collections-and-treasury";
-import { listAuditFlags } from "@/lib/services/operations-and-modules";
+import {
+  DATA_CUT_SELECT,
+  OPERATIONAL_QUALITY_SELECT,
+  mapDataCutSummary,
+  mapOperationalQualitySummary,
+} from "@/lib/services/operational-quality";
+import {
+  AUDIT_FLAG_COUNTS_SELECT,
+  buildAuditFlagsSelect,
+  mapAuditFlagCounts,
+  mapAuditFlagRow,
+} from "@/lib/services/operations-and-modules";
 import { type UserRole, ValidationError } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -33,6 +44,10 @@ type PartnerDashboardBundleRow = BiNonMonthlyPanelsRow & {
   user_access_history: Array<Record<string, unknown>>;
   open_debtors_count: number;
   period_end: string;
+  data_cut: unknown;
+  operational_quality: unknown;
+  audit_flag_counts: unknown;
+  audit_flags: Array<Record<string, unknown>>;
 };
 
 const USER_ROLES: UserRole[] = [
@@ -137,6 +152,7 @@ export async function GET(req: NextRequest) {
         "PARTNER_ADMIN",
         "PARTNER_MANAGER",
       ]);
+      const isPartnerAdmin = actor.role === "PARTNER_ADMIN";
       // Batch all dashboard KPIs, alerts, users, and non-monthly BI panels into one query,
       // reusing `q1` rows for `biSummary.monthlyPerformance` instead of scanning the KPI view twice.
       const bundleRes = await client.query<PartnerDashboardBundleRow>(
@@ -274,42 +290,48 @@ export async function GET(req: NextRequest) {
              WHERE warehouse_code = 'MAIN'
                AND stock_on_hand < -0.0001
            ), 0) AS neg_count,
-           COALESCE((
-             SELECT json_agg(t)
-             FROM (
-               SELECT
-                 user_id,
-                 username,
-                 full_name,
-                 role::text AS role,
-                 is_active,
-                 email
-               FROM erp.app_users
-               WHERE username NOT LIKE '%\\_\\_deleted\\_%' ESCAPE '\\'
-               ORDER BY user_id ASC
-             ) t
-           ), '[]'::json) AS users,
-           COALESCE((
-             SELECT json_agg(t)
-             FROM (
-               SELECT
-                 l.audit_id,
-                 l.action,
-                 l.target_user_id,
-                 target.username AS target_username,
-                 target.full_name AS target_name,
-                 actor.username AS actor_username,
-                 actor.full_name AS actor_name,
-                 l.before_data,
-                 l.after_data,
-                 l.created_at
-               FROM erp.user_access_audit_log l
-               JOIN erp.app_users target ON target.user_id = l.target_user_id
-               JOIN erp.app_users actor ON actor.user_id = l.actor_user_id
-               ORDER BY l.created_at DESC, l.audit_id DESC
-               LIMIT 40
-             ) t
-           ), '[]'::json) AS user_access_history,
+           CASE
+             WHEN $1::boolean THEN COALESCE((
+               SELECT json_agg(t)
+               FROM (
+                 SELECT
+                   user_id,
+                   username,
+                   full_name,
+                   role::text AS role,
+                   is_active,
+                   email
+                 FROM erp.app_users
+                 WHERE username NOT LIKE '%\\_\\_deleted\\_%' ESCAPE '\\'
+                 ORDER BY user_id ASC
+               ) t
+             ), '[]'::json)
+             ELSE '[]'::json
+           END AS users,
+           CASE
+             WHEN $1::boolean THEN COALESCE((
+               SELECT json_agg(t)
+               FROM (
+                 SELECT
+                   l.audit_id,
+                   l.action,
+                   l.target_user_id,
+                   target.username AS target_username,
+                   target.full_name AS target_name,
+                   actor.username AS actor_username,
+                   actor.full_name AS actor_name,
+                   l.before_data,
+                   l.after_data,
+                   l.created_at
+                 FROM erp.user_access_audit_log l
+                 JOIN erp.app_users target ON target.user_id = l.target_user_id
+                 JOIN erp.app_users actor ON actor.user_id = l.actor_user_id
+                 ORDER BY l.created_at DESC, l.audit_id DESC
+                 LIMIT 40
+               ) t
+             ), '[]'::json)
+             ELSE '[]'::json
+           END AS user_access_history,
            COALESCE((
              SELECT COUNT(*)::int
              FROM analytics.v_debtors_aging
@@ -320,7 +342,12 @@ export async function GET(req: NextRequest) {
              FROM erp.sales_orders
              WHERE operational_status <> 'CANCELLED'
            ), '2026-09-29') AS period_end,
-           ${BI_NON_MONTHLY_SELECTS}`
+           ${DATA_CUT_SELECT} AS data_cut,
+           ${OPERATIONAL_QUALITY_SELECT} AS operational_quality,
+           ${AUDIT_FLAG_COUNTS_SELECT} AS audit_flag_counts,
+           ${buildAuditFlagsSelect("'ALL'", "60")} AS audit_flags,
+           ${BI_NON_MONTHLY_SELECTS}`,
+        [isPartnerAdmin]
       );
 
       const bundle = bundleRes.rows[0];
@@ -485,43 +512,41 @@ export async function GET(req: NextRequest) {
               : null,
         })),
         negativeStockSkuCount: Number(bundle?.neg_count ?? 0),
-        users: (bundle?.users ?? []).map((u) => ({
-          user_id: Number(u.user_id),
-          username: String(u.username),
-          full_name: String(u.full_name),
-          role: String(u.role),
-          is_active: Boolean(u.is_active),
-          email: u.email ? String(u.email) : null,
-        })),
-        userAccessHistory: (bundle?.user_access_history ?? []).map((entry) => ({
-          audit_id: Number(entry.audit_id),
-          action: String(entry.action),
-          target_user_id: Number(entry.target_user_id),
-          target_username: String(entry.target_username),
-          target_name: String(entry.target_name),
-          actor_username: String(entry.actor_username),
-          actor_name: String(entry.actor_name),
-          before_data:
-            entry.before_data && typeof entry.before_data === "object"
-              ? entry.before_data
-              : null,
-          after_data:
-            entry.after_data && typeof entry.after_data === "object"
-              ? entry.after_data
-              : {},
-          created_at: String(entry.created_at),
-        })),
+        users: isPartnerAdmin
+          ? (bundle?.users ?? []).map((u) => ({
+              user_id: Number(u.user_id),
+              username: String(u.username),
+              full_name: String(u.full_name),
+              role: String(u.role),
+              is_active: Boolean(u.is_active),
+              email: u.email ? String(u.email) : null,
+            }))
+          : [],
+        userAccessHistory: isPartnerAdmin
+          ? (bundle?.user_access_history ?? []).map((entry) => ({
+              audit_id: Number(entry.audit_id),
+              action: String(entry.action),
+              target_user_id: Number(entry.target_user_id),
+              target_username: String(entry.target_username),
+              target_name: String(entry.target_name),
+              actor_username: String(entry.actor_username),
+              actor_name: String(entry.actor_name),
+              before_data:
+                entry.before_data && typeof entry.before_data === "object"
+                  ? entry.before_data
+                  : null,
+              after_data:
+                entry.after_data && typeof entry.after_data === "object"
+                  ? entry.after_data
+                  : {},
+              created_at: String(entry.created_at),
+            }))
+          : [],
         biSummary,
-        ...(await (async () => {
-          const auditFlagsData = await listAuditFlags(client, actor, {
-            status: "ALL",
-            limit: 60,
-          });
-          return {
-            auditFlags: auditFlagsData.flags,
-            auditFlagCounts: auditFlagsData.counts,
-          };
-        })()),
+        dataCut: mapDataCutSummary(bundle?.data_cut),
+        operationalQuality: mapOperationalQualitySummary(bundle?.operational_quality),
+        auditFlags: (bundle?.audit_flags ?? []).map(mapAuditFlagRow),
+        auditFlagCounts: mapAuditFlagCounts(bundle?.audit_flag_counts),
       };
     });
 

@@ -60,7 +60,7 @@ export function HoyMonitor({
         <div>
           <h2
             id="monitor-table-heading"
-            className="text-sm sm:text-base font-semibold text-bht-ink-strong"
+            className="text-base sm:text-lg font-bold text-bht-ink-strong"
           >
             Monitor en Tiempo Real
           </h2>
@@ -147,7 +147,7 @@ export function HoyMonitor({
           return (
             <div
               key={String(o.order_id)}
-              className="rounded-xl border border-bht-line bg-bht-paper p-3.5 space-y-2.5 text-xs"
+              className="rounded-xl border border-bht-line bg-bht-paper p-3.5 space-y-2.5 text-sm"
             >
               <button
                 type="button"
@@ -156,7 +156,7 @@ export function HoyMonitor({
                 className="w-full text-left space-y-2 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bht-navy-deep/45 cursor-pointer"
               >
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <span className="font-semibold text-bht-navy-mid tabular-nums">
+                  <span className="text-xs font-semibold text-bht-navy-mid tabular-nums">
                     {String(o.order_code)} · {String(o.order_date)}
                   </span>
                   <div className="flex flex-wrap items-center gap-1.5">
@@ -166,7 +166,7 @@ export function HoyMonitor({
                     </Badge>
                   </div>
                 </div>
-                <p className="text-sm font-semibold text-bht-ink-strong">
+                <p className="text-base font-bold text-bht-ink-strong">
                   {String(o.customer_name)}
                 </p>
                 <p className="text-xs text-bht-ink-soft">
@@ -244,7 +244,7 @@ export function HoyMonitor({
         aria-labelledby="monitor-table-heading"
         className="table-wrapper hidden md:block"
       >
-        <table className="w-full text-left text-xs">
+        <table className="w-full text-left text-sm">
           <thead className="border-b border-bht-line bg-bht-paper text-xs font-semibold uppercase tracking-wide text-bht-ink-soft">
             <tr>
               <th scope="col" className="whitespace-nowrap p-3">

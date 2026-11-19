@@ -1,9 +1,14 @@
 "use client";
 
-import React from "react";
+import React, { useState } from "react";
 import { Badge, Button, Card, EmptyState } from "@/components/ui/Primitives";
 import { formatAccountTypeEs, formatApStatusEs } from "@/lib/labels-es";
 import { formatPen } from "../types";
+import {
+  type ActiveReportConcept,
+  ConceptCardButton,
+  ReportConceptModal,
+} from "./ReportConceptModal";
 import { type ReportCajaCxpDto, formatMaturityBucketEs } from "./reportes-types";
 
 interface ReportesCajaCxpTabProps {
@@ -15,6 +20,7 @@ export default function ReportesCajaCxpTab({
   data,
   onOpenCaja,
 }: ReportesCajaCxpTabProps) {
+  const [activeConcept, setActiveConcept] = useState<ActiveReportConcept | null>(null);
   const {
     liquiditySummary,
     cashAccounts,
@@ -27,14 +33,27 @@ export default function ReportesCajaCxpTab({
 
   return (
     <div className="min-w-0 space-y-4">
+      <Card tone="warning" padding="sm" className="text-xs text-bht-ink-strong">
+        <strong>Saldos registrados, no conciliados:</strong> confirma caja física y
+        extractos bancarios antes de usar estas cifras como dinero disponible.
+      </Card>
+
       {/* Liquidity vs AP 30d Coverage Cards */}
       <section
         aria-label="Liquidez y cobertura de CxP"
         className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4"
       >
-        <Card padding="md" className="space-y-1.5">
-          <span className="text-xs font-medium text-bht-ink-soft">
-            Efectivo Líquido Disponible
+        <ConceptCardButton
+          onClick={() =>
+            setActiveConcept({
+              id: "saldo_cuentas_liquidas",
+              currentValue: formatPen(liquiditySummary.liquidCashPen),
+              currentSubtext: "Bancos, cajas y billeteras digitales",
+            })
+          }
+        >
+          <span className="text-sm font-semibold text-bht-ink-soft">
+            Saldo registrado en cuentas líquidas
           </span>
           <p className="text-2xl font-semibold text-bht-navy-deep tabular-nums">
             {formatPen(liquiditySummary.liquidCashPen)}
@@ -42,10 +61,18 @@ export default function ReportesCajaCxpTab({
           <span className="block text-xs text-bht-ink-soft">
             Bancos, cajas y billeteras digitales
           </span>
-        </Card>
+        </ConceptCardButton>
 
-        <Card padding="md" className="space-y-1.5">
-          <span className="text-xs font-medium text-bht-ink-soft">
+        <ConceptCardButton
+          onClick={() =>
+            setActiveConcept({
+              id: "custodia_socios",
+              currentValue: formatPen(liquiditySummary.partnerCustodyPen),
+              currentSubtext: `Saldo total cuentas: ${formatPen(liquiditySummary.totalCashPen)}`,
+            })
+          }
+        >
+          <span className="text-sm font-semibold text-bht-ink-soft">
             Custodia de Socios (por rendir)
           </span>
           <p className="text-2xl font-semibold text-bht-warning tabular-nums">
@@ -54,10 +81,18 @@ export default function ReportesCajaCxpTab({
           <span className="block text-xs text-bht-ink-soft tabular-nums">
             Saldo total cuentas: {formatPen(liquiditySummary.totalCashPen)}
           </span>
-        </Card>
+        </ConceptCardButton>
 
-        <Card padding="md" className="space-y-1.5">
-          <span className="text-xs font-medium text-bht-ink-soft">
+        <ConceptCardButton
+          onClick={() =>
+            setActiveConcept({
+              id: "total_cxp_abiertas",
+              currentValue: formatPen(liquiditySummary.totalOpenApPen),
+              currentSubtext: `Vencidas + ≤30d: ${formatPen(liquiditySummary.dueWithin30dPen)}`,
+            })
+          }
+        >
+          <span className="text-sm font-semibold text-bht-ink-soft">
             Total CxP Abiertas
           </span>
           <p className="text-2xl font-semibold text-bht-danger tabular-nums">
@@ -66,15 +101,23 @@ export default function ReportesCajaCxpTab({
           <span className="block text-xs text-bht-ink-soft tabular-nums">
             Vencidas + ≤30d: {formatPen(liquiditySummary.dueWithin30dPen)}
           </span>
-        </Card>
+        </ConceptCardButton>
 
-        <Card
+        <ConceptCardButton
           tone={liquiditySummary.netLiquidityAfter30dApPen >= 0 ? "success" : "danger"}
-          padding="md"
-          className="space-y-1.5"
+          onClick={() =>
+            setActiveConcept({
+              id: "cobertura_cxp_30d",
+              currentValue: formatPen(liquiditySummary.netLiquidityAfter30dApPen),
+              currentSubtext:
+                liquiditySummary.netLiquidityAfter30dApPen >= 0
+                  ? "El saldo registrado cubre CxP ≤30d"
+                  : "El saldo registrado no cubre CxP ≤30d",
+            })
+          }
         >
-          <span className="text-xs font-medium text-bht-ink-soft">
-            Cobertura Neta tras CxP ≤30d
+          <span className="text-sm font-semibold text-bht-ink-soft">
+            Cobertura registrada tras CxP ≤30d
           </span>
           <p
             className={`text-2xl font-semibold tabular-nums ${
@@ -91,17 +134,17 @@ export default function ReportesCajaCxpTab({
             }
           >
             {liquiditySummary.netLiquidityAfter30dApPen >= 0
-              ? "Liquidez cubre vencimientos ≤30d"
-              : "Déficit frente a CxP ≤30d"}
+              ? "El saldo registrado cubre CxP ≤30d"
+              : "El saldo registrado no cubre CxP ≤30d"}
           </Badge>
-        </Card>
+        </ConceptCardButton>
       </section>
 
       {/* AP Maturity Horizon 7 / 15 / 30d */}
       <Card padding="md" className="space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
-            <h3 className="text-sm font-semibold text-bht-ink-strong sm:text-base">
+            <h3 className="text-base font-bold text-bht-ink-strong sm:text-lg">
               Proyección de Vencimientos CxP (Vencidas / 7 / 15 / 30 días)
             </h3>
             <p className="mt-0.5 text-xs text-bht-ink-soft">
@@ -158,8 +201,8 @@ export default function ReportesCajaCxpTab({
 
       {/* Accounts Breakdown */}
       <Card padding="md" className="space-y-3">
-        <h3 className="text-sm font-semibold text-bht-ink-strong sm:text-base">
-          Saldos por Caja, Banco y Custodia
+        <h3 className="text-base font-bold text-bht-ink-strong sm:text-lg">
+          Saldos registrados por caja, banco y custodia
         </h3>
         <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
           {cashAccounts.map((acc) => (
@@ -195,7 +238,7 @@ export default function ReportesCajaCxpTab({
         <Card padding="md" className="space-y-3 lg:col-span-2">
           <h3
             id="ap-schedule-heading"
-            className="text-sm font-semibold text-bht-ink-strong sm:text-base"
+            className="text-base font-bold text-bht-ink-strong sm:text-lg"
           >
             Calendario de Pagos Pendientes ({upcomingApDocs.length})
           </h3>
@@ -208,7 +251,7 @@ export default function ReportesCajaCxpTab({
               aria-labelledby="ap-schedule-heading"
               className="table-wrapper"
             >
-              <table className="w-full text-left text-xs">
+              <table className="w-full text-left text-sm">
                 <thead className="border-b border-bht-line bg-bht-paper text-xs font-semibold uppercase tracking-wide text-bht-ink-soft">
                   <tr>
                     <th scope="col" className="p-2">
@@ -268,7 +311,7 @@ export default function ReportesCajaCxpTab({
         </Card>
 
         <Card padding="md" className="space-y-3">
-          <h3 className="text-sm font-semibold text-bht-ink-strong sm:text-base">
+          <h3 className="text-base font-bold text-bht-ink-strong sm:text-lg">
             CxP por Proveedor
           </h3>
           {apBySupplier.length === 0 ? (
@@ -304,6 +347,11 @@ export default function ReportesCajaCxpTab({
           )}
         </Card>
       </div>
+
+      <ReportConceptModal
+        concept={activeConcept}
+        onClose={() => setActiveConcept(null)}
+      />
     </div>
   );
 }

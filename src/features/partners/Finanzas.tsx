@@ -1,6 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
+import { useRouter } from "next/navigation";
 import { Card } from "@/components/ui/Primitives";
 import type { PartnerData } from "./usePartnerData";
 import type { PartnerTab, PurchaseTarget, ShowFeedback } from "./partnerShared";
@@ -47,6 +48,7 @@ export function Finanzas({
   setSubTabEditing,
   showFeedback,
 }: FinanzasProps) {
+  const router = useRouter();
   const {
     catalog,
     accounts,
@@ -56,6 +58,7 @@ export function Finanzas({
     recentPurchases,
     pendingOnDemand,
     routeTrips,
+    dataCut,
     loadDashboard,
     dataRefreshSeq,
   } = data;
@@ -72,6 +75,7 @@ export function Finanzas({
           recentPurchases={recentPurchases}
           pendingOnDemand={pendingOnDemand}
           routeTrips={routeTrips}
+          dataCut={dataCut}
           preselectedTarget={preselectedPurchaseTarget}
           onClearPreselectedTarget={() => setPreselectedPurchaseTarget(null)}
           onOpenDirectory={() => handleTabChange("directorio")}
@@ -86,6 +90,9 @@ export function Finanzas({
           externalRefreshKey={dataRefreshSeq}
           onOpenCaja={() => handleTabChange("caja")}
           onOpenCollections={() => handleTabChange("deudores")}
+          onOpenInventory={() => handleTabChange("stock")}
+          onOpenDirectory={() => handleTabChange("directorio")}
+          onOpenSeller={() => router.push("/vendedor")}
           onGoToPurchaseProduct={handleGoToPurchaseProduct}
           onGoToEditProduct={handleGoToEditProduct}
           onRefresh={loadDashboard}

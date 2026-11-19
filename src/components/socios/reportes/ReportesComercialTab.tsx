@@ -1,9 +1,10 @@
 "use client";
 
-import React from "react";
-import { Badge, Card, EmptyState } from "@/components/ui/Primitives";
+import React, { useState } from "react";
+import { Badge, Button, Card, EmptyState } from "@/components/ui/Primitives";
 import { formatRouteTripStatusEs } from "@/lib/labels-es";
 import { formatPen } from "../types";
+import { type ActiveReportConcept, ReportConceptModal } from "./ReportConceptModal";
 import {
   type ReportComercialDto,
   formatInactivityTierEs,
@@ -15,6 +16,7 @@ interface ReportesComercialTabProps {
 }
 
 export default function ReportesComercialTab({ data }: ReportesComercialTabProps) {
+  const [activeConcept, setActiveConcept] = useState<ActiveReportConcept | null>(null);
   const {
     byZone,
     bySeller,
@@ -31,7 +33,7 @@ export default function ReportesComercialTab({ data }: ReportesComercialTabProps
         <Card padding="md" className="space-y-3">
           <h3
             id="sales-zone-heading"
-            className="text-sm font-semibold text-bht-ink-strong sm:text-base"
+            className="text-base font-bold text-bht-ink-strong sm:text-lg"
           >
             Ventas y Margen por Zona ({byZone.length})
           </h3>
@@ -44,7 +46,7 @@ export default function ReportesComercialTab({ data }: ReportesComercialTabProps
               aria-labelledby="sales-zone-heading"
               className="table-wrapper"
             >
-              <table className="w-full text-left text-xs">
+              <table className="w-full text-left text-sm">
                 <thead className="border-b border-bht-line bg-bht-paper text-xs font-semibold uppercase tracking-wide text-bht-ink-soft">
                   <tr>
                     <th scope="col" className="p-2">
@@ -94,7 +96,7 @@ export default function ReportesComercialTab({ data }: ReportesComercialTabProps
         <Card padding="md" className="space-y-3">
           <h3
             id="sales-seller-heading"
-            className="text-sm font-semibold text-bht-ink-strong sm:text-base"
+            className="text-base font-bold text-bht-ink-strong sm:text-lg"
           >
             Desempeño por Vendedor — Vendido vs. Cobrado ({bySeller.length})
           </h3>
@@ -107,7 +109,7 @@ export default function ReportesComercialTab({ data }: ReportesComercialTabProps
               aria-labelledby="sales-seller-heading"
               className="table-wrapper"
             >
-              <table className="w-full text-left text-xs">
+              <table className="w-full text-left text-sm">
                 <thead className="border-b border-bht-line bg-bht-paper text-xs font-semibold uppercase tracking-wide text-bht-ink-soft">
                   <tr>
                     <th scope="col" className="p-2">
@@ -169,15 +171,29 @@ export default function ReportesComercialTab({ data }: ReportesComercialTabProps
           <div>
             <h3
               id="route-pnl-heading"
-              className="text-sm font-semibold text-bht-ink-strong sm:text-base"
+              className="text-base font-bold text-bht-ink-strong sm:text-lg"
             >
               Rentabilidad por Ruta / Viaje (Últimos {routeProfitability.length})
             </h3>
             <p className="mt-0.5 text-xs text-bht-ink-soft">
-              Margen bruto generado en el viaje menos los gastos de ruta (
-              <code>ROUTE_OPEX</code>). Meta OpEx &le; 8% sobre ventas.
+              Margen bruto generado en el viaje menos los gastos operativos de ruta.
+              Meta de gasto de ruta &le; 8% sobre ventas.
             </p>
           </div>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            compact
+            onClick={() =>
+              setActiveConcept({
+                id: "rentabilidad_ruta",
+                currentValue: `${routeProfitability.length} viaje(s)`,
+              })
+            }
+          >
+            ¿Qué significa?
+          </Button>
         </div>
 
         {routeProfitability.length === 0 ? (
@@ -189,7 +205,7 @@ export default function ReportesComercialTab({ data }: ReportesComercialTabProps
             aria-labelledby="route-pnl-heading"
             className="table-wrapper"
           >
-            <table className="w-full text-left text-xs">
+            <table className="w-full text-left text-sm">
               <thead className="border-b border-bht-line bg-bht-paper text-xs font-semibold uppercase tracking-wide text-bht-ink-soft">
                 <tr>
                   <th scope="col" className="p-2">
@@ -279,7 +295,7 @@ export default function ReportesComercialTab({ data }: ReportesComercialTabProps
       {/* Top Customers + Discount Audit & Inactive Customers */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <Card padding="md" className="space-y-3">
-          <h3 className="text-sm font-semibold text-bht-ink-strong sm:text-base">
+          <h3 className="text-base font-bold text-bht-ink-strong sm:text-lg">
             Clientes Principales ({topCustomers.length})
           </h3>
           {topCustomers.length === 0 ? (
@@ -326,7 +342,7 @@ export default function ReportesComercialTab({ data }: ReportesComercialTabProps
         <Card padding="md" className="space-y-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
-              <h3 className="text-sm font-semibold text-bht-ink-strong sm:text-base">
+              <h3 className="text-base font-bold text-bht-ink-strong sm:text-lg">
                 Auditoría de Descuentos en Ventas
               </h3>
               <p className="text-xs text-bht-ink-soft tabular-nums">
@@ -335,6 +351,21 @@ export default function ReportesComercialTab({ data }: ReportesComercialTabProps
                 Bajo piso mínimo: {discountAudit.summary.belowMinLinesCount}
               </p>
             </div>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              compact
+              onClick={() =>
+                setActiveConcept({
+                  id: "auditoria_descuentos",
+                  currentValue: formatPen(discountAudit.summary.totalDiscountPen),
+                  currentSubtext: `${discountAudit.summary.discountedLinesCount} línea(s) con descuento · ${discountAudit.summary.belowMinLinesCount} bajo piso mínimo`,
+                })
+              }
+            >
+              ¿Qué significa?
+            </Button>
           </div>
 
           {discountAudit.topLines.length === 0 ? (
@@ -380,7 +411,7 @@ export default function ReportesComercialTab({ data }: ReportesComercialTabProps
         <div>
           <h3
             id="inactive-customers-heading"
-            className="text-sm font-semibold text-bht-ink-strong sm:text-base"
+            className="text-base font-bold text-bht-ink-strong sm:text-lg"
           >
             Clientes Inactivos para Reactivación (&ge; 30 días sin pedido ·{" "}
             {inactiveCustomers.length})
@@ -399,7 +430,7 @@ export default function ReportesComercialTab({ data }: ReportesComercialTabProps
             aria-labelledby="inactive-customers-heading"
             className="table-wrapper"
           >
-            <table className="w-full text-left text-xs">
+            <table className="w-full text-left text-sm">
               <thead className="border-b border-bht-line bg-bht-paper text-xs font-semibold uppercase tracking-wide text-bht-ink-soft">
                 <tr>
                   <th scope="col" className="p-2">
@@ -467,6 +498,11 @@ export default function ReportesComercialTab({ data }: ReportesComercialTabProps
           </div>
         )}
       </Card>
+
+      <ReportConceptModal
+        concept={activeConcept}
+        onClose={() => setActiveConcept(null)}
+      />
     </div>
   );
 }

@@ -107,7 +107,7 @@ export function WarehouseOrderCard({
                   )}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1 rounded-lg border border-bht-slate-line bg-bht-surface-cool px-2 py-0.5 text-[11px] font-semibold text-bht-cobalt hover:bg-bht-cobalt-bg"
+                  className="inline-flex items-center gap-1 rounded-lg border border-bht-slate-line bg-bht-surface-cool px-2 py-0.5 text-xs font-semibold text-bht-cobalt hover:bg-bht-cobalt-bg"
                 >
                   <NavigationIcon className="h-3 w-3" />
                   Abrir en Maps

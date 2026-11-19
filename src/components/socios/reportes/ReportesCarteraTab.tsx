@@ -1,9 +1,14 @@
 "use client";
 
-import React from "react";
+import React, { useState } from "react";
 import { Badge, Button, Card, EmptyState } from "@/components/ui/Primitives";
 import { formatPaymentModeEs, formatPromiseStatusEs } from "@/lib/labels-es";
 import { formatPen } from "../types";
+import {
+  type ActiveReportConcept,
+  ConceptCardButton,
+  ReportConceptModal,
+} from "./ReportConceptModal";
 import { type ReportCarteraDto, formatArBucketEs } from "./reportes-types";
 
 interface ReportesCarteraTabProps {
@@ -19,6 +24,7 @@ export default function ReportesCarteraTab({
   onSelectZone,
   onOpenCollections,
 }: ReportesCarteraTabProps) {
+  const [activeConcept, setActiveConcept] = useState<ActiveReportConcept | null>(null);
   const { summary, agingBuckets, byZone, byCustomer, collectionSheet } = data;
   const maxBucket = Math.max(1, ...agingBuckets.map((b) => b.balanceDuePen));
 
@@ -29,8 +35,16 @@ export default function ReportesCarteraTab({
         aria-label="Indicadores de cartera CxC"
         className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4"
       >
-        <Card padding="md" className="space-y-1.5">
-          <span className="text-xs font-medium text-bht-ink-soft">
+        <ConceptCardButton
+          onClick={() =>
+            setActiveConcept({
+              id: "cartera_total_cxc",
+              currentValue: formatPen(summary.totalReceivablePen),
+              currentSubtext: `${summary.openOrdersCount} pedido(s) en ${summary.openCustomersCount} cliente(s)`,
+            })
+          }
+        >
+          <span className="text-sm font-semibold text-bht-ink-soft">
             Cartera Total por Cobrar
           </span>
           <p className="text-2xl font-semibold text-bht-danger tabular-nums">
@@ -40,10 +54,19 @@ export default function ReportesCarteraTab({
             {summary.openOrdersCount} pedido(s) en {summary.openCustomersCount}{" "}
             cliente(s)
           </span>
-        </Card>
+        </ConceptCardButton>
 
-        <Card padding="md" className="space-y-1.5">
-          <span className="text-xs font-medium text-bht-ink-soft">
+        <ConceptCardButton
+          onClick={() =>
+            setActiveConcept({
+              id: "dso_estimado",
+              currentValue:
+                summary.dsoDays !== null ? `${summary.dsoDays.toFixed(1)} días` : "-",
+              currentSubtext: `Antigüedad media abierta: ${summary.avgOpenAgeDays.toFixed(1)} d (ventana ${summary.referenceWindowDays}d)`,
+            })
+          }
+        >
+          <span className="text-sm font-semibold text-bht-ink-soft">
             DSO Estimado (Días promedio de cobro)
           </span>
           <p className="text-2xl font-semibold text-bht-navy-deep tabular-nums">
@@ -53,11 +76,19 @@ export default function ReportesCarteraTab({
             Antigüedad media abierta: {summary.avgOpenAgeDays.toFixed(1)} d (ventana{" "}
             {summary.referenceWindowDays}d)
           </span>
-        </Card>
+        </ConceptCardButton>
 
-        <Card padding="md" className="space-y-1.5">
-          <span className="text-xs font-medium text-bht-ink-soft">
-            Saldo Vencido &gt; 30 días
+        <ConceptCardButton
+          onClick={() =>
+            setActiveConcept({
+              id: "saldo_mayor_30d",
+              currentValue: formatPen(summary.overdueGt30Pen),
+              currentSubtext: `Tramo crítico > 60d: ${formatPen(summary.overdueGt60Pen)}`,
+            })
+          }
+        >
+          <span className="text-sm font-semibold text-bht-ink-soft">
+            Saldo con antigüedad &gt; 30 días
           </span>
           <p className="text-2xl font-semibold text-bht-warning tabular-nums">
             {formatPen(summary.overdueGt30Pen)}
@@ -65,14 +96,19 @@ export default function ReportesCarteraTab({
           <span className="block text-xs text-bht-ink-soft tabular-nums">
             Tramo crítico &gt; 60d: {formatPen(summary.overdueGt60Pen)}
           </span>
-        </Card>
+        </ConceptCardButton>
 
-        <Card
+        <ConceptCardButton
           tone={summary.brokenPromisesCount > 0 ? "warning" : "default"}
-          padding="md"
-          className="space-y-1.5"
+          onClick={() =>
+            setActiveConcept({
+              id: "promesas_vencidas",
+              currentValue: formatPen(summary.brokenPromisesPen),
+              currentSubtext: `${summary.brokenPromisesCount} compromiso(s) vencido(s)`,
+            })
+          }
         >
-          <span className="text-xs font-medium text-bht-ink-soft">
+          <span className="text-sm font-semibold text-bht-ink-soft">
             Promesas de Pago Vencidas
           </span>
           <p className="text-2xl font-semibold text-bht-danger tabular-nums">
@@ -81,15 +117,15 @@ export default function ReportesCarteraTab({
           <Badge tone={summary.brokenPromisesCount > 0 ? "danger" : "success"}>
             {summary.brokenPromisesCount} compromiso(s) vencido(s)
           </Badge>
-        </Card>
+        </ConceptCardButton>
       </section>
 
       {/* AR Aging Buckets (0-15 / 16-30 / 31-60 / >60d) */}
       <Card padding="md" className="space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
-            <h3 className="text-sm font-semibold text-bht-ink-strong sm:text-base">
-              Antigüedad de Cartera (AR Aging: 0–15 / 16–30 / 31–60 / &gt;60 días)
+            <h3 className="text-base font-bold text-bht-ink-strong sm:text-lg">
+              Antigüedad de Cartera por Tramos (0–15 / 16–30 / 31–60 / &gt;60 días)
             </h3>
             <p className="mt-0.5 text-xs text-bht-ink-soft">
               Distribución del saldo por cobrar según días transcurridos desde la venta.
@@ -145,7 +181,7 @@ export default function ReportesCarteraTab({
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <Card padding="md" className="space-y-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <h3 className="text-sm font-semibold text-bht-ink-strong sm:text-base">
+            <h3 className="text-base font-bold text-bht-ink-strong sm:text-lg">
               Morosidad por Zona
             </h3>
             {selectedZone && (
@@ -198,7 +234,7 @@ export default function ReportesCarteraTab({
         </Card>
 
         <Card padding="md" className="space-y-3">
-          <h3 className="text-sm font-semibold text-bht-ink-strong sm:text-base">
+          <h3 className="text-base font-bold text-bht-ink-strong sm:text-lg">
             Deudores Prioritarios ({byCustomer.length})
           </h3>
           {byCustomer.length === 0 ? (
@@ -246,13 +282,13 @@ export default function ReportesCarteraTab({
           <div>
             <h3
               id="collection-sheet-heading"
-              className="text-sm font-semibold text-bht-ink-strong sm:text-base"
+              className="text-base font-bold text-bht-ink-strong sm:text-lg"
             >
               Hoja de Cobranza por Zona ({collectionSheet.length} documentos)
             </h3>
             <p className="mt-0.5 text-xs text-bht-ink-soft">
-              Lista ordenada por zona y días de atraso para imprimir antes de salir a
-              ruta.
+              Lista ordenada por zona y antigüedad desde la venta para imprimir antes de
+              salir a ruta.
             </p>
           </div>
           <Button
@@ -275,7 +311,7 @@ export default function ReportesCarteraTab({
             aria-labelledby="collection-sheet-heading"
             className="table-wrapper"
           >
-            <table className="w-full text-left text-xs">
+            <table className="w-full text-left text-sm">
               <thead className="border-b border-bht-line bg-bht-paper text-xs font-semibold uppercase tracking-wide text-bht-ink-soft">
                 <tr>
                   <th scope="col" className="p-2">
@@ -349,6 +385,11 @@ export default function ReportesCarteraTab({
           </div>
         )}
       </Card>
+
+      <ReportConceptModal
+        concept={activeConcept}
+        onClose={() => setActiveConcept(null)}
+      />
     </div>
   );
 }

@@ -125,7 +125,7 @@ const BUTTON_VARIANTS: Record<ButtonVariant, string> = {
 
 const BUTTON_SIZES: Record<"sm" | "md" | "lg", string> = {
   sm: "px-3 py-1.5 text-xs rounded-lg",
-  md: "px-4 py-2.5 text-xs sm:text-sm rounded-xl",
+  md: "px-4 py-2.5 text-sm rounded-xl",
   lg: "px-5 py-3.5 text-sm rounded-xl",
 };
 
@@ -179,7 +179,7 @@ export function FieldLabel({
   return (
     <label
       htmlFor={htmlFor}
-      className={`block text-xs font-medium text-bht-slate-text ${className}`}
+      className={`block text-xs sm:text-sm font-semibold text-bht-slate-text ${className}`}
     >
       {children}
       {required && (
@@ -456,12 +456,15 @@ export function ModalSheet({
           <div className="min-w-0">
             <h2
               id={titleId}
-              className="text-sm sm:text-base font-semibold text-bht-ink-strong"
+              className="text-base sm:text-lg font-bold text-bht-ink-strong"
             >
               {title}
             </h2>
             {subtitle && (
-              <p id={subtitleId} className="mt-0.5 text-xs text-bht-ink-soft">
+              <p
+                id={subtitleId}
+                className="mt-0.5 text-xs sm:text-sm text-bht-ink-soft"
+              >
                 {subtitle}
               </p>
             )}
@@ -500,9 +503,9 @@ export function EmptyState({
           {icon}
         </div>
       )}
-      <p className="text-sm font-semibold text-bht-ink-strong">{title}</p>
+      <p className="text-base font-semibold text-bht-ink-strong">{title}</p>
       {description && (
-        <p className="mt-1 max-w-sm text-xs text-bht-ink-soft">{description}</p>
+        <p className="mt-1 max-w-sm text-sm text-bht-ink-soft">{description}</p>
       )}
     </div>
   );

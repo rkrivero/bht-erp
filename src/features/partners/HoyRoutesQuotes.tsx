@@ -40,7 +40,7 @@ export function HoyRoutesQuotes({
       <Card padding="md" className="space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
-            <h2 className="text-sm sm:text-base font-semibold text-bht-ink-strong">
+            <h2 className="text-base sm:text-lg font-bold text-bht-ink-strong">
               Rutas Activas
             </h2>
             <p className="text-xs text-bht-ink-soft">
@@ -78,7 +78,7 @@ export function HoyRoutesQuotes({
               return (
                 <div
                   key={tId}
-                  className="rounded-xl border border-bht-line bg-bht-paper p-3 text-xs space-y-2"
+                  className="rounded-xl border border-bht-line bg-bht-paper p-3 text-sm space-y-2"
                 >
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div>
@@ -132,7 +132,7 @@ export function HoyRoutesQuotes({
       <Card padding="md" className="space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
-            <h2 className="text-sm sm:text-base font-semibold text-bht-ink-strong">
+            <h2 className="text-base sm:text-lg font-bold text-bht-ink-strong">
               Cotizaciones Abiertas ({openQuotes.length})
             </h2>
             <p className="text-xs text-bht-ink-soft">
@@ -162,7 +162,7 @@ export function HoyRoutesQuotes({
               return (
                 <div
                   key={qId}
-                  className="rounded-xl border border-bht-line bg-bht-paper p-3 text-xs space-y-2"
+                  className="rounded-xl border border-bht-line bg-bht-paper p-3 text-sm space-y-2"
                 >
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div className="min-w-0">
