@@ -110,6 +110,7 @@ interface RawWatermarkRow {
   flags_sig?: string;
   quotes_sig?: string;
   trips_sig?: string;
+  daily_closures_sig?: string;
 }
 
 /**
@@ -271,16 +272,18 @@ async function queryRoleWatermarks(
       (SELECT COALESCE(MAX(sync_seq), 0)::text || ':' || COUNT(*)::text
        FROM erp.quotes) AS quotes_sig,
       (SELECT COALESCE(MAX(sync_seq), 0)::text || ':' || COUNT(*)::text
-       FROM erp.route_trips) AS trips_sig
+       FROM erp.route_trips) AS trips_sig,
+      (SELECT COALESCE(MAX(sync_seq), 0)::text || ':' || COUNT(*)::text
+       FROM erp.daily_closures) AS daily_closures_sig
   `);
 
   const row = res.rows[0];
   const ordersDigest = `${row.orders_ops_sig}|${row.lines_ops_sig}|${row.events_sig}|${row.orders_fin_sig}|${row.customers_sig}|${row.quotes_sig}|${row.trips_sig}`;
   const inventoryDigest = `${row.inv_sig}|${row.prod_ops_sig}|${row.prod_cost_sig}`;
   const collectionsDigest = `${row.ar_sig}|${row.orders_fin_sig}`;
-  const treasuryDigest = `${row.ledger_all_sig}|${row.cash_accounts_sig}`;
+  const treasuryDigest = `${row.ledger_all_sig}|${row.cash_accounts_sig}|${row.daily_closures_sig}`;
   const purchasesDigest = `${row.purchases_sig}|${row.ap_sig}|${row.suppliers_sig}|${row.lines_ops_sig}`;
-  const partnersDigest = `${ordersDigest}|${inventoryDigest}|${collectionsDigest}|${treasuryDigest}|${purchasesDigest}|${row.users_sig}|${row.flags_sig}|${row.quotes_sig}|${row.trips_sig}`;
+  const partnersDigest = `${ordersDigest}|${inventoryDigest}|${collectionsDigest}|${treasuryDigest}|${purchasesDigest}|${row.users_sig}|${row.flags_sig}|${row.quotes_sig}|${row.trips_sig}|${row.daily_closures_sig}`;
 
   return {
     orders: hashScopeDigest(roleTag, "orders", ordersDigest),

@@ -345,8 +345,25 @@ export async function createOrder(
   if (input.paymentMode === "CREDIT") {
     if (input.promisedPaymentDate) {
       promisedPaymentDate = input.promisedPaymentDate;
+    } else if (input.creditDays && input.creditDays > 0) {
+      promisedPaymentDate = getLimaDateString(input.creditDays);
     } else {
-      const days = input.creditDays && input.creditDays > 0 ? input.creditDays : 7;
+      let days = 7;
+      if (input.customerPartyId) {
+        const partyCreditRes = await client.query<{
+          credit_days_agreed: number | null;
+        }>(
+          `SELECT credit_days_agreed
+           FROM erp.parties
+           WHERE party_id = $1
+           LIMIT 1`,
+          [input.customerPartyId]
+        );
+        const agreed = partyCreditRes.rows[0]?.credit_days_agreed;
+        if (agreed !== null && agreed !== undefined && Number(agreed) >= 0) {
+          days = Number(agreed);
+        }
+      }
       promisedPaymentDate = getLimaDateString(days);
     }
   } else if (input.collectOnDelivery) {
@@ -1539,7 +1556,11 @@ export async function listCatalogForRole(
        COALESCE(vcs.stock_on_hand, 0) AS stock_on_hand,
        p.list_sale_price_pen,
        p.min_sale_price_pen,
-       p.ref_cost_pen
+       p.ref_cost_pen,
+       p.cost_updated_at::text AS cost_updated_at,
+       p.default_supplier_party_id,
+       p.lead_time_days,
+       p.min_stock_qty
      FROM erp.products p
      JOIN erp.warehouses w
        ON w.code = 'MAIN' AND w.is_active = TRUE
@@ -1563,6 +1584,20 @@ export async function listCatalogForRole(
         min_sale_price_pen:
           r.min_sale_price_pen !== null ? Number(r.min_sale_price_pen) : null,
         ref_cost_pen: r.ref_cost_pen !== null ? Number(r.ref_cost_pen) : null,
+        cost_updated_at: r.cost_updated_at ? String(r.cost_updated_at) : null,
+        default_supplier_party_id:
+          r.default_supplier_party_id !== null &&
+          r.default_supplier_party_id !== undefined
+            ? Number(r.default_supplier_party_id)
+            : null,
+        lead_time_days:
+          r.lead_time_days !== null && r.lead_time_days !== undefined
+            ? Number(r.lead_time_days)
+            : null,
+        min_stock_qty:
+          r.min_stock_qty !== null && r.min_stock_qty !== undefined
+            ? Number(r.min_stock_qty)
+            : null,
       } satisfies RawProductRow,
       actor.role
     )

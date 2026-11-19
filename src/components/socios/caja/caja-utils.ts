@@ -1,6 +1,6 @@
 import type { CashLedgerEntry } from "../types";
 
-export type CajaSubTab = "cuentas" | "compras" | "gastos";
+export type CajaSubTab = "cuentas" | "cierre" | "compras" | "gastos";
 
 export interface PurchaseLineDraft {
   key: string;
@@ -79,6 +79,7 @@ export function formatExpenseBucketEs(
 ): string {
   if (isTransfer) return "Traslado interno";
   if (bucket === "ROUTE_OPEX") return "Gasto operativo de ruta";
+  if (bucket === "ADMIN_OPEX") return "Gasto fijo / administrativo";
   if (bucket === "MERCHANDISE_PAYMENT") return "Pago de mercadería";
   if (bucket === "NON_OPEX_OR_CAPEX") return "Retiro / No operativo";
   return "Movimiento de caja";
@@ -87,7 +88,8 @@ export function formatExpenseBucketEs(
 export function formatAccountTypeEs(accountType?: string | null): string {
   if (accountType === "PARTNER_CUSTODY") return "Custodia";
   if (accountType === "BANK") return "Banco";
-  if (accountType === "CASH") return "Caja";
+  if (accountType === "CASH" || accountType === "CASH_BOX") return "Caja";
+  if (accountType === "WALLET") return "Billetera";
   return accountType || "Cuenta";
 }
 
@@ -96,6 +98,7 @@ export function isExpenseLedgerEntry(entry: CashLedgerEntry): boolean {
     entry.direction === "OUT" &&
     !entry.is_internal_transfer &&
     (entry.expense_bucket === "ROUTE_OPEX" ||
+      entry.expense_bucket === "ADMIN_OPEX" ||
       entry.expense_bucket === "NON_OPEX_OR_CAPEX")
   );
 }

@@ -55,6 +55,12 @@ export interface ReportMonthlyPnlRow {
   internal_deposits_pen: number;
   pre_route_foundational_outflow_pen: number;
   net_cash_flow_pen: number;
+  admin_opex_pen: number;
+  total_opex_pen: number;
+  operating_result_pen: number;
+  operating_result_pct: number | null;
+  owner_salary_recorded_pen: number;
+  owner_capex_debt_outflow_pen: number;
 }
 
 export interface ReportResumenData {
@@ -81,6 +87,12 @@ export interface ReportResumenData {
     preRouteFoundationalOutflowPen: number;
     netCashFlowPen: number;
     nonOpexVsReinvestmentPct: number;
+    adminOpexPen: number;
+    totalOpexPen: number;
+    operatingResultPen: number;
+    operatingResultPct: number | null;
+    ownerSalaryRecordedPen: number;
+    ownerCapexDebtOutflowPen: number;
   };
   momComparison: {
     currentMonth: string;
@@ -186,6 +198,9 @@ export interface ReportArDocRow {
   paid_pen: number;
   balance_due_pen: number;
   days_overdue: number;
+  invoice_age_days: number;
+  days_past_due: number | null;
+  due_status: string;
   ar_bucket: ReportArBucket["bucket"];
   promised_payment_date: string | null;
   promise_status: string;
@@ -205,6 +220,9 @@ export interface ReportCarteraData {
     brokenPromisesPen: number;
     dsoDays: number | null;
     avgOpenAgeDays: number;
+    pastDueExplicitPen: number;
+    noDueDatePen: number;
+    avgInvoiceAgeDays: number;
     referenceSalesPen: number;
     referenceWindowDays: number;
   };
@@ -647,7 +665,13 @@ async function queryResumen(
         non_opex_capex_drain_pen,
         internal_deposits_pen,
         pre_route_foundational_outflow_pen,
-        net_cash_flow_pen
+        net_cash_flow_pen,
+        admin_opex_pen,
+        total_opex_pen,
+        operating_result_pen,
+        operating_result_pct,
+        owner_salary_recorded_pen,
+        owner_capex_debt_outflow_pen
       FROM analytics.v_report_monthly_pnl
       ORDER BY period_month ASC
     `;
@@ -657,6 +681,28 @@ async function queryResumen(
       "so.operational_status NOT IN ('CANCELLED', 'PENDING_PARTNER_APPROVAL')",
       ...pb.appendSalesFilters(filters, "so"),
     ];
+    const collectionClauses = [
+      "ap.voided_at IS NULL",
+      "ap.payment_date >= DATE '2026-06-26'",
+      "so.operational_status NOT IN ('CANCELLED', 'PENDING_PARTNER_APPROVAL')",
+    ];
+    if (filters.from) {
+      collectionClauses.push(`ap.payment_date >= ${pb.add(filters.from)}::date`);
+    }
+    if (filters.to) {
+      collectionClauses.push(`ap.payment_date <= ${pb.add(filters.to)}::date`);
+    }
+    if (filters.zone) {
+      collectionClauses.push(
+        `COALESCE(NULLIF(BTRIM(pa.city_zone), ''), NULLIF(BTRIM(rt.zone_name), ''), 'Sin zona') = ${pb.add(filters.zone)}`
+      );
+    }
+    if (filters.sellerId === "UNASSIGNED") {
+      collectionClauses.push("so.created_by_user_id IS NULL");
+    } else if (filters.sellerId !== undefined) {
+      collectionClauses.push(`so.created_by_user_id = ${pb.add(filters.sellerId)}`);
+    }
+
     const cashClauses: string[] = ["cl.tx_date >= DATE '2026-06-26'"];
     const preRouteClauses: string[] = ["cl.tx_date < DATE '2026-06-26'"];
     if (filters.from) {
@@ -696,6 +742,8 @@ async function queryResumen(
       debtorsWhereSql = debtorClauses.join(" AND ");
     }
 
+    const legacyAdminCatsSql = `'PAYROLL_ADVANCE', 'ACCOUNTING_OR_LEGAL', 'ACCOUNTING_SERVICE', 'LEGAL_NOTARIA', 'FINANCIAL_FEE', 'SUELDO_SOCIO', 'PLANILLA_PERSONAL', 'ALQUILER', 'SERVICIOS_BASICOS', 'IMPUESTOS_OPERATIVOS', 'SOFTWARE_OFICINA', 'OTROS_ADMIN'`;
+
     pnlSelectSql = `
       WITH filtered_orders AS (
         SELECT so.order_id, so.order_date, so.total_pen, so.paid_pen, so.balance_due_pen
@@ -709,10 +757,20 @@ async function queryResumen(
           DATE_TRUNC('month', order_date)::DATE AS period_month,
           COUNT(*)::int AS order_count,
           COALESCE(SUM(total_pen), 0)::NUMERIC(14,2) AS sales_total_pen,
-          COALESCE(SUM(paid_pen), 0)::NUMERIC(14,2) AS cash_collected_pen,
           COALESCE(SUM(balance_due_pen), 0)::NUMERIC(14,2) AS ar_pending_pen
         FROM filtered_orders
         GROUP BY DATE_TRUNC('month', order_date)::DATE
+      ),
+      monthly_collections AS (
+        SELECT
+          DATE_TRUNC('month', ap.payment_date)::DATE AS period_month,
+          COALESCE(SUM(ap.amount_pen), 0)::NUMERIC(14,2) AS effective_cash_collected_pen
+        FROM erp.ar_payments ap
+        JOIN erp.sales_orders so ON so.order_id = ap.order_id
+        LEFT JOIN erp.parties pa ON pa.party_id = so.customer_party_id
+        LEFT JOIN erp.route_trips rt ON rt.trip_id = so.trip_id
+        WHERE ${collectionClauses.join(" AND ")}
+        GROUP BY DATE_TRUNC('month', ap.payment_date)::DATE
       ),
       monthly_cogs AS (
         SELECT
@@ -734,8 +792,11 @@ async function queryResumen(
             ${
               filters.sellerId !== undefined
                 ? "0::NUMERIC(14,2)"
-                : `COALESCE(SUM(cl.amount_pen) FILTER (WHERE cl.direction = 'OUT' AND NOT cl.is_internal_transfer AND cl.expense_bucket = 'ROUTE_OPEX'${routeOpexZoneOnlyWhere}), 0)::NUMERIC(14,2)`
+                : `COALESCE(SUM(cl.amount_pen) FILTER (WHERE cl.direction = 'OUT' AND NOT cl.is_internal_transfer AND NOT cl.is_reversal AND cl.expense_category <> 'CONCILIACION_SALDO' AND cl.expense_bucket = 'ROUTE_OPEX'${routeOpexZoneOnlyWhere}), 0)::NUMERIC(14,2)`
             } AS route_opex_pen,
+            0::NUMERIC(14,2) AS admin_opex_bucket_pen,
+            0::NUMERIC(14,2) AS legacy_admin_in_non_opex_pen,
+            0::NUMERIC(14,2) AS owner_salary_recorded_pen,
             0::NUMERIC(14,2) AS non_opex_capex_drain_pen,
             0::NUMERIC(14,2) AS internal_deposits_pen
           FROM erp.cash_ledger cl
@@ -746,10 +807,13 @@ async function queryResumen(
             : `
           SELECT
             DATE_TRUNC('month', cl.tx_date)::DATE AS period_month,
-            COALESCE(SUM(cl.amount_pen) FILTER (WHERE cl.direction = 'OUT' AND NOT cl.is_internal_transfer AND cl.expense_bucket = 'MERCHANDISE_PAYMENT'), 0)::NUMERIC(14,2) AS merchandise_outflow_pen,
-            COALESCE(SUM(cl.amount_pen) FILTER (WHERE cl.direction = 'OUT' AND NOT cl.is_internal_transfer AND cl.expense_bucket = 'ROUTE_OPEX'), 0)::NUMERIC(14,2) AS route_opex_pen,
-            COALESCE(SUM(cl.amount_pen) FILTER (WHERE cl.direction = 'OUT' AND NOT cl.is_internal_transfer AND cl.expense_bucket = 'NON_OPEX_OR_CAPEX'), 0)::NUMERIC(14,2) AS non_opex_capex_drain_pen,
-            COALESCE(SUM(cl.amount_pen) FILTER (WHERE cl.is_internal_transfer AND cl.direction = 'OUT'), 0)::NUMERIC(14,2) AS internal_deposits_pen
+            COALESCE(SUM(cl.amount_pen) FILTER (WHERE cl.direction = 'OUT' AND NOT cl.is_internal_transfer AND NOT cl.is_reversal AND cl.expense_category <> 'CONCILIACION_SALDO' AND cl.expense_bucket = 'MERCHANDISE_PAYMENT'), 0)::NUMERIC(14,2) AS merchandise_outflow_pen,
+            COALESCE(SUM(cl.amount_pen) FILTER (WHERE cl.direction = 'OUT' AND NOT cl.is_internal_transfer AND NOT cl.is_reversal AND cl.expense_category <> 'CONCILIACION_SALDO' AND cl.expense_bucket = 'ROUTE_OPEX'), 0)::NUMERIC(14,2) AS route_opex_pen,
+            COALESCE(SUM(cl.amount_pen) FILTER (WHERE cl.direction = 'OUT' AND NOT cl.is_internal_transfer AND NOT cl.is_reversal AND cl.expense_category <> 'CONCILIACION_SALDO' AND cl.expense_bucket = 'ADMIN_OPEX'), 0)::NUMERIC(14,2) AS admin_opex_bucket_pen,
+            COALESCE(SUM(cl.amount_pen) FILTER (WHERE cl.direction = 'OUT' AND NOT cl.is_internal_transfer AND NOT cl.is_reversal AND cl.expense_category <> 'CONCILIACION_SALDO' AND cl.expense_bucket = 'NON_OPEX_OR_CAPEX' AND cl.expense_category IN (${legacyAdminCatsSql})), 0)::NUMERIC(14,2) AS legacy_admin_in_non_opex_pen,
+            COALESCE(SUM(cl.amount_pen) FILTER (WHERE cl.direction = 'OUT' AND NOT cl.is_internal_transfer AND NOT cl.is_reversal AND cl.expense_category = 'SUELDO_SOCIO'), 0)::NUMERIC(14,2) AS owner_salary_recorded_pen,
+            COALESCE(SUM(cl.amount_pen) FILTER (WHERE cl.direction = 'OUT' AND NOT cl.is_internal_transfer AND NOT cl.is_reversal AND cl.expense_category <> 'CONCILIACION_SALDO' AND cl.expense_bucket = 'NON_OPEX_OR_CAPEX'), 0)::NUMERIC(14,2) AS non_opex_capex_drain_pen,
+            COALESCE(SUM(cl.amount_pen) FILTER (WHERE cl.is_internal_transfer AND NOT cl.is_reversal AND cl.direction = 'OUT'), 0)::NUMERIC(14,2) AS internal_deposits_pen
           FROM erp.cash_ledger cl
           WHERE ${cashClauses.join(" AND ")}
           GROUP BY DATE_TRUNC('month', cl.tx_date)::DATE
@@ -773,6 +837,8 @@ async function queryResumen(
       all_months AS (
         SELECT period_month FROM monthly_sales
         UNION
+        SELECT period_month FROM monthly_collections
+        UNION
         SELECT period_month FROM pre_route
         ${
           excludeGlobalCashForScope ? "" : "UNION SELECT period_month FROM monthly_cash"
@@ -787,14 +853,19 @@ async function queryResumen(
           COALESCE(mcog.cogs_pen, 0)::NUMERIC(14,2) AS cogs_pen,
           (COALESCE(mcog.cost_covered_sales_pen, 0) - COALESCE(mcog.cogs_pen, 0))::NUMERIC(14,2) AS gross_margin_pen,
           COALESCE(mc.route_opex_pen, 0)::NUMERIC(14,2) AS route_opex_pen,
-          COALESCE(ms.cash_collected_pen, 0)::NUMERIC(14,2) AS cash_collected_pen,
+          COALESCE(mcol.effective_cash_collected_pen, 0)::NUMERIC(14,2) AS cash_collected_pen,
           COALESCE(ms.ar_pending_pen, 0)::NUMERIC(14,2) AS ar_pending_pen,
           COALESCE(mc.merchandise_outflow_pen, 0)::NUMERIC(14,2) AS merchandise_outflow_pen,
           COALESCE(mc.non_opex_capex_drain_pen, 0)::NUMERIC(14,2) AS non_opex_capex_drain_pen,
           COALESCE(mc.internal_deposits_pen, 0)::NUMERIC(14,2) AS internal_deposits_pen,
-          COALESCE(pr.pre_route_foundational_outflow_pen, 0)::NUMERIC(14,2) AS pre_route_foundational_outflow_pen
+          COALESCE(pr.pre_route_foundational_outflow_pen, 0)::NUMERIC(14,2) AS pre_route_foundational_outflow_pen,
+          COALESCE(mc.admin_opex_bucket_pen, 0)::NUMERIC(14,2) AS admin_opex_bucket_pen,
+          (COALESCE(mc.admin_opex_bucket_pen, 0) + COALESCE(mc.legacy_admin_in_non_opex_pen, 0))::NUMERIC(14,2) AS admin_opex_pen,
+          COALESCE(mc.owner_salary_recorded_pen, 0)::NUMERIC(14,2) AS owner_salary_recorded_pen,
+          GREATEST(COALESCE(mc.non_opex_capex_drain_pen, 0) - COALESCE(mc.legacy_admin_in_non_opex_pen, 0), 0)::NUMERIC(14,2) AS owner_capex_debt_outflow_pen
         FROM all_months m
         LEFT JOIN monthly_sales ms ON ms.period_month = m.period_month
+        LEFT JOIN monthly_collections mcol ON mcol.period_month = m.period_month
         LEFT JOIN monthly_cogs mcog ON mcog.period_month = m.period_month
         LEFT JOIN monthly_cash mc ON mc.period_month = m.period_month
         LEFT JOIN pre_route pr ON pr.period_month = m.period_month
@@ -818,7 +889,13 @@ async function queryResumen(
         j.non_opex_capex_drain_pen,
         j.internal_deposits_pen,
         j.pre_route_foundational_outflow_pen,
-        (j.cash_collected_pen - j.merchandise_outflow_pen - j.route_opex_pen - j.non_opex_capex_drain_pen)::NUMERIC(14,2) AS net_cash_flow_pen
+        (j.cash_collected_pen - j.merchandise_outflow_pen - j.route_opex_pen - j.admin_opex_bucket_pen - j.non_opex_capex_drain_pen)::NUMERIC(14,2) AS net_cash_flow_pen,
+        j.admin_opex_pen,
+        (j.route_opex_pen + j.admin_opex_pen)::NUMERIC(14,2) AS total_opex_pen,
+        (j.gross_margin_pen - j.route_opex_pen - j.admin_opex_pen)::NUMERIC(14,2) AS operating_result_pen,
+        ROUND((j.gross_margin_pen - j.route_opex_pen - j.admin_opex_pen) * 100.0 / NULLIF(j.cost_covered_sales_pen, 0), 2) AS operating_result_pct,
+        j.owner_salary_recorded_pen,
+        j.owner_capex_debt_outflow_pen
       FROM joined j
       ORDER BY j.period_month ASC
     `;
@@ -863,6 +940,12 @@ async function queryResumen(
     internal_deposits_pen: toNum(r.internal_deposits_pen),
     pre_route_foundational_outflow_pen: toNum(r.pre_route_foundational_outflow_pen),
     net_cash_flow_pen: toNum(r.net_cash_flow_pen),
+    admin_opex_pen: toNum(r.admin_opex_pen),
+    total_opex_pen: toNum(r.total_opex_pen),
+    operating_result_pen: toNum(r.operating_result_pen),
+    operating_result_pct: toOptNum(r.operating_result_pct),
+    owner_salary_recorded_pen: toNum(r.owner_salary_recorded_pen),
+    owner_capex_debt_outflow_pen: toNum(r.owner_capex_debt_outflow_pen),
   }));
 
   const acc = pnlMonthly.reduce(
@@ -882,6 +965,12 @@ async function queryResumen(
       preRouteFoundationalOutflowPen:
         s.preRouteFoundationalOutflowPen + r.pre_route_foundational_outflow_pen,
       netCashFlowPen: s.netCashFlowPen + r.net_cash_flow_pen,
+      adminOpexPen: s.adminOpexPen + r.admin_opex_pen,
+      totalOpexPen: s.totalOpexPen + r.total_opex_pen,
+      operatingResultPen: s.operatingResultPen + r.operating_result_pen,
+      ownerSalaryRecordedPen: s.ownerSalaryRecordedPen + r.owner_salary_recorded_pen,
+      ownerCapexDebtOutflowPen:
+        s.ownerCapexDebtOutflowPen + r.owner_capex_debt_outflow_pen,
     }),
     {
       orderCount: 0,
@@ -898,6 +987,11 @@ async function queryResumen(
       internalDepositsPen: 0,
       preRouteFoundationalOutflowPen: 0,
       netCashFlowPen: 0,
+      adminOpexPen: 0,
+      totalOpexPen: 0,
+      operatingResultPen: 0,
+      ownerSalaryRecordedPen: 0,
+      ownerCapexDebtOutflowPen: 0,
     }
   );
 
@@ -940,6 +1034,15 @@ async function queryResumen(
               (acc.merchandiseOutflowPen + acc.nonOpexCapexDrainPen)
           )
         : 0,
+    adminOpexPen: round2(acc.adminOpexPen),
+    totalOpexPen: round2(acc.totalOpexPen),
+    operatingResultPen: round2(acc.operatingResultPen),
+    operatingResultPct:
+      acc.costCoveredSalesPen > 0
+        ? round2((acc.operatingResultPen * 100) / acc.costCoveredSalesPen)
+        : null,
+    ownerSalaryRecordedPen: round2(acc.ownerSalaryRecordedPen),
+    ownerCapexDebtOutflowPen: round2(acc.ownerCapexDebtOutflowPen),
   };
 
   let momComparison: ReportResumenData["momComparison"] = null;
@@ -1321,7 +1424,10 @@ async function queryCartera(
            'overdue_gt_60_pen', COALESCE(SUM(balance_due_pen) FILTER (WHERE days_overdue > 60), 0)::numeric(14,2),
            'broken_promises_count', COUNT(*) FILTER (WHERE promise_status = 'PROMISE_BROKEN')::int,
            'broken_promises_pen', COALESCE(SUM(balance_due_pen) FILTER (WHERE promise_status = 'PROMISE_BROKEN'), 0)::numeric(14,2),
-           'avg_open_age_days', COALESCE(ROUND(SUM(balance_due_pen * days_overdue) / NULLIF(SUM(balance_due_pen), 0), 1), 0)
+           'avg_open_age_days', COALESCE(ROUND(SUM(balance_due_pen * days_overdue) / NULLIF(SUM(balance_due_pen), 0), 1), 0),
+           'past_due_explicit_pen', COALESCE(SUM(balance_due_pen) FILTER (WHERE due_status = 'OVERDUE'), 0)::numeric(14,2),
+           'no_due_date_pen', COALESCE(SUM(balance_due_pen) FILTER (WHERE due_status = 'NO_DUE_DATE'), 0)::numeric(14,2),
+           'avg_invoice_age_days', COALESCE(ROUND(SUM(balance_due_pen * invoice_age_days) / NULLIF(SUM(balance_due_pen), 0), 1), 0)
          )
          FROM filtered_ar
        ) AS summary_stats,
@@ -1387,6 +1493,9 @@ async function queryCartera(
              paid_pen,
              balance_due_pen,
              days_overdue,
+             invoice_age_days,
+             days_past_due,
+             due_status,
              ar_bucket,
              promised_payment_date::text AS promised_payment_date,
              promise_status,
@@ -1416,6 +1525,12 @@ async function queryCartera(
     paid_pen: toNum(r.paid_pen),
     balance_due_pen: toNum(r.balance_due_pen),
     days_overdue: Number(r.days_overdue ?? 0),
+    invoice_age_days: Number(r.invoice_age_days ?? r.days_overdue ?? 0),
+    days_past_due:
+      r.days_past_due !== null && r.days_past_due !== undefined
+        ? Number(r.days_past_due)
+        : null,
+    due_status: String(r.due_status || "NO_DUE_DATE"),
     ar_bucket: String(r.ar_bucket) as ReportArBucket["bucket"],
     promised_payment_date: r.promised_payment_date
       ? String(r.promised_payment_date)
@@ -1466,6 +1581,9 @@ async function queryCartera(
       brokenPromisesPen: toNum(stats.broken_promises_pen),
       dsoDays,
       avgOpenAgeDays: toNum(stats.avg_open_age_days),
+      pastDueExplicitPen: toNum(stats.past_due_explicit_pen),
+      noDueDatePen: toNum(stats.no_due_date_pen),
+      avgInvoiceAgeDays: toNum(stats.avg_invoice_age_days),
       referenceSalesPen,
       referenceWindowDays,
     },

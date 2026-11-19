@@ -23,7 +23,7 @@ import { formatPen, type CashAccountItem, type CashLedgerEntry } from "../types"
 import { LedgerMovementDetailModal } from "./CajaDetailModals";
 import { getTodayLimaIso, isExpenseLedgerEntry } from "./caja-utils";
 
-type ExpenseBucketFilter = "ALL" | "ROUTE_OPEX" | "NON_OPEX_OR_CAPEX";
+type ExpenseBucketFilter = "ALL" | "ROUTE_OPEX" | "ADMIN_OPEX" | "NON_OPEX_OR_CAPEX";
 
 export function CajaGastosTab({
   accounts,
@@ -78,6 +78,14 @@ export function CajaGastosTab({
     () =>
       expenseEntries
         .filter((e) => e.expense_bucket === "ROUTE_OPEX")
+        .reduce((s, e) => s + Number(e.amount_pen || 0), 0),
+    [expenseEntries]
+  );
+
+  const adminOpexTotal = useMemo(
+    () =>
+      expenseEntries
+        .filter((e) => e.expense_bucket === "ADMIN_OPEX")
         .reduce((s, e) => s + Number(e.amount_pen || 0), 0),
     [expenseEntries]
   );
@@ -157,7 +165,7 @@ export function CajaGastosTab({
           amountPen: amount,
           expenseBucket: bucket,
           expenseCategory: category,
-          txDate: bucket === "ROUTE_OPEX" ? txDate : undefined,
+          txDate,
           accountId: effectiveAccountId ? Number(effectiveAccountId) : undefined,
           tripId: bucket === "ROUTE_OPEX" && tripId ? Number(tripId) : undefined,
           description: description.trim(),
@@ -185,7 +193,7 @@ export function CajaGastosTab({
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Card padding="md">
           <span className="text-xs font-medium text-bht-ink-soft">
             Gastos operativos de ruta (recientes)
@@ -196,22 +204,27 @@ export function CajaGastosTab({
         </Card>
         <Card padding="md">
           <span className="text-xs font-medium text-bht-ink-soft">
-            Retiros y gastos no operativos (recientes)
+            Gastos fijos / admin (recientes)
+          </span>
+          <p className="mt-1 text-xl font-bold text-bht-ink-strong tabular-nums">
+            {formatPen(adminOpexTotal)}
+          </p>
+        </Card>
+        <Card padding="md">
+          <span className="text-xs font-medium text-bht-ink-soft">
+            Retiros y egresos no op. (recientes)
           </span>
           <p className="mt-1 text-xl font-bold text-bht-warning tabular-nums">
             {formatPen(nonOpexTotal)}
           </p>
         </Card>
-        <Card
-          padding="md"
-          className="flex items-center justify-between gap-3 sm:col-span-2 lg:col-span-1"
-        >
+        <Card padding="md" className="flex items-center justify-between gap-3">
           <div className="min-w-0">
             <span className="block text-sm font-semibold text-bht-ink-strong">
               Registrar salida de caja
             </span>
             <span className="text-xs text-bht-ink-soft">
-              Ruta diaria, viáticos o retiro
+              Ruta diaria, gasto fijo o retiro
             </span>
           </div>
           <Button
@@ -282,6 +295,7 @@ export function CajaGastosTab({
             [
               { id: "ALL", label: "Todos" },
               { id: "ROUTE_OPEX", label: "Ruta (OpEx)" },
+              { id: "ADMIN_OPEX", label: "Gastos Fijos / Admin" },
               { id: "NON_OPEX_OR_CAPEX", label: "Retiros / No Op." },
             ] as Array<{ id: ExpenseBucketFilter; label: string }>
           ).map((f) => {
@@ -321,11 +335,19 @@ export function CajaGastosTab({
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-1.5">
                     <Badge
-                      tone={mov.expense_bucket === "ROUTE_OPEX" ? "horizon" : "warning"}
+                      tone={
+                        mov.expense_bucket === "ROUTE_OPEX"
+                          ? "horizon"
+                          : mov.expense_bucket === "ADMIN_OPEX"
+                            ? "brand"
+                            : "warning"
+                      }
                     >
                       {mov.expense_bucket === "ROUTE_OPEX"
                         ? "Ruta OpEx"
-                        : "No Op. / Retiro"}
+                        : mov.expense_bucket === "ADMIN_OPEX"
+                          ? "Fijo / Admin"
+                          : "No Op. / Retiro"}
                     </Badge>
                     <span className="font-semibold text-bht-ink-strong">
                       {formatExpenseCategoryEs(mov.expense_category)}
@@ -354,8 +376,10 @@ export function CajaGastosTab({
         maxWidth="lg"
         title={
           bucket === "ROUTE_OPEX"
-            ? "Registrar Gasto Operativo"
-            : "Registrar Retiro / Egreso No Operativo"
+            ? "Registrar Gasto Operativo de Ruta"
+            : bucket === "ADMIN_OPEX"
+              ? "Registrar Gasto Fijo / Administración"
+              : "Registrar Retiro / Egreso No Operativo"
         }
         subtitle="El movimiento descontará de la cuenta seleccionada en tiempo real."
       >
@@ -376,55 +400,56 @@ export function CajaGastosTab({
               className={`${INPUT_CLASS} mt-1.5 font-medium`}
             >
               <option value="ROUTE_OPEX">Gasto Operativo de Ruta</option>
+              <option value="ADMIN_OPEX">
+                Gasto Fijo / Administración (Sueldos, Alquiler, Servicios)
+              </option>
               <option value="NON_OPEX_OR_CAPEX">
-                Retiro (Socio / Gerencia) / No Operativo
+                Retiro (Socio / Gerencia) / Activos / No Operativo
               </option>
             </select>
           </div>
 
-          {bucket === "ROUTE_OPEX" && (
-            <div className="grid gap-3 sm:grid-cols-2">
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div>
+              <FieldLabel htmlFor="exp-date" required>
+                Fecha del movimiento
+              </FieldLabel>
+              <input
+                id="exp-date"
+                type="date"
+                required
+                value={txDate}
+                onChange={(e) => {
+                  setTxDate(e.target.value);
+                  setConfirmStep(false);
+                }}
+                className={`${INPUT_CLASS} mt-1.5 font-medium`}
+              />
+            </div>
+
+            {bucket === "ROUTE_OPEX" && routeTrips.length > 0 && (
               <div>
-                <FieldLabel htmlFor="exp-date" required>
-                  Fecha del gasto
-                </FieldLabel>
-                <input
-                  id="exp-date"
-                  type="date"
-                  required
-                  value={txDate}
+                <FieldLabel htmlFor="exp-trip">Ruta / Viaje (opcional)</FieldLabel>
+                <select
+                  id="exp-trip"
+                  value={tripId}
                   onChange={(e) => {
-                    setTxDate(e.target.value);
+                    setTripId(e.target.value);
                     setConfirmStep(false);
                   }}
                   className={`${INPUT_CLASS} mt-1.5 font-medium`}
-                />
+                >
+                  <option value="">-- Sin ruta específica --</option>
+                  {routeTrips.map((rt) => (
+                    <option key={rt.trip_id} value={String(rt.trip_id)}>
+                      {rt.trip_code} ({rt.zone_name || "Ruta"} · {rt.trip_date})
+                      {rt.status === "OPEN" ? " · Abierta" : ""}
+                    </option>
+                  ))}
+                </select>
               </div>
-
-              {routeTrips.length > 0 && (
-                <div>
-                  <FieldLabel htmlFor="exp-trip">Ruta / Viaje (opcional)</FieldLabel>
-                  <select
-                    id="exp-trip"
-                    value={tripId}
-                    onChange={(e) => {
-                      setTripId(e.target.value);
-                      setConfirmStep(false);
-                    }}
-                    className={`${INPUT_CLASS} mt-1.5 font-medium`}
-                  >
-                    <option value="">-- Sin ruta específica --</option>
-                    {routeTrips.map((rt) => (
-                      <option key={rt.trip_id} value={String(rt.trip_id)}>
-                        {rt.trip_code} ({rt.zone_name || "Ruta"} · {rt.trip_date})
-                        {rt.status === "OPEN" ? " · Abierta" : ""}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              )}
-            </div>
-          )}
+            )}
+          </div>
 
           <div className="grid gap-3 sm:grid-cols-2">
             <div>

@@ -27,6 +27,8 @@ export default function ReportesResumenTab({
       m.sales_total_pen,
       m.gross_margin_pen,
       m.operating_ebitda_pen,
+      m.admin_opex_pen,
+      Math.max(0, m.operating_result_pen),
       m.cash_collected_pen,
       m.merchandise_outflow_pen,
       m.route_opex_pen,
@@ -40,8 +42,8 @@ export default function ReportesResumenTab({
       {hasScopeFilter && (
         <Card tone="brand" padding="sm" className="text-xs text-bht-ink-strong">
           <strong>Vista segmentada por Zona / Vendedor:</strong> Las compras de
-          mercadería, retiros e inversión pre-ruta corresponden a caja global y no se
-          asignan a un vendedor individual.
+          mercadería, gastos fijos administrativos, retiros e inversión pre-ruta
+          corresponden a caja global y no se asignan a un vendedor individual.
         </Card>
       )}
 
@@ -55,7 +57,7 @@ export default function ReportesResumenTab({
       <section aria-label="Resultado comercial parcial" className="space-y-2">
         <div className="flex flex-wrap items-center justify-between gap-2 px-1">
           <h3 className="text-base sm:text-lg font-bold text-bht-navy-deep">
-            Resultado comercial parcial
+            Resultado comercial y operativo
           </h3>
           {momComparison && (
             <Badge tone="horizon" className="tabular-nums">
@@ -68,7 +70,7 @@ export default function ReportesResumenTab({
           )}
         </div>
 
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
           <ConceptCardButton
             onClick={() =>
               setActiveConcept({
@@ -170,7 +172,71 @@ export default function ReportesResumenTab({
               {formatPct(totals.operatingEbitdaPct)} sobre venta con costo
             </Badge>
           </ConceptCardButton>
+
+          <ConceptCardButton
+            onClick={() =>
+              setActiveConcept({
+                id: "gastos_fijos_admin",
+                currentValue: formatPen(totals.adminOpexPen),
+                currentSubtext: `Sueldo socio: ${formatPen(totals.ownerSalaryRecordedPen)} · Total OpEx: ${formatPen(totals.totalOpexPen)}`,
+              })
+            }
+          >
+            <span className="text-sm font-semibold text-bht-ink-soft">
+              Gastos Fijos / Admin
+            </span>
+            <p className="text-2xl font-semibold text-bht-ink-strong tabular-nums">
+              {formatPen(totals.adminOpexPen)}
+            </p>
+            <span className="block text-xs text-bht-ink-soft tabular-nums">
+              Sueldo socio: {formatPen(totals.ownerSalaryRecordedPen)}
+            </span>
+          </ConceptCardButton>
+
+          <ConceptCardButton
+            onClick={() =>
+              setActiveConcept({
+                id: "resultado_operativo_registrado",
+                currentValue: formatPen(totals.operatingResultPen),
+                currentSubtext: `${formatPct(totals.operatingResultPct)} sobre venta con costo · Total OpEx: ${formatPen(totals.totalOpexPen)}`,
+              })
+            }
+          >
+            <span className="text-sm font-semibold text-bht-ink-soft">
+              Resultado Operativo Registrado
+            </span>
+            <p
+              className={`text-2xl font-semibold tabular-nums ${
+                totals.operatingResultPen >= 0
+                  ? "text-bht-navy-deep"
+                  : "text-bht-danger"
+              }`}
+            >
+              {formatPen(totals.operatingResultPen)}
+            </p>
+            <Badge
+              tone={
+                totals.operatingResultPen >= 0
+                  ? totals.operatingResultPct !== null &&
+                    totals.operatingResultPct >= 10
+                    ? "success"
+                    : "brand"
+                  : "danger"
+              }
+            >
+              {formatPct(totals.operatingResultPct)} sobre venta con costo
+            </Badge>
+          </ConceptCardButton>
         </div>
+
+        {totals.ownerSalaryRecordedPen === 0 && (
+          <Card tone="warning" padding="sm" className="text-xs text-bht-ink-strong">
+            <strong>Resultado operativo antes de sueldo de socios:</strong> no hay
+            egresos de <strong>Sueldo de Socio</strong> registrados en este filtro.
+            Regístralos en Caja → Gastos (Gastos Fijos / Admin) para medir utilidad
+            real.
+          </Card>
+        )}
       </section>
 
       {/* Cash Flow Summary */}
@@ -193,7 +259,7 @@ export default function ReportesResumenTab({
             [
               {
                 conceptId: "pagado_en_pedidos",
-                title: "Pagado en pedidos",
+                title: "Cobros efectivos del período",
                 value: formatPen(totals.cashCollectedPen),
                 sub: `Por cobrar: ${formatPen(totals.arPendingPen)} (${openDebtorsCount} pendientes)`,
                 cls: "text-bht-success",
@@ -216,7 +282,7 @@ export default function ReportesResumenTab({
                 conceptId: "movimiento_neto_estimado",
                 title: "Movimiento neto estimado",
                 value: formatPen(totals.netCashFlowPen),
-                sub: "Cobros − Merc. − Ruta − Retiros",
+                sub: "Cobros − Merc. − Ruta − Admin − Retiros",
                 cls:
                   totals.netCashFlowPen >= 0 ? "text-bht-navy-deep" : "text-bht-danger",
               },
@@ -298,6 +364,16 @@ export default function ReportesResumenTab({
                     color: "bg-bht-navy-mid",
                   },
                   {
+                    label: "Gastos Admin",
+                    val: m.admin_opex_pen,
+                    color: "bg-bht-ink-warm",
+                  },
+                  {
+                    label: "Resultado Op.",
+                    val: Math.max(0, m.operating_result_pen),
+                    color: "bg-bht-cobalt",
+                  },
+                  {
                     label: "Cobrado",
                     val: m.cash_collected_pen,
                     color: "bg-bht-tone-047857",
@@ -323,16 +399,16 @@ export default function ReportesResumenTab({
                         {formatMonthLabel(m.period_month)}
                       </span>
                       <span className="text-xs font-medium text-bht-ink-soft tabular-nums">
-                        {m.order_count} ped. · Contribución:{" "}
+                        {m.order_count} ped. · Resultado Op.:{" "}
                         <strong
                           className={
-                            m.operating_ebitda_pen >= 0
+                            m.operating_result_pen >= 0
                               ? "text-bht-success"
                               : "text-bht-danger"
                           }
                         >
-                          {formatPen(m.operating_ebitda_pen)} (
-                          {formatPct(m.operating_ebitda_pct)})
+                          {formatPen(m.operating_result_pen)} (
+                          {formatPct(m.operating_result_pct)})
                         </strong>
                       </span>
                     </div>
@@ -394,6 +470,12 @@ export default function ReportesResumenTab({
                       Contribución ruta
                     </th>
                     <th scope="col" className="p-2 text-right">
+                      Admin OpEx
+                    </th>
+                    <th scope="col" className="p-2 text-right">
+                      Resultado Op.
+                    </th>
+                    <th scope="col" className="p-2 text-right">
                       Cobrado
                     </th>
                     <th scope="col" className="p-2 text-right">
@@ -431,6 +513,18 @@ export default function ReportesResumenTab({
                       >
                         {formatPen(m.operating_ebitda_pen)}
                       </td>
+                      <td className="p-2 text-right text-bht-ink-soft tabular-nums">
+                        {formatPen(m.admin_opex_pen)}
+                      </td>
+                      <td
+                        className={`p-2 text-right font-semibold tabular-nums ${
+                          m.operating_result_pen >= 0
+                            ? "text-bht-navy-deep"
+                            : "text-bht-danger"
+                        }`}
+                      >
+                        {formatPen(m.operating_result_pen)}
+                      </td>
                       <td className="p-2 text-right text-bht-success tabular-nums">
                         {formatPen(m.cash_collected_pen)}
                       </td>
@@ -467,6 +561,18 @@ export default function ReportesResumenTab({
                       </td>
                       <td className="p-2 text-right text-bht-navy-deep">
                         {formatPen(totals.operatingEbitdaPen)}
+                      </td>
+                      <td className="p-2 text-right text-bht-ink-soft">
+                        {formatPen(totals.adminOpexPen)}
+                      </td>
+                      <td
+                        className={`p-2 text-right ${
+                          totals.operatingResultPen >= 0
+                            ? "text-bht-navy-deep"
+                            : "text-bht-danger"
+                        }`}
+                      >
+                        {formatPen(totals.operatingResultPen)}
                       </td>
                       <td className="p-2 text-right text-bht-success">
                         {formatPen(totals.cashCollectedPen)}

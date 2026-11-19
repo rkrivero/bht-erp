@@ -7,7 +7,9 @@ export type ReportConceptId =
   | "ventas_totales"
   | "margen_bruto_con_costo"
   | "gastos_operativos_ruta"
+  | "gastos_fijos_admin"
   | "contribucion_ruta"
+  | "resultado_operativo_registrado"
   | "pagado_en_pedidos"
   | "compra_mercaderia"
   | "retiros_no_opex"
@@ -21,6 +23,7 @@ export type ReportConceptId =
   | "cartera_total_cxc"
   | "dso_estimado"
   | "saldo_mayor_30d"
+  | "dias_vencidos_due_date"
   | "promesas_vencidas"
   | "valorizacion_inventario"
   | "stock_muerto_90d"
@@ -97,16 +100,16 @@ export const REPORT_CONCEPTS: Record<ReportConceptId, ReportConceptDefinition> =
       "Es el termómetro más honesto de si vender y repartir hoy genera excedente real. Una contribución positiva y estable (idealmente ≥ 15%) indica operación sana antes de gastos fijos.",
   },
   pagado_en_pedidos: {
-    title: "Pagado en pedidos (Cobro comercial)",
-    subtitle: "Flujo de ingresos · Caja percibida vs. venta devengada",
+    title: "Cobros efectivos del período (Abonos)",
+    subtitle: "Flujo de ingresos · Caja percibida por fecha real de pago",
     plainMeaning:
-      "Es el dinero que efectivamente ya pagaron los clientes por sus pedidos en el período, distinto del monto total vendido cuando hay crédito.",
+      "Es el dinero que efectivamente ingresó en la fecha real de cobro del período seleccionado (incluye abonos cobrados en el período de pedidos anteriores), distinto del total vendido cuando hay crédito.",
     formula:
-      "Pagado en pedidos = suma de abonos y pagos aplicados a pedidos. El saldo restante aparece como Por cobrar.",
+      "Cobros efectivos del período = suma de abonos válidos en erp.ar_payments cuya payment_date cae dentro del período filtrado.",
     theory:
-      "Refleja el principio de caja (cash basis) frente al criterio devengado de la venta. Una empresa puede vender mucho y quedarse sin efectivo si la cobranza se retrasa respecto a la facturación.",
+      "Refleja el principio de caja (cash basis) frente al criterio devengado de la venta: las ventas se asignan al mes del pedido, mientras que la liquidez sigue la fecha real de pago.",
     decisionTip:
-      "Compara siempre Pagado en pedidos contra Ventas Totales y Compra de Mercadería para saber si tus ventas financian la reposición sin tensionar la caja.",
+      "Compara siempre Cobros efectivos del período contra Ventas Totales y Compra de Mercadería para saber si el dinero entra a tiempo para financiar la reposición.",
   },
   compra_mercaderia: {
     title: "Compra Mercadería (Flujo de reposición)",
@@ -126,7 +129,7 @@ export const REPORT_CONCEPTS: Record<ReportConceptId, ReportConceptDefinition> =
     plainMeaning:
       "Es dinero que salió de las cuentas del negocio para retiros de socios u otros egresos que no sostienen la venta ni reponen mercadería.",
     formula:
-      "Retiros / No OpEx = egresos marcados fuera de gasto operativo de ruta y mercadería. Ratio (%) = (Retiros ÷ Reinversión en mercadería y operación) × 100.",
+      "Retiros / No OpEx = egresos marcados fuera de gasto operativo de ruta, gastos fijos administrativos y mercadería. Ratio (%) = (Retiros ÷ Reinversión en mercadería y operación) × 100.",
     theory:
       "Separa el resultado económico del negocio de las decisiones patrimoniales de los dueños (principio de entidad contable). Confundir retiros con gastos distorsiona la rentabilidad real.",
     decisionTip:
@@ -136,13 +139,13 @@ export const REPORT_CONCEPTS: Record<ReportConceptId, ReportConceptDefinition> =
     title: "Movimiento neto estimado",
     subtitle: "Flujo de caja operativo · Variación registrada en el ERP",
     plainMeaning:
-      "Es la diferencia entre el dinero que entró por cobros y el dinero que salió por mercadería, ruta y retiros según lo anotado en el sistema.",
+      "Es la diferencia entre el efectivo cobrado y todas las salidas registradas (mercadería, ruta, gastos fijos administrativos y retiros) según lo anotado en el sistema.",
     formula:
-      "Movimiento neto estimado = Cobros en pedidos − Compra de Mercadería − Gastos de Ruta − Retiros / No OpEx.",
+      "Movimiento neto estimado = Cobros efectivos − Compra de Mercadería − Gastos de Ruta − Gastos Fijos / Admin − Retiros / No OpEx.",
     theory:
       "Es una aproximación directa del flujo de efectivo neto del período (Estado de Flujos de Efectivo, NIC 7). Si faltan movimientos por registrar o conciliación bancaria, sirve como guía, no como extracto oficial.",
     decisionTip:
-      "Si el margen bruto es positivo pero este flujo es negativo, revisa si el dinero quedó atrapado en cuentas por cobrar, exceso de inventario o retiros.",
+      "Si el margen bruto es positivo pero este flujo es negativo, revisa si el dinero quedó atrapado en cuentas por cobrar, exceso de inventario, gastos administrativos o retiros.",
   },
   depositos_internos: {
     title: "Depósitos Internos (Traslados)",
@@ -371,6 +374,42 @@ export const REPORT_CONCEPTS: Record<ReportConceptId, ReportConceptDefinition> =
       "Equivale a una lista de conciliación pre-cierre contable (Monthly Close Checklist) para garantizar exactitud y completitud antes de reportar resultados.",
     decisionTip:
       "Resuelve primero los controles en rojo (bloqueantes) antes de repartir utilidades o evaluar resultados finales.",
+  },
+  gastos_fijos_admin: {
+    title: "Gastos Fijos y Administrativos (Admin OpEx)",
+    subtitle: "Estructura operativa · Sueldos, local y servicios generales",
+    plainMeaning:
+      "Son los egresos recurrentes necesarios para sostener el negocio más allá de mover camiones: sueldo de socios administradores, planilla fija, alquiler, luz/agua/internet, contabilidad, software y comisiones bancarias.",
+    formula:
+      "Gastos Fijos / Admin = suma de egresos en bucket ADMIN_OPEX (más categorías administrativas históricas como contabilidad, legal, alquiler o sueldo socio).",
+    theory:
+      "En Simple Numbers (Greg Crabtree) y contabilidad gerencial, la remuneración a mercado de los socios operadores y la estructura fija deben descontarse como gasto operativo antes de evaluar si la empresa realmente genera utilidad.",
+    decisionTip:
+      "Separa siempre el sueldo del socio por trabajar en el negocio (Admin OpEx) del reparto de utilidades o retiros patrimoniales (No OpEx).",
+  },
+  resultado_operativo_registrado: {
+    title: "Resultado Operativo Registrado",
+    subtitle: "Desempeño económico · Después de ruta y gastos fijos registrados",
+    plainMeaning:
+      "Es lo que queda del margen bruto sobre ventas con costo después de descontar tanto los gastos de ruta como los gastos fijos y administrativos anotados en el ERP.",
+    formula:
+      "Resultado Operativo Registrado = Margen bruto con costo − OpEx de Ruta − Gastos Fijos / Admin. (%) = Resultado Operativo ÷ Ventas con costo conocido.",
+    theory:
+      "Mide la ganancia operativa real de la empresa (EBIT operativo antes de impuestos/financiamiento y antes de retiros de capital). Si Sueldo de Socio está en S/ 0, la cifra aún sobreestima la utilidad real del negocio.",
+    decisionTip:
+      "Usa el 10% sobre ventas como punto de equilibrio operativo sano y 15% como señal de capacidad para ampliar estructura o contratar personal.",
+  },
+  dias_vencidos_due_date: {
+    title: "Antigüedad del Pedido vs. Días Vencidos por Fecha Límite",
+    subtitle: "Gestión crediticia · Separación entre edad y morosidad real",
+    plainMeaning:
+      "La antigüedad cuenta cuántos días pasaron desde que se emitió el pedido, mientras que los días vencidos cuentan únicamente los días transcurridos después de su fecha límite pactada (due_date).",
+    formula:
+      "Antigüedad = Hoy − order_date. Días vencidos = MAX(0, Hoy − due_date) cuando existe fecha límite.",
+    theory:
+      "Un pedido a 30 días de crédito con 15 días de emitido NO está moroso: está Al día. Mezclar edad con mora genera alarmas falsas y distorsiona el seguimiento de cobranza.",
+    decisionTip:
+      "Registra el plazo acordado por cliente en Directorio para que cada pedido a crédito calcule su fecha límite automáticamente y marque solo las moras reales.",
   },
 };
 

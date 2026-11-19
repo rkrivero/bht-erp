@@ -84,6 +84,8 @@ export function useInventoryFlow({
   const [editCost, setEditCost] = useState("");
   const [editPrice, setEditPrice] = useState("");
   const [editMinPrice, setEditMinPrice] = useState("");
+  const [editMinStockQty, setEditMinStockQty] = useState("");
+  const [editLeadTimeDays, setEditLeadTimeDays] = useState("");
   const [editMode, setEditMode] = useState<"STOCKED" | "ON_DEMAND">("STOCKED");
   const [busySaveProduct, setBusySaveProduct] = useState(false);
 
@@ -121,6 +123,16 @@ export function useInventoryFlow({
     setEditCost(p.ref_cost_pen !== null ? String(p.ref_cost_pen) : "");
     setEditPrice(String(p.list_sale_price_pen ?? ""));
     setEditMinPrice(String(p.min_sale_price_pen ?? ""));
+    setEditMinStockQty(
+      p.min_stock_qty !== null && p.min_stock_qty !== undefined
+        ? String(p.min_stock_qty)
+        : ""
+    );
+    setEditLeadTimeDays(
+      p.lead_time_days !== null && p.lead_time_days !== undefined
+        ? String(p.lead_time_days)
+        : ""
+    );
     setEditMode(p.fulfillment_mode);
   }, []);
 
@@ -137,6 +149,8 @@ export function useInventoryFlow({
         refCostPen: editCost,
         listSalePricePen: editPrice,
         minSalePricePen: editMinPrice,
+        minStockQty: editMinStockQty.trim() === "" ? null : editMinStockQty,
+        leadTimeDays: editLeadTimeDays.trim() === "" ? null : editLeadTimeDays,
         fulfillmentMode: editMode,
       });
       showFeedback(`Producto ${editingProd.sku} actualizado.`);
@@ -195,6 +209,10 @@ export function useInventoryFlow({
     setEditPrice,
     editMinPrice,
     setEditMinPrice,
+    editMinStockQty,
+    setEditMinStockQty,
+    editLeadTimeDays,
+    setEditLeadTimeDays,
     editMode,
     setEditMode,
     busySaveProduct,

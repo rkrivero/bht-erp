@@ -8,6 +8,10 @@ export interface PartnerCatalogItem {
   list_sale_price_pen: number | null;
   min_sale_price_pen: number | null;
   ref_cost_pen: number | null;
+  cost_updated_at?: string | null;
+  default_supplier_party_id?: number | null;
+  lead_time_days?: number | null;
+  min_stock_qty?: number | null;
 }
 
 export interface CurrentUserInfo {
@@ -277,12 +281,29 @@ export interface IncompleteOrderSummary {
   missingFields: string[];
 }
 
+export interface WeeklyCoverageCohort {
+  weekStart: string;
+  totalOrders: number;
+  completeOrders: number;
+  coveragePct: number;
+  correctionCount: number;
+}
+
+export interface LatestDailyClosureSummary {
+  closureDate: string;
+  varianceTotalPen: number;
+  closedByName: string;
+  updatedAt: string;
+}
+
 export interface RegistrationCoverage24h {
   numerator: number;
   denominator: number;
   coveragePct: number | null;
+  correctionRatePct: number | null;
   baselineMode: "NO_APP_ORDERS" | "ACTIVE";
   incompleteOrders: IncompleteOrderSummary[];
+  weeklyCohorts: WeeklyCoverageCohort[];
 }
 
 export interface StartupChecklistItem {
@@ -322,6 +343,7 @@ export interface OperationalQualitySummary {
   negativeStockSkuCount: number;
   openBankAuditFlagsCount: number;
   apNoDueDateCount: number;
+  latestDailyClosure: LatestDailyClosureSummary | null;
   startupChecklist: StartupChecklistItem[];
 }
 

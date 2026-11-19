@@ -2,8 +2,10 @@ import type { PoolClient } from "pg";
 import type {
   DataCutSummary,
   IncompleteOrderSummary,
+  LatestDailyClosureSummary,
   OperationalQualitySummary,
   StartupChecklistItem,
+  WeeklyCoverageCohort,
 } from "@/components/socios/types";
 
 export const DATA_CUT_SELECT = `
@@ -14,7 +16,7 @@ export const DATA_CUT_SELECT = `
       FROM erp.sales_orders
       WHERE operational_status NOT IN ('CANCELLED', 'PENDING_PARTNER_APPROVAL')
     ),
-    'last_payment_date', (SELECT MAX(payment_date)::text FROM erp.ar_payments),
+    'last_payment_date', (SELECT MAX(payment_date)::text FROM erp.ar_payments WHERE voided_at IS NULL),
     'last_cash_ledger_date', (SELECT MAX(tx_date)::text FROM erp.cash_ledger),
     'last_purchase_date', (SELECT MAX(issue_date)::text FROM erp.purchase_invoices),
     'last_quote_date', (SELECT MAX(issue_date)::text FROM erp.quotes),
@@ -79,6 +81,19 @@ export function mapDataCutSummary(raw: unknown): DataCutSummary {
 interface QualityQueryRow {
   coverage_numerator: number;
   coverage_denominator: number;
+  correction_count: number;
+  weekly_cohorts: Array<{
+    week_start: string;
+    total_orders: number;
+    complete_orders: number;
+    correction_count: number;
+  }>;
+  latest_daily_closure: {
+    closure_date: string;
+    variance_total_pen: number | string;
+    closed_by_name: string;
+    updated_at: string;
+  } | null;
   incomplete_orders: Array<{
     order_id: number;
     order_code: string;
@@ -139,64 +154,26 @@ export const OPERATIONAL_QUALITY_SELECT = `(
         so.customer_party_id,
         so.created_by_user_id,
         so.historical_status_assumed,
-        so.total_pen,
-        so.paid_pen,
-        so.balance_due_pen,
-        so.promised_payment_date,
-        so.due_date,
-        so.created_at
+        so.total_pen
       FROM erp.sales_orders so
       WHERE so.operational_status NOT IN ('CANCELLED', 'PENDING_PARTNER_APPROVAL')
     ),
-    app_orders_eval AS (
-      SELECT
-        vo.order_id,
-        vo.order_code,
-        vo.order_date::text AS order_date,
-        (vo.customer_party_id IS NOT NULL) AS has_customer,
-        (
-          EXISTS (SELECT 1 FROM erp.sales_order_lines sol WHERE sol.order_id = vo.order_id)
-          AND NOT EXISTS (
-            SELECT 1
-            FROM erp.sales_order_lines sol
-            JOIN erp.products p ON p.product_id = sol.product_id
-            WHERE sol.order_id = vo.order_id
-              AND COALESCE(sol.unit_cost_snapshot_pen, p.ref_cost_pen) IS NULL
-          )
-        ) AS has_lines_and_costs,
-        (vo.created_by_user_id IS NOT NULL) AS has_seller,
-        (vo.historical_status_assumed = FALSE) AS has_explicit_mode,
-        (
-          vo.paid_pen <= 0.05
-          OR EXISTS (
-            SELECT 1
-            FROM erp.ar_payments ap
-            WHERE ap.order_id = vo.order_id
-              AND ap.account_id IS NOT NULL
-          )
-        ) AS has_payment_account,
-        (
-          vo.balance_due_pen <= 0.05
-          OR vo.promised_payment_date IS NOT NULL
-          OR vo.due_date IS NOT NULL
-        ) AS has_credit_due,
-        (((vo.created_at AT TIME ZONE 'America/Lima')::date - vo.order_date) <= 1) AS within_24h
-      FROM valid_orders vo
-      WHERE vo.source_origin = 'ERP_APP'
-    ),
     app_orders_scored AS (
       SELECT
-        *,
-        (
-          has_customer
-          AND has_lines_and_costs
-          AND has_seller
-          AND has_explicit_mode
-          AND has_payment_account
-          AND has_credit_due
-          AND within_24h
-        ) AS is_complete_24h
-      FROM app_orders_eval
+        order_id,
+        order_code,
+        order_date::text AS order_date,
+        order_week,
+        has_customer,
+        has_lines_and_costs,
+        has_seller,
+        has_explicit_mode,
+        has_payment_account,
+        has_credit_due,
+        within_24h,
+        is_complete_24h,
+        has_correction
+      FROM analytics.v_kpi_registration_coverage_24h
     ),
     sold_missing_cost AS (
       SELECT
@@ -233,6 +210,35 @@ export const OPERATIONAL_QUALITY_SELECT = `(
     SELECT
       COALESCE((SELECT COUNT(*)::int FROM app_orders_scored WHERE is_complete_24h), 0) AS coverage_numerator,
       COALESCE((SELECT COUNT(*)::int FROM app_orders_scored), 0) AS coverage_denominator,
+      COALESCE((SELECT COUNT(*)::int FROM app_orders_scored WHERE has_correction), 0) AS correction_count,
+      COALESCE((
+        SELECT json_agg(t)
+        FROM (
+          SELECT
+            order_week::text AS week_start,
+            COUNT(*)::int AS total_orders,
+            COUNT(*) FILTER (WHERE is_complete_24h)::int AS complete_orders,
+            COUNT(*) FILTER (WHERE has_correction)::int AS correction_count
+          FROM app_orders_scored
+          GROUP BY order_week
+          ORDER BY order_week DESC
+          LIMIT 4
+        ) t
+      ), '[]'::json) AS weekly_cohorts,
+      (
+        SELECT row_to_json(ldc)
+        FROM (
+          SELECT
+            dc.closure_date::text AS closure_date,
+            dc.variance_total_pen,
+            u.full_name AS closed_by_name,
+            dc.updated_at::text AS updated_at
+          FROM erp.daily_closures dc
+          JOIN erp.app_users u ON u.user_id = dc.closed_by_user_id
+          ORDER BY dc.closure_date DESC, dc.closure_id DESC
+          LIMIT 1
+        ) ldc
+      ) AS latest_daily_closure,
       COALESCE((
         SELECT json_agg(t)
         FROM (
@@ -296,8 +302,34 @@ export function mapOperationalQualitySummary(raw: unknown): OperationalQualitySu
   const row = (raw && typeof raw === "object" ? raw : {}) as Partial<QualityQueryRow>;
   const numerator = asInt(row?.coverage_numerator);
   const denominator = asInt(row?.coverage_denominator);
+  const correctionCount = asInt(row?.correction_count);
   const coveragePct =
     denominator > 0 ? Number(((numerator * 100) / denominator).toFixed(1)) : null;
+  const correctionRatePct =
+    denominator > 0 ? Number(((correctionCount * 100) / denominator).toFixed(1)) : null;
+
+  const weeklyCohorts: WeeklyCoverageCohort[] = Array.isArray(row?.weekly_cohorts)
+    ? row.weekly_cohorts.map((item) => {
+        const total = asInt(item.total_orders);
+        const complete = asInt(item.complete_orders);
+        return {
+          weekStart: String(item.week_start),
+          totalOrders: total,
+          completeOrders: complete,
+          coveragePct: total > 0 ? Number(((complete * 100) / total).toFixed(1)) : 0,
+          correctionCount: asInt(item.correction_count),
+        };
+      })
+    : [];
+
+  const latestDailyClosure: LatestDailyClosureSummary | null = row?.latest_daily_closure
+    ? {
+        closureDate: String(row.latest_daily_closure.closure_date),
+        varianceTotalPen: asNum(row.latest_daily_closure.variance_total_pen),
+        closedByName: String(row.latest_daily_closure.closed_by_name),
+        updatedAt: String(row.latest_daily_closure.updated_at),
+      }
+    : null;
 
   const incompleteOrders: IncompleteOrderSummary[] = Array.isArray(
     row?.incomplete_orders
@@ -407,8 +439,10 @@ export function mapOperationalQualitySummary(raw: unknown): OperationalQualitySu
       numerator,
       denominator,
       coveragePct,
+      correctionRatePct,
       baselineMode: denominator === 0 ? "NO_APP_ORDERS" : "ACTIVE",
       incompleteOrders,
+      weeklyCohorts,
     },
     erpAppOrdersCount,
     totalOrdersCount,
@@ -430,6 +464,7 @@ export function mapOperationalQualitySummary(raw: unknown): OperationalQualitySu
     negativeStockSkuCount,
     openBankAuditFlagsCount,
     apNoDueDateCount,
+    latestDailyClosure,
     startupChecklist,
   };
 }

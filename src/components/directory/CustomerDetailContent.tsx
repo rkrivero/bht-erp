@@ -1,6 +1,6 @@
 "use client";
 
-import { formatPen } from "@/components/socios/types";
+import { formatDatePe, formatPen } from "@/components/socios/types";
 import { EditIcon, MapPinIcon, NavigationIcon } from "@/components/ui/Icons";
 import { Button } from "@/components/ui/Primitives";
 import { buildGoogleMapsUrl, formatPartySecondaryName } from "@/lib/geo";
@@ -62,6 +62,32 @@ export function CustomerDetailContent({
           <DetailRow
             label="Ubicación GPS"
             value={hasGeo ? "Ubicación registrada" : "Sin ubicación"}
+          />
+          <DetailRow
+            label="Plazo de crédito"
+            value={
+              customer.credit_days_agreed !== null &&
+              customer.credit_days_agreed !== undefined
+                ? `${customer.credit_days_agreed} días`
+                : "Sin plazo pactado"
+            }
+          />
+          <DetailRow
+            label="Límite de crédito"
+            value={
+              customer.credit_limit_pen !== null &&
+              customer.credit_limit_pen !== undefined
+                ? formatPen(customer.credit_limit_pen)
+                : "Sin límite definido"
+            }
+          />
+          <DetailRow
+            label="Último contacto"
+            value={
+              customer.last_contact_date
+                ? formatDatePe(customer.last_contact_date)
+                : "Sin registro"
+            }
           />
           {secondaryName && secondaryName !== customer.display_name && (
             <DetailRow label="Razón social / nombre" value={secondaryName} fullWidth />

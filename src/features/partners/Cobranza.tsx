@@ -144,9 +144,9 @@ export function Cobranza({ data, flow }: CobranzaProps) {
                       {String(c.customerName)}
                     </p>
                     <p className="mt-0.5 text-xs text-bht-ink-soft tabular-nums">
-                      {Number(c.openOrdersCount)} pedido(s) · Antigüedad:{" "}
-                      {Number(c.maxDaysOverdue)} días · Próx. visita:{" "}
-                      {String(c.earliestPromisedPaymentDate || "-")}
+                      {Number(c.openOrdersCount)} pedido(s) · Antigüedad máx.:{" "}
+                      {Number(c.maxInvoiceAgeDays ?? c.maxDaysOverdue)} días · Próx.
+                      visita: {String(c.earliestPromisedPaymentDate || "-")}
                     </p>
                     <span className="mt-1 inline-flex items-center gap-0.5 text-xs font-medium text-bht-navy-mid">
                       Ver detalle y productos
@@ -191,6 +191,26 @@ export function Cobranza({ data, flow }: CobranzaProps) {
             <div className="space-y-2.5">
               {prioritizedDebtorsByOrder.map((o) => {
                 const lineCount = Array.isArray(o.lines) ? o.lines.length : 0;
+                const invoiceAge = Number(o.invoiceAgeDays ?? o.daysOverdue);
+                const overdueDays = o.daysPastDue ?? o.daysOverdue;
+                const dueBadgeTone =
+                  o.dueStatus === "OVERDUE"
+                    ? "danger"
+                    : o.dueStatus === "DUE_SOON"
+                      ? "warning"
+                      : o.dueStatus === "CURRENT"
+                        ? "success"
+                        : invoiceAge > 30
+                          ? "warning"
+                          : "neutral";
+                const dueBadgeLabel =
+                  o.dueStatus === "OVERDUE"
+                    ? `Vencido ${overdueDays} d`
+                    : o.dueStatus === "DUE_SOON"
+                      ? "Vence pronto"
+                      : o.dueStatus === "CURRENT"
+                        ? `Al día (hace ${invoiceAge} d)`
+                        : `Hace ${invoiceAge} d`;
                 return (
                   <div
                     key={String(o.orderId)}
@@ -211,8 +231,8 @@ export function Cobranza({ data, flow }: CobranzaProps) {
                         <span className="text-sm sm:text-base font-bold text-bht-ink-strong">
                           {String(o.orderCode)} · {String(o.customerName)}
                         </span>
-                        <Badge tone="danger" className="tabular-nums">
-                          Hace {Number(o.daysOverdue)} días
+                        <Badge tone={dueBadgeTone} className="tabular-nums">
+                          {dueBadgeLabel}
                         </Badge>
                       </div>
                       <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-bht-ink-soft tabular-nums">
@@ -228,7 +248,9 @@ export function Cobranza({ data, flow }: CobranzaProps) {
                       </div>
                     </button>
                     <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
-                      <div className="flex flex-wrap items-center gap-2 text-xs text-bht-ink-soft">
+                      <div className="flex flex-wrap items-center gap-2 text-xs text-bht-ink-soft tabular-nums">
+                        {o.dueDate && <span>Vence: {o.dueDate}</span>}
+                        <span>Pedido: hace {invoiceAge} d</span>
                         <span>Pactado: {String(o.promisedPaymentDate || "-")}</span>
                         <PromiseStatusPill status={String(o.promiseStatus ?? "")} />
                         <span className="sr-only">

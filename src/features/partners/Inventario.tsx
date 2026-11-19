@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { formatPen } from "@/components/socios/types";
+import { formatDatePe, formatPen } from "@/components/socios/types";
 import {} from "@/components/shared/CollectionControls";
 import { CloseIcon, EditIcon, SearchIcon } from "@/components/ui/Icons";
 import {
@@ -408,6 +408,10 @@ export function InventarioModals({ negStockCount, flow }: InventarioModalsProps)
     setEditPrice,
     editMinPrice,
     setEditMinPrice,
+    editMinStockQty,
+    setEditMinStockQty,
+    editLeadTimeDays,
+    setEditLeadTimeDays,
     editMode,
     setEditMode,
     busySaveProduct,
@@ -461,6 +465,12 @@ export function InventarioModals({ negStockCount, flow }: InventarioModalsProps)
                   placeholder="Sin costo"
                   className={`${INPUT_CLASS} mt-1.5 font-semibold tabular-nums`}
                 />
+                {editingProd.cost_updated_at && (
+                  <p className="mt-1 text-xs text-bht-ink-soft tabular-nums">
+                    Actualizado:{" "}
+                    {formatDatePe(editingProd.cost_updated_at.slice(0, 10))}
+                  </p>
+                )}
               </div>
               <div>
                 <FieldLabel htmlFor="edit-prod-price">Precio normal (S/)</FieldLabel>
@@ -483,6 +493,37 @@ export function InventarioModals({ negStockCount, flow }: InventarioModalsProps)
                   min="0"
                   value={editMinPrice}
                   onChange={(e) => setEditMinPrice(e.target.value)}
+                  className={`${INPUT_CLASS} mt-1.5 font-semibold tabular-nums`}
+                />
+              </div>
+              <div>
+                <FieldLabel htmlFor="edit-prod-min-stock">
+                  Stock mínimo alerta ({editingProd.unit_of_measure})
+                </FieldLabel>
+                <input
+                  id="edit-prod-min-stock"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={editMinStockQty}
+                  onChange={(e) => setEditMinStockQty(e.target.value)}
+                  placeholder="Opcional"
+                  className={`${INPUT_CLASS} mt-1.5 font-semibold tabular-nums`}
+                />
+              </div>
+              <div>
+                <FieldLabel htmlFor="edit-prod-lead-time">
+                  Lead time proveedor (días)
+                </FieldLabel>
+                <input
+                  id="edit-prod-lead-time"
+                  type="number"
+                  step="1"
+                  min="0"
+                  max="365"
+                  value={editLeadTimeDays}
+                  onChange={(e) => setEditLeadTimeDays(e.target.value)}
+                  placeholder="Opcional"
                   className={`${INPUT_CLASS} mt-1.5 font-semibold tabular-nums`}
                 />
               </div>

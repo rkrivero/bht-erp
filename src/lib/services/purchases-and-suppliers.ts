@@ -1144,6 +1144,7 @@ export async function registerSupplierPurchase(
       `UPDATE erp.products p
        SET ref_cost_pen = u.unit_cost_pen,
            cost_source = 'PURCHASE_APP',
+           cost_updated_at = NOW(),
            updated_at = NOW()
        FROM unnest($1::bigint[], $2::numeric[]) AS u(product_id, unit_cost_pen)
        WHERE p.product_id = u.product_id`,

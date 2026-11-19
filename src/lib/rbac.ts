@@ -55,6 +55,20 @@ export function projectProductForRole(
   return {
     ...withPrices,
     ref_cost_pen: product.ref_cost_pen !== null ? Number(product.ref_cost_pen) : null,
+    cost_updated_at: product.cost_updated_at ?? null,
+    default_supplier_party_id:
+      product.default_supplier_party_id !== null &&
+      product.default_supplier_party_id !== undefined
+        ? Number(product.default_supplier_party_id)
+        : null,
+    lead_time_days:
+      product.lead_time_days !== null && product.lead_time_days !== undefined
+        ? Number(product.lead_time_days)
+        : null,
+    min_stock_qty:
+      product.min_stock_qty !== null && product.min_stock_qty !== undefined
+        ? Number(product.min_stock_qty)
+        : null,
   };
 }
 

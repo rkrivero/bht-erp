@@ -7,7 +7,7 @@ esquema, los procesos ETL y su historial de checksums es el repositorio hermano
 Versión mínima requerida por esta aplicación:
 
 ```text
-010_sales_order_audit_and_reversals
+019_daily_closure_correction_audit
 ```
 
 Flujo de despliegue:

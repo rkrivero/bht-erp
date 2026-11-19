@@ -69,6 +69,7 @@ export interface DebtOrderDto {
   orderId: number;
   orderCode: string;
   orderDate: string;
+  dueDate?: string | null;
   customerKey: string;
   customerPartyId: number | null;
   customerName: string;
@@ -78,6 +79,9 @@ export interface DebtOrderDto {
   paidPen: number;
   balanceDuePen: number;
   daysOverdue: number;
+  invoiceAgeDays?: number;
+  daysPastDue?: number | null;
+  dueStatus?: "OVERDUE" | "DUE_SOON" | "CURRENT" | "NO_DUE_DATE";
   agingBucket: "GREEN_0_7" | "AMBER_8_29" | "RED_30_PLUS";
   promisedPaymentDate: string | null;
   promiseStatus:
@@ -97,6 +101,8 @@ export interface CustomerDebtDto {
   totalPaidPen: number;
   totalBalanceDuePen: number;
   maxDaysOverdue: number;
+  maxInvoiceAgeDays?: number;
+  hasExplicitDueDate?: boolean;
   agingBucket: "GREEN_0_7" | "AMBER_8_29" | "RED_30_PLUS";
   earliestPromisedPaymentDate: string | null;
   promiseStatus:

@@ -71,6 +71,9 @@ export default function CustomerFormModal({
   const [address, setAddress] = useState("");
   const [email, setEmail] = useState("");
   const [notes, setNotes] = useState("");
+  const [creditDaysAgreed, setCreditDaysAgreed] = useState("");
+  const [creditLimitPen, setCreditLimitPen] = useState("");
+  const [lastContactDate, setLastContactDate] = useState("");
   const [isActive, setIsActive] = useState(true);
   const [geoLat, setGeoLat] = useState<number | null>(null);
   const [geoLng, setGeoLng] = useState<number | null>(null);
@@ -120,6 +123,19 @@ export default function CustomerFormModal({
       setAddress(String(initialCustomer.address || ""));
       setEmail(String(initialCustomer.email || ""));
       setNotes(String(initialCustomer.notes || ""));
+      setCreditDaysAgreed(
+        initialCustomer.credit_days_agreed !== null &&
+          initialCustomer.credit_days_agreed !== undefined
+          ? String(initialCustomer.credit_days_agreed)
+          : ""
+      );
+      setCreditLimitPen(
+        initialCustomer.credit_limit_pen !== null &&
+          initialCustomer.credit_limit_pen !== undefined
+          ? String(initialCustomer.credit_limit_pen)
+          : ""
+      );
+      setLastContactDate(String(initialCustomer.last_contact_date || ""));
       setIsActive(initialCustomer.is_active !== false);
       setGeoLat(latVal);
       setGeoLng(lngVal);
@@ -143,6 +159,9 @@ export default function CustomerFormModal({
       setAddress("");
       setEmail("");
       setNotes("");
+      setCreditDaysAgreed("");
+      setCreditLimitPen("");
+      setLastContactDate("");
       setIsActive(true);
       setGeoLat(null);
       setGeoLng(null);
@@ -220,6 +239,12 @@ export default function CustomerFormModal({
 
     setSubmitting(true);
     try {
+      const creditDaysVal =
+        creditDaysAgreed.trim() === "" ? null : Number(creditDaysAgreed);
+      const creditLimitVal =
+        creditLimitPen.trim() === "" ? null : Number(creditLimitPen);
+      const lastContactVal = lastContactDate.trim() || null;
+
       if (mode === "create") {
         const res = await fetchJson<{ customer: CustomerDirectoryItem }>(
           "/api/customers",
@@ -239,6 +264,13 @@ export default function CustomerFormModal({
               geoLat,
               geoLng,
               geoAccuracyM,
+              ...(isPartner
+                ? {
+                    creditDaysAgreed: creditDaysVal,
+                    creditLimitPen: creditLimitVal,
+                  }
+                : {}),
+              ...(isPartner || isSeller ? { lastContactDate: lastContactVal } : {}),
             }),
           }
         );
@@ -281,8 +313,14 @@ export default function CustomerFormModal({
         payload.geoAccuracyM = geoAccuracyM;
       }
 
+      if (isPartner || isSeller) {
+        payload.lastContactDate = lastContactVal;
+      }
+
       if (isPartner) {
         payload.isActive = isActive;
+        payload.creditDaysAgreed = creditDaysVal;
+        payload.creditLimitPen = creditLimitVal;
       }
 
       const res = await fetchJson<{ customer: CustomerDirectoryItem }>(
@@ -510,6 +548,56 @@ export default function CustomerFormModal({
                 className={`${INPUT_CLASS} mt-1`}
               />
             </div>
+
+            {(isPartner || isSeller) && (
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                <div>
+                  <FieldLabel htmlFor="cust-last-contact">Último contacto</FieldLabel>
+                  <input
+                    id="cust-last-contact"
+                    type="date"
+                    value={lastContactDate}
+                    onChange={(e) => setLastContactDate(e.target.value)}
+                    className={`${INPUT_CLASS} mt-1 tabular-nums`}
+                  />
+                </div>
+                {isPartner && (
+                  <>
+                    <div>
+                      <FieldLabel htmlFor="cust-credit-days">
+                        Plazo de crédito (días)
+                      </FieldLabel>
+                      <input
+                        id="cust-credit-days"
+                        type="number"
+                        min="0"
+                        max="365"
+                        step="1"
+                        value={creditDaysAgreed}
+                        onChange={(e) => setCreditDaysAgreed(e.target.value)}
+                        placeholder="Ej. 15"
+                        className={`${INPUT_CLASS} mt-1 tabular-nums`}
+                      />
+                    </div>
+                    <div>
+                      <FieldLabel htmlFor="cust-credit-limit">
+                        Límite de crédito (S/)
+                      </FieldLabel>
+                      <input
+                        id="cust-credit-limit"
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={creditLimitPen}
+                        onChange={(e) => setCreditLimitPen(e.target.value)}
+                        placeholder="Opcional"
+                        className={`${INPUT_CLASS} mt-1 tabular-nums`}
+                      />
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
 
             <div className="space-y-2.5 rounded-xl border border-bht-line bg-white p-3">
               <div className="flex flex-wrap items-center justify-between gap-2">
