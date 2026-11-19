@@ -90,6 +90,19 @@ class RawQuoteHeader:
     row_hash: str
 
 
+@dataclass(frozen=True)
+class RawOpeningStockRow:
+    source_file: str
+    sheet_name: str
+    row_num: int
+    sku: str
+    description: str
+    uom: str
+    stock_eod_cutoff: float
+    raw_payload: dict[str, Any]
+    row_hash: str
+
+
 def extract_master_products(raw_dir: Path) -> list[RawCatalogProduct]:
     path = raw_dir / "excels" / "20614786851-PRODUCTS-261112231114.xlsx"
     wb = openpyxl.load_workbook(path, read_only=True, data_only=True)
@@ -262,6 +275,7 @@ def extract_quotes(raw_dir: Path, cutoff_date: date | None = None) -> list[RawQu
         num_str = str(row[2] or r_idx).strip()
         quote_code = f"COT-{num_str.zfill(6)}" if num_str.isdigit() else num_str
         rel_cpe = str(row[20] or "").strip() or None if len(row) > 20 else None
+        is_closed_historical = bool(rel_cpe) or issue_dt <= date(2026, 9, 29)
         rows_out.append(
             RawQuoteHeader(
                 source_file=path.name,
@@ -275,11 +289,49 @@ def extract_quotes(raw_dir: Path, cutoff_date: date | None = None) -> list[RawQu
                 currency="PEN" if str(row[6] or "SOLES").upper().startswith("SOL") else "USD",
                 total_pen=parse_float(row[14]) or 0.0,
                 related_cpe=rel_cpe,
-                status="CONVERTED" if rel_cpe else "OPEN",
+                status="CONVERTED" if is_closed_historical else "OPEN",
                 notes=str(row[19] or "").strip() or None if len(row) > 19 else None,
                 lines=_parse_quote_lines(row[18] if len(row) > 18 else None),
                 raw_payload=payload,
                 row_hash=stable_hash(path.name, sheet_name, r_idx, quote_code),
+            )
+        )
+    wb.close()
+    return rows_out
+
+
+def extract_opening_stocks(raw_dir: Path) -> list[RawOpeningStockRow]:
+    matches = sorted((raw_dir / "excels").glob("20614786851-STOCKS-CONSOLIDADO-*.xlsx"))
+    if not matches:
+        return []
+    path = matches[-1]
+    wb = openpyxl.load_workbook(path, read_only=True, data_only=True)
+    ws = wb.active
+    sheet_name = ws.title
+    rows_out: list[RawOpeningStockRow] = []
+    headers: list[str] = []
+    for r_idx, row in enumerate(ws.iter_rows(values_only=True), start=1):
+        if r_idx == 1:
+            headers = [str(c or f"col_{i}") for i, c in enumerate(row)]
+            continue
+        if not row or not row[0]:
+            continue
+        payload = json_safe(dict(zip(headers, row)))
+        sku = str(row[0]).strip()
+        desc = str(row[1] or sku).strip()
+        uom = str(row[2] or "NIU").strip()
+        qty = parse_float(row[3]) or 0.0
+        rows_out.append(
+            RawOpeningStockRow(
+                source_file=path.name,
+                sheet_name=sheet_name,
+                row_num=r_idx,
+                sku=sku,
+                description=desc,
+                uom=uom,
+                stock_eod_cutoff=qty,
+                raw_payload=payload,
+                row_hash=stable_hash(path.name, sheet_name, r_idx, sku),
             )
         )
     wb.close()

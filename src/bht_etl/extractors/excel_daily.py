@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import date, datetime
 from pathlib import Path
 from typing import Any
@@ -82,6 +82,7 @@ class DailyWorkbookExtraction:
     cash_events: list[ExtractedDailyCashEvent]
     trip_declarations: list[ExtractedTripDeclaration]
     blocked_sensitive_count: int = 0
+    excluded_sale_rows: list[dict[str, Any]] = field(default_factory=list)
 
 
 _RIGHT_SKIP_PATTERNS = re.compile(
@@ -227,13 +228,35 @@ def extract_daily_workbook(
                                 row_hash=rh,
                             )
                         )
+                        customer_str = str(a or "CLIENTES VARIOS").strip()
+                        exclusion = expense_cfg.find_sale_row_exclusion(
+                            sheet_name,
+                            r_idx,
+                            customer_str,
+                            c.strip(),
+                        )
+                        if exclusion is not None:
+                            result.excluded_sale_rows.append(
+                                {
+                                    "sheet_name": sheet_name,
+                                    "row_num": r_idx,
+                                    "sale_date": b_date.isoformat(),
+                                    "customer": customer_str,
+                                    "product": c.strip(),
+                                    "quantity": qty,
+                                    "unit_price_pen": price,
+                                    "line_total_pen": line_total,
+                                    "reason": str(exclusion.get("reason") or ""),
+                                }
+                            )
+                            continue
                         result.sale_lines.append(
                             ExtractedSaleLine(
                                 source_file=path.name,
                                 sheet_name=sheet_name,
                                 row_num=r_idx,
                                 sale_date=b_date,
-                                customer_name_raw=str(a or "CLIENTES VARIOS").strip(),
+                                customer_name_raw=customer_str,
                                 product_desc_raw=c.strip(),
                                 quantity=qty,
                                 pack_factor=pack_factor,

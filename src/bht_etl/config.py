@@ -58,6 +58,42 @@ class ExpenseClassificationConfig:
     purchase_anomalies: dict[str, dict[str, Any]]
     on_demand_skus: set[str]
     sensitive_patterns: list[re.Pattern[str]] = field(default_factory=list)
+    canonical_product_merges: dict[str, str] = field(default_factory=dict)
+    canonical_product_names: dict[str, str] = field(default_factory=dict)
+    daily_sale_row_exclusions: list[dict[str, Any]] = field(default_factory=list)
+    opening_stock_target_overrides: dict[str, float] = field(default_factory=dict)
+
+    def resolve_canonical_sku(self, sku: str) -> str:
+        s = sku.strip()
+        return self.canonical_product_merges.get(s, s)
+
+    def resolve_canonical_name(self, sku: str, fallback_name: str) -> str:
+        csku = self.resolve_canonical_sku(sku)
+        return self.canonical_product_names.get(csku, fallback_name)
+
+    def find_sale_row_exclusion(
+        self,
+        sheet_name: str,
+        row_num: int,
+        customer_raw: str,
+        product_raw: str,
+    ) -> dict[str, Any] | None:
+        sheet_norm = sheet_name.strip()
+        cust_u = normalize_text(customer_raw)
+        prod_u = normalize_text(product_raw)
+        for rule in self.daily_sale_row_exclusions:
+            if str(rule.get("sheet_name", "")).strip() != sheet_norm:
+                continue
+            if int(rule.get("row_num", -1)) != row_num:
+                continue
+            cust_tok = normalize_text(str(rule.get("customer_contains", "")))
+            prod_tok = normalize_text(str(rule.get("product_contains", "")))
+            if cust_tok and cust_tok not in cust_u:
+                continue
+            if prod_tok and prod_tok not in prod_u:
+                continue
+            return rule
+        return None
 
     def is_sensitive_row(self, values: list[Any] | tuple[Any, ...]) -> bool:
         """Return True when a spreadsheet row matches personal security Q&A / sensitive patterns."""
@@ -141,6 +177,19 @@ def load_expense_config(config_dir: Path) -> ExpenseClassificationConfig:
         purchase_anomalies=raw.get("purchase_anomalies", {}),
         on_demand_skus=set(raw.get("on_demand_skus", [])),
         sensitive_patterns=patterns,
+        canonical_product_merges={
+            str(k).strip(): str(v).strip()
+            for k, v in (raw.get("canonical_product_merges") or {}).items()
+        },
+        canonical_product_names={
+            str(k).strip(): str(v).strip()
+            for k, v in (raw.get("canonical_product_names") or {}).items()
+        },
+        daily_sale_row_exclusions=list(raw.get("daily_sale_row_exclusions") or []),
+        opening_stock_target_overrides={
+            str(k).strip(): float(v)
+            for k, v in (raw.get("opening_stock_target_overrides") or {}).items()
+        },
     )
 
 

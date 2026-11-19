@@ -186,3 +186,21 @@ sensitive_row_block_patterns:
 - PRIMO.*MAYOR
 - \bCHARO\b
 - \bSORAYDA\b
+canonical_product_merges:
+  47750-26120: 47730-26120
+  47730-20480 L: 47730-20480
+  47750-20480 R: 47730-20480
+  31410-20150 LEFT-NEW: 31410-20150
+  31410-20150 RIGHT-NEW: 31410-20150
+canonical_product_names:
+  47730-26120: CALIPER PARA TOYOTA BUFALO
+  47730-20480: CALIPER PARA TOYOTA 57-25
+daily_sale_row_exclusions:
+- sheet_name: 23-07-2026
+  row_num: 13
+  customer_contains: RONY
+  product_contains: 57-25
+  reason: Error RONY 110 anotado en hoja 24-07-2026 (18 u. CALIPER 57-25 / -S/ 2,340.00 anuladas por confirmacion del usuario).
+opening_stock_target_overrides:
+  '47730-20480': 204.0
+
