@@ -1,4 +1,4 @@
-"""Contract and transactional behavior tests for Bloque B migrations 017 & 018."""
+"""Contract and transactional behavior tests for Bloque B migrations 017–019."""
 
 from __future__ import annotations
 
@@ -35,6 +35,20 @@ def test_migrations_017_018_declare_bloque_b_contract() -> None:
         "CREATE OR REPLACE VIEW analytics.v_kpi_registration_coverage_24h",
     ]:
         assert fragment in sql_018
+
+
+def test_migration_019_preserves_daily_closure_correction_history() -> None:
+    migration = (
+        Path(__file__).resolve().parents[1]
+        / "db"
+        / "migrations"
+        / "019_daily_closure_correction_audit.sql"
+    ).read_text(encoding="utf-8")
+
+    assert "CREATE TABLE IF NOT EXISTS erp.daily_closure_audit_log" in migration
+    assert "before_data JSONB NOT NULL" in migration
+    assert "after_data JSONB NOT NULL" in migration
+    assert "BEFORE UPDATE OR DELETE ON erp.daily_closure_audit_log" in migration
 
 
 def test_bloque_b_effective_cash_admin_opex_due_date_and_daily_close_on_dev() -> None:

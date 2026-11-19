@@ -23,3 +23,4 @@ jobs:
           tests/test_migration_015_contract.py::test_migration_015_declares_indexes_and_tier1_report_views
           tests/test_migration_016_contract.py
           tests/test_migration_017_018_contract.py::test_migrations_017_018_declare_bloque_b_contract
+          tests/test_migration_017_018_contract.py::test_migration_019_preserves_daily_closure_correction_history
