@@ -27,22 +27,120 @@ function getIconA11yProps({
   };
 }
 
-export function HorizonLogo({ className = "h-7 w-7", ...props }: IconProps) {
+export function HorizonLogo({
+  className = "h-7 w-16",
+  "aria-label": ariaLabel = "Blue Horizon Trade",
+  ...props
+}: IconProps) {
   return (
-    <svg viewBox="0 0 160 160" className={className} {...getIconA11yProps(props)}>
-      <g transform="translate(80.00,123.65) scale(1.0104)">
-        <path fill="#1c2127" d="M0.00 0.00 L69.28 -40.00 L0.00 -80.00 L-69.28 -40.00 Z" />
-        <path fill="#1c2127" fillRule="evenodd" d="M0.00 0.00 L-69.28 -40.00 L-69.28 -30.40 L0.00 9.60 Z M-11.09 -3.71 L-24.94 -11.71 L-24.94 -6.53 L-11.09 1.47 Z M-44.34 -22.91 L-58.20 -30.91 L-58.20 -25.73 L-44.34 -17.73 Z" />
-        <path fill="#1c2127" fillRule="evenodd" d="M0.00 0.00 L69.28 -40.00 L69.28 -30.40 L0.00 9.60 Z M11.09 -3.71 L24.94 -11.71 L24.94 -6.53 L11.09 1.47 Z M44.34 -22.91 L58.20 -30.91 L58.20 -25.73 L44.34 -17.73 Z" />
-        <path fill="#FFFFFF" d="M-34.64 -60.00 L-3.46 -78.00 L-34.64 -96.00 L-65.82 -78.00 Z" />
-        <path fill="#D0D3D5" fillRule="evenodd" d="M-34.64 -24.00 L-65.82 -42.00 L-65.82 -78.00 L-34.64 -60.00 Z M-37.84 -30.88 L-39.24 -31.70 L-39.24 -57.62 L-37.84 -56.80 Z M-42.51 -33.59 L-43.92 -34.40 L-43.92 -60.31 L-42.51 -59.51 Z M-47.19 -36.28 L-48.59 -37.09 L-48.59 -63.02 L-47.19 -62.20 Z M-51.87 -38.98 L-53.27 -39.79 L-53.27 -65.72 L-51.87 -64.91 Z M-56.54 -41.68 L-57.95 -42.49 L-57.95 -68.41 L-56.54 -67.60 Z M-61.22 -44.38 L-62.62 -45.20 L-62.62 -71.12 L-61.22 -70.31 Z" />
-        <path fill="#9B9B9B" fillRule="evenodd" d="M-34.64 -24.00 L-3.46 -42.00 L-3.46 -78.00 L-34.64 -60.00 Z M-31.45 -30.88 L-30.04 -31.70 L-30.04 -57.62 L-31.45 -56.80 Z M-26.77 -33.59 L-25.37 -34.40 L-25.37 -60.31 L-26.77 -59.51 Z M-22.09 -36.28 L-20.69 -37.09 L-20.69 -63.02 L-22.09 -62.20 Z M-17.42 -38.98 L-16.01 -39.79 L-16.01 -65.72 L-17.42 -64.91 Z M-12.74 -41.68 L-11.34 -42.49 L-11.34 -68.41 L-12.74 -67.60 Z M-8.06 -44.38 L-6.66 -45.20 L-6.66 -71.12 L-8.06 -70.31 Z" />
-        <path fill="#0b385f" d="M34.64 -60.00 L65.82 -78.00 L34.64 -96.00 L3.46 -78.00 Z" />
-        <path fill="#07253f" fillRule="evenodd" d="M34.64 -24.00 L3.46 -42.00 L3.46 -78.00 L34.64 -60.00 Z M31.45 -30.88 L30.04 -31.70 L30.04 -57.62 L31.45 -56.80 Z M26.77 -33.59 L25.37 -34.40 L25.37 -60.31 L26.77 -59.51 Z M22.09 -36.28 L20.69 -37.09 L20.69 -63.02 L22.09 -62.20 Z M17.42 -38.98 L16.01 -39.79 L16.01 -65.72 L17.42 -64.91 Z M12.74 -41.68 L11.34 -42.49 L11.34 -68.41 L12.74 -67.60 Z M8.06 -44.38 L6.66 -45.20 L6.66 -71.12 L8.06 -70.31 Z" />
-        <path fill="#1c2127" fillRule="evenodd" d="M34.64 -24.00 L65.82 -42.00 L65.82 -78.00 L34.64 -60.00 Z M37.84 -30.88 L39.24 -31.70 L39.24 -57.62 L37.84 -56.80 Z M42.51 -33.59 L43.92 -34.40 L43.92 -60.31 L42.51 -59.51 Z M47.19 -36.28 L48.59 -37.09 L48.59 -63.02 L47.19 -62.20 Z M51.87 -38.98 L53.27 -39.79 L53.27 -65.72 L51.87 -64.91 Z M56.54 -41.68 L57.95 -42.49 L57.95 -68.41 L56.54 -67.60 Z M61.22 -44.38 L62.62 -45.20 L62.62 -71.12 L61.22 -70.31 Z" />
-        <path fill="#3373b0" d="M0.00 -40.00 L31.18 -58.00 L0.00 -76.00 L-31.18 -58.00 Z" />
-        <path fill="#245582" fillRule="evenodd" d="M0.00 -4.00 L-31.18 -22.00 L-31.18 -58.00 L0.00 -40.00 Z M-3.20 -10.89 L-4.60 -11.70 L-4.60 -37.62 L-3.20 -36.80 Z M-7.87 -13.59 L-9.28 -14.40 L-9.28 -40.31 L-7.87 -39.51 Z M-12.55 -16.29 L-13.95 -17.09 L-13.95 -43.02 L-12.55 -42.20 Z M-17.23 -18.98 L-18.63 -19.80 L-18.63 -45.72 L-17.23 -44.91 Z M-21.90 -21.69 L-23.30 -22.49 L-23.30 -48.41 L-21.90 -47.61 Z M-26.58 -24.38 L-27.98 -25.20 L-27.98 -51.12 L-26.58 -50.30 Z" />
-        <path fill="#0b385f" fillRule="evenodd" d="M0.00 -4.00 L31.18 -22.00 L31.18 -58.00 L0.00 -40.00 Z M3.20 -10.89 L4.60 -11.70 L4.60 -37.62 L3.20 -36.80 Z M7.87 -13.59 L9.28 -14.40 L9.28 -40.31 L7.87 -39.51 Z M12.55 -16.29 L13.95 -17.09 L13.95 -43.02 L12.55 -42.20 Z M17.23 -18.98 L18.63 -19.80 L18.63 -45.72 L17.23 -44.91 Z M21.90 -21.69 L23.30 -22.49 L23.30 -48.41 L21.90 -47.61 Z M26.58 -24.38 L27.98 -25.20 L27.98 -51.12 L26.58 -50.30 Z" />
+    <svg
+      viewBox="105 197 1240 446"
+      className={className}
+      {...getIconA11yProps({ ...props, "aria-label": ariaLabel })}
+    >
+      <g>
+        <path
+          d="M 815 291 L 1052 214 L 1052 444 L 998 427 L 998 361 Z"
+          fill="#6B938C"
+          stroke="#FFFFFF"
+          strokeWidth="4.5"
+          strokeLinejoin="round"
+        />
+        <path
+          d="M 525 386 L 804 297 L 804 374 L 525 452 Z"
+          fill="#112D42"
+          stroke="#FFFFFF"
+          strokeWidth="6.0"
+          strokeLinejoin="round"
+        />
+        <path
+          d="M 324 485 L 482 439 L 482 538 L 324 562 Z"
+          fill="#112D42"
+          stroke="#FFFFFF"
+          strokeWidth="6.0"
+          strokeLinejoin="round"
+        />
+        <path
+          d="M 814 301 L 996 360 L 996 427 L 814 372 Z"
+          fill="#235B73"
+          stroke="#FFFFFF"
+          strokeWidth="6.0"
+          strokeLinejoin="round"
+        />
+        <path
+          d="M 488 464 L 829 370 L 829 534 L 488 539 Z"
+          fill="#235B73"
+          stroke="#FFFFFF"
+          strokeWidth="6.0"
+          strokeLinejoin="round"
+        />
+        <path
+          d="M 835 380 L 1040 445 L 835 539 Z"
+          fill="#112D42"
+          stroke="#FFFFFF"
+          strokeWidth="6.0"
+          strokeLinejoin="round"
+        />
+        <path
+          d="M 871 495 L 1093 439 L 1093 566 L 871 540 Z"
+          fill="#C87D55"
+          stroke="#FFFFFF"
+          strokeWidth="6.0"
+          strokeLinejoin="round"
+        />
+        <path
+          d="M 1100 440 L 1159 469 L 1159 579 L 1100 565 Z"
+          fill="#A35C36"
+          stroke="#FFFFFF"
+          strokeWidth="6.0"
+          strokeLinejoin="round"
+        />
+        <g stroke="#112D42" strokeLinecap="butt" fill="none" opacity="0.35">
+          <path d="M 508 469.5 L 508 527.7" strokeWidth="5" />
+          <path d="M 528 464.0 L 528 527.4" strokeWidth="5" />
+          <path d="M 548 458.5 L 548 527.1" strokeWidth="5" />
+          <path d="M 568 453.0 L 568 526.8" strokeWidth="5" />
+          <path d="M 588 447.5 L 588 526.5" strokeWidth="5" />
+          <path d="M 608 442.0 L 608 526.2" strokeWidth="5" />
+          <path d="M 628 436.5 L 628 525.9" strokeWidth="5" />
+          <path d="M 648 431.0 L 648 525.6" strokeWidth="5" />
+          <path d="M 668 425.5 L 668 525.3" strokeWidth="5" />
+          <path d="M 688 420.0 L 688 525.0" strokeWidth="5" />
+          <path d="M 708 414.5 L 708 524.7" strokeWidth="5" />
+          <path d="M 728 409.0 L 728 524.4" strokeWidth="5" />
+          <path d="M 748 403.5 L 748 524.1" strokeWidth="5" />
+          <path d="M 768 398.0 L 768 523.8" strokeWidth="5" />
+          <path d="M 788 392.5 L 788 523.5" strokeWidth="5" />
+          <path d="M 808 387.0 L 808 523.2" strokeWidth="5" />
+          <path d="M 835 317.8 L 835 369.3" strokeWidth="5" />
+          <path d="M 851 323.0 L 851 374.2" strokeWidth="5" />
+          <path d="M 867 328.2 L 867 379.0" strokeWidth="5" />
+          <path d="M 883 333.4 L 883 383.8" strokeWidth="5" />
+          <path d="M 899 338.5 L 899 388.7" strokeWidth="5" />
+          <path d="M 915 343.7 L 915 393.5" strokeWidth="5" />
+          <path d="M 931 348.9 L 931 398.3" strokeWidth="5" />
+          <path d="M 947 354.1 L 947 403.2" strokeWidth="5" />
+          <path d="M 963 359.3 L 963 408.0" strokeWidth="5" />
+          <path d="M 979 364.5 L 979 412.8" strokeWidth="5" />
+          <path d="M 892 500.7 L 892 533.5" strokeWidth="4.6" />
+          <path d="M 910 496.2 L 910 535.6" strokeWidth="4.6" />
+          <path d="M 928 491.6 L 928 537.7" strokeWidth="4.6" />
+          <path d="M 946 487.1 L 946 539.8" strokeWidth="4.6" />
+          <path d="M 964 482.6 L 964 541.9" strokeWidth="4.6" />
+          <path d="M 982 478.0 L 982 544.0" strokeWidth="4.6" />
+          <path d="M 1000 473.5 L 1000 546.1" strokeWidth="4.6" />
+          <path d="M 1018 469.0 L 1018 548.2" strokeWidth="4.6" />
+          <path d="M 1036 464.4 L 1036 550.3" strokeWidth="4.6" />
+          <path d="M 1054 459.9 L 1054 552.4" strokeWidth="4.6" />
+          <path d="M 1072 455.3 L 1072 554.5" strokeWidth="4.6" />
+          <path d="M 1112 455.9 L 1112 559.6" strokeWidth="4" />
+          <path d="M 1129 464.3 L 1129 563.3" strokeWidth="4" />
+          <path d="M 1145 472.1 L 1145 566.8" strokeWidth="4" />
+        </g>
+        <path
+          d="M 130 626 C 410 494 980 493 1280 625 C 991 539 412 537 130 626 Z"
+          fill="#112D42"
+        />
       </g>
     </svg>
   );

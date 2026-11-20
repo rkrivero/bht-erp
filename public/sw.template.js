@@ -1,5 +1,5 @@
 const CACHE_NAME = "bht-shell-__BHT_CACHE_HASH__";
-const SHELL = ["/offline", "/login", "/icon.svg", "/manifest.webmanifest"];
+const SHELL = ["/offline", "/login", "/favicon.ico", "/manifest.webmanifest"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(SHELL)));
