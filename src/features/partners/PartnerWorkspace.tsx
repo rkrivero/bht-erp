@@ -428,7 +428,7 @@ export default function PartnerWorkspace() {
       <main
         id="main-content"
         tabIndex={-1}
-        className="mx-auto max-w-7xl px-3.5 pt-4 sm:px-5 space-y-4 focus:outline-none md:ml-[232px] md:max-w-none md:px-6 lg:px-8"
+        className="mx-auto max-w-7xl px-4 pt-6 sm:px-6 sm:pt-8 space-y-6 sm:space-y-8 focus:outline-none md:ml-[232px] md:max-w-none md:px-8 lg:px-12 pb-12"
       >
         {tab !== "control" && (
           <div className="grid grid-cols-[2fr_1fr] gap-2 sm:hidden">

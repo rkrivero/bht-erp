@@ -171,22 +171,22 @@ export function Hoy({
   );
 
   return (
-    <div className="flex flex-col gap-5">
-      <div className="flex flex-col gap-3 px-1 lg:flex-row lg:items-end lg:justify-between">
+    <div className="flex flex-col gap-6 sm:gap-8">
+      <div className="flex flex-col gap-4 px-1 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <h2 className="text-xl font-extrabold tracking-[-0.025em] text-[var(--bht-navy)] sm:text-2xl">
+          <h2 className="text-2xl font-bold tracking-tight text-[#1c2127] sm:text-3xl">
             Primero, resuelve lo que bloquea la operación
           </h2>
-          <p className="mt-1 text-sm text-[var(--ink-secondary)]">
+          <p className="mt-1.5 text-sm leading-relaxed text-[#5a6578]">
             Cola operativa del día, aprobaciones pendientes y monitor en vivo.
           </p>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-3">
           <Button
             variant="primary"
-            size="sm"
+            size="md"
             onClick={() => router.push("/vendedor")}
-            className="min-h-[40px] px-4 shadow-bht-elev-12"
+            className="min-h-[42px] px-5 shadow-sm transition-all duration-300 ease-in-out"
           >
             <PlusIcon className="h-4 w-4" />
             <span>Tomar Nuevo Pedido</span>
@@ -194,110 +194,170 @@ export function Hoy({
           <Button
             type="button"
             variant="outline"
-            size="sm"
+            size="md"
             onClick={() => handleTabChange("kpis")}
-            className="min-h-[40px]"
+            className="min-h-[42px] px-4 transition-all duration-300 ease-in-out"
           >
             Ir a Reportes →
           </Button>
         </div>
       </div>
 
-      {/* Priority Queue — Exception Queue First */}
-      <Card
-        id={pendingApprovals.length === 0 ? "discount-approval-queue" : undefined}
-        padding="none"
-        className="scroll-mt-24 overflow-hidden border-[var(--border-strong)]"
-      >
-        <div className="flex items-center justify-between gap-3 border-b border-[var(--border-hairline)] bg-bht-surface-cool/70 px-4 py-3.5 sm:px-5">
+      {/* Bento Grid: 2 cols for Priority Queue + 1 col for Operational Hub */}
+      <div className="grid grid-cols-1 gap-6 sm:gap-8 lg:grid-cols-3 items-stretch">
+        {/* Priority Queue (Bento Card — col-span-2) */}
+        <Card
+          id={pendingApprovals.length === 0 ? "discount-approval-queue" : undefined}
+          padding="none"
+          className="scroll-mt-24 overflow-hidden lg:col-span-2 flex flex-col justify-between"
+        >
           <div>
-            <h3 className="text-base font-extrabold tracking-[-0.02em] text-[var(--bht-navy)] sm:text-lg">
-              Cola priorizada
+            <div className="flex items-center justify-between gap-3 border-b border-[var(--border-hairline)] bg-[#f8fafc] px-6 py-4 sm:px-8 sm:py-5">
+              <div>
+                <h3 className="text-lg font-bold tracking-tight text-[#1c2127]">
+                  Cola priorizada
+                </h3>
+                <p className="mt-0.5 text-xs leading-relaxed text-[#5a6578]">
+                  Ordenada por impacto, vencimiento y acción permitida.
+                </p>
+              </div>
+              <Badge
+                tone={
+                  priorityItems.some((item) => item.entity.count > 0)
+                    ? "warning"
+                    : "success"
+                }
+              >
+                {priorityItems.reduce((sum, item) => sum + item.entity.count, 0)} pendientes
+              </Badge>
+            </div>
+            <div className="divide-y divide-[var(--border-hairline)]">
+              {priorityItems.map((item) => {
+                const Icon =
+                  item.category === "decision"
+                    ? ActivityIcon
+                    : item.category === "cash"
+                      ? WalletIcon
+                      : item.category === "operation"
+                        ? ShoppingBagIcon
+                        : AlertTriangleIcon;
+                return (
+                  <div
+                    key={item.id}
+                    className="grid gap-4 px-6 py-4 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:items-center sm:px-8 sm:py-5 transition-all duration-300 ease-in-out hover:bg-[#f1f6fb]/60"
+                  >
+                    <span
+                      className={`flex h-10 w-10 items-center justify-center rounded-xl ${item.level === "clear" ? "bg-[#f1f5f9] text-[#5a6578]" : item.level === "critical" ? "bg-rose-50 text-rose-700" : "bg-amber-50 text-amber-800"}`}
+                      aria-hidden="true"
+                    >
+                      <Icon className="h-4 w-4" />
+                    </span>
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h4 className="text-sm font-semibold tracking-tight text-[#1c2127] sm:text-base">
+                          {item.title}
+                        </h4>
+                        <span className="rounded-md bg-[#e7f1fb] px-2.5 py-0.5 text-xs font-semibold text-[#3373b0]">
+                          {item.dueLabel}
+                        </span>
+                      </div>
+                      <p className="mt-1 text-xs leading-relaxed text-[#5a6578] sm:text-sm">
+                        {item.summary}
+                      </p>
+                    </div>
+                    <Button
+                      variant={item.entity.count > 0 ? "primary" : "outline"}
+                      size="sm"
+                      onClick={() => handlePriorityAction(item.allowedAction)}
+                      className="w-full sm:w-auto"
+                    >
+                      {item.entity.count > 0 ? "Resolver" : "Revisar"}
+                    </Button>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </Card>
+
+        {/* Operational Hub & Quick Navigation (Bento Card — col-span-1) */}
+        <Card
+          padding="md"
+          className="lg:col-span-1 flex flex-col justify-between p-6 sm:p-8 bg-[#f8fafc]/90 border border-black/[0.06]"
+        >
+          <div className="space-y-4">
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-[#e7f1fb] px-3 py-1 text-xs font-semibold text-[#3373b0]">
+              <span className="h-1.5 w-1.5 rounded-full bg-[#3373b0]" aria-hidden="true" />
+              Acciones de Despacho
+            </span>
+            <h3 className="text-lg font-bold tracking-tight text-[#1c2127]">
+              Flujo Operativo
             </h3>
-            <p className="mt-0.5 text-xs text-[var(--ink-secondary)]">
-              Ordenada por impacto, vencimiento y acción permitida.
+            <p className="text-xs leading-relaxed text-[#5a6578]">
+              Acceso directo para ventas mayoristas en campo, alistamiento en almacén y arqueos de caja.
             </p>
           </div>
-          <Badge
-            tone={
-              priorityItems.some((item) => item.entity.count > 0)
-                ? "warning"
-                : "success"
-            }
-          >
-            {priorityItems.reduce((sum, item) => sum + item.entity.count, 0)} pendientes
-          </Badge>
-        </div>
-        <div className="divide-y divide-[var(--border-hairline)]">
-          {priorityItems.map((item) => {
-            const Icon =
-              item.category === "decision"
-                ? ActivityIcon
-                : item.category === "cash"
-                  ? WalletIcon
-                  : item.category === "operation"
-                    ? ShoppingBagIcon
-                    : AlertTriangleIcon;
-            return (
-              <div
-                key={item.id}
-                className="grid gap-3 px-4 py-3.5 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:items-center sm:px-5"
-              >
-                <span
-                  className={`flex h-9 w-9 items-center justify-center rounded-xl ${item.level === "clear" ? "bg-bht-mist text-[var(--bht-steel)]" : item.level === "critical" ? "bg-bht-danger-bg text-bht-danger" : "bg-bht-tone-fff7e8 text-bht-tone-9a5a00"}`}
-                  aria-hidden="true"
-                >
-                  <Icon className="h-4 w-4" />
-                </span>
-                <div className="min-w-0">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <h4 className="text-sm font-bold text-[var(--bht-ink)] sm:text-base">
-                      {item.title}
-                    </h4>
-                    <span className="rounded-md bg-bht-mist px-2 py-0.5 text-xs font-bold text-bht-navy-deep">
-                      {item.dueLabel}
-                    </span>
-                  </div>
-                  <p className="mt-0.5 text-xs text-[var(--ink-secondary)] sm:text-sm">
-                    {item.summary}
-                  </p>
-                </div>
-                <Button
-                  variant={item.entity.count > 0 ? "primary" : "outline"}
-                  size="sm"
-                  onClick={() => handlePriorityAction(item.allowedAction)}
-                  className="w-full sm:w-auto"
-                >
-                  {item.entity.count > 0 ? "Resolver" : "Revisar"}
-                </Button>
+          <div className="mt-6 space-y-3">
+            <button
+              type="button"
+              onClick={() => router.push("/vendedor")}
+              className="flex w-full items-center justify-between rounded-xl bg-white p-4 text-left shadow-2xs border border-black/[0.06] transition-all duration-300 ease-in-out hover:border-[#3373b0] hover:shadow-xs group cursor-pointer"
+            >
+              <div>
+                <p className="text-sm font-semibold tracking-tight text-[#1c2127]">
+                  Tomar Pedido Mayorista
+                </p>
+                <p className="text-xs leading-relaxed text-[#5a6578]">
+                  Catálogo con stock disponible en Soles (S/)
+                </p>
               </div>
-            );
-          })}
-        </div>
-      </Card>
+              <span className="text-sm font-bold text-[#3373b0] transition-transform duration-300 group-hover:translate-x-1" aria-hidden="true">
+                →
+              </span>
+            </button>
+            <button
+              type="button"
+              onClick={() => router.push("/almacen")}
+              className="flex w-full items-center justify-between rounded-xl bg-white p-4 text-left shadow-2xs border border-black/[0.06] transition-all duration-300 ease-in-out hover:border-[#3373b0] hover:shadow-xs group cursor-pointer"
+            >
+              <div>
+                <p className="text-sm font-semibold tracking-tight text-[#1c2127]">
+                  Almacén y Reparto
+                </p>
+                <p className="text-xs leading-relaxed text-[#5a6578]">
+                  Alistamiento por etapas y rutas de entrega
+                </p>
+              </div>
+              <span className="text-sm font-bold text-[#3373b0] transition-transform duration-300 group-hover:translate-x-1" aria-hidden="true">
+                →
+              </span>
+            </button>
+          </div>
+        </Card>
+      </div>
 
-      {/* Executive Business Summary (4 compact KPIs) */}
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      {/* Executive Business Summary (Bento Grid — 4 modular KPI Cards) */}
+      <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
         <button
           type="button"
           onClick={() => handleTabChange("kpis")}
-          className="group rounded-2xl border border-bht-line bg-white p-4 text-left shadow-bht-elev-13 transition hover:border-bht-navy-mid/45 hover:shadow-bht-elev-14 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bht-navy-deep"
+          className="group rounded-2xl border border-black/[0.06] bg-white p-6 sm:p-8 text-left shadow-xs transition-all duration-300 ease-in-out hover:border-[#3373b0]/50 hover:-translate-y-1 hover:shadow-md cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3373b0]"
         >
           <div className="flex items-center justify-between gap-2">
-            <span className="text-xs font-bold uppercase tracking-[0.06em] text-bht-steel">
+            <span className="text-xs font-semibold uppercase tracking-wider text-[#5a6578]">
               Ventas y Cobranza
             </span>
             <span
-              className="text-xs text-bht-ink-muted transition group-hover:translate-x-0.5 group-hover:text-bht-navy-deep"
+              className="text-xs text-[#5a6578] transition-transform duration-300 group-hover:translate-x-1 group-hover:text-[#3373b0]"
               aria-hidden="true"
             >
               →
             </span>
           </div>
-          <p className="mt-2 text-2xl font-extrabold tracking-[-0.03em] text-bht-navy-deep tabular-nums">
+          <p className="mt-3 text-3xl font-bold tracking-tight text-[#1c2127] tabular-nums">
             {formatPen(kpiQ1?.total_sales_pen ?? 0)}
           </p>
-          <p className="mt-1.5 text-xs font-medium text-bht-ink-soft tabular-nums">
+          <p className="mt-2 text-xs font-medium leading-relaxed text-[#5a6578] tabular-nums">
             Cobrado: {formatPen(kpiQ1?.collected_sales_pen ?? 0)} · {totalOrdersCount}{" "}
             pedidos
             {(dataCut?.lastOrderDate || kpiQ1?.period_end) &&
@@ -308,23 +368,23 @@ export function Hoy({
         <button
           type="button"
           onClick={() => handleTabChange("deudores")}
-          className="group rounded-2xl border border-bht-line bg-white p-4 text-left shadow-bht-elev-13 transition hover:border-bht-navy-mid/45 hover:shadow-bht-elev-14 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bht-navy-deep"
+          className="group rounded-2xl border border-black/[0.06] bg-white p-6 sm:p-8 text-left shadow-xs transition-all duration-300 ease-in-out hover:border-rose-400 hover:-translate-y-1 hover:shadow-md cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-500"
         >
           <div className="flex items-center justify-between gap-2">
-            <span className="text-xs font-bold uppercase tracking-[0.06em] text-bht-steel">
+            <span className="text-xs font-semibold uppercase tracking-wider text-[#5a6578]">
               Cartera por Cobrar
             </span>
             <span
-              className="text-xs text-bht-ink-muted transition group-hover:translate-x-0.5 group-hover:text-bht-navy-deep"
+              className="text-xs text-[#5a6578] transition-transform duration-300 group-hover:translate-x-1 group-hover:text-rose-600"
               aria-hidden="true"
             >
               →
             </span>
           </div>
-          <p className="mt-2 text-2xl font-extrabold tracking-[-0.03em] text-bht-danger tabular-nums">
+          <p className="mt-3 text-3xl font-bold tracking-tight text-rose-700 tabular-nums">
             {formatPen(totalReceivablePen)}
           </p>
-          <p className="mt-1.5 text-xs font-medium text-bht-ink-soft tabular-nums">
+          <p className="mt-2 text-xs font-medium leading-relaxed text-[#5a6578] tabular-nums">
             {debtorsByOrder.length} pedido(s) · {brokenPromisesCount} vencida(s)
           </p>
         </button>
@@ -332,23 +392,23 @@ export function Hoy({
         <button
           type="button"
           onClick={() => handleTabChange("caja")}
-          className="group rounded-2xl border border-bht-line bg-white p-4 text-left shadow-bht-elev-13 transition hover:border-bht-navy-mid/45 hover:shadow-bht-elev-14 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bht-navy-deep"
+          className="group rounded-2xl border border-black/[0.06] bg-white p-6 sm:p-8 text-left shadow-xs transition-all duration-300 ease-in-out hover:border-[#3373b0]/50 hover:-translate-y-1 hover:shadow-md cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3373b0]"
         >
           <div className="flex items-center justify-between gap-2">
-            <span className="text-xs font-bold uppercase tracking-[0.06em] text-bht-steel">
+            <span className="text-xs font-semibold uppercase tracking-wider text-[#5a6578]">
               Caja y Compras (CxP)
             </span>
             <span
-              className="text-xs text-bht-ink-muted transition group-hover:translate-x-0.5 group-hover:text-bht-navy-deep"
+              className="text-xs text-[#5a6578] transition-transform duration-300 group-hover:translate-x-1 group-hover:text-[#3373b0]"
               aria-hidden="true"
             >
               →
             </span>
           </div>
-          <p className="mt-2 text-2xl font-extrabold tracking-[-0.03em] text-bht-navy-mid tabular-nums">
+          <p className="mt-3 text-3xl font-bold tracking-tight text-[#3373b0] tabular-nums">
             {formatPen(totalCashPen)}
           </p>
-          <p className="mt-1.5 text-xs font-medium text-bht-ink-soft tabular-nums">
+          <p className="mt-2 text-xs font-medium leading-relaxed text-[#5a6578] tabular-nums">
             {dataCut?.bankReconciled === false
               ? "Saldo registrado (no conciliado)"
               : "Saldo registrado"}{" "}
@@ -359,23 +419,23 @@ export function Hoy({
         <button
           type="button"
           onClick={() => handleTabChange("stock")}
-          className="group rounded-2xl border border-bht-line bg-white p-4 text-left shadow-bht-elev-13 transition hover:border-bht-navy-mid/45 hover:shadow-bht-elev-14 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bht-navy-deep"
+          className="group rounded-2xl border border-black/[0.06] bg-white p-6 sm:p-8 text-left shadow-xs transition-all duration-300 ease-in-out hover:border-amber-400 hover:-translate-y-1 hover:shadow-md cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
         >
           <div className="flex items-center justify-between gap-2">
-            <span className="text-xs font-bold uppercase tracking-[0.06em] text-bht-steel">
+            <span className="text-xs font-semibold uppercase tracking-wider text-[#5a6578]">
               Inventario y Alertas
             </span>
             <span
-              className="text-xs text-bht-ink-muted transition group-hover:translate-x-0.5 group-hover:text-bht-navy-deep"
+              className="text-xs text-[#5a6578] transition-transform duration-300 group-hover:translate-x-1 group-hover:text-amber-600"
               aria-hidden="true"
             >
               →
             </span>
           </div>
-          <p className="mt-2 text-2xl font-extrabold tracking-[-0.03em] text-bht-warning tabular-nums">
+          <p className="mt-3 text-3xl font-bold tracking-tight text-amber-800 tabular-nums">
             {lowStockCount + marginRiskCount + negStockCount}
           </p>
-          <p className="mt-1.5 text-xs font-medium text-bht-ink-soft tabular-nums">
+          <p className="mt-2 text-xs font-medium leading-relaxed text-[#5a6578] tabular-nums">
             {lowStockCount} stock bajo · {marginRiskCount} margen · {negStockCount} neg.
           </p>
         </button>

@@ -15,14 +15,18 @@ export type Tone =
   | "indigo";
 
 const CARD_TONE_CLASSES: Record<Tone, string> = {
-  default: "border-bht-slate-line bg-white",
-  subtle: "border-bht-slate-line bg-bht-surface-cool",
-  horizon: "border-bht-slate-line bg-bht-surface-cool",
-  brand: "border-bht-info-line bg-bht-surface-cool",
-  success: "border-bht-success-line bg-bht-tone-f5fbf7",
-  warning: "border-bht-amber-line bg-bht-amber-bg",
-  danger: "border-bht-danger-line bg-bht-tone-fef6f6",
-  indigo: "border-bht-tone-c7d2fe bg-bht-tone-f6f7ff",
+  default:
+    "border-black/[0.06] bg-white shadow-[0_1px_3px_rgba(0,0,0,0.02),0_6px_20px_-4px_rgba(28,33,39,0.035)] transition-all duration-300 ease-in-out",
+  subtle:
+    "border-black/[0.04] bg-[#f8fafc] shadow-[0_1px_2px_rgba(0,0,0,0.015)] transition-all duration-300 ease-in-out",
+  horizon:
+    "border-[#3373b0]/20 bg-[#f4f8fc] shadow-[0_2px_12px_rgba(51,115,176,0.04)] transition-all duration-300 ease-in-out",
+  brand:
+    "border-[#1c2127]/15 bg-[#f1f5f9] shadow-[0_2px_12px_rgba(28,33,39,0.04)] transition-all duration-300 ease-in-out",
+  success: "border-emerald-500/15 bg-emerald-50/50 shadow-[0_1px_2px_rgba(0,0,0,0.01)] transition-all duration-300 ease-in-out",
+  warning: "border-amber-500/15 bg-amber-50/50 shadow-[0_1px_2px_rgba(0,0,0,0.01)] transition-all duration-300 ease-in-out",
+  danger: "border-rose-500/15 bg-rose-50/50 shadow-[0_1px_2px_rgba(0,0,0,0.01)] transition-all duration-300 ease-in-out",
+  indigo: "border-[#1c2127]/15 bg-[#f1f5f9] shadow-[0_1px_2px_rgba(0,0,0,0.01)] transition-all duration-300 ease-in-out",
 };
 
 export function Card({
@@ -43,15 +47,17 @@ export function Card({
     padding === "none"
       ? ""
       : padding === "sm"
-        ? "p-3"
+        ? "p-4 sm:p-5"
         : padding === "lg"
-          ? "p-5 sm:p-6"
-          : "p-4";
+          ? "p-8 sm:p-12"
+          : "p-6 sm:p-8";
   const accentClass =
-    accent === "horizon" ? "border-bht-tone-cbd9e7 shadow-bht-elev-3" : "";
+    accent === "horizon"
+      ? "border-[#3373b0]/35 shadow-[0_4px_20px_rgba(51,115,176,0.08)] ring-1 ring-[#3373b0]/15"
+      : "";
   return (
     <section
-      className={`min-w-0 rounded-2xl border shadow-bht-elev-4 ${CARD_TONE_CLASSES[tone]} ${accentClass} ${padClass} ${className}`}
+      className={`min-w-0 rounded-2xl border ${CARD_TONE_CLASSES[tone]} ${accentClass} ${padClass} ${className}`}
       {...props}
     >
       {children}
@@ -70,14 +76,14 @@ export type BadgeTone =
   | "indigo";
 
 const BADGE_CLASSES: Record<BadgeTone, string> = {
-  neutral: "border-bht-slate-line bg-bht-surface-cool text-bht-slate-text",
-  obsidian: "border-bht-ink-strong bg-bht-ink-strong text-white",
-  horizon: "border-bht-slate-line bg-bht-surface-cool text-bht-ink-deep",
-  brand: "border-bht-info-line bg-bht-cobalt-bg text-bht-cobalt-strong",
-  success: "border-bht-tone-dcfce7 bg-bht-success-bg text-bht-success",
-  warning: "border-bht-warning-line bg-bht-warning-bg text-bht-warning",
-  danger: "border-bht-tone-fee2e2 bg-bht-danger-bg text-bht-danger",
-  indigo: "border-bht-tone-e0e7ff bg-bht-tone-eef2ff text-bht-tone-4338ca",
+  neutral: "border-black/[0.06] bg-[#f1f5f9] text-[#1c2127]",
+  obsidian: "border-[#1c2127] bg-[#1c2127] text-white shadow-xs",
+  horizon: "border-[#3373b0]/25 bg-[#e7f1fb] text-[#3373b0]",
+  brand: "border-[#1c2127]/20 bg-[#f1f5f9] text-[#1c2127]",
+  success: "border-emerald-600/20 bg-emerald-50 text-emerald-800",
+  warning: "border-amber-600/20 bg-amber-50 text-amber-900",
+  danger: "border-rose-600/20 bg-rose-50 text-rose-800",
+  indigo: "border-[#1c2127]/20 bg-[#f1f5f9] text-[#1c2127]",
 };
 
 export function Badge({
@@ -96,7 +102,7 @@ export function Badge({
   );
   return (
     <span
-      className={`inline-flex flex-shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-medium leading-4 ${
+      className={`inline-flex flex-shrink-0 items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium leading-4 transition-all duration-300 ease-in-out ${
         hasCustomWrap ? "" : "whitespace-nowrap"
       } ${BADGE_CLASSES[tone]} ${className}`}
     >
@@ -109,25 +115,29 @@ export function Badge({
 }
 
 export type ButtonVariant =
-  "primary" | "brand" | "secondary" | "outline" | "ghost" | "success" | "danger";
+  | "primary" | "brand" | "secondary" | "outline" | "ghost" | "success" | "danger";
 
 const BUTTON_VARIANTS: Record<ButtonVariant, string> = {
-  primary: "bg-bht-cobalt text-white hover:bg-bht-tone-064fc3 shadow-bht-elev-5",
-  brand: "bg-bht-navy-soft text-white hover:bg-bht-ink-deep shadow-bht-elev-6",
+  primary:
+    "bg-[#3373b0] text-white hover:bg-[#285d8f] shadow-[0_1px_2px_rgba(0,0,0,0.08),0_2px_8px_rgba(51,115,176,0.25)] transition-all duration-300 ease-in-out active:scale-[0.985]",
+  brand:
+    "bg-[#1c2127] text-white hover:bg-[#0b385f] shadow-[0_1px_2px_rgba(0,0,0,0.08)] transition-all duration-300 ease-in-out active:scale-[0.985]",
   secondary:
-    "bg-bht-surface-cool text-bht-ink-deep border border-bht-slate-line hover:bg-bht-cobalt-bg",
+    "bg-white text-[#1c2127] border border-black/[0.08] hover:bg-[#f8fafc] hover:border-black/[0.14] hover:text-[#1c2127] active:scale-[0.985] shadow-[0_1px_2px_rgba(0,0,0,0.02)] transition-all duration-300 ease-in-out",
   outline:
-    "bg-white text-bht-ink-deep border border-bht-slate-line hover:bg-bht-surface-cool shadow-bht-elev-7",
+    "bg-white text-[#1c2127] border border-black/[0.08] hover:border-[#3373b0] hover:text-[#3373b0] hover:bg-[#e7f1fb]/50 active:scale-[0.985] shadow-[0_1px_2px_rgba(0,0,0,0.02)] transition-all duration-300 ease-in-out",
   ghost:
-    "bg-transparent text-bht-slate-text hover:bg-bht-surface-cool hover:text-bht-ink-deep",
-  success: "bg-bht-success text-white hover:bg-bht-success-strong shadow-bht-elev-8",
-  danger: "bg-bht-danger-vivid text-white hover:bg-bht-danger shadow-bht-elev-9",
+    "bg-transparent text-[#5a6578] hover:bg-black/[0.04] hover:text-[#1c2127] active:scale-[0.985] transition-all duration-300 ease-in-out",
+  success:
+    "bg-emerald-600 text-white hover:bg-emerald-700 shadow-[0_1px_2px_rgba(0,0,0,0.08)] active:scale-[0.985] transition-all duration-300 ease-in-out",
+  danger:
+    "bg-[#dc2626] text-white hover:bg-[#b91c1c] shadow-[0_1px_2px_rgba(0,0,0,0.08)] active:scale-[0.985] transition-all duration-300 ease-in-out",
 };
 
 const BUTTON_SIZES: Record<"sm" | "md" | "lg", string> = {
-  sm: "px-3 py-1.5 text-xs rounded-lg",
+  sm: "px-3 py-1.5 text-xs rounded-[10px]",
   md: "px-4 py-2.5 text-sm rounded-xl",
-  lg: "px-5 py-3.5 text-sm rounded-xl",
+  lg: "px-5 py-3 text-sm rounded-xl",
 };
 
 export function Button({
@@ -158,7 +168,7 @@ export function Button({
     <button
       type={type}
       data-compact={isCompact ? "true" : undefined}
-      className={`${displayClass} items-center justify-center gap-2 font-semibold transition active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bht-cobalt focus-visible:ring-offset-2 focus-visible:ring-offset-white disabled:pointer-events-none disabled:opacity-50 cursor-pointer ${BUTTON_VARIANTS[variant]} ${BUTTON_SIZES[size]} ${mobileTouchClass} ${className}`}
+      className={`${displayClass} items-center justify-center gap-2 font-semibold transition-all duration-120 active:scale-[0.985] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--bht-cobalt)] focus-visible:ring-offset-2 focus-visible:ring-offset-white disabled:pointer-events-none disabled:opacity-50 cursor-pointer ${BUTTON_VARIANTS[variant]} ${BUTTON_SIZES[size]} ${mobileTouchClass} ${className}`}
       {...props}
     >
       {children}
@@ -180,7 +190,7 @@ export function FieldLabel({
   return (
     <label
       htmlFor={htmlFor}
-      className={`block text-xs sm:text-sm font-semibold text-bht-slate-text ${className}`}
+      className={`block text-xs sm:text-sm font-semibold text-[var(--bht-steel)] ${className}`}
     >
       {children}
       {required && (
@@ -193,7 +203,7 @@ export function FieldLabel({
 }
 
 export const INPUT_CLASS =
-  "min-h-11 w-full rounded-xl border border-bht-tone-cbd5e1 bg-white px-3.5 py-2.5 text-sm text-bht-ink-deep placeholder:text-bht-slate-muted transition-all duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] focus:border-bht-cobalt focus:outline-none focus:ring-2 focus:ring-bht-cobalt/20 disabled:bg-bht-surface-cool disabled:text-bht-slate-muted";
+  "min-h-11 w-full rounded-xl border border-black/[0.08] bg-white px-4 py-2.5 text-sm text-[#1c2127] placeholder:text-[#8c98a9] shadow-[0_1px_2px_rgba(0,0,0,0.02)] transition-all duration-300 ease-in-out hover:border-black/[0.16] focus:border-[#3373b0] focus:outline-none focus:ring-4 focus:ring-[#3373b0]/10 disabled:bg-[#f1f5f9] disabled:text-[#8c98a9] disabled:border-black/[0.05]";
 
 export function SegmentedControl<T extends string>({
   options,
@@ -232,7 +242,7 @@ export function SegmentedControl<T extends string>({
 
   return (
     <div
-      className={`no-scrollbar flex min-w-0 max-w-full gap-1.5 overflow-x-auto rounded-xl border border-bht-line-blue bg-bht-mist p-1.5 ${className}`}
+      className={`no-scrollbar flex min-w-0 max-w-full gap-1 overflow-x-auto rounded-xl border border-black/[0.06] bg-[#f1f5f9] p-1.5 transition-all duration-300 ease-in-out ${className}`}
       role="radiogroup"
       aria-label={ariaLabel}
     >
@@ -250,10 +260,10 @@ export function SegmentedControl<T extends string>({
             tabIndex={active || (!hasMatch && idx === 0) ? 0 : -1}
             onClick={() => onChange(opt.id)}
             onKeyDown={(e) => handleKeyDown(e, idx)}
-            className={`min-h-11 min-w-max flex-1 shrink-0 rounded-lg border px-3 py-2 text-xs font-bold leading-tight transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bht-navy-deep focus-visible:ring-offset-1 sm:px-4 sm:text-sm cursor-pointer ${
+            className={`min-h-10 min-w-max flex-1 shrink-0 rounded-lg px-3.5 py-1.5 text-xs font-semibold leading-tight transition-all duration-300 ease-in-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3373b0] focus-visible:ring-offset-1 sm:text-sm cursor-pointer ${
               active
-                ? "border-bht-navy-deep bg-bht-navy-deep text-white shadow-bht-elev-10"
-                : "border-transparent bg-white/75 text-bht-navy-soft hover:border-bht-line-blue hover:bg-white hover:text-bht-navy-deep"
+                ? "border border-black/[0.06] bg-white text-[#1c2127] font-semibold shadow-sm"
+                : "border border-transparent bg-transparent text-[#5a6578] hover:text-[#1c2127] hover:bg-white/60"
             }`}
           >
             <span className="whitespace-nowrap">{opt.label}</span>
@@ -261,8 +271,8 @@ export function SegmentedControl<T extends string>({
               <span
                 className={`ml-2 inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold tabular-nums ${
                   active
-                    ? "bg-bht-navy-mid text-white"
-                    : "bg-bht-mist text-bht-navy-deep"
+                    ? "bg-[#1c2127] text-white"
+                    : "bg-black/[0.06] text-[#5a6578]"
                 }`}
               >
                 {opt.count}
@@ -515,7 +525,7 @@ export function ModalSheet({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-end justify-center bg-bht-navy-deep/35 backdrop-blur-[2px] sm:items-center sm:p-4"
+      className="fixed inset-0 z-50 flex items-end justify-center bg-black/45 backdrop-blur-[3px] sm:items-center sm:p-4"
       onClick={(e) => {
         if (e.target === e.currentTarget) onCloseRef.current();
       }}
@@ -527,7 +537,7 @@ export function ModalSheet({
         aria-labelledby={titleId}
         aria-describedby={subtitle ? subtitleId : undefined}
         tabIndex={-1}
-        className={`flex max-h-[90dvh] w-full flex-col rounded-t-2xl sm:rounded-2xl border border-bht-line bg-white shadow-2xl outline-none ${widthClass}`}
+        className={`flex max-h-[90dvh] w-full flex-col rounded-t-2xl sm:rounded-2xl border border-black/[0.06] bg-white shadow-[0_12px_40px_-6px_rgba(0,0,0,0.12),0_2px_8px_rgba(0,0,0,0.04)] outline-none ${widthClass}`}
       >
         <div
           className="mx-auto mt-2 h-1 w-10 rounded-full bg-bht-line-strong sm:hidden"

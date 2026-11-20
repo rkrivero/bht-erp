@@ -11,25 +11,25 @@ export default function AuthCardShell({
   children: ReactNode;
 }) {
   return (
-    <div className="relative min-h-[100dvh] overflow-x-clip bg-bht-surface-cool">
+    <div className="relative min-h-[100dvh] overflow-x-clip bg-[var(--bht-paper)]">
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute -top-24 left-1/2 hidden h-[340px] w-[620px] -translate-x-1/2 rounded-full bg-[radial-gradient(closest-side,var(--glow-cobalt),transparent)] sm:block"
+        className="pointer-events-none absolute -top-24 left-1/2 hidden h-[340px] w-[620px] -translate-x-1/2 rounded-full bg-[radial-gradient(closest-side,rgba(51,115,176,0.08),transparent)] sm:block"
       />
       <main
         id="main-content"
         tabIndex={-1}
-        className="relative mx-auto flex min-h-[100dvh] w-full max-w-[29rem] flex-col outline-none sm:justify-center sm:px-6 sm:py-8"
+        className="relative mx-auto flex min-h-[100dvh] w-full max-w-[28rem] flex-col outline-none sm:justify-center sm:px-6 sm:py-10"
       >
-        <section className="flex min-h-[100dvh] flex-1 flex-col overflow-hidden bg-white sm:min-h-0 sm:flex-none sm:rounded-2xl sm:border sm:border-bht-slate-line sm:shadow-bht-elev-1">
-          <header className="flex min-h-[31dvh] flex-col items-center justify-end border-b border-bht-tone-d9e7fa bg-bht-tone-eaf2fe px-6 pb-8 pt-[max(2rem,env(safe-area-inset-top))] text-center sm:min-h-0 sm:justify-center sm:px-8 sm:py-8">
-            <span className="flex h-20 w-20 items-center justify-center">
+        <section className="flex min-h-[100dvh] flex-1 flex-col overflow-hidden bg-white sm:min-h-0 sm:flex-none sm:rounded-2xl sm:border sm:border-[var(--border-hairline)] sm:shadow-[0_12px_40px_rgba(28,33,39,0.06)]">
+          <header className="flex flex-col items-center justify-center border-b border-[var(--border-hairline)] bg-white px-6 pb-6 pt-[max(2.5rem,env(safe-area-inset-top))] text-center sm:px-8 sm:pt-8 sm:pb-7">
+            <span className="flex h-16 w-16 items-center justify-center rounded-2xl bg-[#f8fafc] p-3 shadow-xs border border-black/[0.06]">
               <HorizonLogo className="h-full w-full" />
             </span>
-            <h1 className="mt-4 text-xl font-semibold tracking-tight text-bht-ink-deep">
+            <h1 className="mt-4 text-xl font-bold tracking-tight text-[#1c2127]">
               {title}
             </h1>
-            <p className="mt-1.5 max-w-sm text-sm leading-relaxed text-bht-slate-text">
+            <p className="mt-1.5 max-w-sm text-sm leading-relaxed text-[#5a6578]">
               {subtitle}
             </p>
           </header>

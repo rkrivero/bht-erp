@@ -36,14 +36,16 @@ export function DesktopSidebar<T extends string>({
   footer?: React.ReactNode;
 }) {
   return (
-    <aside className="fixed inset-y-0 left-0 z-40 hidden w-[232px] flex-col bg-[var(--bht-navy)] px-3.5 py-5 text-white md:flex">
+    <aside className="fixed inset-y-0 left-0 z-40 hidden w-[232px] flex-col bg-[#1c2127] border-r border-[#2d3540] px-3.5 py-5 text-white md:flex">
       <div className="flex items-center gap-3 px-2 pb-6">
-        <span className="flex h-11 w-11 flex-none items-center justify-center rounded-xl bg-[var(--bht-paper)] p-1">
+        <span className="flex h-10 w-10 flex-none items-center justify-center rounded-xl bg-white/10 border border-white/15 p-1.5 shadow-xs">
           <HorizonLogo className="h-full w-full" />
         </span>
         <div className="min-w-0">
-          <p className="text-sm font-bold leading-tight">Blue Horizon Trade</p>
-          <p className="mt-1 truncate text-xs font-semibold uppercase tracking-[0.04em] text-[var(--bht-sky)]">
+          <p className="text-sm font-semibold tracking-[-0.01em] text-white leading-tight">
+            Blue Horizon Trade
+          </p>
+          <p className="mt-0.5 truncate text-[11px] font-medium tracking-[0.03em] text-[#bed4e9]/80">
             {areaLabel}
           </p>
         </div>
@@ -57,7 +59,7 @@ export function DesktopSidebar<T extends string>({
             <React.Fragment key={item.id}>
               {showGroupHeader && (
                 <p
-                  className={`px-3 pb-1 text-xs font-bold uppercase tracking-[0.14em] text-[var(--bht-sky)] ${
+                  className={`px-3 pb-1 text-[11px] font-semibold uppercase tracking-[0.1em] text-[#8c98a9] ${
                     idx === 0 ? "pt-0" : "mt-2 border-t border-white/10 pt-3"
                   }`}
                 >
@@ -68,24 +70,24 @@ export function DesktopSidebar<T extends string>({
                 type="button"
                 aria-current={active ? "page" : undefined}
                 onClick={() => onChange(item.id)}
-                className={`relative flex min-h-11 w-full items-center gap-3 rounded-xl px-3 text-left text-sm font-semibold transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white cursor-pointer ${
+                className={`relative flex min-h-10 w-full items-center gap-3 rounded-xl px-3 text-left text-sm transition-all duration-300 ease-in-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white cursor-pointer ${
                   active
-                    ? "bg-white font-bold text-[var(--bht-navy)] shadow-bht-elev-10"
-                    : "text-[var(--bht-sky)] hover:bg-white/10 hover:text-white"
+                    ? "bg-white font-semibold text-[#1c2127] shadow-sm"
+                    : "text-[#bed4e9]/80 hover:bg-white/10 hover:text-white font-medium"
                 }`}
               >
                 {active && (
                   <span
                     aria-hidden="true"
                     className="
-                      absolute left-1 top-2.5 bottom-2.5 w-1 rounded-full bg-bht-cobalt
+                      absolute left-1 top-2.5 bottom-2.5 w-1 rounded-full bg-[#3373b0]
                     "
                   />
                 )}
                 <span
                   aria-hidden="true"
                   className={`flex h-5 w-5 items-center justify-center ${
-                    active ? "text-bht-cobalt" : ""
+                    active ? "text-[#3373b0]" : ""
                   }`}
                 >
                   {item.icon}
@@ -95,7 +97,7 @@ export function DesktopSidebar<T extends string>({
                   <span
                     className={`rounded-full px-2 py-0.5 text-[10px] font-bold tabular-nums ${
                       active
-                        ? "bg-bht-navy-deep text-white"
+                        ? "bg-[#1c2127] text-white"
                         : "bg-white/15 text-white"
                     }`}
                   >
@@ -108,7 +110,7 @@ export function DesktopSidebar<T extends string>({
         })}
       </nav>
       {footer && (
-        <div className="mt-auto border-t border-white/15 px-2 pt-4 text-xs text-[var(--bht-sky)]">
+        <div className="mt-auto border-t border-white/10 px-2 pt-4 text-xs text-[#8c98a9]">
           {footer}
         </div>
       )}
@@ -121,24 +123,24 @@ const SYNC_STATUS_CONFIG: Record<
   { label: string; dotClass: string; pillClass: string }
 > = {
   live: {
-    label: "Sincronizado",
-    dotClass: "bg-bht-success",
-    pillClass: "border-bht-slate-line bg-bht-surface-cool text-bht-ink-deep",
+    label: "En línea",
+    dotClass: "bg-emerald-600",
+    pillClass: "border-emerald-600/20 bg-emerald-50 text-emerald-800",
   },
   syncing: {
     label: "Sincronizando",
-    dotClass: "bg-bht-cobalt animate-pulse",
-    pillClass: "border-bht-slate-line bg-bht-surface-cool text-bht-ink-deep",
+    dotClass: "bg-[#3373b0] animate-pulse",
+    pillClass: "border-[#3373b0]/30 bg-[#e7f1fb] text-[#3373b0]",
   },
   paused: {
     label: "En pausa",
-    dotClass: "bg-bht-ink-muted",
-    pillClass: "border-bht-line bg-bht-paper-alt text-bht-ink-soft",
+    dotClass: "bg-slate-400",
+    pillClass: "border-black/[0.06] bg-[#f1f5f9] text-slate-600",
   },
   offline: {
     label: "Sin conexión",
-    dotClass: "bg-bht-warning",
-    pillClass: "border-bht-warning-line bg-bht-warning-bg text-bht-warning-strong",
+    dotClass: "bg-amber-600",
+    pillClass: "border-amber-600/20 bg-amber-50 text-amber-900",
   },
 };
 
@@ -295,7 +297,7 @@ export function DesktopTabBar<T extends string>({
   return (
     <nav
       aria-label="Secciones principales"
-      className={`${displayClass} items-center gap-1 overflow-x-auto no-scrollbar rounded-xl border border-bht-slate-line bg-white p-1.5 ${className}`}
+      className={`${displayClass} items-center gap-1 overflow-x-auto no-scrollbar rounded-xl border border-[var(--border-hairline)] bg-white p-1.5 shadow-xs ${className}`}
     >
       {items.map((item) => {
         const active = activeId === item.id;
@@ -305,14 +307,14 @@ export function DesktopTabBar<T extends string>({
             type="button"
             aria-current={active ? "page" : undefined}
             onClick={() => onChange(item.id)}
-            className={`flex flex-shrink-0 items-center gap-2 rounded-lg border px-3.5 py-2 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bht-cobalt focus-visible:ring-offset-1 cursor-pointer ${
+            className={`flex flex-shrink-0 items-center gap-2 rounded-lg px-3.5 py-2 text-sm font-semibold transition-all duration-300 ease-in-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3373b0] focus-visible:ring-offset-1 cursor-pointer ${
               active
-                ? "border-bht-tone-b9d3fa bg-bht-tone-eaf2fe text-bht-cobalt"
-                : "border-transparent text-bht-slate-text hover:bg-bht-surface-cool hover:text-bht-ink-deep"
+                ? "border border-[#3373b0]/30 bg-[#e7f1fb] text-[#3373b0] font-bold shadow-2xs"
+                : "border border-transparent text-[#5a6578] hover:bg-[#f1f5f9] hover:text-[#1c2127]"
             }`}
           >
             <span
-              className={active ? "text-bht-cobalt" : "text-bht-slate-text"}
+              className={active ? "text-[#3373b0]" : "text-[#5a6578]"}
               aria-hidden="true"
             >
               {item.icon}
@@ -320,10 +322,10 @@ export function DesktopTabBar<T extends string>({
             <span>{item.label}</span>
             {item.badgeCount !== undefined && item.badgeCount > 0 && (
               <span
-                className={`rounded-full px-1.5 py-0.5 text-[10px] font-semibold tabular-nums leading-none ${
+                className={`rounded-full px-2 py-0.5 text-[10px] font-bold tabular-nums leading-none ${
                   active
-                    ? "bg-bht-cobalt text-white"
-                    : "bg-bht-surface-cool text-bht-slate-text"
+                    ? "bg-[#1c2127] text-white"
+                    : "bg-[#e7f1fb] text-[#5a6578]"
                 }`}
               >
                 {item.badgeCount}
@@ -381,7 +383,7 @@ export function BottomNav<T extends string>({
   return (
     <nav
       aria-label="Navegación inferior"
-      className={`bottom-bar fixed bottom-0 left-0 right-0 z-30 border-t border-bht-slate-line bg-white/95 backdrop-blur-md ${className}`}
+      className={`bottom-bar fixed bottom-0 left-0 right-0 z-30 border-t border-[var(--border-hairline)] bg-white/95 backdrop-blur-md shadow-[0_-2px_10px_rgba(16,42,67,0.03)] ${className}`}
     >
       <div className={`mx-auto flex ${widthClass} items-stretch gap-1 pt-1.5`}>
         {primaryItems.map((item) => {
@@ -392,22 +394,22 @@ export function BottomNav<T extends string>({
               type="button"
               aria-current={active ? "page" : undefined}
               onClick={() => onChange(item.id)}
-              className={`relative flex min-w-0 flex-1 min-h-[44px] flex-col items-center justify-center gap-1 rounded-xl py-1.5 px-1 text-xs font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bht-navy-deep cursor-pointer ${
+              className={`relative flex min-w-0 flex-1 min-h-[44px] flex-col items-center justify-center gap-1 rounded-xl py-1.5 px-1 text-xs font-semibold transition-all duration-300 ease-in-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3373b0] cursor-pointer ${
                 active
-                  ? "text-bht-cobalt-vivid"
-                  : "text-bht-slate-text hover:text-bht-ink-deep"
+                  ? "text-[#3373b0]"
+                  : "text-[#5a6578] hover:text-[#1c2127]"
               }`}
             >
               <div
-                className={`relative flex h-7 w-12 items-center justify-center rounded-full transition ${
+                className={`relative flex h-7 w-12 items-center justify-center rounded-full transition-all duration-300 ease-in-out ${
                   active
-                    ? "bg-bht-cobalt-bg text-bht-cobalt-vivid ring-1 ring-bht-info-line"
+                    ? "bg-[#e7f1fb] text-[#3373b0]"
                     : ""
                 }`}
               >
                 <span aria-hidden="true">{item.icon}</span>
                 {item.badgeCount !== undefined && item.badgeCount > 0 && (
-                  <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-bht-navy-deep px-1 text-[10px] font-bold text-white tabular-nums">
+                  <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-[#1c2127] px-1 text-[10px] font-bold text-white tabular-nums">
                     {item.badgeCount > 99 ? "99+" : item.badgeCount}
                   </span>
                 )}

@@ -2,40 +2,44 @@
 name: Blue Horizon Trade ERP
 description: Precision Modern para decisiones y operación logística confiable
 colors:
-  horizon-navy: "#102A43"
-  trade-cobalt: "#1463FF"
-  steel: "#486581"
-  sky: "#D9E8FF"
-  cargo-amber: "#F6A623"
-  ink: "#0B192C"
-  paper: "#F7F5F0"
+  horizon-navy: "#1C2127"
+  marine: "#0B385F"
+  trade-cobalt: "#3373B0"
+  mist: "#BED4E9"
+  glacial: "#E7F1FB"
+  steel: "#5A6578"
+  ink: "#1C2127"
+  paper: "#F8FAFC"
   surface: "#FFFFFF"
-  success: "#15803D"
-  danger: "#B91C1C"
+  success: "#059669"
+  warning: "#B45309"
+  danger: "#DC2626"
 typography:
   headline:
-    fontFamily: "Plus Jakarta Sans, Avenir Next, Avenir, Helvetica Neue, Arial, sans-serif"
+    fontFamily: "Inter, -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display', sans-serif"
     fontSize: "1.5rem"
-    fontWeight: 700
-    lineHeight: 1.2
-    letterSpacing: "-0.02em"
+    fontWeight: 600
+    lineHeight: 1.25
+    letterSpacing: "-0.025em"
   title:
-    fontFamily: "Plus Jakarta Sans, Avenir Next, Avenir, Helvetica Neue, Arial, sans-serif"
+    fontFamily: "Inter, -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display', sans-serif"
     fontSize: "1rem"
-    fontWeight: 700
-    lineHeight: 1.3
-  body:
-    fontFamily: "Plus Jakarta Sans, Avenir Next, Avenir, Helvetica Neue, Arial, sans-serif"
-    fontSize: "0.875rem"
-    fontWeight: 400
-    lineHeight: 1.5
-  label:
-    fontFamily: "Plus Jakarta Sans, Avenir Next, Avenir, Helvetica Neue, Arial, sans-serif"
-    fontSize: "0.75rem"
     fontWeight: 600
     lineHeight: 1.35
+    letterSpacing: "-0.015em"
+  body:
+    fontFamily: "Inter, -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display', sans-serif"
+    fontSize: "0.875rem"
+    fontWeight: 400
+    lineHeight: 1.625
+    letterSpacing: "-0.011em"
+  label:
+    fontFamily: "Inter, -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display', sans-serif"
+    fontSize: "0.75rem"
+    fontWeight: 500
+    lineHeight: 1.35
   badge:
-    fontFamily: "Plus Jakarta Sans, Avenir Next, Avenir, Helvetica Neue, Arial, sans-serif"
+    fontFamily: "Inter, -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display', sans-serif"
     fontSize: "0.625rem"
     fontWeight: 600
     lineHeight: 1.2
@@ -79,15 +83,30 @@ La composición sigue “primero decidir, después ejecutar y finalmente analiza
 
 ## Colors
 
-- **Horizon Navy** (`#102A43`): estructura, sidebar, títulos y alta autoridad.
-- **Trade Cobalt** (`#1463FF`): acción primaria, selección, foco y progreso.
-- **Steel** (`#486581`): texto secundario e información industrial.
-- **Sky** (`#D9E8FF`): selección suave, contexto y guía.
-- **Cargo Amber** (`#F6A623`): logística y vencimiento moderado; nunca error.
-- **Ink** (`#0B192C`), **Paper** (`#F7F5F0`) y blanco crean texto, canvas y superficies.
-- **Success** (`#15803D`) y **Danger** (`#B91C1C`) conservan significado semántico.
+- **Graphite Slate** (`#1C2127`): estructura primaria, sidebar, títulos y alta autoridad ("definitly, darker is nice").
+- **Marine Navy** (`#0B385F`): estructura profunda secundaria y estados hover oscuros.
+- **Cobalt Accent** (`#3373B0`): exactamente UN color de acento para acciones primarias, selecciones activas y foco.
+- **Mist Blue** (`#BED4E9`): bordes sutiles, hairlines y micro-divisores.
+- **Glacial Tint** (`#E7F1FB`): selección suave, chips activos y fondos de píldoras.
+- **Paper & Canvas** (`#F8FAFC` y `#FFFFFF`): lienzos y tarjetas con alta respiración visual.
 
-**Regla 60/30/8/2.** Aproximadamente 60% superficies, 30% estructura/texto, 8% acciones y 2% acentos.
+## Taste Rules (learn-taste / frontend-design)
+
+- **Enforce Whitespace with Tailwind:**
+  Utilizar padding y gap amplios (`p-6 sm:p-8`, `p-8 sm:p-12`, `gap-6 sm:gap-8`) para separar contenido de forma natural, en lugar de recurrir a bordes pesados o fondos cargados.
+  <!-- 2026-11-20: "Enforce Whitespace with Tailwind: Use large padding and gap utilities to separate content naturally" -->
+- **Refine Typography:**
+  Aplicar `tracking-tight` (`letter-spacing: -0.025em`) para títulos grandes y `leading-relaxed` (`line-height: 1.625`) para texto de cuerpo descriptivo, creando una composición editorial y legible.
+  <!-- 2026-11-20: "Refine Typography: Apply tracking-tight for large headings and leading-relaxed for body text" -->
+- **Create Calm Transitions:**
+  Utilizar `transition-all duration-300 ease-in-out` para efectos de hover suaves, deliberados y no estridentes.
+  <!-- 2026-11-20: "Create Calm Transitions: Use transition-all duration-300 ease-in-out for subtle, non-jarring hover effects" -->
+- **Build Bento Grids:**
+  Aprovechar CSS Grid modular y asimétrico (`grid grid-cols-1 md:grid-cols-3`, `col-span-2`) para organizar tableros de control con alta densidad pero abundante espacio para respirar.
+  <!-- 2026-11-20: "Build Bento Grids: Utilize Tailwind's CSS Grid classes to easily construct modular, asymmetrical layouts" -->
+- **Strictly Limit Your Palette:**
+  Limitar la paleta a una escala monocromática neutra (`#1C2127`, `#5A6578`, `#F8FAFC`, `#FFFFFF`) y definir **exactamente un color de acento** (`#3373B0`) para acciones primarias y estados activos.
+  <!-- 2026-11-20: "Strictly Limit Your Palette: define exactly one accent color for primary actions" -->
 
 ## Typography
 
