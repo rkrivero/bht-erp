@@ -27,7 +27,6 @@ const CustomerFormModal = dynamic(
 
 export default function SellerOrderClientStep({ flow }: { flow: SellerOrderFlow }) {
   const {
-    orderStep,
     customerNameRaw,
     setCustomerNameRaw,
     selectedCustomer,
@@ -62,14 +61,11 @@ export default function SellerOrderClientStep({ flow }: { flow: SellerOrderFlow 
 
   return (
     <>
-      <Card
-        id="seller-step-client"
-        className={`scroll-mt-24 space-y-3 ${orderStep !== "client" && customerNameRaw.trim() ? "hidden" : ""}`}
-      >
+      <Card id="seller-step-client" className="scroll-mt-24 space-y-3">
         <div ref={customerBoxRef} className="relative">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <FieldLabel htmlFor="seller-customer-name" required>
-              1. Cliente o ferretería
+              Cliente o ferretería
             </FieldLabel>
             <Button
               type="button"

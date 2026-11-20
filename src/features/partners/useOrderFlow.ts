@@ -9,7 +9,11 @@ import type {
   UndoActionReceiptDto,
 } from "@/lib/contracts";
 import type { CustomerDirectoryItem } from "@/lib/services/customers";
-import type { SellerOrderDto, SellerQuoteDto } from "@/features/seller/types";
+import type {
+  SellerOrderDto,
+  SellerQuoteDto,
+  SellerQuoteUpdatePayload,
+} from "@/features/seller/types";
 import { notifyLocalSync, type SyncScope } from "@/lib/realtime/useLiveSync";
 import { executeUndoRequest } from "@/lib/undo-client";
 import {
@@ -63,6 +67,8 @@ export function useOrderFlow({
   const [selectedMonitorOrder, setSelectedMonitorOrder] =
     useState<SellerOrderDto | null>(null);
   const [selectedPartnerQuote, setSelectedPartnerQuote] =
+    useState<SellerQuoteDto | null>(null);
+  const [editingPartnerQuote, setEditingPartnerQuote] =
     useState<SellerQuoteDto | null>(null);
   const [busyApproveOrderId, setBusyApproveOrderId] = useState<number | null>(null);
   const [confirmCancelOrder, setConfirmCancelOrder] = useState<SellerOrderDto | null>(
@@ -303,6 +309,29 @@ export function useOrderFlow({
     }
   }
 
+  async function handlePartnerUpdateQuote(payload: SellerQuoteUpdatePayload) {
+    if (busyQuoteId === payload.quoteId) return;
+    setBusyQuoteId(payload.quoteId);
+    try {
+      await postJson("/api/quotes", payload);
+      showFeedback("Cotización actualizada y registrada en auditoría correctamente.", false);
+      notifyLocalSync(["orders", "partners"]);
+      await refreshDashboard(["orders", "partners"]);
+    } catch (error) {
+      showFeedback(
+        mutationErrorMessage(
+          error,
+          "No se pudo actualizar la cotización.",
+          "Error de red al actualizar cotización."
+        ),
+        true
+      );
+      throw error;
+    } finally {
+      setBusyQuoteId(null);
+    }
+  }
+
   async function handleApproveDiscount(orderId: number) {
     if (busyApproveOrderId !== null) return;
     setFeedback(null);
@@ -417,6 +446,8 @@ export function useOrderFlow({
     setSelectedMonitorOrder,
     selectedPartnerQuote,
     setSelectedPartnerQuote,
+    editingPartnerQuote,
+    setEditingPartnerQuote,
     busyApproveOrderId,
     confirmCancelOrder,
     setConfirmCancelOrder,
@@ -442,6 +473,7 @@ export function useOrderFlow({
     handleExecuteUndo,
     handlePartnerTripAction,
     handlePartnerConvertQuote,
+    handlePartnerUpdateQuote,
     handlePartnerCancelQuote,
     handleApproveDiscount,
     handleConfirmCancelOrder,

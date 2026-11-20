@@ -15,19 +15,23 @@ import { useSellerOrderDraftState } from "@/features/seller/order-draft-reducer"
 import { useSellerDraftPersistence } from "@/features/seller/useSellerDraftPersistence";
 import type { SellerData } from "@/features/seller/useSellerData";
 import type {
-  SellerCancelledDraftPayload,
-  SellerCartLine,
   SellerCatalogItemDto,
   SellerCustomerDto,
   SellerFeedbackSetter,
   SellerOrderDto,
   SellerOrderMutationResultDto,
   SellerOrderPayload,
-  SellerOrderStep,
   SellerPaymentMode,
-  SellerQuoteCreatePayload,
   SellerQuoteCreateResultDto,
+  SellerQuoteDto,
 } from "@/features/seller/types";
+import {
+  buildCancelledDraftPayload,
+  buildCartLinesFromOrder,
+  buildCartLinesFromQuote,
+  buildQuoteSubmitPayload,
+  validateSellerCartLines,
+} from "@/features/seller/seller-order-helpers";
 import type { CustomerDirectoryItem } from "@/lib/services/customers";
 import type { LegacySellerTab } from "@/lib/navigation";
 import {
@@ -56,8 +60,9 @@ interface SellerOrderFlowParams {
 }
 
 /**
- * State and actions of the progressive order flow: draft, catalog search,
- * customer picker, edit mode, order/quote submission and draft cancellation.
+ * State and actions of the unified single-screen order & quote flow:
+ * draft, catalog search, customer picker, direct unit price editing,
+ * global discount, order/quote edit mode, submission and draft cancellation.
  */
 export function useSellerOrderFlow({
   data,
@@ -71,7 +76,6 @@ export function useSellerOrderFlow({
   const draftApi = useSellerOrderDraftState();
   const {
     state: orderDraft,
-    setOrderStep,
     setShowCustomPromiseDate,
     setCustomerNameRaw,
     setSelectedCustomer,
@@ -80,11 +84,11 @@ export function useSellerOrderFlow({
     setCreditDays,
     setCustomPromiseDate,
     setInitialPaidPen,
+    setGlobalDiscountPen,
     setNotes,
     setCart,
   } = draftApi;
   const {
-    orderStep,
     showCustomPromiseDate,
     customerNameRaw,
     selectedCustomer,
@@ -93,6 +97,7 @@ export function useSellerOrderFlow({
     creditDays,
     customPromiseDate,
     initialPaidPen,
+    globalDiscountPen,
     notes,
     cart,
   } = orderDraft;
@@ -107,11 +112,11 @@ export function useSellerOrderFlow({
   const deferredCustomerQuery = useDeferredValue(customerNameRaw);
   const [customerDropdownOpen, setCustomerDropdownOpen] = useState(false);
   const customerBoxRef = useRef<HTMLDivElement | null>(null);
-  const [expandedDiscountIds, setExpandedDiscountIds] = useState<
-    Record<number, boolean>
-  >({});
   const [editingOrderId, setEditingOrderId] = useState<number | null>(null);
   const [editingOrderCode, setEditingOrderCode] = useState("");
+  const [editingQuoteId, setEditingQuoteId] = useState<number | null>(null);
+  const [editingQuoteCode, setEditingQuoteCode] = useState("");
+  const [quoteEditReason, setQuoteEditReason] = useState("");
   const [editReasonCode, setEditReasonCode] = useState("CUSTOMER_INCREASED");
   const [editReasonNote, setEditReasonNote] = useState("");
   const [cancelDraftOpen, setCancelDraftOpen] = useState(false);
@@ -119,22 +124,10 @@ export function useSellerOrderFlow({
   const [cancelCustomNote, setCancelCustomNote] = useState("");
   const [busyCancelDraft, setBusyCancelDraft] = useState(false);
 
-  const openOrderStep = useCallback(
-    (step: SellerOrderStep) => {
-      setOrderStep(step);
-      window.requestAnimationFrame(() => {
-        document.getElementById(`seller-step-${step}`)?.scrollIntoView({
-          behavior: "smooth",
-          block: "start",
-        });
-      });
-    },
-    [setOrderStep]
-  );
-
   const addToCart = useCallback(
     (prod: SellerCatalogItemDto) => {
       const fractional = isFractionalUom(prod.unit_of_measure);
+      const listPrice = Number(prod.list_sale_price_pen ?? 0);
       setCart((prev) => {
         const existing = prev.find((c) => c.product.product_id === prod.product_id);
         if (existing) {
@@ -158,7 +151,8 @@ export function useSellerOrderFlow({
             product: prod,
             quantity: 1,
             quantityInput: "1",
-            unitDiscountPen: 0,
+            unitPricePen: listPrice,
+            unitPriceInput: listPrice > 0 ? listPrice.toFixed(2) : "",
           },
         ];
       });
@@ -174,22 +168,30 @@ export function useSellerOrderFlow({
     [cart]
   );
 
-  const cartTotalPen = useMemo(
+  const cartSubtotalPen = useMemo(
     () =>
       cart.reduce((sum, item) => {
-        const base = item.product.list_sale_price_pen ?? 0;
         const qty = Number.isFinite(item.quantity) ? Math.max(0, item.quantity) : 0;
-        const disc = Number.isFinite(item.unitDiscountPen)
-          ? Math.max(0, item.unitDiscountPen)
+        const unit = Number.isFinite(item.unitPricePen)
+          ? Math.max(0, item.unitPricePen)
           : 0;
-        const finalUnit = Math.max(0, base - disc);
-        return sum + qty * finalUnit;
+        return sum + qty * unit;
       }, 0),
     [cart]
   );
 
-  // Cost is intentionally hidden from sellers. The backend alone decides when
-  // a final price is below cost and therefore needs approval.
+  const parsedGlobalDiscountPen = useMemo(() => {
+    const raw = globalDiscountPen.trim().replace(",", ".");
+    if (!raw) return 0;
+    const n = Number(raw);
+    return Number.isFinite(n) && n > 0 ? Number(n.toFixed(2)) : 0;
+  }, [globalDiscountPen]);
+
+  const cartTotalPen = useMemo(
+    () => Math.max(0, Number((cartSubtotalPen - parsedGlobalDiscountPen).toFixed(2))),
+    [cartSubtotalPen, parsedGlobalDiscountPen]
+  );
+
   const requiresPartnerApproval = false;
 
   const filteredCustomerSuggestions = useMemo(
@@ -272,14 +274,16 @@ export function useSellerOrderFlow({
     setCreditDays(7);
     setCustomPromiseDate("");
     setShowCustomPromiseDate(false);
-    setOrderStep("client");
     setInitialPaidPen("");
-    setExpandedDiscountIds({});
+    setGlobalDiscountPen("");
     setSearchProduct("");
     setShowAllCatalog(false);
     setNotes("");
     setEditingOrderId(null);
     setEditingOrderCode("");
+    setEditingQuoteId(null);
+    setEditingQuoteCode("");
+    setQuoteEditReason("");
     setEditReasonCode("CUSTOMER_INCREASED");
     setEditReasonNote("");
     try {
@@ -295,30 +299,18 @@ export function useSellerOrderFlow({
   }
 
   function beginEditingOrder(order: SellerOrderDto) {
-    const nextCart: SellerCartLine[] = [];
-    for (const line of order.lines) {
-      const product = catalog.find(
-        (item) => item.product_id === Number(line.product_id)
-      );
-      if (!product) {
-        setFeedback({
-          type: "err",
-          msg: "Uno de los productos ya no está disponible en el catálogo.",
-        });
-        return;
-      }
-      const quantity = Number(line.quantity);
-      nextCart.push({
-        product,
-        quantity,
-        quantityInput: String(quantity),
-        unitDiscountPen: Number(line.unit_discount_pen ?? 0),
-      });
+    const { lines: nextCart, error } = buildCartLinesFromOrder(order, catalog);
+    if (error) {
+      setFeedback({ type: "err", msg: error });
+      return;
     }
     const customer = customers.find(
       (item) => item.party_id === Number(order.customer_party_id)
     );
     const mode = String(order.payment_mode) as SellerPaymentMode;
+    setEditingQuoteId(null);
+    setEditingQuoteCode("");
+    setQuoteEditReason("");
     setEditingOrderId(Number(order.order_id));
     setEditingOrderCode(String(order.order_code));
     setEditReasonCode("CUSTOMER_INCREASED");
@@ -328,10 +320,63 @@ export function useSellerOrderFlow({
     setCustomerNameRaw(String(order.customer_name ?? ""));
     setPaymentMode(mode);
     setCollectOnDelivery(mode === "CASH" && Number(order.paid_pen ?? 0) <= 0.05);
+    setGlobalDiscountPen(
+      Number(order.global_discount_pen ?? 0) > 0
+        ? Number(order.global_discount_pen).toFixed(2)
+        : ""
+    );
     setNotes(String(order.notes ?? ""));
     clearExpandedOrder();
     handleTabChange("nuevo");
     window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  function beginEditingQuote(quote: SellerQuoteDto) {
+    if (quote.status !== "OPEN") {
+      setFeedback({
+        type: "err",
+        msg: "Solo se pueden modificar cotizaciones abiertas.",
+      });
+      return;
+    }
+    const { lines: nextCart, error } = buildCartLinesFromQuote(quote, catalog);
+    if (error) {
+      setFeedback({ type: "err", msg: error });
+      return;
+    }
+    const customer = customers.find(
+      (item) => item.party_id === Number(quote.customer_party_id)
+    );
+    setEditingOrderId(null);
+    setEditingOrderCode("");
+    setEditingQuoteId(Number(quote.quote_id));
+    setEditingQuoteCode(String(quote.quote_code));
+    setQuoteEditReason("");
+    setCart(nextCart);
+    setSelectedCustomer(customer ?? null);
+    setCustomerNameRaw(String(quote.customer_name ?? ""));
+    setGlobalDiscountPen(
+      Number(quote.global_discount_pen ?? 0) > 0
+        ? Number(quote.global_discount_pen).toFixed(2)
+        : ""
+    );
+    setNotes(String(quote.notes ?? ""));
+    clearExpandedOrder();
+    handleTabChange("nuevo");
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  function validateCartLines(): boolean {
+    const err = validateSellerCartLines(
+      cart,
+      cartSubtotalPen,
+      parsedGlobalDiscountPen
+    );
+    if (err) {
+      setFeedback({ type: "err", msg: err });
+      return false;
+    }
+    return true;
   }
 
   async function handleConfirmCancelDraft(e: React.FormEvent) {
@@ -341,24 +386,17 @@ export function useSellerOrderFlow({
     const reasonLabel = chosen?.label || "Otro motivo";
     setBusyCancelDraft(true);
     try {
-      const payload: SellerCancelledDraftPayload = {
-        action: "log_cancelled_draft",
-        customerPartyId: selectedCustomer?.party_id ?? null,
-        customerName: customerNameRaw,
+      const payload = buildCancelledDraftPayload({
+        selectedCustomer,
+        customerNameRaw,
         paymentMode,
-        estimatedTotalPen: Number(cartTotalPen.toFixed(2)),
-        itemCount: cart.length,
-        items: cart.map((c) => ({
-          productId: c.product.product_id,
-          sku: c.product.sku,
-          name: c.product.name,
-          quantity: c.quantity,
-          unitDiscountPen: c.unitDiscountPen,
-        })),
+        cartTotalPen,
+        cart,
         reasonCode: cancelReasonCode,
         reasonLabel,
-        notes: cancelCustomNote.trim() || notes.trim() || null,
-      };
+        cancelCustomNote,
+        notes,
+      });
       await postJson<object>("/api/orders", payload);
       resetOrderDraft();
       setCancelCustomNote("");
@@ -381,34 +419,66 @@ export function useSellerOrderFlow({
     }
   }
 
+  async function handleCreateQuoteFromCart() {
+    if (busyCreateQuote || busyOrder) return;
+    if (!validateCartLines()) return;
+    if (!customerNameRaw.trim() && !selectedCustomer) {
+      setFeedback({
+        type: "err",
+        msg: "Ingresa o selecciona el nombre del cliente para cotizar.",
+      });
+      return;
+    }
+    setFeedback(null);
+    setBusyCreateQuote(true);
+    try {
+      const isUpdating = editingQuoteId !== null;
+      const payload = buildQuoteSubmitPayload({
+        editingQuoteId,
+        selectedCustomer,
+        customerNameRaw,
+        parsedGlobalDiscountPen,
+        notes,
+        quoteEditReason,
+        cart,
+      });
+      const saved = await postJson<SellerQuoteCreateResultDto>("/api/quotes", payload);
+      resetOrderDraft();
+      setFeedback({
+        type: "ok",
+        msg: isUpdating
+          ? `Cotización ${saved.quoteCode} actualizada por S/ ${Number(
+              saved.totalPen ?? 0
+            ).toFixed(2)}. Cambio registrado en auditoría.`
+          : `Cotización ${saved.quoteCode} guardada por S/ ${Number(
+              saved.totalPen ?? 0
+            ).toFixed(2)}.`,
+      });
+      handleTabChange("cotizaciones");
+      notifyLocalSync(["orders", "partners"]);
+      await loadOrdersAndCatalog({ silent: true });
+    } catch (error) {
+      if (isAuthError(error)) {
+        router.push("/login");
+        return;
+      }
+      setFeedback({
+        type: "err",
+        msg: apiErrorMessage(error, "Error de conexión al guardar la cotización."),
+      });
+    } finally {
+      setBusyCreateQuote(false);
+    }
+  }
+
   async function handleSubmitOrder(e: React.FormEvent) {
     e.preventDefault();
+    if (editingQuoteId !== null) {
+      await handleCreateQuoteFromCart();
+      return;
+    }
     if (busyOrder) return;
-    if (cart.length === 0) {
-      setFeedback({
-        type: "err",
-        msg: "Agrega al menos un producto al pedido.",
-      });
-      return;
-    }
-    const invalidQtyLine = cart.find((c) => {
-      const fractional = isFractionalUom(c.product.unit_of_measure);
-      if (!Number.isFinite(c.quantity) || c.quantity <= 0) return true;
-      if (!fractional && !Number.isInteger(c.quantity)) return true;
-      return false;
-    });
-    if (invalidQtyLine) {
-      const fractional = isFractionalUom(invalidQtyLine.product.unit_of_measure);
-      setFeedback({
-        type: "err",
-        msg: fractional
-          ? `Revisa la cantidad de "${invalidQtyLine.product.name}" (debe ser mayor a 0).`
-          : `Revisa la cantidad de "${invalidQtyLine.product.name}" (entero mínimo 1 para ${
-              invalidQtyLine.product.unit_of_measure || "NIU"
-            }).`,
-      });
-      return;
-    }
+    if (!validateCartLines()) return;
 
     const parsedInitialPaid =
       !requiresPartnerApproval &&
@@ -467,15 +537,15 @@ export function useSellerOrderFlow({
           !requiresPartnerApproval && paymentMode === "CREDIT" && parsedInitialPaid > 0
             ? parsedInitialPaid
             : undefined,
+        globalDiscountPen:
+          parsedGlobalDiscountPen > 0 ? parsedGlobalDiscountPen : undefined,
         notes,
         lines: cart.map((c) => {
           const fractional = isFractionalUom(c.product.unit_of_measure);
           return {
             productId: c.product.product_id,
             quantity: normalizeOrderQuantity(c.quantity, fractional),
-            unitDiscountPen: Number.isFinite(c.unitDiscountPen)
-              ? Math.max(0, c.unitDiscountPen)
-              : 0,
+            unitPricePen: Number(c.unitPricePen.toFixed(4)),
           };
         }),
       };
@@ -511,8 +581,8 @@ export function useSellerOrderFlow({
             ? `Pedido ${saved.orderCode} modificado y enviado a aprobación por precio bajo costo.`
             : `Pedido ${saved.orderCode} modificado; el cambio quedó registrado. Siguiente estado: alistamiento.`
           : saved.requiresApproval
-            ? `Pedido ${saved.orderCode} registrado. Estado: pendiente de aprobación de Socio o Gerencia. Siguiente acción: esperar la decisión autorizada.`
-            : `Pedido ${saved.orderCode} registrado. Estado: enviado a Almacén. Siguiente acción: consultar su avance en Ventas.`,
+            ? `Pedido ${saved.orderCode} registrado. Estado: pendiente de aprobación de Socio o Gerencia.`
+            : `Pedido ${saved.orderCode} registrado y enviado a Almacén.`,
         undoAction: wasEditing ? undefined : saved.undoAction,
       });
       notifyLocalSync(["orders", "inventory", "collections", "treasury", "partners"]);
@@ -548,80 +618,11 @@ export function useSellerOrderFlow({
       : filteredCatalog.slice(0, catalogPreviewLimit);
   }, [catalogPreviewLimit, filteredCatalog, showAllCatalog]);
 
-  async function handleCreateQuoteFromCart() {
-    if (busyCreateQuote || busyOrder) return;
-    if (cart.length === 0) {
-      setFeedback({
-        type: "err",
-        msg: "Agrega al menos un producto antes de guardar la cotización.",
-      });
-      return;
-    }
-    if (!customerNameRaw.trim() && !selectedCustomer) {
-      setFeedback({
-        type: "err",
-        msg: "Ingresa o selecciona el nombre del cliente para cotizar.",
-      });
-      return;
-    }
-    setFeedback(null);
-    setBusyCreateQuote(true);
-    try {
-      const payload: SellerQuoteCreatePayload = {
-        action: "create_quote",
-        customerPartyId: selectedCustomer ? selectedCustomer.party_id : null,
-        customerNameRaw: customerNameRaw.trim() || selectedCustomer?.name,
-        notes: notes.trim() || undefined,
-        lines: cart.map((c) => {
-          const base = c.product.list_sale_price_pen ?? 0;
-          const unitPricePen = Math.max(
-            0.01,
-            Number((base - Math.max(0, c.unitDiscountPen || 0)).toFixed(4))
-          );
-          const fractional = isFractionalUom(c.product.unit_of_measure);
-          return {
-            productId: c.product.product_id,
-            rawDescription: c.product.name,
-            quantity: normalizeOrderQuantity(c.quantity, fractional),
-            unitPricePen,
-          };
-        }),
-      };
-      const created = await postJson<SellerQuoteCreateResultDto>(
-        "/api/quotes",
-        payload
-      );
-      resetOrderDraft();
-      setFeedback({
-        type: "ok",
-        msg: `Cotización ${created.quoteCode} guardada por S/ ${Number(
-          created.totalPen ?? 0
-        ).toFixed(2)}.`,
-      });
-      handleTabChange("cotizaciones");
-      notifyLocalSync(["orders", "partners"]);
-      await loadOrdersAndCatalog({ silent: true });
-    } catch (error) {
-      if (isAuthError(error)) {
-        router.push("/login");
-        return;
-      }
-      setFeedback({
-        type: "err",
-        msg: apiErrorMessage(error, "Error de conexión al guardar la cotización."),
-      });
-    } finally {
-      setBusyCreateQuote(false);
-    }
-  }
-
   return {
     catalog,
     initialLoading,
     isPartnerControlUser,
     requiresPartnerApproval,
-    // draft state and setters
-    orderStep,
     showCustomPromiseDate,
     customerNameRaw,
     selectedCustomer,
@@ -630,6 +631,7 @@ export function useSellerOrderFlow({
     creditDays,
     customPromiseDate,
     initialPaidPen,
+    globalDiscountPen,
     notes,
     cart,
     setShowCustomPromiseDate,
@@ -639,9 +641,9 @@ export function useSellerOrderFlow({
     setCreditDays,
     setCustomPromiseDate,
     setInitialPaidPen,
+    setGlobalDiscountPen,
     setNotes,
     setCart,
-    // UI state
     busyOrder,
     busyCreateQuote,
     busyCancelDraft,
@@ -652,10 +654,12 @@ export function useSellerOrderFlow({
     customerDropdownOpen,
     setCustomerDropdownOpen,
     customerBoxRef,
-    expandedDiscountIds,
-    setExpandedDiscountIds,
     editingOrderId,
     editingOrderCode,
+    editingQuoteId,
+    editingQuoteCode,
+    quoteEditReason,
+    setQuoteEditReason,
     editReasonCode,
     setEditReasonCode,
     editReasonNote,
@@ -666,8 +670,9 @@ export function useSellerOrderFlow({
     setCancelReasonCode,
     cancelCustomNote,
     setCancelCustomNote,
-    // derived
     cartQtyByProductId,
+    cartSubtotalPen,
+    parsedGlobalDiscountPen,
     cartTotalPen,
     filteredCustomerSuggestions,
     knownZones,
@@ -676,14 +681,13 @@ export function useSellerOrderFlow({
     catalogPreviewLimit,
     visibleCatalog,
     hasOrderDraft: Boolean(cart.length || customerNameRaw.trim() || notes.trim()),
-    // actions
-    openOrderStep,
     addToCart,
     handleSelectCustomer,
     handleCustomerSaved,
     handleSelectPaymentMode,
     resetOrderDraft,
     beginEditingOrder,
+    beginEditingQuote,
     handleConfirmCancelDraft,
     handleSubmitOrder,
     handleCreateQuoteFromCart,

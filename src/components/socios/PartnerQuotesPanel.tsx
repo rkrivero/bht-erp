@@ -1,7 +1,7 @@
 "use client";
 
 import { useDeferredValue, useMemo, useState } from "react";
-import { CloseIcon, SearchIcon } from "@/components/ui/Icons";
+import { CloseIcon, EditIcon, SearchIcon } from "@/components/ui/Icons";
 import {
   Badge,
   Button,
@@ -20,6 +20,7 @@ interface PartnerQuotesPanelProps {
   quotes: SellerQuoteDto[];
   busyQuoteId: number | null;
   onSelectQuote: (quote: SellerQuoteDto) => void;
+  onEditQuote: (quote: SellerQuoteDto) => void;
   onConvertQuote: (quoteId: number, mode: "CASH" | "CREDIT") => void;
   onCancelQuote: (quoteId: number) => void;
 }
@@ -28,6 +29,7 @@ export function PartnerQuotesPanel({
   quotes,
   busyQuoteId,
   onSelectQuote,
+  onEditQuote,
   onConvertQuote,
   onCancelQuote,
 }: PartnerQuotesPanelProps) {
@@ -167,6 +169,17 @@ export function PartnerQuotesPanel({
                 </Button>
                 {status === "OPEN" && (
                   <div className="flex flex-wrap gap-1.5">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      data-compact="true"
+                      disabled={isBusy}
+                      onClick={() => onEditQuote(q)}
+                    >
+                      <EditIcon className="h-3.5 w-3.5" />
+                      Editar
+                    </Button>
                     <Button
                       type="button"
                       variant="success"

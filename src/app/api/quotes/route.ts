@@ -7,6 +7,7 @@ import {
   convertQuoteToOrder,
   createQuote,
   listQuotes,
+  updateQuote,
   updateQuoteStatus,
 } from "@/lib/services/operations-and-modules";
 import { ValidationError } from "@/lib/types";
@@ -72,7 +73,28 @@ export async function POST(req: NextRequest) {
           customerNameRaw: body.customerNameRaw ?? null,
           currency: body.currency || "PEN",
           taxRegime: body.taxRegime || "EXONERADA",
+          globalDiscountPen:
+            body.globalDiscountPen !== undefined && body.globalDiscountPen !== ""
+              ? Number(body.globalDiscountPen)
+              : 0,
           notes: body.notes ?? null,
+          lines: Array.isArray(body.lines) ? body.lines : [],
+        });
+      }
+      if (action === "update_quote") {
+        return await updateQuote(client, actor, {
+          quoteId: Number(body.quoteId),
+          customerPartyId:
+            body.customerPartyId !== undefined && body.customerPartyId !== ""
+              ? Number(body.customerPartyId)
+              : null,
+          customerNameRaw: body.customerNameRaw ?? null,
+          globalDiscountPen:
+            body.globalDiscountPen !== undefined && body.globalDiscountPen !== ""
+              ? Number(body.globalDiscountPen)
+              : 0,
+          notes: body.notes ?? null,
+          reason: body.reason ? String(body.reason) : null,
           lines: Array.isArray(body.lines) ? body.lines : [],
         });
       }

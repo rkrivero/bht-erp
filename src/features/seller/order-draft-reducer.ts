@@ -9,6 +9,7 @@ export const initialSellerOrderDraft: SellerOrderDraft = {
   creditDays: 7,
   customPromiseDate: "",
   initialPaidPen: "",
+  globalDiscountPen: "",
   notes: "",
   cart: [],
   orderStep: "client",

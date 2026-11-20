@@ -98,6 +98,7 @@ export interface RawOrderWithLines {
   payment_mode: PaymentMode;
   promised_payment_date?: string | null;
   total_pen: number;
+  global_discount_pen?: number;
   paid_pen: number;
   balance_due_pen: number;
   order_margin_pen?: number;

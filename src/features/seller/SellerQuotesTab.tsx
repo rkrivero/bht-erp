@@ -1,7 +1,7 @@
 "use client";
 
 import { useDeferredValue, useMemo, useState } from "react";
-import { CloseIcon, ReceiptIcon, SearchIcon } from "@/components/ui/Icons";
+import { CloseIcon, EditIcon, ReceiptIcon, SearchIcon } from "@/components/ui/Icons";
 import {
   Badge,
   Button,
@@ -16,6 +16,7 @@ interface SellerQuotesTabProps {
   quotes: SellerQuoteDto[];
   busyQuoteId: number | null;
   onCreate: () => void;
+  onEdit: (quote: SellerQuoteDto) => void;
   onConvert: (quoteId: number, paymentMode: "CASH" | "CREDIT") => void;
   onCancel: (quoteId: number) => void;
 }
@@ -24,6 +25,7 @@ export default function SellerQuotesTab({
   quotes,
   busyQuoteId,
   onCreate,
+  onEdit,
   onConvert,
   onCancel,
 }: SellerQuotesTabProps) {
@@ -161,20 +163,62 @@ export default function SellerQuotesTab({
                       className="flex items-center justify-between gap-2 py-1.5"
                     >
                       <span className="min-w-0 truncate text-bht-ink-strong">
-                        {line.quantity} {line.unit_of_measure} × {line.raw_description}
+                        {line.quantity} {line.unit_of_measure} × {line.raw_description}{" "}
+                        <span className="text-bht-ink-soft tabular-nums">
+                          (S/ {line.unit_price_pen.toFixed(2)})
+                        </span>
                       </span>
                       <span className="flex-shrink-0 font-semibold tabular-nums">
                         S/ {line.line_total_pen.toFixed(2)}
                       </span>
                     </div>
                   ))}
+                  {Number(quote.global_discount_pen ?? 0) > 0 && (
+                    <div className="flex items-center justify-between gap-2 py-1.5 text-bht-warning-text">
+                      <span>Descuento global</span>
+                      <span className="font-semibold tabular-nums">
+                        -S/ {Number(quote.global_discount_pen).toFixed(2)}
+                      </span>
+                    </div>
+                  )}
                 </div>
+                {Array.isArray(quote.audit_history) && quote.audit_history.length > 0 && (
+                  <details className="rounded-lg border border-bht-line bg-bht-mist/50 px-2.5 py-1.5 text-xs">
+                    <summary className="cursor-pointer font-medium text-bht-navy-mid">
+                      Modificaciones registradas ({quote.audit_history.length})
+                    </summary>
+                    <div className="mt-1.5 space-y-1.5 border-t border-bht-line pt-1.5 text-bht-ink-soft">
+                      {quote.audit_history.map((entry) => (
+                        <div key={entry.audit_id}>
+                          <p className="font-medium text-bht-ink-strong">
+                            {entry.reason}
+                          </p>
+                          <p>
+                            {entry.actor_name || "Usuario"} ·{" "}
+                            {new Date(entry.created_at).toLocaleString("es-PE")}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  </details>
+                )}
                 <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
                   <span className="font-semibold text-bht-navy-deep tabular-nums">
                     Total: S/ {quote.total_pen.toFixed(2)}
                   </span>
                   {quote.status === "OPEN" && (
                     <div className="flex flex-wrap gap-1.5">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        data-compact="true"
+                        disabled={busy}
+                        onClick={() => onEdit(quote)}
+                      >
+                        <EditIcon className="h-3.5 w-3.5" />
+                        Editar
+                      </Button>
                       <Button
                         type="button"
                         variant="success"

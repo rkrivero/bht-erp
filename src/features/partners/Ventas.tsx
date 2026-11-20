@@ -2,8 +2,9 @@
 
 import React from "react";
 import { PartnerQuotesPanel } from "@/components/socios/PartnerQuotesPanel";
+import { PartnerEditQuoteModal } from "@/components/socios/PartnerEditQuoteModal";
 import { formatPen } from "@/components/socios/types";
-import { SearchIcon } from "@/components/ui/Icons";
+import { EditIcon, SearchIcon } from "@/components/ui/Icons";
 import {
   Badge,
   Button,
@@ -50,6 +51,7 @@ export function Ventas({ orders, ordersPagination, partnerQuotes, flow }: Ventas
     handleLoadMoreOrders,
     busyQuoteId,
     setSelectedPartnerQuote,
+    setEditingPartnerQuote,
     handlePartnerConvertQuote,
     handlePartnerCancelQuote,
     customerOrderScope,
@@ -85,6 +87,7 @@ export function Ventas({ orders, ordersPagination, partnerQuotes, flow }: Ventas
           quotes={partnerQuotes}
           busyQuoteId={busyQuoteId}
           onSelectQuote={setSelectedPartnerQuote}
+          onEditQuote={setEditingPartnerQuote}
           onConvertQuote={handlePartnerConvertQuote}
           onCancelQuote={handlePartnerCancelQuote}
         />
@@ -225,6 +228,10 @@ export function VentasModals({ flow, openAbonoForOrderRecord }: VentasModalsProp
   const {
     selectedPartnerQuote,
     setSelectedPartnerQuote,
+    editingPartnerQuote,
+    setEditingPartnerQuote,
+    handlePartnerUpdateQuote,
+    busyQuoteId,
     selectedMonitorOrder,
     setSelectedMonitorOrder,
     confirmCancelOrder,
@@ -310,6 +317,38 @@ export function VentasModals({ flow, openAbonoForOrderRecord }: VentasModalsProp
               )}
             </div>
 
+            {Number(selectedPartnerQuote.global_discount_pen ?? 0) > 0 && (
+              <div className="flex items-center justify-between rounded-lg border border-bht-amber-line bg-bht-amber-bg px-3 py-2 text-xs text-bht-warning-text tabular-nums">
+                <span>Descuento global aplicado</span>
+                <strong>-{formatPen(selectedPartnerQuote.global_discount_pen)}</strong>
+              </div>
+            )}
+
+            {Array.isArray(selectedPartnerQuote.audit_history) &&
+              selectedPartnerQuote.audit_history.length > 0 && (
+                <details className="rounded-lg border border-bht-line-blue bg-bht-mist/60 p-3">
+                  <summary className="cursor-pointer font-semibold text-bht-navy-deep">
+                    Historial de modificaciones ({selectedPartnerQuote.audit_history.length})
+                  </summary>
+                  <div className="mt-2 space-y-2">
+                    {selectedPartnerQuote.audit_history.map((entry) => (
+                      <div
+                        key={String(entry.audit_id)}
+                        className="border-t border-bht-line-blue pt-2 text-xs text-bht-ink-soft"
+                      >
+                        <p className="font-medium text-bht-ink-strong">
+                          Modificación · {String(entry.reason)}
+                        </p>
+                        <p>
+                          {String(entry.actor_name || "Usuario")} ·{" "}
+                          {new Date(String(entry.created_at)).toLocaleString("es-PE")}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </details>
+              )}
+
             {selectedPartnerQuote.converted_order_code ? (
               <p className="rounded-lg border border-bht-line-blue bg-bht-mist/70 px-3 py-2 text-bht-ink-soft">
                 Pedido generado:{" "}
@@ -323,9 +362,35 @@ export function VentasModals({ flow, openAbonoForOrderRecord }: VentasModalsProp
                 Nota: {String(selectedPartnerQuote.notes)}
               </p>
             ) : null}
+
+            {selectedPartnerQuote.status === "OPEN" && (
+              <div className="flex flex-wrap justify-end gap-2 border-t border-bht-line pt-3">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    const q = selectedPartnerQuote;
+                    setSelectedPartnerQuote(null);
+                    setEditingPartnerQuote(q);
+                  }}
+                >
+                  <EditIcon className="h-3.5 w-3.5" />
+                  Modificar cotización
+                </Button>
+              </div>
+            )}
           </div>
         )}
       </ModalSheet>
+
+      <PartnerEditQuoteModal
+        quote={editingPartnerQuote}
+        open={Boolean(editingPartnerQuote)}
+        onClose={() => setEditingPartnerQuote(null)}
+        onSave={handlePartnerUpdateQuote}
+        isSaving={busyQuoteId === editingPartnerQuote?.quote_id}
+      />
 
       <ModalSheet
         open={Boolean(selectedMonitorOrder)}

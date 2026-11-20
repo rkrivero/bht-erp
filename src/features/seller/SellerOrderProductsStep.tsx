@@ -13,8 +13,6 @@ import type { SellerOrderFlow } from "@/features/seller/useSellerOrderFlow";
 
 export default function SellerOrderProductsStep({ flow }: { flow: SellerOrderFlow }) {
   const {
-    orderStep,
-    cart,
     catalog,
     initialLoading,
     searchProduct,
@@ -26,17 +24,11 @@ export default function SellerOrderProductsStep({ flow }: { flow: SellerOrderFlo
     catalogPreviewLimit,
     cartQtyByProductId,
     addToCart,
-    openOrderStep,
   } = flow;
   return (
-    <Card
-      id="seller-step-products"
-      className={`scroll-mt-24 space-y-3 ${orderStep !== "products" && cart.length > 0 ? "hidden" : ""}`}
-    >
+    <Card id="seller-step-products" className="scroll-mt-24 space-y-3">
       <div className="flex items-center justify-between gap-2">
-        <FieldLabel htmlFor="seller-search-product">
-          2. Buscar y agregar productos
-        </FieldLabel>
+        <FieldLabel htmlFor="seller-search-product">Productos</FieldLabel>
         <span
           id="seller-catalog-count"
           className="text-xs text-bht-ink-soft tabular-nums"
@@ -98,7 +90,11 @@ export default function SellerOrderProductsStep({ flow }: { flow: SellerOrderFlo
               return (
                 <div
                   key={prod.product_id}
-                  className="flex items-center justify-between gap-3 rounded-xl border border-bht-line bg-bht-paper/60 p-3 transition hover:border-bht-line-blue hover:bg-white"
+                  className={`flex items-center justify-between gap-3 rounded-xl border p-3.5 transition-all duration-140 ${
+                    inCartQty > 0
+                      ? "border-[var(--bht-cobalt)]/40 bg-[#F0F7FF]/50 shadow-xs"
+                      : "border-[var(--border-hairline)] bg-white shadow-2xs hover:border-[#CBD9E7] hover:shadow-xs"
+                  }`}
                 >
                   <div className="min-w-0">
                     <p className="line-clamp-2 text-sm font-semibold text-bht-ink-strong">
@@ -165,17 +161,6 @@ export default function SellerOrderProductsStep({ flow }: { flow: SellerOrderFlo
           </>
         )}
       </div>
-      {cart.length > 0 && (
-        <Button
-          type="button"
-          variant="primary"
-          size="sm"
-          onClick={() => openOrderStep("payment")}
-          className="w-full sm:w-auto"
-        >
-          Continuar al pago ({cart.length})
-        </Button>
-      )}
     </Card>
   );
 }

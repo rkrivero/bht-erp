@@ -6,21 +6,61 @@ import type { SellerOrderFlow } from "@/features/seller/useSellerOrderFlow";
 
 export default function SellerOrderEditCard({ flow }: { flow: SellerOrderFlow }) {
   const {
+    editingOrderId,
     editingOrderCode,
+    editingQuoteId,
+    editingQuoteCode,
+    quoteEditReason,
+    setQuoteEditReason,
     editReasonCode,
     setEditReasonCode,
     editReasonNote,
     setEditReasonNote,
-    customerNameRaw,
-    openOrderStep,
     resetOrderDraft,
   } = flow;
+
+  if (editingQuoteId !== null) {
+    return (
+      <Card className="space-y-3 border-bht-tone-a9c7e3 bg-bht-mist lg:col-span-12">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <p className="font-semibold text-bht-navy-deep">
+              Editando cotización {editingQuoteCode}
+            </p>
+            <p className="text-xs text-bht-ink-soft">
+              Ajusta productos, cantidades, precios o descuento global. La modificación
+              quedará registrada en el historial.
+            </p>
+          </div>
+          <Button type="button" variant="outline" size="sm" onClick={resetOrderDraft}>
+            Cancelar edición
+          </Button>
+        </div>
+        <div>
+          <FieldLabel htmlFor="quote-edit-reason">
+            Motivo de la modificación (opcional)
+          </FieldLabel>
+          <input
+            id="quote-edit-reason"
+            type="text"
+            value={quoteEditReason}
+            onChange={(event) => setQuoteEditReason(event.target.value)}
+            placeholder="Ej. Cliente pidió ajustar cantidades o rebaja en cemento..."
+            className={`${INPUT_CLASS} mt-1.5`}
+          />
+        </div>
+      </Card>
+    );
+  }
+
+  if (editingOrderId === null) return null;
+
   return (
     <Card className="space-y-3 border-bht-tone-a9c7e3 bg-bht-mist lg:col-span-12">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <p className="font-semibold text-bht-navy-deep">
-            Modificando {editingOrderCode}
+            Modificando pedido {editingOrderCode}
           </p>
           <p className="text-xs text-bht-ink-soft">
             El pedido volverá a alistamiento y se guardará la versión anterior.
@@ -61,16 +101,6 @@ export default function SellerOrderEditCard({ flow }: { flow: SellerOrderFlow })
           </div>
         )}
       </div>
-      <Button
-        type="button"
-        variant="primary"
-        size="sm"
-        disabled={!customerNameRaw.trim()}
-        onClick={() => openOrderStep("products")}
-        className="w-full sm:w-auto"
-      >
-        Continuar a productos
-      </Button>
     </Card>
   );
 }

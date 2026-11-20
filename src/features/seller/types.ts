@@ -40,7 +40,8 @@ export interface SellerCartLine {
   product: SellerCatalogItemDto;
   quantity: number;
   quantityInput: string;
-  unitDiscountPen: number;
+  unitPricePen: number;
+  unitPriceInput: string;
 }
 
 export interface SellerOrderDraft {
@@ -51,6 +52,7 @@ export interface SellerOrderDraft {
   creditDays: number;
   customPromiseDate: string;
   initialPaidPen: string;
+  globalDiscountPen: string;
   notes: string;
   cart: SellerCartLine[];
   orderStep: SellerOrderStep;
@@ -67,8 +69,18 @@ export interface SellerQuoteLineDto {
   unit_of_measure: string;
   raw_description: string;
   quantity: number;
+  base_unit_price_pen?: number;
   unit_price_pen: number;
   line_total_pen: number;
+}
+
+export interface SellerQuoteAuditEntryDto {
+  audit_id: number;
+  action: string;
+  actor_name: string | null;
+  actor_role: string;
+  reason: string;
+  created_at: string;
 }
 
 export interface SellerQuoteDto {
@@ -80,12 +92,15 @@ export interface SellerQuoteDto {
   currency: string;
   tax_regime: string;
   total_pen: number;
+  global_discount_pen?: number;
   status: "OPEN" | "CONVERTED" | "EXPIRED" | "CANCELLED";
   related_cpe: string | null;
   seller_name: string | null;
   notes: string | null;
+  updated_at?: string | null;
   converted_order_code: string | null;
   lines: SellerQuoteLineDto[];
+  audit_history?: SellerQuoteAuditEntryDto[];
 }
 
 export interface SellerPaymentTimelineEntryDto {
@@ -150,7 +165,7 @@ export interface SellerCancelledDraftItemPayload {
   sku: string;
   name: string;
   quantity: number;
-  unitDiscountPen: number;
+  unitPricePen: number;
 }
 
 export type SellerCancelledDraftPayload = {
@@ -169,7 +184,7 @@ export type SellerCancelledDraftPayload = {
 export type SellerOrderLinePayload = {
   productId: number;
   quantity: number;
-  unitDiscountPen: number;
+  unitPricePen: number;
 };
 
 export type SellerOrderPayload = {
@@ -183,6 +198,7 @@ export type SellerOrderPayload = {
   creditDays: number | undefined;
   promisedPaymentDate: string | null;
   initialPaidPen: number | undefined;
+  globalDiscountPen: number | undefined;
   notes: string;
   lines: SellerOrderLinePayload[];
 };
@@ -191,7 +207,24 @@ export type SellerQuoteCreatePayload = {
   action: "create_quote";
   customerPartyId: number | null;
   customerNameRaw: string | undefined;
+  globalDiscountPen?: number;
   notes: string | undefined;
+  lines: Array<{
+    productId: number;
+    rawDescription: string;
+    quantity: number;
+    unitPricePen: number;
+  }>;
+};
+
+export type SellerQuoteUpdatePayload = {
+  action: "update_quote";
+  quoteId: number;
+  customerPartyId: number | null;
+  customerNameRaw: string | undefined;
+  globalDiscountPen?: number;
+  notes: string | undefined;
+  reason: string | undefined;
   lines: Array<{
     productId: number;
     rawDescription: string;

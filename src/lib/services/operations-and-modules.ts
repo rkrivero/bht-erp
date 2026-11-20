@@ -15,6 +15,7 @@ import {
   type SessionUser,
 } from "../types";
 import { advanceWarehouseStatus, createOrder, getLimaDateString } from "./orders";
+import { recordPriceOverrides } from "./price-audit";
 import { recordUndoableAction, type UndoActionReceipt } from "./undo";
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -681,11 +682,13 @@ export async function listQuotes(
        q.currency,
        q.tax_regime,
        q.total_pen,
+       COALESCE(q.global_discount_pen, 0) AS global_discount_pen,
        q.status::text AS status,
        q.related_cpe,
        q.seller_name,
        q.source_origin::text AS source_origin,
        q.notes,
+       q.updated_at::text AS updated_at,
        MAX(so.order_id)::bigint AS converted_order_id,
        MAX(so.order_code) AS converted_order_code,
        COALESCE((
@@ -699,6 +702,7 @@ export async function listQuotes(
              COALESCE(pr.unit_of_measure, 'NIU') AS unit_of_measure,
              ql.raw_description,
              ql.quantity,
+             COALESCE(ql.base_unit_price_pen, ql.unit_price_pen) AS base_unit_price_pen,
              ql.unit_price_pen,
              ql.line_total_pen
            FROM erp.quote_lines ql
@@ -706,7 +710,24 @@ export async function listQuotes(
            WHERE ql.quote_id = q.quote_id
            ORDER BY ql.line_no ASC, ql.quote_line_id ASC
          ) t
-       ), '[]'::json) AS lines
+       ), '[]'::json) AS lines,
+       COALESCE((
+         SELECT json_agg(a)
+         FROM (
+           SELECT
+             qa.audit_id,
+             qa.action,
+             u.full_name AS actor_name,
+             qa.actor_role,
+             qa.reason,
+             qa.created_at::text AS created_at
+           FROM erp.quote_audit_log qa
+           LEFT JOIN erp.app_users u ON u.user_id = qa.actor_user_id
+           WHERE qa.quote_id = q.quote_id
+           ORDER BY qa.created_at DESC, qa.audit_id DESC
+           LIMIT 20
+         ) a
+       ), '[]'::json) AS audit_history
      FROM erp.quotes q
      LEFT JOIN erp.parties pa ON pa.party_id = q.customer_party_id
      LEFT JOIN erp.sales_orders so ON so.quote_id = q.quote_id AND so.operational_status <> 'CANCELLED'
@@ -731,11 +752,13 @@ export async function listQuotes(
     currency: String(r.currency),
     tax_regime: String(r.tax_regime),
     total_pen: Number(r.total_pen ?? 0),
+    global_discount_pen: Number(r.global_discount_pen ?? 0),
     status: String(r.status),
     related_cpe: r.related_cpe ? String(r.related_cpe) : null,
     seller_name: r.seller_name ? String(r.seller_name) : null,
     source_origin: String(r.source_origin),
     notes: r.notes ? String(r.notes) : null,
+    updated_at: r.updated_at ? String(r.updated_at) : null,
     converted_order_id:
       r.converted_order_id !== null && r.converted_order_id !== undefined
         ? Number(r.converted_order_id)
@@ -755,8 +778,19 @@ export async function listQuotes(
           unit_of_measure: String(ln.unit_of_measure || "NIU"),
           raw_description: String(ln.raw_description ?? ""),
           quantity: Number(ln.quantity ?? 0),
+          base_unit_price_pen: Number(ln.base_unit_price_pen ?? ln.unit_price_pen ?? 0),
           unit_price_pen: Number(ln.unit_price_pen ?? 0),
           line_total_pen: Number(ln.line_total_pen ?? 0),
+        }))
+      : [],
+    audit_history: Array.isArray(r.audit_history)
+      ? r.audit_history.map((a: Record<string, unknown>) => ({
+          audit_id: Number(a.audit_id),
+          action: String(a.action),
+          actor_name: a.actor_name ? String(a.actor_name) : null,
+          actor_role: String(a.actor_role),
+          reason: String(a.reason),
+          created_at: String(a.created_at),
         }))
       : [],
   }));
@@ -770,6 +804,7 @@ export async function createQuote(
     customerNameRaw?: string | null;
     currency?: "PEN" | "USD";
     taxRegime?: string | null;
+    globalDiscountPen?: number;
     notes?: string | null;
     lines: Array<{
       productId?: number | null;
@@ -822,20 +857,25 @@ export async function createQuote(
         .filter((id): id is number => id !== null && Number.isInteger(id) && id > 0)
     )
   );
-  const productById = new Map<number, { name: string; listSalePricePen: number }>();
+  const productById = new Map<
+    number,
+    { sku: string; name: string; listSalePricePen: number }
+  >();
   if (productIds.length > 0) {
     const pRes = await client.query<{
       product_id: number;
+      sku: string;
       name: string;
       list_sale_price_pen: string | number | null;
     }>(
-      `SELECT product_id, name, list_sale_price_pen
+      `SELECT product_id, sku, name, list_sale_price_pen
        FROM erp.products
        WHERE product_id = ANY($1::bigint[]) AND is_active = TRUE`,
       [productIds]
     );
     for (const row of pRes.rows) {
       productById.set(Number(row.product_id), {
+        sku: String(row.sku),
         name: String(row.name),
         listSalePricePen: Number(row.list_sale_price_pen ?? 0),
       });
@@ -845,12 +885,14 @@ export async function createQuote(
   const preparedLines: Array<{
     lineNo: number;
     productId: number | null;
+    sku: string | null;
     rawDescription: string;
     quantity: number;
+    baseUnitPricePen: number;
     unitPricePen: number;
     lineTotalPen: number;
   }> = [];
-  let totalPen = 0;
+  let subtotalPen = 0;
 
   for (let i = 0; i < input.lines.length; i++) {
     const line = input.lines[i];
@@ -878,18 +920,33 @@ export async function createQuote(
         `El precio unitario debe ser mayor a 0 en línea ${i + 1}`
       );
     }
+    const baseUnitPricePen =
+      prod && prod.listSalePricePen > 0 ? prod.listSalePricePen : unitPricePen;
     const lineTotalPen = Number((quantity * unitPricePen).toFixed(2));
-    totalPen = Number((totalPen + lineTotalPen).toFixed(2));
+    subtotalPen = Number((subtotalPen + lineTotalPen).toFixed(2));
 
     preparedLines.push({
       lineNo: i + 1,
       productId: pid,
+      sku: prod?.sku ?? null,
       rawDescription,
       quantity,
+      baseUnitPricePen: Number(baseUnitPricePen.toFixed(4)),
       unitPricePen: Number(unitPricePen.toFixed(4)),
       lineTotalPen,
     });
   }
+
+  const globalDiscountPen = Number((input.globalDiscountPen ?? 0).toFixed(2));
+  if (!Number.isFinite(globalDiscountPen) || globalDiscountPen < 0) {
+    throw new ValidationError("El descuento global no puede ser negativo");
+  }
+  if (globalDiscountPen >= subtotalPen) {
+    throw new ValidationError(
+      "El descuento global debe ser menor al subtotal de la cotización"
+    );
+  }
+  const totalPen = Number((subtotalPen - globalDiscountPen).toFixed(2));
 
   const issueDate = getLimaDateString(0);
   const quoteCode = `COT-${issueDate.replace(/-/g, "")}-${Math.floor(
@@ -899,10 +956,10 @@ export async function createQuote(
   const qIns = await client.query<{ quote_id: string; quote_code: string }>(
     `INSERT INTO erp.quotes (
        quote_code, issue_date, customer_party_id, customer_name_raw,
-       currency, tax_regime, total_pen, status, seller_name, source_origin, notes
+       currency, tax_regime, total_pen, global_discount_pen, status, seller_name, source_origin, notes
      ) VALUES (
        $1, $2::date, $3, $4,
-       $5, $6, $7, 'OPEN', $8, 'ERP_APP', $9
+       $5, $6, $7, $10, 'OPEN', $8, 'ERP_APP', $9
      )
      RETURNING quote_id::text AS quote_id, quote_code`,
     [
@@ -915,6 +972,7 @@ export async function createQuote(
       totalPen,
       actor.fullName,
       input.notes?.trim() || null,
+      globalDiscountPen,
     ]
   );
   const quoteId = Number(qIns.rows[0].quote_id);
@@ -922,29 +980,352 @@ export async function createQuote(
   await client.query(
     `INSERT INTO erp.quote_lines (
        quote_id, line_no, product_id, raw_description,
-       quantity, unit_price_pen, line_total_pen
+       quantity, base_unit_price_pen, unit_price_pen, line_total_pen
      )
      SELECT
        $1, u.line_no, u.product_id, u.raw_description,
-       u.quantity, u.unit_price_pen, u.line_total_pen
+       u.quantity, u.base_unit_price_pen, u.unit_price_pen, u.line_total_pen
      FROM unnest(
        $2::int[], $3::bigint[], $4::text[],
-       $5::numeric[], $6::numeric[], $7::numeric[]
-     ) AS u(line_no, product_id, raw_description, quantity, unit_price_pen, line_total_pen)`,
+       $5::numeric[], $6::numeric[], $7::numeric[], $8::numeric[]
+     ) AS u(line_no, product_id, raw_description, quantity, base_unit_price_pen, unit_price_pen, line_total_pen)`,
     [
       quoteId,
       preparedLines.map((l) => l.lineNo),
       preparedLines.map((l) => l.productId),
       preparedLines.map((l) => l.rawDescription),
       preparedLines.map((l) => l.quantity),
+      preparedLines.map((l) => l.baseUnitPricePen),
       preparedLines.map((l) => l.unitPricePen),
       preparedLines.map((l) => l.lineTotalPen),
     ]
   );
 
+  await recordPriceOverrides(
+    client,
+    actor,
+    preparedLines
+      .filter((l) => l.productId !== null && l.sku !== null)
+      .map((l) => ({
+        entityType: "QUOTE",
+        entityId: quoteId,
+        entityCode: quoteCode,
+        lineNo: l.lineNo,
+        productId: l.productId!,
+        sku: l.sku!,
+        productName: l.rawDescription,
+        customerPartyId,
+        customerName: customerNameRaw,
+        catalogPricePen: l.baseUnitPricePen,
+        appliedPricePen: l.unitPricePen,
+        quantity: l.quantity,
+        reason: input.notes?.trim() || null,
+      }))
+  );
+
   return {
     quoteId,
     quoteCode: String(qIns.rows[0].quote_code),
+    totalPen,
+    status: "OPEN",
+  };
+}
+
+export async function updateQuote(
+  client: PoolClient,
+  actor: SessionUser,
+  input: {
+    quoteId: number;
+    customerPartyId?: number | null;
+    customerNameRaw?: string | null;
+    globalDiscountPen?: number;
+    notes?: string | null;
+    reason?: string | null;
+    lines: Array<{
+      productId?: number | null;
+      rawDescription?: string | null;
+      quantity: number;
+      unitPricePen?: number;
+    }>;
+  }
+): Promise<{ quoteId: number; quoteCode: string; totalPen: number; status: "OPEN" }> {
+  assertRole(actor, ["PARTNER_ADMIN", "PARTNER_MANAGER", "EXTERNAL_SELLER"]);
+  const quoteId = parsePositiveInt(input.quoteId, "Cotización");
+  if (!Array.isArray(input.lines) || input.lines.length === 0) {
+    throw new ValidationError("La cotización debe conservar al menos un producto");
+  }
+  const reason = input.reason?.trim() || "Actualización comercial de cotización";
+
+  const qRes = await client.query<Record<string, unknown>>(
+    `SELECT quote_id, quote_code, issue_date::text AS issue_date,
+            customer_party_id, customer_name_raw, currency, tax_regime,
+            total_pen, COALESCE(global_discount_pen, 0) AS global_discount_pen,
+            status::text AS status, notes
+     FROM erp.quotes
+     WHERE quote_id = $1
+     FOR UPDATE`,
+    [quoteId]
+  );
+  if (qRes.rowCount === 0) {
+    throw new ValidationError("Cotización no encontrada");
+  }
+  const existingQuote = qRes.rows[0];
+  if (String(existingQuote.status) !== "OPEN") {
+    throw new ValidationError(
+      `Solo cotizaciones abiertas se pueden modificar (estado actual: ${existingQuote.status})`
+    );
+  }
+
+  const beforeLinesRes = await client.query<Record<string, unknown>>(
+    `SELECT quote_line_id, line_no, product_id, raw_description,
+            quantity, COALESCE(base_unit_price_pen, unit_price_pen) AS base_unit_price_pen,
+            unit_price_pen, line_total_pen
+     FROM erp.quote_lines
+     WHERE quote_id = $1
+     ORDER BY line_no ASC`,
+    [quoteId]
+  );
+  const beforeData = { quote: existingQuote, lines: beforeLinesRes.rows };
+
+  const customerPartyId: number | null =
+    input.customerPartyId !== undefined
+      ? input.customerPartyId !== null
+        ? parsePositiveInt(input.customerPartyId, "Cliente")
+        : null
+      : existingQuote.customer_party_id !== null
+        ? Number(existingQuote.customer_party_id)
+        : null;
+  let customerNameRaw =
+    input.customerNameRaw?.trim() || String(existingQuote.customer_name_raw || "").trim();
+
+  if (customerPartyId !== null) {
+    const cRes = await client.query<{ display_name: string }>(
+      `SELECT COALESCE(trade_name, legal_name) AS display_name
+       FROM erp.parties
+       WHERE party_id = $1 AND is_active = TRUE
+       LIMIT 1`,
+      [customerPartyId]
+    );
+    if (cRes.rowCount === 0) {
+      throw new ValidationError("Cliente no encontrado o inactivo");
+    }
+    if (!customerNameRaw) {
+      customerNameRaw = String(cRes.rows[0].display_name);
+    }
+  }
+  if (!customerNameRaw) {
+    throw new ValidationError("El nombre del cliente es obligatorio en la cotización");
+  }
+
+  const productIds = Array.from(
+    new Set(
+      input.lines
+        .map((ln) => (ln.productId ? Number(ln.productId) : null))
+        .filter((id): id is number => id !== null && Number.isInteger(id) && id > 0)
+    )
+  );
+  const productById = new Map<
+    number,
+    { sku: string; name: string; listSalePricePen: number }
+  >();
+  if (productIds.length > 0) {
+    const pRes = await client.query<{
+      product_id: number;
+      sku: string;
+      name: string;
+      list_sale_price_pen: string | number | null;
+    }>(
+      `SELECT product_id, sku, name, list_sale_price_pen
+       FROM erp.products
+       WHERE product_id = ANY($1::bigint[]) AND is_active = TRUE`,
+      [productIds]
+    );
+    for (const row of pRes.rows) {
+      productById.set(Number(row.product_id), {
+        sku: String(row.sku),
+        name: String(row.name),
+        listSalePricePen: Number(row.list_sale_price_pen ?? 0),
+      });
+    }
+  }
+
+  const preparedLines: Array<{
+    lineNo: number;
+    productId: number | null;
+    sku: string | null;
+    rawDescription: string;
+    quantity: number;
+    baseUnitPricePen: number;
+    unitPricePen: number;
+    lineTotalPen: number;
+  }> = [];
+  let subtotalPen = 0;
+
+  for (let i = 0; i < input.lines.length; i++) {
+    const line = input.lines[i];
+    const quantity = parsePositiveNumber(line.quantity, `Cantidad línea ${i + 1}`);
+    const pid =
+      line.productId !== undefined && line.productId !== null
+        ? parsePositiveInt(line.productId, `Producto línea ${i + 1}`)
+        : null;
+    const prod = pid ? productById.get(pid) : undefined;
+    if (pid && !prod) {
+      throw new ValidationError(`Producto ID ${pid} no encontrado o inactivo`);
+    }
+    const rawDescription = line.rawDescription?.trim() || prod?.name || "";
+    if (!rawDescription) {
+      throw new ValidationError(`Descripción obligatoria en línea ${i + 1}`);
+    }
+    const unitPricePen =
+      line.unitPricePen !== undefined && line.unitPricePen !== null
+        ? parseNonNegativeNumber(line.unitPricePen, `Precio línea ${i + 1}`)
+        : prod
+          ? prod.listSalePricePen
+          : 0;
+    if (unitPricePen <= 0) {
+      throw new ValidationError(
+        `El precio unitario debe ser mayor a 0 en línea ${i + 1}`
+      );
+    }
+    const baseUnitPricePen =
+      prod && prod.listSalePricePen > 0 ? prod.listSalePricePen : unitPricePen;
+    const lineTotalPen = Number((quantity * unitPricePen).toFixed(2));
+    subtotalPen = Number((subtotalPen + lineTotalPen).toFixed(2));
+
+    preparedLines.push({
+      lineNo: i + 1,
+      productId: pid,
+      sku: prod?.sku ?? null,
+      rawDescription,
+      quantity,
+      baseUnitPricePen: Number(baseUnitPricePen.toFixed(4)),
+      unitPricePen: Number(unitPricePen.toFixed(4)),
+      lineTotalPen,
+    });
+  }
+
+  const globalDiscountPen = Number((input.globalDiscountPen ?? 0).toFixed(2));
+  if (!Number.isFinite(globalDiscountPen) || globalDiscountPen < 0) {
+    throw new ValidationError("El descuento global no puede ser negativo");
+  }
+  if (globalDiscountPen >= subtotalPen) {
+    throw new ValidationError(
+      "El descuento global debe ser menor al subtotal de la cotización"
+    );
+  }
+  const totalPen = Number((subtotalPen - globalDiscountPen).toFixed(2));
+  const nextNotes =
+    input.notes !== undefined
+      ? input.notes?.trim() || null
+      : existingQuote.notes
+        ? String(existingQuote.notes)
+        : null;
+
+  await client.query(`DELETE FROM erp.quote_lines WHERE quote_id = $1`, [quoteId]);
+
+  await client.query(
+    `INSERT INTO erp.quote_lines (
+       quote_id, line_no, product_id, raw_description,
+       quantity, base_unit_price_pen, unit_price_pen, line_total_pen
+     )
+     SELECT
+       $1, u.line_no, u.product_id, u.raw_description,
+       u.quantity, u.base_unit_price_pen, u.unit_price_pen, u.line_total_pen
+     FROM unnest(
+       $2::int[], $3::bigint[], $4::text[],
+       $5::numeric[], $6::numeric[], $7::numeric[], $8::numeric[]
+     ) AS u(line_no, product_id, raw_description, quantity, base_unit_price_pen, unit_price_pen, line_total_pen)`,
+    [
+      quoteId,
+      preparedLines.map((l) => l.lineNo),
+      preparedLines.map((l) => l.productId),
+      preparedLines.map((l) => l.rawDescription),
+      preparedLines.map((l) => l.quantity),
+      preparedLines.map((l) => l.baseUnitPricePen),
+      preparedLines.map((l) => l.unitPricePen),
+      preparedLines.map((l) => l.lineTotalPen),
+    ]
+  );
+
+  await client.query(
+    `UPDATE erp.quotes
+     SET customer_party_id = $2,
+         customer_name_raw = $3,
+         total_pen = $4,
+         global_discount_pen = $5,
+         notes = $6,
+         updated_at = NOW(),
+         updated_by_user_id = $7
+     WHERE quote_id = $1`,
+    [
+      quoteId,
+      customerPartyId,
+      customerNameRaw,
+      totalPen,
+      globalDiscountPen,
+      nextNotes,
+      actor.userId,
+    ]
+  );
+
+  const afterQuoteRes = await client.query<Record<string, unknown>>(
+    `SELECT quote_id, quote_code, issue_date::text AS issue_date,
+            customer_party_id, customer_name_raw, currency, tax_regime,
+            total_pen, COALESCE(global_discount_pen, 0) AS global_discount_pen,
+            status::text AS status, notes, updated_at::text AS updated_at
+     FROM erp.quotes
+     WHERE quote_id = $1`,
+    [quoteId]
+  );
+  const afterLinesRes = await client.query<Record<string, unknown>>(
+    `SELECT quote_line_id, line_no, product_id, raw_description,
+            quantity, COALESCE(base_unit_price_pen, unit_price_pen) AS base_unit_price_pen,
+            unit_price_pen, line_total_pen
+     FROM erp.quote_lines
+     WHERE quote_id = $1
+     ORDER BY line_no ASC`,
+    [quoteId]
+  );
+
+  await client.query(
+    `INSERT INTO erp.quote_audit_log
+       (quote_id, action, actor_user_id, actor_role, reason, before_data, after_data)
+     VALUES ($1, 'EDIT', $2, $3, $4, $5::jsonb, $6::jsonb)`,
+    [
+      quoteId,
+      actor.userId,
+      actor.role,
+      reason,
+      JSON.stringify(beforeData),
+      JSON.stringify({ quote: afterQuoteRes.rows[0], lines: afterLinesRes.rows }),
+    ]
+  );
+
+  await recordPriceOverrides(
+    client,
+    actor,
+    preparedLines
+      .filter((l) => l.productId !== null && l.sku !== null)
+      .map((l) => ({
+        entityType: "QUOTE",
+        entityId: quoteId,
+        entityCode: String(existingQuote.quote_code),
+        lineNo: l.lineNo,
+        productId: l.productId!,
+        sku: l.sku!,
+        productName: l.rawDescription,
+        customerPartyId,
+        customerName: customerNameRaw,
+        catalogPricePen: l.baseUnitPricePen,
+        appliedPricePen: l.unitPricePen,
+        quantity: l.quantity,
+        reason: `Modificación de cotización: ${reason}`,
+      }))
+  );
+
+  return {
+    quoteId,
+    quoteCode: String(existingQuote.quote_code),
     totalPen,
     status: "OPEN",
   };
@@ -1050,6 +1431,7 @@ export async function convertQuoteToOrder(
     quote_code: string;
     customer_party_id: string | null;
     customer_name_raw: string | null;
+    global_discount_pen: string | number;
     status: string;
     related_cpe: string | null;
     notes: string | null;
@@ -1059,6 +1441,7 @@ export async function convertQuoteToOrder(
        quote_code,
        customer_party_id::text,
        customer_name_raw,
+       COALESCE(global_discount_pen, 0) AS global_discount_pen,
        status::text AS status,
        related_cpe,
        notes
@@ -1103,8 +1486,7 @@ export async function convertQuoteToOrder(
   const orderLines: Array<{
     productId: number;
     quantity: number;
-    unitDiscountPen?: number;
-    overrideBasePricePen?: number;
+    unitPricePen: number;
   }> = [];
 
   for (const row of qlRes.rows) {
@@ -1113,28 +1495,11 @@ export async function convertQuoteToOrder(
         `La línea "${row.raw_description}" no tiene SKU vinculado; cree el pedido manualmente`
       );
     }
-    const productId = Number(row.product_id);
-    const quantity = Number(row.quantity);
-    const quotedUnitPrice = Number(row.unit_price_pen);
-    const listPrice =
-      row.list_sale_price_pen !== null
-        ? Number(row.list_sale_price_pen)
-        : quotedUnitPrice;
-
-    if (isPartnerRole(actor.role)) {
-      orderLines.push({
-        productId,
-        quantity,
-        overrideBasePricePen: quotedUnitPrice,
-      });
-    } else {
-      const discount = Math.max(0, Number((listPrice - quotedUnitPrice).toFixed(4)));
-      orderLines.push({
-        productId,
-        quantity,
-        unitDiscountPen: discount,
-      });
-    }
+    orderLines.push({
+      productId: Number(row.product_id),
+      quantity: Number(row.quantity),
+      unitPricePen: Number(row.unit_price_pen),
+    });
   }
 
   const orderResult = await createOrder(
@@ -1151,6 +1516,7 @@ export async function convertQuoteToOrder(
       paymentAccountId: input.paymentAccountId,
       tripId: input.tripId ?? null,
       quoteId,
+      globalDiscountPen: Number(quote.global_discount_pen ?? 0),
       notes:
         input.notes?.trim() ||
         [quote.notes, `Convertido de ${quote.quote_code}`].filter(Boolean).join(" | "),

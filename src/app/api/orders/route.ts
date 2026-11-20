@@ -196,6 +196,10 @@ export async function POST(req: NextRequest) {
             const orderId = parsePositiveInt(body.orderId, "Pedido");
             return await updateOrder(client, actor, orderId, {
               lines: body.lines,
+              globalDiscountPen:
+                body.globalDiscountPen !== undefined && body.globalDiscountPen !== ""
+                  ? Number(body.globalDiscountPen)
+                  : undefined,
               reason: String(body.reason || "AJUSTE_OPERATIVO"),
             });
           }

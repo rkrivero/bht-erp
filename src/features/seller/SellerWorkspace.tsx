@@ -403,6 +403,7 @@ export default function SellerWorkspace() {
             quotes={quotes}
             busyQuoteId={quoteActions.busyQuoteId}
             onCreate={() => handleTabChange("nuevo")}
+            onEdit={flow.beginEditingQuote}
             onConvert={quoteActions.handleConvertQuote}
             onCancel={(quoteId) =>
               quoteActions.handleUpdateQuoteStatus(quoteId, "CANCELLED")

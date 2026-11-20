@@ -16,13 +16,14 @@ import {
   type RawProductRow,
   type SessionUser,
 } from "../types";
+import { recordPriceOverrides } from "./price-audit";
 import { recordUndoableAction, type UndoActionReceipt } from "./undo";
 
 const SALES_ORDER_COLUMNS = `
   order_id, order_code, order_date, trip_id, warehouse_id,
   customer_party_id, customer_name_raw, quote_id, payment_mode,
   historical_status_assumed, payment_status_raw, doc_ref, total_pen,
-  paid_pen, balance_due_pen, is_settled, due_date, source_origin,
+  global_discount_pen, paid_pen, balance_due_pen, is_settled, due_date, source_origin,
   source_file, source_sheet, source_row_num, source_row_hash, notes,
   created_at, operational_status, created_by_user_id, approved_by_user_id,
   approved_at, picked_by_user_id, picked_at, delivered_by_user_id,
@@ -40,11 +41,13 @@ export interface CreateOrderInput {
   paymentAccountId?: number;
   quoteId?: number | null;
   tripId?: number | null;
+  globalDiscountPen?: number;
   notes?: string;
   lines: Array<{
     productId: number;
     quantity: number;
     packFactorApplied?: number;
+    unitPricePen?: number;
     unitDiscountPen?: number;
     overrideBasePricePen?: number;
   }>;
@@ -244,17 +247,34 @@ export async function createOrder(
 
   for (let idx = 0; idx < input.lines.length; idx++) {
     const item = input.lines[idx];
-    const unitDiscountPen = Number(item.unitDiscountPen ?? 0);
     const prod = productById.get(item.productId);
     if (!prod) {
       throw new ValidationError(`Producto ID ${item.productId} no encontrado`);
     }
-    const baseUnitPricePen =
-      isPartnerRole(actor.role) && item.overrideBasePricePen !== undefined
-        ? Number(item.overrideBasePricePen)
-        : Number(prod.list_sale_price_pen ?? 0);
+    const catalogPricePen = Number(prod.list_sale_price_pen ?? 0);
+    let baseUnitPricePen: number;
+    let unitPricePen: number;
+    let unitDiscountPen: number;
 
-    const unitPricePen = Number((baseUnitPricePen - unitDiscountPen).toFixed(4));
+    if (item.unitPricePen !== undefined && item.unitPricePen !== null) {
+      const parsedPrice = Number(item.unitPricePen);
+      if (!Number.isFinite(parsedPrice) || parsedPrice <= 0) {
+        throw new ValidationError("El precio unitario debe ser mayor a S/ 0.00");
+      }
+      baseUnitPricePen = catalogPricePen > 0 ? catalogPricePen : parsedPrice;
+      unitPricePen = Number(parsedPrice.toFixed(4));
+      unitDiscountPen = Math.max(
+        0,
+        Number((baseUnitPricePen - unitPricePen).toFixed(4))
+      );
+    } else {
+      unitDiscountPen = Number(item.unitDiscountPen ?? 0);
+      baseUnitPricePen =
+        isPartnerRole(actor.role) && item.overrideBasePricePen !== undefined
+          ? Number(item.overrideBasePricePen)
+          : catalogPricePen;
+      unitPricePen = Number((baseUnitPricePen - unitDiscountPen).toFixed(4));
+    }
     if (unitPricePen <= 0) {
       throw new ValidationError("Precio final debe ser mayor a S/ 0.00");
     }
@@ -303,6 +323,17 @@ export async function createOrder(
       belowMinPriceFlag,
     });
   }
+
+  const globalDiscountPen = Number((input.globalDiscountPen ?? 0).toFixed(2));
+  if (!Number.isFinite(globalDiscountPen) || globalDiscountPen < 0) {
+    throw new ValidationError("El descuento global no puede ser negativo");
+  }
+  if (globalDiscountPen >= totalPen) {
+    throw new ValidationError(
+      "El descuento global debe ser menor al subtotal del pedido"
+    );
+  }
+  totalPen = Number((totalPen - globalDiscountPen).toFixed(2));
 
   let validatedTripId: number | null = null;
   if (input.tripId !== undefined && input.tripId !== null) {
@@ -381,13 +412,13 @@ export async function createOrder(
   const orderInsert = await client.query(
     `INSERT INTO erp.sales_orders (
        order_code, order_date, warehouse_id, customer_party_id, customer_name_raw,
-       payment_mode, operational_status, total_pen, paid_pen,
+       payment_mode, operational_status, total_pen, global_discount_pen, paid_pen,
        due_date, promised_payment_date,
        created_by_user_id, approved_by_user_id, approved_at,
        stock_deducted, trip_id, quote_id, source_origin, notes
      ) VALUES (
        $1, (NOW() AT TIME ZONE 'America/Lima')::date, $2, $3, $4,
-       $5, $6, $7, 0,
+       $5, $6, $7, $16, 0,
        $11, $11,
        $8, $9, $10,
        $12, $13, $14, 'ERP_APP', $15
@@ -408,6 +439,7 @@ export async function createOrder(
       validatedTripId,
       validatedQuoteId,
       input.notes ?? null,
+      globalDiscountPen,
     ]
   );
   const orderId = Number(orderInsert.rows[0].order_id);
@@ -463,6 +495,26 @@ export async function createOrder(
        below_min_price_flag
      ) VALUES ${lineValuesClauses.join(", ")}`,
     lineParams
+  );
+
+  await recordPriceOverrides(
+    client,
+    actor,
+    preparedLines.map((line) => ({
+      entityType: "ORDER",
+      entityId: orderId,
+      entityCode: orderCode,
+      lineNo: line.lineNo,
+      productId: line.productId,
+      sku: line.sku,
+      productName: line.name,
+      customerPartyId: input.customerPartyId ?? null,
+      customerName: input.customerNameRaw.trim(),
+      catalogPricePen: line.baseUnitPricePen,
+      appliedPricePen: line.unitPricePen,
+      quantity: line.quantity,
+      reason: input.notes?.trim() || null,
+    }))
   );
 
   // Deduct stock immediately only if order is already REGISTERED (not PENDING_PARTNER_APPROVAL)
@@ -897,7 +949,7 @@ export async function updateOrder(
   client: PoolClient,
   actor: SessionUser,
   orderId: number,
-  input: Pick<CreateOrderInput, "lines"> & { reason: string }
+  input: Pick<CreateOrderInput, "lines" | "globalDiscountPen"> & { reason: string }
 ): Promise<{
   orderId: number;
   orderCode: string;
@@ -978,15 +1030,32 @@ export async function updateOrder(
       throw new ValidationError("Uno de los productos ya no está disponible");
     const quantity = Number(line.quantity);
     const packFactor = Number(line.packFactorApplied ?? 1);
-    const discount = Number(line.unitDiscountPen ?? 0);
     if (!Number.isFinite(quantity) || quantity <= 0) {
       throw new ValidationError("La cantidad debe ser mayor a 0");
     }
-    if (!Number.isFinite(packFactor) || packFactor <= 0 || discount < 0) {
-      throw new ValidationError("Cantidad, empaque o descuento inválido");
+    if (!Number.isFinite(packFactor) || packFactor <= 0) {
+      throw new ValidationError("Factor de empaque inválido");
     }
-    const basePrice = Number(product.list_sale_price_pen ?? 0);
-    const unitPrice = Number((basePrice - discount).toFixed(4));
+    const catalogPrice = Number(product.list_sale_price_pen ?? 0);
+    let basePrice: number;
+    let unitPrice: number;
+    let discount: number;
+    if (line.unitPricePen !== undefined && line.unitPricePen !== null) {
+      const parsedPrice = Number(line.unitPricePen);
+      if (!Number.isFinite(parsedPrice) || parsedPrice <= 0) {
+        throw new ValidationError("El precio unitario debe ser mayor a cero");
+      }
+      basePrice = catalogPrice > 0 ? catalogPrice : parsedPrice;
+      unitPrice = Number(parsedPrice.toFixed(4));
+      discount = Math.max(0, Number((basePrice - unitPrice).toFixed(4)));
+    } else {
+      discount = Number(line.unitDiscountPen ?? 0);
+      if (!Number.isFinite(discount) || discount < 0) {
+        throw new ValidationError("Cantidad, empaque o descuento inválido");
+      }
+      basePrice = catalogPrice;
+      unitPrice = Number((basePrice - discount).toFixed(4));
+    }
     if (unitPrice <= 0)
       throw new ValidationError("El precio final debe ser mayor a cero");
     const cost = product.ref_cost_pen === null ? null : Number(product.ref_cost_pen);
@@ -1002,6 +1071,7 @@ export async function updateOrder(
     return {
       lineNo: index + 1,
       productId: Number(product.product_id),
+      sku: String(product.sku),
       name: String(product.name),
       quantity,
       packFactor,
@@ -1015,6 +1085,22 @@ export async function updateOrder(
       belowMinimum: unitPrice < minimum - 0.0001,
     };
   });
+  const globalDiscountPen = Number(
+    (
+      input.globalDiscountPen !== undefined
+        ? input.globalDiscountPen
+        : Number(order.global_discount_pen ?? 0)
+    ).toFixed(2)
+  );
+  if (!Number.isFinite(globalDiscountPen) || globalDiscountPen < 0) {
+    throw new ValidationError("El descuento global no puede ser negativo");
+  }
+  if (globalDiscountPen >= totalPen) {
+    throw new ValidationError(
+      "El descuento global debe ser menor al subtotal del pedido"
+    );
+  }
+  totalPen = Number((totalPen - globalDiscountPen).toFixed(2));
   if (totalPen < Number(order.paid_pen) - 0.05) {
     throw new ValidationError(
       "El nuevo total no puede ser menor a lo ya cobrado; registra primero la devolución"
@@ -1093,7 +1179,7 @@ export async function updateOrder(
     : "REGISTERED";
   await client.query(
     `UPDATE erp.sales_orders
-     SET total_pen = $1, operational_status = $2, stock_deducted = FALSE,
+     SET total_pen = $1, global_discount_pen = $7, operational_status = $2, stock_deducted = FALSE,
          trip_id = NULL, picked_by_user_id = NULL, picked_at = NULL,
          approved_by_user_id = $3, approved_at = $4,
          notes = COALESCE(notes || ' | ', '') || $5
@@ -1105,7 +1191,31 @@ export async function updateOrder(
       isPartnerRole(actor.role) ? new Date().toISOString() : null,
       `MODIFICADO: ${reason}`,
       orderId,
+      globalDiscountPen,
     ]
+  );
+
+  await recordPriceOverrides(
+    client,
+    actor,
+    prepared.map((line) => ({
+      entityType: "ORDER",
+      entityId: orderId,
+      entityCode: String(order.order_code),
+      lineNo: line.lineNo,
+      productId: line.productId,
+      sku: line.sku,
+      productName: line.name,
+      customerPartyId:
+        order.customer_party_id !== null && order.customer_party_id !== undefined
+          ? Number(order.customer_party_id)
+          : null,
+      customerName: String(order.customer_name_raw || "CLIENTE"),
+      catalogPricePen: line.basePrice,
+      appliedPricePen: line.unitPrice,
+      quantity: line.quantity,
+      reason: `Modificación de pedido: ${reason}`,
+    }))
   );
   if (!requiresApproval) {
     await deductStockForOrderLines(
@@ -1482,6 +1592,7 @@ export async function listOrdersPaginatedForRole(
        so.payment_mode::text AS payment_mode,
        so.promised_payment_date::text AS promised_payment_date,
        so.total_pen,
+       COALESCE(so.global_discount_pen, 0) AS global_discount_pen,
        so.paid_pen,
        so.balance_due_pen,
        so.is_settled,
@@ -1631,6 +1742,7 @@ export async function listOrdersPaginatedForRole(
       payment_mode: row.payment_mode,
       promised_payment_date: row.promised_payment_date ?? null,
       total_pen: Number(row.total_pen),
+      global_discount_pen: Number(row.global_discount_pen ?? 0),
       paid_pen: Number(row.paid_pen),
       balance_due_pen: Number(row.balance_due_pen),
       is_settled: Boolean(row.is_settled),

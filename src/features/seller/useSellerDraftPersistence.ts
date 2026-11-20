@@ -37,6 +37,7 @@ export function useSellerDraftPersistence(
     setCreditDays,
     setCustomPromiseDate,
     setInitialPaidPen,
+    setGlobalDiscountPen,
     setNotes,
     setCart,
   } = draftApi;
@@ -50,6 +51,7 @@ export function useSellerDraftPersistence(
     creditDays,
     customPromiseDate,
     initialPaidPen,
+    globalDiscountPen,
     notes,
     cart,
   } = state;
@@ -119,8 +121,35 @@ export function useSellerDraftPersistence(
           setCustomPromiseDate(savedDraft.customPromiseDate);
         if (typeof savedDraft.initialPaidPen === "string")
           setInitialPaidPen(savedDraft.initialPaidPen);
+        if (typeof savedDraft.globalDiscountPen === "string")
+          setGlobalDiscountPen(savedDraft.globalDiscountPen);
         if (typeof savedDraft.notes === "string") setNotes(savedDraft.notes);
-        if (Array.isArray(savedDraft.cart)) setCart(savedDraft.cart);
+        if (Array.isArray(savedDraft.cart)) {
+          setCart(
+            savedDraft.cart.map((rawLine) => {
+              const legacy = rawLine as Partial<SellerOrderDraft["cart"][number]> & {
+                unitDiscountPen?: number;
+              };
+              const listPrice = Number(rawLine.product?.list_sale_price_pen ?? 0);
+              const unitPricePen =
+                typeof legacy.unitPricePen === "number" &&
+                Number.isFinite(legacy.unitPricePen)
+                  ? legacy.unitPricePen
+                  : Math.max(
+                      0,
+                      Number((listPrice - Number(legacy.unitDiscountPen ?? 0)).toFixed(2))
+                    );
+              return {
+                ...rawLine,
+                unitPricePen,
+                unitPriceInput:
+                  typeof legacy.unitPriceInput === "string"
+                    ? legacy.unitPriceInput
+                    : unitPricePen.toFixed(2),
+              };
+            })
+          );
+        }
         if (
           savedDraft.orderStep === "client" ||
           savedDraft.orderStep === "products" ||
@@ -146,6 +175,7 @@ export function useSellerDraftPersistence(
     setCustomPromiseDate,
     setCustomerNameRaw,
     setInitialPaidPen,
+    setGlobalDiscountPen,
     setNotes,
     setPaymentMode,
     setSelectedCustomer,
@@ -163,6 +193,7 @@ export function useSellerDraftPersistence(
       creditDays,
       customPromiseDate,
       initialPaidPen,
+      globalDiscountPen,
       notes,
       cart,
       orderStep,
@@ -200,6 +231,7 @@ export function useSellerDraftPersistence(
     creditDays,
     customPromiseDate,
     initialPaidPen,
+    globalDiscountPen,
     notes,
     cart,
     orderStep,
