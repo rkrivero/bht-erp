@@ -3,33 +3,29 @@
 import { useState } from "react";
 import dynamic from "next/dynamic";
 import { Button, Card, SegmentedControl } from "@/components/ui/Primitives";
+import { SkeletonCards } from "@/components/ui/Skeleton";
 import type { PartnerData } from "./usePartnerData";
 import type { ShowFeedback } from "./partnerShared";
 
 const UserManagementPanel = dynamic(
   () => import("@/components/socios/UserManagementPanel"),
   {
-    loading: () => (
-      <Card
-        className="p-8 text-center text-sm font-medium text-bht-ink-soft"
-        role="status"
-      >
-        Preparando gestión de usuarios…
-      </Card>
-    ),
+    loading: () => <SkeletonCards count={2} />,
   }
 );
 
 const AdminUndoPanel = dynamic(() => import("@/components/socios/AdminUndoPanel"), {
-  loading: () => (
-    <Card
-      className="p-8 text-center text-sm font-medium text-bht-ink-soft"
-      role="status"
-    >
-      Preparando centro de reversión…
-    </Card>
-  ),
+  loading: () => <SkeletonCards count={2} />,
 });
+
+const SystemSettingsPanel = dynamic(
+  () => import("@/components/socios/SystemSettingsPanel"),
+  {
+    loading: () => <SkeletonCards count={2} />,
+  }
+);
+
+type AdminSection = "users" | "undo" | "settings";
 
 interface AccesosProps {
   data: PartnerData;
@@ -44,17 +40,10 @@ export function Accesos({
   showFeedback,
   onGoBackHome,
 }: AccesosProps) {
-  const [adminSection, setAdminSection] = useState<"users" | "undo">("users");
+  const [adminSection, setAdminSection] = useState<AdminSection>("users");
   const { currentUser, appUsers, userAccessHistory, loadDashboard } = data;
   if (!currentUser) {
-    return (
-      <Card
-        className="p-8 text-center text-sm font-medium text-bht-ink-soft"
-        role="status"
-      >
-        Cargando equipo y permisos…
-      </Card>
-    );
+    return <SkeletonCards count={2} />;
   }
   if (currentUser.role !== "PARTNER_ADMIN") {
     return (
@@ -78,7 +67,7 @@ export function Accesos({
   }
   return (
     <div className="space-y-4">
-      <SegmentedControl<"users" | "undo">
+      <SegmentedControl<AdminSection>
         ariaLabel="Secciones de administración"
         value={adminSection}
         onChange={setAdminSection}
@@ -86,10 +75,17 @@ export function Accesos({
         options={[
           { id: "users", label: "Usuarios y permisos", count: appUsers.length },
           { id: "undo", label: "Deshacer acciones (Admin)" },
+          { id: "settings", label: "Configuración ERP" },
         ]}
       />
       {adminSection === "undo" ? (
         <AdminUndoPanel
+          onRefreshDashboard={loadDashboard}
+          onFeedback={showFeedback}
+          onEditingChange={setSubTabEditing}
+        />
+      ) : adminSection === "settings" ? (
+        <SystemSettingsPanel
           onRefreshDashboard={loadDashboard}
           onFeedback={showFeedback}
           onEditingChange={setSubTabEditing}

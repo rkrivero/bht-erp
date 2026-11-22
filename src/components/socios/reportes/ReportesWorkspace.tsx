@@ -1,9 +1,16 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useContext, useEffect, useMemo, useState } from "react";
+import {
+  QueryClient,
+  QueryClientContext,
+  useQuery,
+} from "@tanstack/react-query";
+import { ControlPanel, type ControlPanelFacet } from "@/components/ui/ControlPanel";
 import { ChevronRightIcon, CloseIcon } from "@/components/ui/Icons";
 import { Badge, Button, Card, INPUT_CLASS } from "@/components/ui/Primitives";
+import { SkeletonCards } from "@/components/ui/Skeleton";
 import type { UndoActionReceiptDto } from "@/lib/contracts";
 import { formatDatePe, formatMonthLabel, type DataCutSummary } from "../types";
 import {
@@ -24,14 +31,20 @@ import {
   computePeriodRange,
 } from "./reportes-types";
 
+const fallbackReportQueryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 15_000,
+      gcTime: 5 * 60_000,
+      retry: false,
+    },
+  },
+});
+
 const DeferredReportPanel = () => (
-  <Card
-    padding="md"
-    role="status"
-    className="text-center text-sm font-medium text-bht-ink-soft"
-  >
-    Cargando módulo de reportes…
-  </Card>
+  <div role="status" aria-label="Cargando módulo de reportes">
+    <SkeletonCards count={3} />
+  </div>
 );
 
 const ReportesResumenTab = dynamic(() => import("./ReportesResumenTab"), {
@@ -92,18 +105,11 @@ export default function ReportesWorkspace({
   onFeedback,
   onEditingChange,
 }: ReportesWorkspaceProps) {
+  const contextQueryClient = useContext(QueryClientContext);
+  const queryClient = contextQueryClient ?? fallbackReportQueryClient;
+
   const [activeSection, setActiveSection] = useState<ReportSectionId>("resumen");
   const [filters, setFilters] = useState<ReportFilterState>(INITIAL_REPORT_FILTERS);
-  const [manualNonce, setManualNonce] = useState(0);
-  const [cacheByRequestKey, setCacheByRequestKey] = useState<
-    Record<string, SectionPayload>
-  >({});
-  const [latestBySection, setLatestBySection] = useState<
-    Partial<Record<ReportSectionId, SectionPayload>>
-  >({});
-  const [errorByRequestKey, setErrorByRequestKey] = useState<Record<string, string>>(
-    {}
-  );
   const [filterOptions, setFilterOptions] = useState<ReportFilterOptionsDto>({
     zones: [],
     sellers: [],
@@ -116,20 +122,14 @@ export default function ReportesWorkspace({
   }, [onEditingChange]);
 
   const queryString = useMemo(() => buildReportQueryString(filters), [filters]);
-  const requestKey = `${activeSection}|${queryString}|${manualNonce}|${externalRefreshKey}`;
-  const cachedPayload = cacheByRequestKey[requestKey];
-  const currentError = errorByRequestKey[requestKey];
-  const displayPayload = cachedPayload ?? latestBySection[activeSection] ?? null;
-  const isFetching = !cachedPayload && !currentError;
 
-  useEffect(() => {
-    if (cachedPayload || currentError) return;
-    const controller = new AbortController();
-    const qs = queryString ? `&${queryString}` : "";
-    const url = `/api/reports?section=${encodeURIComponent(activeSection)}${qs}`;
-
-    void fetch(url, { cache: "no-store", signal: controller.signal })
-      .then(async (res) => {
+  const reportQuery = useQuery<SectionPayload, Error>(
+    {
+      queryKey: ["reports", activeSection, queryString, externalRefreshKey],
+      queryFn: async ({ signal }) => {
+        const qs = queryString ? `&${queryString}` : "";
+        const url = `/api/reports?section=${encodeURIComponent(activeSection)}${qs}`;
+        const res = await fetch(url, { cache: "no-store", signal });
         const body = (await res.json().catch(() => ({}))) as {
           error?: string;
           data?: SectionPayload;
@@ -137,28 +137,28 @@ export default function ReportesWorkspace({
         if (!res.ok || !body.data) {
           throw new Error(body.error || "No se pudo cargar el reporte.");
         }
-        if (controller.signal.aborted) return;
-        const payload = body.data;
-        setCacheByRequestKey((prev) => ({ ...prev, [requestKey]: payload }));
-        setLatestBySection((prev) => ({ ...prev, [activeSection]: payload }));
-        if (payload.filterOptions) {
-          setFilterOptions(payload.filterOptions);
-        }
-        if (payload.dataCut) {
-          setLatestDataCut(payload.dataCut);
-        }
-      })
-      .catch((err: unknown) => {
-        if (controller.signal.aborted) return;
-        const msg =
-          err instanceof Error && err.message
-            ? err.message
-            : "Error de red al cargar el reporte.";
-        setErrorByRequestKey((prev) => ({ ...prev, [requestKey]: msg }));
-      });
+        return body.data;
+      },
+      staleTime: 15_000,
+      gcTime: 5 * 60_000,
+      placeholderData: (previousData) => previousData,
+    },
+    queryClient
+  );
 
-    return () => controller.abort();
-  }, [activeSection, queryString, requestKey, cachedPayload, currentError]);
+  const displayPayload = reportQuery.data ?? null;
+  const isFetching = reportQuery.isFetching;
+  const currentError = reportQuery.error?.message ?? null;
+
+  useEffect(() => {
+    if (!displayPayload) return;
+    if (displayPayload.filterOptions) {
+      setFilterOptions(displayPayload.filterOptions);
+    }
+    if (displayPayload.dataCut) {
+      setLatestDataCut(displayPayload.dataCut);
+    }
+  }, [displayPayload]);
 
   function applyPreset(preset: Exclude<ReportPeriodPreset, "MONTH" | "CUSTOM">) {
     const range = computePeriodRange(preset);
@@ -187,17 +187,54 @@ export default function ReportesWorkspace({
   }
 
   function handleRetryOrRefresh() {
-    setErrorByRequestKey((prev) => {
-      const next = { ...prev };
-      delete next[requestKey];
-      return next;
-    });
-    setManualNonce((n) => n + 1);
+    void reportQuery.refetch();
   }
 
   const hasActiveFilters = Boolean(
     filters.from || filters.to || filters.zone || filters.sellerId
   );
+
+  const facets: ControlPanelFacet[] = useMemo(() => {
+    const list: ControlPanelFacet[] = [];
+    if (filters.month) {
+      list.push({
+        id: "month",
+        label: "Mes",
+        value: formatMonthLabel(filters.month),
+        onRemove: () => applyPreset("ALL"),
+      });
+    } else if (filters.from || filters.to) {
+      list.push({
+        id: "period",
+        label: "Período",
+        value: `${filters.from || "..."} a ${filters.to || "..."}`,
+        onRemove: () => applyPreset("ALL"),
+      });
+    }
+    if (filters.zone) {
+      list.push({
+        id: "zone",
+        label: "Zona",
+        value: filters.zone,
+        onRemove: () => setFilters((prev) => ({ ...prev, zone: "" })),
+      });
+    }
+    if (filters.sellerId) {
+      const sellerName =
+        filters.sellerId === "UNASSIGNED"
+          ? "Sin vendedor"
+          : (filterOptions.sellers.find(
+              (s) => String(s.user_id) === filters.sellerId
+            )?.full_name ?? filters.sellerId);
+      list.push({
+        id: "seller",
+        label: "Vendedor",
+        value: sellerName,
+        onRemove: () => setFilters((prev) => ({ ...prev, sellerId: "" })),
+      });
+    }
+    return list;
+  }, [filters, filterOptions.sellers]);
 
   const activeTabMeta = REPORT_TAB_ITEMS.find((t) => t.id === activeSection);
   const latestRecordedMonth = filterOptions.months.reduce<string | null>(
@@ -219,59 +256,22 @@ export default function ReportesWorkspace({
 
   return (
     <div className="min-w-0 space-y-4">
-      {/* Global Filter Bar + Sub-tab Navigation */}
-      <Card accent="horizon" padding="md" className="no-print space-y-3.5">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="min-w-0 flex-1">
-            <div className="flex flex-wrap items-center gap-2">
-              <h2 className="text-lg font-bold text-bht-navy-deep sm:text-xl">
-                Reportes para decidir
-              </h2>
-              {isFetching && displayPayload && (
-                <Badge tone="brand">Actualizando…</Badge>
-              )}
-            </div>
-            <p className="mt-0.5 text-xs text-bht-ink-soft">
-              {activeTabMeta?.subtitle}
-            </p>
-            {activeTabMeta && (
-              <details className="group mt-2 max-w-3xl">
-                <summary className="inline-flex cursor-pointer list-none items-center gap-1.5 rounded-lg text-xs font-semibold text-bht-cobalt hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bht-cobalt focus-visible:ring-offset-2 [&::-webkit-details-marker]:hidden">
-                  Guía de lectura
-                  <ChevronRightIcon
-                    aria-hidden="true"
-                    className="h-3.5 w-3.5 transition group-open:rotate-90"
-                  />
-                </summary>
-                <div className="mt-2 space-y-2 rounded-xl bg-bht-surface-cool p-3">
-                  <dl className="grid gap-x-5 gap-y-2 sm:grid-cols-2 xl:grid-cols-4">
-                    {activeTabMeta.concepts.map((concept) => (
-                      <div
-                        key={concept.term}
-                        className="min-w-0 text-xs leading-relaxed"
-                      >
-                        <dt className="font-bold text-bht-ink-strong">
-                          {concept.term}
-                        </dt>
-                        <dd className="text-bht-ink-soft">{concept.meaning}</dd>
-                      </div>
-                    ))}
-                  </dl>
-                  <p className="border-t border-bht-line pt-2 text-xs text-bht-navy-deep">
-                    Consejo: toca cualquier tarjeta de indicador para abrir su
-                    explicación práctica y fórmula.
-                  </p>
-                </div>
-              </details>
+      <ControlPanel
+        title="Reportes para decidir"
+        subtitle={activeTabMeta?.subtitle}
+        className="no-print"
+        facets={facets}
+        onClearAllFacets={() => setFilters(INITIAL_REPORT_FILTERS)}
+        secondaryActions={
+          <div className="flex flex-wrap items-center gap-2">
+            {isFetching && displayPayload && (
+              <Badge tone="brand">Actualizando…</Badge>
             )}
-          </div>
-          <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
             {hasActiveFilters && (
               <Button
                 type="button"
                 variant="outline"
                 size="sm"
-                className="flex-1 sm:flex-none"
                 onClick={() => setFilters(INITIAL_REPORT_FILTERS)}
               >
                 <CloseIcon className="h-3.5 w-3.5" />
@@ -282,13 +282,43 @@ export default function ReportesWorkspace({
               type="button"
               variant="secondary"
               size="sm"
-              className="flex-1 sm:flex-none"
               onClick={handleRetryOrRefresh}
             >
               Actualizar
             </Button>
           </div>
-        </div>
+        }
+      >
+        {activeTabMeta && (
+          <details className="group max-w-3xl">
+            <summary className="inline-flex cursor-pointer list-none items-center gap-1.5 rounded-lg text-xs font-semibold text-bht-cobalt hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bht-cobalt focus-visible:ring-offset-2 [&::-webkit-details-marker]:hidden">
+              Guía de lectura
+              <ChevronRightIcon
+                aria-hidden="true"
+                className="h-3.5 w-3.5 transition group-open:rotate-90"
+              />
+            </summary>
+            <div className="mt-2 space-y-2 rounded-xl bg-bht-surface-cool p-3">
+              <dl className="grid gap-x-5 gap-y-2 sm:grid-cols-2 xl:grid-cols-4">
+                {activeTabMeta.concepts.map((concept) => (
+                  <div
+                    key={concept.term}
+                    className="min-w-0 text-xs leading-relaxed"
+                  >
+                    <dt className="font-bold text-bht-ink-strong">
+                      {concept.term}
+                    </dt>
+                    <dd className="text-bht-ink-soft">{concept.meaning}</dd>
+                  </div>
+                ))}
+              </dl>
+              <p className="border-t border-bht-line pt-2 text-xs text-bht-navy-deep">
+                Consejo: toca cualquier tarjeta de indicador para abrir su
+                explicación práctica y fórmula.
+              </p>
+            </div>
+          </details>
+        )}
 
         {/* 6 Sub-tabs — primary report navigation */}
         <div
@@ -316,7 +346,7 @@ export default function ReportesWorkspace({
                 </span>
                 <span
                   className={`mt-0.5 hidden line-clamp-1 text-xs leading-snug xl:block ${
-                    active ? "text-bht-tone-cbd9e7" : "text-bht-ink-soft"
+                    active ? "text-bht-mist" : "text-bht-ink-soft"
                   }`}
                 >
                   {item.subtitle}
@@ -503,7 +533,7 @@ export default function ReportesWorkspace({
             </div>
           </div>
         </div>
-      </Card>
+      </ControlPanel>
 
       {currentError && (
         <Card

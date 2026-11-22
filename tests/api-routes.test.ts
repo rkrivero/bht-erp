@@ -1606,6 +1606,122 @@ describe("API Route Role Enforcement, DB Branch Isolation & Endpoint Contracts",
       const suppPatchJson = await suppPatch.json();
       expect(suppPatchJson.supplier.city_zone).toBe("CUSCO");
       expect(suppPatchJson.supplier.is_active).toBe(false);
+
+      // 6. Quantitative Credit Suggestion endpoint (partner-only RBAC + analytics.v_customer_credit_suggestion)
+      const sellerSuggForbidden = await customersRoute.GET(
+        new NextRequest(
+          `http://localhost:3000/api/customers?action=credit_suggestion&party_id=${dualId}`,
+          { headers: { cookie: `bht_session=${sellerTok}` } }
+        )
+      );
+      expect(sellerSuggForbidden.status).toBe(403);
+
+      const partnerSuggRes = await customersRoute.GET(
+        new NextRequest(
+          `http://localhost:3000/api/customers?action=credit_suggestion&party_id=${dualId}`,
+          { headers: { cookie: `bht_session=${adminTok}` } }
+        )
+      );
+      expect(partnerSuggRes.status).toBe(200);
+      const partnerSuggJson = await partnerSuggRes.json();
+      expect(partnerSuggJson.party_id).toBe(dualId);
+      expect(typeof partnerSuggJson.suggested_credit_limit_pen).toBe("number");
+      expect(typeof partnerSuggJson.punctuality_factor).toBe("number");
+      expect(typeof partnerSuggJson.volatility_factor).toBe("number");
+
+      // 7. Idempotency-Key replay on newly wrapped routes (e.g., POST /api/customers & PATCH /api/settings)
+      const settingsRoute = await import("../src/app/api/settings/route");
+      const idemCustKey = crypto.randomUUID();
+      const idemCustPayload = {
+        tradeName: "Ferretería Idempotente Test",
+        cityZone: "LABERINTO",
+      };
+      const firstIdemCust = await customersRoute.POST(
+        new NextRequest("http://localhost:3000/api/customers", {
+          method: "POST",
+          headers: {
+            cookie: `bht_session=${sellerTok}`,
+            "Content-Type": "application/json",
+            "Idempotency-Key": idemCustKey,
+          },
+          body: JSON.stringify(idemCustPayload),
+        })
+      );
+      expect(firstIdemCust.status).toBe(201);
+      const firstIdemJson = await firstIdemCust.json();
+
+      const replayIdemCust = await customersRoute.POST(
+        new NextRequest("http://localhost:3000/api/customers", {
+          method: "POST",
+          headers: {
+            cookie: `bht_session=${sellerTok}`,
+            "Content-Type": "application/json",
+            "Idempotency-Key": idemCustKey,
+          },
+          body: JSON.stringify(idemCustPayload),
+        })
+      );
+      expect(replayIdemCust.status).toBe(201);
+      const replayIdemJson = await replayIdemCust.json();
+      expect(replayIdemJson.customer.party_id).toBe(firstIdemJson.customer.party_id);
+
+      // Reusing same Idempotency-Key with different payload returns 409 IDEMPOTENCY_KEY_REUSED
+      const conflictIdemCust = await customersRoute.POST(
+        new NextRequest("http://localhost:3000/api/customers", {
+          method: "POST",
+          headers: {
+            cookie: `bht_session=${sellerTok}`,
+            "Content-Type": "application/json",
+            "Idempotency-Key": idemCustKey,
+          },
+          body: JSON.stringify({
+            tradeName: "Ferretería Idempotente Cambiada",
+            cityZone: "LABERINTO",
+          }),
+        })
+      );
+      expect(conflictIdemCust.status).toBe(409);
+
+      // 8. Zod validation on mutating routes & GET/PATCH /api/settings
+      const invalidOrderZod = await (await import("../src/app/api/orders/route")).POST(
+        new NextRequest("http://localhost:3000/api/orders", {
+          method: "POST",
+          headers: {
+            cookie: `bht_session=${sellerTok}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            customerNameRaw: "",
+            paymentMode: "INVALID_MODE",
+            lines: [],
+          }),
+        })
+      );
+      expect(invalidOrderZod.status).toBe(400);
+
+      const getSettingsRes = await settingsRoute.GET(
+        new NextRequest("http://localhost:3000/api/settings", {
+          headers: { cookie: `bht_session=${adminTok}` },
+        })
+      );
+      expect(getSettingsRes.status).toBe(200);
+      const settingsJson = await getSettingsRes.json();
+      expect(Array.isArray(settingsJson.settings)).toBe(true);
+
+      const patchSettingsRes = await settingsRoute.PATCH(
+        new NextRequest("http://localhost:3000/api/settings", {
+          method: "PATCH",
+          headers: {
+            cookie: `bht_session=${adminTok}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            settingKey: "default_credit_days",
+            settingValue: 10,
+          }),
+        })
+      );
+      expect(patchSettingsRes.status).toBe(200);
     } finally {
       spyTx.mockRestore();
       spyClient.mockRestore();

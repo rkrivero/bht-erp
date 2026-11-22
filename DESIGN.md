@@ -110,13 +110,13 @@ La composición sigue “primero decidir, después ejecutar y finalmente analiza
 
 ## Typography
 
-Plus Jakarta Sans variable es la única familia descargada y se sirve autoalojada mediante `next/font/google`.
+`Inter` (interfaz general y títulos) y `JetBrains Mono` (códigos, montos tabulares y atajos) se sirven autoalojadas mediante `next/font/google` (`--font-inter` y `--font-jetbrains-mono`).
 
-- **Headline** (700–800, 20–24 px): decisión o tarea principal.
-- **Title** (600–700, 14–18 px): secciones y entidades.
-- **Body** (400, 14–16 px): texto operativo, idealmente 65–75 caracteres.
-- **Data** (500, 12–16 px): montos, cantidades y códigos con números tabulares.
-- **Label** (600, 12–13 px): controles y metadata. 10–11 px solo para badges.
+- **Headline** (700–800, 20–24 px): decisión o tarea principal (`Inter`).
+- **Title** (600–700, 14–18 px): secciones y entidades (`Inter`).
+- **Body** (400, 14–16 px): texto operativo, idealmente 65–75 caracteres (`Inter`).
+- **Data** (500, 12–16 px): montos, cantidades y códigos con números tabulares (`JetBrains Mono` / `tabular-nums`).
+- **Label** (600, 12–13 px): controles y metadata. 10–11 px solo para badges (`Inter`).
 
 Los títulos describen situaciones o acciones; la UI no expone nombres técnicos como “BI” o “Neon PostgreSQL”.
 
@@ -154,7 +154,17 @@ Fondo blanco, borde fuerte, radio de 12 px y texto mínimo de 14 px. El error se
 
 ### Navigation
 
-Socios: Hoy, Ventas, Cobranza, Inventario, Finanzas y análisis. Vendedor: Vender, Ventas, Cobrar, Más. Almacén: Por alistar, Listos / En ruta, Entregados. Sidebar en escritorio y barra inferior en móvil.
+Socios: Hoy, Ventas, Cobranza, Inventario, Finanzas y análisis. Vendedor: Vender, Ventas, Cobrar, Más. Almacén: Por alistar, Listos / En ruta, Entregados. Sidebar en escritorio (`232 px`) y barra inferior en móvil con menú "Más" sobre `popover="auto"` nativo.
+
+### Primitivas Enterprise Nativas (0 Librerías UI Externas)
+
+- **`ControlPanel`**: Cabecera de vista con *breadcrumbs*, CTA primario, barra contextual de acciones en lote, `SearchBar` con *facets* removibles, filtros en `popover="auto"` con CSS Anchor Positioning (`@supports (position-area: block-end)` y respaldo *bottom-sheet*), paginador y selector de vista sincronizados con `URLSearchParams`.
+- **`ResponsiveDataTable`**: Un único árbol DOM (`<table>`) dentro de `container-type: inline-size`. Ordenamiento con `aria-sort`, selector nativo de columnas opcionales (`popover="auto"`), transformación CSS a tarjetas en `@container (width < 640px)` vía `data-label` y diferimiento `.bht-defer-row` (`content-visibility: auto`) a partir de la fila índice 15.
+- **`ModalSheet` (`<dialog>`)**: Basado en `<dialog>` nativo con `showModal()`, `closedby="any"` y respaldo de clic en *backdrop* por coordenadas de puntero, animaciones top-layer con `@starting-style` y variante de confirmación.
+- **`CommandPalette` (`Cmd/Ctrl+K`)**: Modal `<dialog>` ligero en cliente que indexa espacios RBAC, acciones rápidas y registros cargados en memoria.
+- **`FormSheet`**: Vista de documento estilo Odoo (`max-w-[1140px]`) con cabecera de acciones, *Statusbar* de etapas (pipeline), hoja blanca, fila de *Smart Buttons* sin consultas N+1 y *Notebook Tabs* accesibles (`role="tablist"`).
+- **`Skeleton` y `ToastBanner` (`CLS = 0`)**: Esqueletos con `aria-busy="true"` (`SkeletonLine`, `SkeletonTable`, `SkeletonCards`, `SkeletonKpiStrip`) y notificaciones flotantes fijas (`fixed top-4 right-4 z-50`).
+- **Densidad configurable**: Conmutador `Cómodo` / `Compacto` persistido en `localStorage` aplicando `data-density="compact"` en `document.documentElement`.
 
 ### Motion
 

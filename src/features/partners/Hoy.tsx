@@ -12,6 +12,7 @@ import {
   WalletIcon,
 } from "@/components/ui/Icons";
 import { Badge, Button, Card } from "@/components/ui/Primitives";
+import { SkeletonCards, SkeletonKpiStrip } from "@/components/ui/Skeleton";
 import { formatActorName, getMarginTone, type PartnerTab } from "./partnerShared";
 import type { PartnerData } from "./usePartnerData";
 import type { OrderFlow } from "./useOrderFlow";
@@ -44,6 +45,8 @@ export function Hoy({
 }: HoyProps) {
   const router = useRouter();
   const {
+    loading,
+    partnerData,
     orders,
     ordersPagination,
     routeTrips,
@@ -170,14 +173,16 @@ export function Hoy({
     [handleTabChange]
   );
 
+  const isInitialLoading = loading && !partnerData;
+
   return (
     <div className="flex flex-col gap-6 sm:gap-8">
       <div className="flex flex-col gap-4 px-1 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <h2 className="text-2xl font-bold tracking-tight text-[#1c2127] sm:text-3xl">
+          <h2 className="text-2xl font-bold tracking-tight text-bht-ink-strong sm:text-3xl">
             Primero, resuelve lo que bloquea la operación
           </h2>
-          <p className="mt-1.5 text-sm leading-relaxed text-[#5a6578]">
+          <p className="mt-1.5 text-sm leading-relaxed text-bht-ink-soft">
             Cola operativa del día, aprobaciones pendientes y monitor en vivo.
           </p>
         </div>
@@ -203,257 +208,284 @@ export function Hoy({
         </div>
       </div>
 
-      {/* Bento Grid: 2 cols for Priority Queue + 1 col for Operational Hub */}
-      <div className="grid grid-cols-1 gap-6 sm:gap-8 lg:grid-cols-3 items-stretch">
-        {/* Priority Queue (Bento Card — col-span-2) */}
-        <Card
-          id={pendingApprovals.length === 0 ? "discount-approval-queue" : undefined}
-          padding="none"
-          className="scroll-mt-24 overflow-hidden lg:col-span-2 flex flex-col justify-between"
-        >
-          <div>
-            <div className="flex items-center justify-between gap-3 border-b border-[var(--border-hairline)] bg-[#f8fafc] px-6 py-4 sm:px-8 sm:py-5">
+      {isInitialLoading ? (
+        <div className="space-y-6">
+          <SkeletonKpiStrip count={4} />
+          <SkeletonCards count={4} />
+        </div>
+      ) : (
+        <>
+          {/* Bento Grid: 2 cols for Priority Queue + 1 col for Operational Hub */}
+          <div className="bht-contain-region grid grid-cols-1 gap-6 sm:gap-8 lg:grid-cols-3 items-stretch">
+            {/* Priority Queue (Bento Card — col-span-2) */}
+            <Card
+              id={pendingApprovals.length === 0 ? "discount-approval-queue" : undefined}
+              padding="none"
+              className="scroll-mt-24 overflow-hidden lg:col-span-2 flex flex-col justify-between"
+            >
               <div>
-                <h3 className="text-lg font-bold tracking-tight text-[#1c2127]">
-                  Cola priorizada
-                </h3>
-                <p className="mt-0.5 text-xs leading-relaxed text-[#5a6578]">
-                  Ordenada por impacto, vencimiento y acción permitida.
-                </p>
-              </div>
-              <Badge
-                tone={
-                  priorityItems.some((item) => item.entity.count > 0)
-                    ? "warning"
-                    : "success"
-                }
-              >
-                {priorityItems.reduce((sum, item) => sum + item.entity.count, 0)} pendientes
-              </Badge>
-            </div>
-            <div className="divide-y divide-[var(--border-hairline)]">
-              {priorityItems.map((item) => {
-                const Icon =
-                  item.category === "decision"
-                    ? ActivityIcon
-                    : item.category === "cash"
-                      ? WalletIcon
-                      : item.category === "operation"
-                        ? ShoppingBagIcon
-                        : AlertTriangleIcon;
-                return (
-                  <div
-                    key={item.id}
-                    className="grid gap-4 px-6 py-4 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:items-center sm:px-8 sm:py-5 transition-all duration-300 ease-in-out hover:bg-[#f1f6fb]/60"
-                  >
-                    <span
-                      className={`flex h-10 w-10 items-center justify-center rounded-xl ${item.level === "clear" ? "bg-[#f1f5f9] text-[#5a6578]" : item.level === "critical" ? "bg-rose-50 text-rose-700" : "bg-amber-50 text-amber-800"}`}
-                      aria-hidden="true"
-                    >
-                      <Icon className="h-4 w-4" />
-                    </span>
-                    <div className="min-w-0">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <h4 className="text-sm font-semibold tracking-tight text-[#1c2127] sm:text-base">
-                          {item.title}
-                        </h4>
-                        <span className="rounded-md bg-[#e7f1fb] px-2.5 py-0.5 text-xs font-semibold text-[#3373b0]">
-                          {item.dueLabel}
-                        </span>
-                      </div>
-                      <p className="mt-1 text-xs leading-relaxed text-[#5a6578] sm:text-sm">
-                        {item.summary}
-                      </p>
-                    </div>
-                    <Button
-                      variant={item.entity.count > 0 ? "primary" : "outline"}
-                      size="sm"
-                      onClick={() => handlePriorityAction(item.allowedAction)}
-                      className="w-full sm:w-auto"
-                    >
-                      {item.entity.count > 0 ? "Resolver" : "Revisar"}
-                    </Button>
+                <div className="flex items-center justify-between gap-3 border-b border-[var(--border-hairline)] bg-bht-paper px-6 py-4 sm:px-8 sm:py-5">
+                  <div>
+                    <h3 className="text-lg font-bold tracking-tight text-bht-ink-strong">
+                      Cola priorizada
+                    </h3>
+                    <p className="mt-0.5 text-xs leading-relaxed text-bht-ink-soft">
+                      Ordenada por impacto, vencimiento y acción permitida.
+                    </p>
                   </div>
-                );
-              })}
-            </div>
-          </div>
-        </Card>
+                  <Badge
+                    tone={
+                      priorityItems.some((item) => item.entity.count > 0)
+                        ? "warning"
+                        : "success"
+                    }
+                  >
+                    {priorityItems.reduce((sum, item) => sum + item.entity.count, 0)}{" "}
+                    pendientes
+                  </Badge>
+                </div>
+                <div className="divide-y divide-[var(--border-hairline)]">
+                  {priorityItems.map((item) => {
+                    const Icon =
+                      item.category === "decision"
+                        ? ActivityIcon
+                        : item.category === "cash"
+                          ? WalletIcon
+                          : item.category === "operation"
+                            ? ShoppingBagIcon
+                            : AlertTriangleIcon;
+                    return (
+                      <div
+                        key={item.id}
+                        className="grid gap-4 px-6 py-4 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:items-center sm:px-8 sm:py-5 transition-all duration-300 ease-in-out hover:bg-bht-cobalt-bg/40"
+                      >
+                        <span
+                          className={`flex h-10 w-10 items-center justify-center rounded-xl ${
+                            item.level === "clear"
+                              ? "bg-bht-mist text-bht-ink-soft"
+                              : item.level === "critical"
+                                ? "bg-rose-50 text-rose-700"
+                                : "bg-amber-50 text-amber-800"
+                          }`}
+                          aria-hidden="true"
+                        >
+                          <Icon className="h-4 w-4" />
+                        </span>
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <h4 className="text-sm font-semibold tracking-tight text-bht-ink-strong sm:text-base">
+                              {item.title}
+                            </h4>
+                            <span className="rounded-md bg-bht-cobalt-bg px-2.5 py-0.5 text-xs font-semibold text-bht-cobalt">
+                              {item.dueLabel}
+                            </span>
+                          </div>
+                          <p className="mt-1 text-xs leading-relaxed text-bht-ink-soft sm:text-sm">
+                            {item.summary}
+                          </p>
+                        </div>
+                        <Button
+                          variant={item.entity.count > 0 ? "primary" : "outline"}
+                          size="sm"
+                          onClick={() => handlePriorityAction(item.allowedAction)}
+                          className="w-full sm:w-auto"
+                        >
+                          {item.entity.count > 0 ? "Resolver" : "Revisar"}
+                        </Button>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </Card>
 
-        {/* Operational Hub & Quick Navigation (Bento Card — col-span-1) */}
-        <Card
-          padding="md"
-          className="lg:col-span-1 flex flex-col justify-between p-6 sm:p-8 bg-[#f8fafc]/90 border border-black/[0.06]"
-        >
-          <div className="space-y-4">
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-[#e7f1fb] px-3 py-1 text-xs font-semibold text-[#3373b0]">
-              <span className="h-1.5 w-1.5 rounded-full bg-[#3373b0]" aria-hidden="true" />
-              Acciones de Despacho
-            </span>
-            <h3 className="text-lg font-bold tracking-tight text-[#1c2127]">
-              Flujo Operativo
-            </h3>
-            <p className="text-xs leading-relaxed text-[#5a6578]">
-              Acceso directo para ventas mayoristas en campo, alistamiento en almacén y arqueos de caja.
-            </p>
-          </div>
-          <div className="mt-6 space-y-3">
-            <button
-              type="button"
-              onClick={() => router.push("/vendedor")}
-              className="flex w-full items-center justify-between rounded-xl bg-white p-4 text-left shadow-2xs border border-black/[0.06] transition-all duration-300 ease-in-out hover:border-[#3373b0] hover:shadow-xs group cursor-pointer"
+            {/* Operational Hub & Quick Navigation (Bento Card — col-span-1) */}
+            <Card
+              padding="md"
+              className="lg:col-span-1 flex flex-col justify-between p-6 sm:p-8 bg-bht-paper/90 border border-bht-line"
             >
-              <div>
-                <p className="text-sm font-semibold tracking-tight text-[#1c2127]">
-                  Tomar Pedido Mayorista
-                </p>
-                <p className="text-xs leading-relaxed text-[#5a6578]">
-                  Catálogo con stock disponible en Soles (S/)
+              <div className="space-y-4">
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-bht-cobalt-bg px-3 py-1 text-xs font-semibold text-bht-cobalt">
+                  <span
+                    className="h-1.5 w-1.5 rounded-full bg-bht-cobalt"
+                    aria-hidden="true"
+                  />
+                  Acciones de Despacho
+                </span>
+                <h3 className="text-lg font-bold tracking-tight text-bht-ink-strong">
+                  Flujo Operativo
+                </h3>
+                <p className="text-xs leading-relaxed text-bht-ink-soft">
+                  Acceso directo para ventas mayoristas en campo, alistamiento en almacén
+                  y arqueos de caja.
                 </p>
               </div>
-              <span className="text-sm font-bold text-[#3373b0] transition-transform duration-300 group-hover:translate-x-1" aria-hidden="true">
-                →
-              </span>
-            </button>
+              <div className="mt-6 space-y-3">
+                <button
+                  type="button"
+                  onClick={() => router.push("/vendedor")}
+                  className="flex w-full items-center justify-between rounded-xl bg-white p-4 text-left shadow-2xs border border-bht-line transition-all duration-300 ease-in-out hover:border-bht-cobalt hover:shadow-xs group cursor-pointer"
+                >
+                  <div>
+                    <p className="text-sm font-semibold tracking-tight text-bht-ink-strong">
+                      Tomar Pedido Mayorista
+                    </p>
+                    <p className="text-xs leading-relaxed text-bht-ink-soft">
+                      Catálogo con stock disponible en Soles (S/)
+                    </p>
+                  </div>
+                  <span
+                    className="text-sm font-bold text-bht-cobalt transition-transform duration-300 group-hover:translate-x-1"
+                    aria-hidden="true"
+                  >
+                    →
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => router.push("/almacen")}
+                  className="flex w-full items-center justify-between rounded-xl bg-white p-4 text-left shadow-2xs border border-bht-line transition-all duration-300 ease-in-out hover:border-bht-cobalt hover:shadow-xs group cursor-pointer"
+                >
+                  <div>
+                    <p className="text-sm font-semibold tracking-tight text-bht-ink-strong">
+                      Almacén y Reparto
+                    </p>
+                    <p className="text-xs leading-relaxed text-bht-ink-soft">
+                      Alistamiento por etapas y rutas de entrega
+                    </p>
+                  </div>
+                  <span
+                    className="text-sm font-bold text-bht-cobalt transition-transform duration-300 group-hover:translate-x-1"
+                    aria-hidden="true"
+                  >
+                    →
+                  </span>
+                </button>
+              </div>
+            </Card>
+          </div>
+
+          {/* Executive Business Summary (Bento Grid — 4 modular KPI Cards) */}
+          <div className="bht-contain-region grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
             <button
               type="button"
-              onClick={() => router.push("/almacen")}
-              className="flex w-full items-center justify-between rounded-xl bg-white p-4 text-left shadow-2xs border border-black/[0.06] transition-all duration-300 ease-in-out hover:border-[#3373b0] hover:shadow-xs group cursor-pointer"
+              onClick={() => handleTabChange("kpis")}
+              className="group rounded-xl border border-bht-line bg-white p-6 sm:p-8 text-left shadow-xs transition-all duration-300 ease-in-out hover:border-bht-cobalt/50 hover:-translate-y-1 hover:shadow-md cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bht-cobalt"
             >
-              <div>
-                <p className="text-sm font-semibold tracking-tight text-[#1c2127]">
-                  Almacén y Reparto
-                </p>
-                <p className="text-xs leading-relaxed text-[#5a6578]">
-                  Alistamiento por etapas y rutas de entrega
-                </p>
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-xs font-semibold uppercase tracking-wider text-bht-ink-soft">
+                  Ventas y Cobranza
+                </span>
+                <span
+                  className="text-xs text-bht-ink-soft transition-transform duration-300 group-hover:translate-x-1 group-hover:text-bht-cobalt"
+                  aria-hidden="true"
+                >
+                  →
+                </span>
               </div>
-              <span className="text-sm font-bold text-[#3373b0] transition-transform duration-300 group-hover:translate-x-1" aria-hidden="true">
-                →
-              </span>
+              <p className="mt-3 text-3xl font-bold tracking-tight text-bht-ink-strong tabular-nums">
+                {formatPen(kpiQ1?.total_sales_pen ?? 0)}
+              </p>
+              <p className="mt-2 text-xs font-medium leading-relaxed text-bht-ink-soft tabular-nums">
+                Cobrado: {formatPen(kpiQ1?.collected_sales_pen ?? 0)} ·{" "}
+                {totalOrdersCount} pedidos
+                {(dataCut?.lastOrderDate || kpiQ1?.period_end) &&
+                  ` · Corte: ${formatDatePe(dataCut?.lastOrderDate ?? kpiQ1?.period_end)}`}
+              </p>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => handleTabChange("deudores")}
+              className="group rounded-xl border border-bht-line bg-white p-6 sm:p-8 text-left shadow-xs transition-all duration-300 ease-in-out hover:border-rose-400 hover:-translate-y-1 hover:shadow-md cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-500"
+            >
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-xs font-semibold uppercase tracking-wider text-bht-ink-soft">
+                  Cartera por Cobrar
+                </span>
+                <span
+                  className="text-xs text-bht-ink-soft transition-transform duration-300 group-hover:translate-x-1 group-hover:text-rose-600"
+                  aria-hidden="true"
+                >
+                  →
+                </span>
+              </div>
+              <p className="mt-3 text-3xl font-bold tracking-tight text-rose-700 tabular-nums">
+                {formatPen(totalReceivablePen)}
+              </p>
+              <p className="mt-2 text-xs font-medium leading-relaxed text-bht-ink-soft tabular-nums">
+                {debtorsByOrder.length} pedido(s) · {brokenPromisesCount} vencida(s)
+              </p>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => handleTabChange("caja")}
+              className="group rounded-xl border border-bht-line bg-white p-6 sm:p-8 text-left shadow-xs transition-all duration-300 ease-in-out hover:border-bht-cobalt/50 hover:-translate-y-1 hover:shadow-md cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bht-cobalt"
+            >
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-xs font-semibold uppercase tracking-wider text-bht-ink-soft">
+                  Caja y Compras (CxP)
+                </span>
+                <span
+                  className="text-xs text-bht-ink-soft transition-transform duration-300 group-hover:translate-x-1 group-hover:text-bht-cobalt"
+                  aria-hidden="true"
+                >
+                  →
+                </span>
+              </div>
+              <p className="mt-3 text-3xl font-bold tracking-tight text-bht-cobalt tabular-nums">
+                {formatPen(totalCashPen)}
+              </p>
+              <p className="mt-2 text-xs font-medium leading-relaxed text-bht-ink-soft tabular-nums">
+                {dataCut?.bankReconciled === false
+                  ? "Saldo registrado (no conciliado)"
+                  : "Saldo registrado"}{" "}
+                · Por pagar: {formatPen(totalApPen)} ({openApCount} obl.)
+              </p>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => handleTabChange("stock")}
+              className="group rounded-xl border border-bht-line bg-white p-6 sm:p-8 text-left shadow-xs transition-all duration-300 ease-in-out hover:border-amber-400 hover:-translate-y-1 hover:shadow-md cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
+            >
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-xs font-semibold uppercase tracking-wider text-bht-ink-soft">
+                  Inventario y Alertas
+                </span>
+                <span
+                  className="text-xs text-bht-ink-soft transition-transform duration-300 group-hover:translate-x-1 group-hover:text-amber-600"
+                  aria-hidden="true"
+                >
+                  →
+                </span>
+              </div>
+              <p className="mt-3 text-3xl font-bold tracking-tight text-amber-800 tabular-nums">
+                {lowStockCount + marginRiskCount + negStockCount}
+              </p>
+              <p className="mt-2 text-xs font-medium leading-relaxed text-bht-ink-soft tabular-nums">
+                {lowStockCount} stock bajo · {marginRiskCount} margen · {negStockCount}{" "}
+                neg.
+              </p>
             </button>
           </div>
-        </Card>
-      </div>
+        </>
+      )}
 
-      {/* Executive Business Summary (Bento Grid — 4 modular KPI Cards) */}
-      <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
-        <button
-          type="button"
-          onClick={() => handleTabChange("kpis")}
-          className="group rounded-2xl border border-black/[0.06] bg-white p-6 sm:p-8 text-left shadow-xs transition-all duration-300 ease-in-out hover:border-[#3373b0]/50 hover:-translate-y-1 hover:shadow-md cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3373b0]"
-        >
-          <div className="flex items-center justify-between gap-2">
-            <span className="text-xs font-semibold uppercase tracking-wider text-[#5a6578]">
-              Ventas y Cobranza
-            </span>
-            <span
-              className="text-xs text-[#5a6578] transition-transform duration-300 group-hover:translate-x-1 group-hover:text-[#3373b0]"
-              aria-hidden="true"
-            >
-              →
-            </span>
-          </div>
-          <p className="mt-3 text-3xl font-bold tracking-tight text-[#1c2127] tabular-nums">
-            {formatPen(kpiQ1?.total_sales_pen ?? 0)}
-          </p>
-          <p className="mt-2 text-xs font-medium leading-relaxed text-[#5a6578] tabular-nums">
-            Cobrado: {formatPen(kpiQ1?.collected_sales_pen ?? 0)} · {totalOrdersCount}{" "}
-            pedidos
-            {(dataCut?.lastOrderDate || kpiQ1?.period_end) &&
-              ` · Corte: ${formatDatePe(dataCut?.lastOrderDate ?? kpiQ1?.period_end)}`}
-          </p>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => handleTabChange("deudores")}
-          className="group rounded-2xl border border-black/[0.06] bg-white p-6 sm:p-8 text-left shadow-xs transition-all duration-300 ease-in-out hover:border-rose-400 hover:-translate-y-1 hover:shadow-md cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-500"
-        >
-          <div className="flex items-center justify-between gap-2">
-            <span className="text-xs font-semibold uppercase tracking-wider text-[#5a6578]">
-              Cartera por Cobrar
-            </span>
-            <span
-              className="text-xs text-[#5a6578] transition-transform duration-300 group-hover:translate-x-1 group-hover:text-rose-600"
-              aria-hidden="true"
-            >
-              →
-            </span>
-          </div>
-          <p className="mt-3 text-3xl font-bold tracking-tight text-rose-700 tabular-nums">
-            {formatPen(totalReceivablePen)}
-          </p>
-          <p className="mt-2 text-xs font-medium leading-relaxed text-[#5a6578] tabular-nums">
-            {debtorsByOrder.length} pedido(s) · {brokenPromisesCount} vencida(s)
-          </p>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => handleTabChange("caja")}
-          className="group rounded-2xl border border-black/[0.06] bg-white p-6 sm:p-8 text-left shadow-xs transition-all duration-300 ease-in-out hover:border-[#3373b0]/50 hover:-translate-y-1 hover:shadow-md cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3373b0]"
-        >
-          <div className="flex items-center justify-between gap-2">
-            <span className="text-xs font-semibold uppercase tracking-wider text-[#5a6578]">
-              Caja y Compras (CxP)
-            </span>
-            <span
-              className="text-xs text-[#5a6578] transition-transform duration-300 group-hover:translate-x-1 group-hover:text-[#3373b0]"
-              aria-hidden="true"
-            >
-              →
-            </span>
-          </div>
-          <p className="mt-3 text-3xl font-bold tracking-tight text-[#3373b0] tabular-nums">
-            {formatPen(totalCashPen)}
-          </p>
-          <p className="mt-2 text-xs font-medium leading-relaxed text-[#5a6578] tabular-nums">
-            {dataCut?.bankReconciled === false
-              ? "Saldo registrado (no conciliado)"
-              : "Saldo registrado"}{" "}
-            · Por pagar: {formatPen(totalApPen)} ({openApCount} obl.)
-          </p>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => handleTabChange("stock")}
-          className="group rounded-2xl border border-black/[0.06] bg-white p-6 sm:p-8 text-left shadow-xs transition-all duration-300 ease-in-out hover:border-amber-400 hover:-translate-y-1 hover:shadow-md cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
-        >
-          <div className="flex items-center justify-between gap-2">
-            <span className="text-xs font-semibold uppercase tracking-wider text-[#5a6578]">
-              Inventario y Alertas
-            </span>
-            <span
-              className="text-xs text-[#5a6578] transition-transform duration-300 group-hover:translate-x-1 group-hover:text-amber-600"
-              aria-hidden="true"
-            >
-              →
-            </span>
-          </div>
-          <p className="mt-3 text-3xl font-bold tracking-tight text-amber-800 tabular-nums">
-            {lowStockCount + marginRiskCount + negStockCount}
-          </p>
-          <p className="mt-2 text-xs font-medium leading-relaxed text-[#5a6578] tabular-nums">
-            {lowStockCount} stock bajo · {marginRiskCount} margen · {negStockCount} neg.
-          </p>
-        </button>
-      </div>
-
-      {/* 1-Tap Discount Approval Queue — only rendered when there are pending approvals */}
+      {/* 1-Tap Discount / Credit Limit Approval Queue — only rendered when there are pending approvals */}
       {pendingApprovals.length > 0 && (
         <Card
           id="discount-approval-queue"
           tone="warning"
           padding="md"
-          className="scroll-mt-24 space-y-3"
+          className="bht-contain-region scroll-mt-24 space-y-3"
         >
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="flex items-center gap-2">
               <AlertTriangleIcon className="h-4 w-4 text-bht-warning" />
               <h2 className="text-base sm:text-lg font-bold text-bht-ink-strong">
-                Aprobación de Descuentos bajo el Precio Mínimo
+                Aprobación de Descuentos y Excesos de Crédito
               </h2>
             </div>
             <Badge tone="warning">{pendingApprovals.length} pendiente(s)</Badge>
@@ -465,6 +497,9 @@ export function Hoy({
               const marginVal = Number(o.order_margin_pen ?? 0);
               const totalVal = Number(o.total_pen ?? 0);
               const marginPct = totalVal > 0 ? (marginVal / totalVal) * 100 : 0;
+              const creditExceeded = Boolean(
+                (o as { credit_limit_exceeded_flag?: boolean }).credit_limit_exceeded_flag
+              );
               const lines = Array.isArray(o.lines) ? o.lines : [];
               const discountedLines = lines.filter(
                 (ln) =>
@@ -484,12 +519,17 @@ export function Hoy({
                         {formatActorName(o.created_by_name, "-")}
                       </strong>
                     </span>
-                    <Badge
-                      tone={getMarginTone(marginVal, totalVal)}
-                      className="tabular-nums"
-                    >
-                      Margen: {formatPen(marginVal)} ({marginPct.toFixed(1)}%)
-                    </Badge>
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      {creditExceeded && (
+                        <Badge tone="danger">Excede límite de crédito</Badge>
+                      )}
+                      <Badge
+                        tone={getMarginTone(marginVal, totalVal)}
+                        className="tabular-nums"
+                      >
+                        Margen: {formatPen(marginVal)} ({marginPct.toFixed(1)}%)
+                      </Badge>
+                    </div>
                   </div>
                   <h3 className="text-sm font-semibold text-bht-ink-strong tabular-nums">
                     {String(o.customer_name)} — {formatPen(o.total_pen)}
@@ -560,7 +600,12 @@ export function Hoy({
 
       {/* ON_DEMAND Pending Supplier Purchases */}
       {pendingOnDemand.length > 0 && (
-        <Card tone="horizon" accent="horizon" padding="md" className="space-y-3">
+        <Card
+          tone="horizon"
+          accent="horizon"
+          padding="md"
+          className="bht-contain-region space-y-3"
+        >
           <div className="flex items-center justify-between gap-2">
             <h2 className="text-base sm:text-lg font-bold text-bht-navy-deep">
               Pedidos Bajo Pedido Pendientes de Compra ({pendingOnDemand.length})
@@ -604,29 +649,35 @@ export function Hoy({
         </Card>
       )}
 
-      <HoyMonitor
-        orders={orders}
-        ordersPagination={ordersPagination}
-        flow={flow}
-        openAbonoForOrderRecord={openAbonoForOrderRecord}
-        onOpenAllOrders={() => handleTabChange("pedidos")}
-      />
+      <div className="bht-contain-region">
+        <HoyMonitor
+          orders={orders}
+          ordersPagination={ordersPagination}
+          flow={flow}
+          openAbonoForOrderRecord={openAbonoForOrderRecord}
+          onOpenAllOrders={() => handleTabChange("pedidos")}
+        />
+      </div>
 
-      <HoyRoutesQuotes
-        routeTrips={routeTrips}
-        partnerQuotes={partnerQuotes}
-        flow={flow}
-        onOpenReports={() => handleTabChange("kpis")}
-        onOpenOrders={() => handleTabChange("pedidos")}
-      />
+      <div className="bht-contain-region">
+        <HoyRoutesQuotes
+          routeTrips={routeTrips}
+          partnerQuotes={partnerQuotes}
+          flow={flow}
+          onOpenReports={() => handleTabChange("kpis")}
+          onOpenOrders={() => handleTabChange("pedidos")}
+        />
+      </div>
 
-      <HoyDataStatusCard
-        dataCut={dataCut}
-        operationalQuality={operationalQuality}
-        fallbackPeriodEnd={kpiQ1?.period_end}
-        onOpenTab={handleTabChange}
-        onOpenDailyClose={onOpenDailyClose}
-      />
+      <div className="bht-contain-region">
+        <HoyDataStatusCard
+          dataCut={dataCut}
+          operationalQuality={operationalQuality}
+          fallbackPeriodEnd={kpiQ1?.period_end}
+          onOpenTab={handleTabChange}
+          onOpenDailyClose={onOpenDailyClose}
+        />
+      </div>
     </div>
   );
 }

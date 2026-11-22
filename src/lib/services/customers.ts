@@ -1214,3 +1214,102 @@ export async function updateSupplier(
     throw err;
   }
 }
+
+export interface CustomerCreditSuggestion {
+  party_id: number;
+  customer_party_id: number;
+  customer_name: string;
+  credit_days: number;
+  current_credit_limit_pen: number | null;
+  total_orders: number;
+  delivered_orders_6m: number;
+  active_months_6m: number;
+  avg_monthly_sales_pen: number;
+  monthly_run_rate_pen: number;
+  cv_monthly_sales: number;
+  monthly_cv: number;
+  avg_days_overdue: number;
+  avg_delay_days: number;
+  open_ar_balance_pen: number;
+  current_overdue_pen: number;
+  punctuality_factor: number;
+  volatility_factor: number;
+  suggested_credit_limit_pen: number;
+  risk_tier: string;
+}
+
+export async function getCustomerCreditSuggestion(
+  client: PoolClient,
+  actorOrPartyId: SessionUser | number | string,
+  maybePartyId?: unknown
+): Promise<CustomerCreditSuggestion> {
+  let partyIdInput: unknown = actorOrPartyId;
+  if (
+    typeof actorOrPartyId === "object" &&
+    actorOrPartyId !== null &&
+    "role" in actorOrPartyId
+  ) {
+    assertRole(actorOrPartyId, ["PARTNER_ADMIN", "PARTNER_MANAGER"]);
+    partyIdInput = maybePartyId;
+  }
+  const partyId = parsePositiveInt(partyIdInput, "ID de cliente");
+
+  const res = await client.query<Record<string, unknown>>(
+    `SELECT
+       party_id,
+       customer_party_id,
+       customer_name,
+       credit_days,
+       current_credit_limit_pen,
+       total_orders,
+       delivered_orders_6m,
+       active_months_6m,
+       avg_monthly_sales_pen,
+       monthly_run_rate_pen,
+       cv_monthly_sales,
+       monthly_cv,
+       avg_days_overdue,
+       avg_delay_days,
+       open_ar_balance_pen,
+       current_overdue_pen,
+       punctuality_factor,
+       volatility_factor,
+       suggested_credit_limit_pen,
+       risk_tier
+     FROM analytics.v_customer_credit_suggestion
+     WHERE party_id = $1
+     LIMIT 1`,
+    [partyId]
+  );
+
+  if (res.rowCount === 0) {
+    throw new ValidationError("Cliente no encontrado para evaluación de crédito");
+  }
+
+  const r = res.rows[0];
+  return {
+    party_id: Number(r.party_id),
+    customer_party_id: Number(r.customer_party_id ?? r.party_id),
+    customer_name: String(r.customer_name || ""),
+    credit_days: Number(r.credit_days ?? 7),
+    current_credit_limit_pen:
+      r.current_credit_limit_pen !== null && r.current_credit_limit_pen !== undefined
+        ? Number(r.current_credit_limit_pen)
+        : null,
+    total_orders: Number(r.total_orders ?? 0),
+    delivered_orders_6m: Number(r.delivered_orders_6m ?? 0),
+    active_months_6m: Number(r.active_months_6m ?? 0),
+    avg_monthly_sales_pen: Number(r.avg_monthly_sales_pen ?? 0),
+    monthly_run_rate_pen: Number(r.monthly_run_rate_pen ?? r.avg_monthly_sales_pen ?? 0),
+    cv_monthly_sales: Number(r.cv_monthly_sales ?? 0),
+    monthly_cv: Number(r.monthly_cv ?? r.cv_monthly_sales ?? 0),
+    avg_days_overdue: Number(r.avg_days_overdue ?? 0),
+    avg_delay_days: Number(r.avg_delay_days ?? r.avg_days_overdue ?? 0),
+    open_ar_balance_pen: Number(r.open_ar_balance_pen ?? 0),
+    current_overdue_pen: Number(r.current_overdue_pen ?? 0),
+    punctuality_factor: Number(r.punctuality_factor ?? 0),
+    volatility_factor: Number(r.volatility_factor ?? 0),
+    suggested_credit_limit_pen: Number(r.suggested_credit_limit_pen ?? 0),
+    risk_tier: String(r.risk_tier || "UNRATED"),
+  };
+}

@@ -469,6 +469,113 @@ describe("Order Lifecycle Service (Soles Discount Floor, Approval, Stock & 4-Res
     }
   });
 
+  it("generates atomic consecutive SO-YYYYMMDD-NNNN codes and enforces the credit_limit_pen soft gate with CREDIT_LIMIT_EXCEEDED audit flag", async () => {
+    const { createCustomer } = await import("../src/lib/services/customers");
+    const pool = getPool("dev");
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      const whRes = await client.query(
+        `SELECT warehouse_id FROM erp.warehouses WHERE code = 'MAIN' LIMIT 1`
+      );
+      const warehouseId = Number(whRes.rows[0].warehouse_id);
+
+      const prodRes = await client.query(
+        `INSERT INTO erp.products (sku, name, unit_of_measure, fulfillment_mode, list_sale_price_pen, min_sale_price_pen, ref_cost_pen)
+         VALUES ('TEST-CREDIT-GATE-01', 'BOMBA CREDITO GATE', 'UND', 'STOCKED', 500, 480, 350)
+         RETURNING product_id`
+      );
+      const productId = Number(prodRes.rows[0].product_id);
+
+      await client.query(
+        `INSERT INTO erp.inventory_movements (warehouse_id, product_id, movement_date, movement_type, quantity_delta, unit_cost_pen, notes)
+         VALUES ($1, $2, NOW(), 'ADJUSTMENT', 30, 350, 'TEST_CREDIT_GATE_STOCK')`,
+        [warehouseId, productId]
+      );
+
+      const { customer } = await createCustomer(client, partnerActor, {
+        tradeName: "Ferretería Límite Crédito",
+        legalName: "Ferretería Límite Crédito SAC",
+        cityZone: "LABERINTO",
+        creditDaysAgreed: 15,
+        creditLimitPen: 2000,
+      });
+
+      // 1. First CREDIT order for S/ 1,500 (within S/ 2,000 limit) -> REGISTERED, stock deducted (30 -> 27)
+      const firstOrder = await createOrder(client, sellerActor, {
+        customerPartyId: customer.party_id,
+        customerNameRaw: customer.display_name,
+        paymentMode: "CREDIT",
+        lines: [{ productId, quantity: 3 }],
+      });
+      expect(firstOrder.orderCode).toMatch(/^SO-\d{8}-\d{4,}$/);
+      expect(firstOrder.operationalStatus).toBe("REGISTERED");
+      expect(firstOrder.requiresApproval).toBe(false);
+      expect(firstOrder.creditLimitExceeded).toBe(false);
+
+      // 2. Second CREDIT order for S/ 1,000 (open AR 1,500 + 1,000 = 2,500 > 2,000 limit)
+      // Seller order must enter PENDING_PARTNER_APPROVAL without deducting stock, with credit_limit_exceeded_flag = TRUE
+      const secondOrder = await createOrder(client, sellerActor, {
+        customerPartyId: customer.party_id,
+        customerNameRaw: customer.display_name,
+        paymentMode: "CREDIT",
+        lines: [{ productId, quantity: 2 }],
+      });
+      expect(secondOrder.orderCode).toMatch(/^SO-\d{8}-\d{4,}$/);
+      expect(secondOrder.orderCode).not.toBe(firstOrder.orderCode);
+      expect(secondOrder.operationalStatus).toBe("PENDING_PARTNER_APPROVAL");
+      expect(secondOrder.requiresApproval).toBe(true);
+      expect(secondOrder.creditLimitExceeded).toBe(true);
+
+      const orderRow = await client.query<{
+        credit_limit_exceeded_flag: boolean;
+        stock_deducted: boolean;
+      }>(
+        `SELECT credit_limit_exceeded_flag, stock_deducted
+         FROM erp.sales_orders WHERE order_id = $1`,
+        [secondOrder.orderId]
+      );
+      expect(orderRow.rows[0].credit_limit_exceeded_flag).toBe(true);
+      expect(orderRow.rows[0].stock_deducted).toBe(false);
+
+      // Stock remains at 27 until partner approves
+      const stockBeforeApprove = await client.query(
+        `SELECT stock_on_hand FROM erp.v_current_stock WHERE warehouse_id = $1 AND product_id = $2`,
+        [warehouseId, productId]
+      );
+      expect(Number(stockBeforeApprove.rows[0].stock_on_hand)).toBe(27);
+
+      // Audit flag CREDIT_LIMIT_EXCEEDED is recorded
+      const flagRes = await client.query<{ flag_code: string; status: string }>(
+        `SELECT flag_code, status::text AS status
+         FROM erp.audit_flags
+         WHERE entity_table = 'erp.sales_orders'
+           AND entity_id = $1
+           AND flag_code = 'CREDIT_LIMIT_EXCEEDED'`,
+        [String(secondOrder.orderId)]
+      );
+      expect(flagRes.rowCount).toBe(1);
+      expect(flagRes.rows[0].status).toBe("OPEN");
+
+      // Partner approves -> transitions to REGISTERED and deducts 2 units (27 -> 25)
+      const approved = await approveDiscountedOrder(
+        client,
+        partnerActor,
+        secondOrder.orderId
+      );
+      expect(approved.operationalStatus).toBe("REGISTERED");
+
+      const stockAfterApprove = await client.query(
+        `SELECT stock_on_hand FROM erp.v_current_stock WHERE warehouse_id = $1 AND product_id = $2`,
+        [warehouseId, productId]
+      );
+      expect(Number(stockAfterApprove.rows[0].stock_on_hand)).toBe(25);
+    } finally {
+      await client.query("ROLLBACK");
+      client.release();
+    }
+  });
+
   it("serializes concurrent ON_DEMAND purchase fulfillment via FOR UPDATE across parallel DB connections without double-fulfilling", async () => {
     const { registerSupplierPurchase, createSupplier } =
       await import("../src/lib/services/purchases-and-suppliers");

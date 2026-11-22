@@ -61,6 +61,15 @@ export function resolveHttpError(
     }
     if (code === "23514" || code === "22P02" || code === "23503" || code === "23502") {
       const message = typeof pgErr.message === "string" ? pgErr.message : "";
+      if (code === "23514" && /periodo cerrado/i.test(message)) {
+        return {
+          status: 409,
+          error:
+            message ||
+            "Periodo cerrado: no se permiten movimientos en una fecha con cierre diario cerrado",
+          code: "CLOSED_PERIOD",
+        };
+      }
       if (code === "23514" && message.toLowerCase().includes("stock")) {
         return {
           status: 400,

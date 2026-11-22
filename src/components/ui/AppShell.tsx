@@ -1,7 +1,8 @@
 "use client";
 
-import React, { useEffect, useRef, useState } from "react";
-import { HorizonLogo, LogOutIcon } from "./Icons";
+import React, { useEffect, useId, useRef, useState } from "react";
+import Link from "next/link";
+import { HorizonLogo, LockIcon, LogOutIcon, SearchIcon } from "./Icons";
 import { Badge, type BadgeTone, Button } from "./Primitives";
 
 export interface NavTabItem<T extends string = string> {
@@ -21,6 +22,9 @@ export interface NavExtraAction {
 }
 
 export type LiveSyncStatus = "live" | "syncing" | "paused" | "offline";
+export type UiDensity = "comfortable" | "compact";
+
+const DENSITY_STORAGE_KEY = "bht_density";
 
 export function DesktopSidebar<T extends string>({
   items,
@@ -36,7 +40,7 @@ export function DesktopSidebar<T extends string>({
   footer?: React.ReactNode;
 }) {
   return (
-    <aside className="fixed inset-y-0 left-0 z-40 hidden w-[232px] flex-col bg-[#1c2127] border-r border-[#2d3540] px-3.5 py-5 text-white md:flex">
+    <aside className="fixed inset-y-0 left-0 z-40 hidden w-[232px] flex-col bg-bht-navy-deep border-r border-bht-navy-soft px-3.5 py-5 text-white md:flex">
       <div className="flex items-center gap-3 px-2 pb-6">
         <span className="flex h-10 w-16 flex-none items-center justify-center rounded-xl bg-white/10 border border-white/15 p-1 shadow-xs">
           <HorizonLogo className="h-full w-full" />
@@ -45,7 +49,7 @@ export function DesktopSidebar<T extends string>({
           <p className="text-sm font-semibold tracking-[-0.01em] text-white leading-tight">
             Blue Horizon Trade
           </p>
-          <p className="mt-0.5 truncate text-[11px] font-medium tracking-[0.03em] text-[#bed4e9]/80">
+          <p className="mt-0.5 truncate text-[11px] font-medium tracking-[0.03em] text-bht-info-line/80">
             {areaLabel}
           </p>
         </div>
@@ -59,7 +63,7 @@ export function DesktopSidebar<T extends string>({
             <React.Fragment key={item.id}>
               {showGroupHeader && (
                 <p
-                  className={`px-3 pb-1 text-[11px] font-semibold uppercase tracking-[0.1em] text-[#8c98a9] ${
+                  className={`px-3 pb-1 text-[11px] font-semibold uppercase tracking-[0.1em] text-bht-ink-muted ${
                     idx === 0 ? "pt-0" : "mt-2 border-t border-white/10 pt-3"
                   }`}
                 >
@@ -72,22 +76,20 @@ export function DesktopSidebar<T extends string>({
                 onClick={() => onChange(item.id)}
                 className={`relative flex min-h-10 w-full items-center gap-3 rounded-xl px-3 text-left text-sm transition-all duration-300 ease-in-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white cursor-pointer ${
                   active
-                    ? "bg-white font-semibold text-[#1c2127] shadow-sm"
-                    : "text-[#bed4e9]/80 hover:bg-white/10 hover:text-white font-medium"
+                    ? "bg-white font-semibold text-bht-ink-strong shadow-sm"
+                    : "text-bht-info-line/80 hover:bg-white/10 hover:text-white font-medium"
                 }`}
               >
                 {active && (
                   <span
                     aria-hidden="true"
-                    className="
-                      absolute left-1 top-2.5 bottom-2.5 w-1 rounded-full bg-[#3373b0]
-                    "
+                    className="absolute left-1 top-2.5 bottom-2.5 w-1 rounded-full bg-bht-cobalt"
                   />
                 )}
                 <span
                   aria-hidden="true"
                   className={`flex h-5 w-5 items-center justify-center ${
-                    active ? "text-[#3373b0]" : ""
+                    active ? "text-bht-cobalt" : ""
                   }`}
                 >
                   {item.icon}
@@ -97,7 +99,7 @@ export function DesktopSidebar<T extends string>({
                   <span
                     className={`rounded-full px-2 py-0.5 text-[10px] font-bold tabular-nums ${
                       active
-                        ? "bg-[#1c2127] text-white"
+                        ? "bg-bht-navy-deep text-white"
                         : "bg-white/15 text-white"
                     }`}
                   >
@@ -110,7 +112,7 @@ export function DesktopSidebar<T extends string>({
         })}
       </nav>
       {footer && (
-        <div className="mt-auto border-t border-white/10 px-2 pt-4 text-xs text-[#8c98a9]">
+        <div className="mt-auto border-t border-white/10 px-2 pt-4 text-xs text-bht-ink-muted">
           {footer}
         </div>
       )}
@@ -129,13 +131,13 @@ const SYNC_STATUS_CONFIG: Record<
   },
   syncing: {
     label: "Sincronizando",
-    dotClass: "bg-[#3373b0] animate-pulse",
-    pillClass: "border-[#3373b0]/30 bg-[#e7f1fb] text-[#3373b0]",
+    dotClass: "bg-bht-cobalt animate-pulse",
+    pillClass: "border-bht-cobalt/30 bg-bht-cobalt-bg text-bht-cobalt",
   },
   paused: {
     label: "En pausa",
     dotClass: "bg-slate-400",
-    pillClass: "border-black/[0.06] bg-[#f1f5f9] text-slate-600",
+    pillClass: "border-bht-line bg-bht-mist text-slate-600",
   },
   offline: {
     label: "Sin conexión",
@@ -155,6 +157,7 @@ export function AppHeader({
   maxWidth = "2xl",
   actions,
   onLogout,
+  onOpenCommandPalette,
   withSidebar = false,
 }: {
   title: string;
@@ -167,9 +170,43 @@ export function AppHeader({
   maxWidth?: "xl" | "2xl" | "5xl" | "6xl" | "7xl";
   actions?: React.ReactNode;
   onLogout: () => void;
+  onOpenCommandPalette?: () => void;
   withSidebar?: boolean;
 }) {
   const [displaySyncStatus, setDisplaySyncStatus] = useState(syncStatus);
+  const [density, setDensity] = useState<UiDensity>("comfortable");
+
+  useEffect(() => {
+    try {
+      const saved = window.localStorage.getItem(DENSITY_STORAGE_KEY);
+      const initial: UiDensity = saved === "compact" ? "compact" : "comfortable";
+      setDensity(initial);
+      document.documentElement.dataset.density = initial;
+    } catch {
+      // Ignore storage access errors
+    }
+  }, []);
+
+  function toggleDensity() {
+    const next: UiDensity = density === "compact" ? "comfortable" : "compact";
+    setDensity(next);
+    document.documentElement.dataset.density = next;
+    try {
+      window.localStorage.setItem(DENSITY_STORAGE_KEY, next);
+    } catch {
+      // Ignore storage write errors
+    }
+  }
+
+  function triggerCommandPalette() {
+    if (onOpenCommandPalette) {
+      onOpenCommandPalette();
+      return;
+    }
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("bht:open-command-palette"));
+    }
+  }
 
   useEffect(() => {
     if (!syncStatus) {
@@ -209,10 +246,14 @@ export function AppHeader({
       className={`sticky top-0 z-30 border-b border-[var(--border-hairline)] bg-white/95 backdrop-blur-md ${withSidebar ? "md:ml-[232px]" : ""}`}
     >
       <div
-        className={`mx-auto grid ${widthClass} grid-cols-[minmax(0,1fr)_auto] items-start gap-x-2 gap-y-2 px-3.5 py-3 sm:flex sm:flex-wrap sm:items-center sm:justify-between sm:gap-3 sm:px-5`}
+        className={`mx-auto grid ${widthClass} grid-cols-[minmax(0,1fr)_auto] items-start gap-x-2 gap-y-2 px-3.5 py-2.5 sm:flex sm:flex-wrap sm:items-center sm:justify-between sm:gap-3 sm:px-5`}
       >
         <div className="flex min-w-0 flex-1 items-center gap-3">
-          <span className="flex h-10 w-16 flex-shrink-0 items-center justify-center">
+          <span
+            className={`flex h-10 w-16 flex-shrink-0 items-center justify-center ${
+              withSidebar ? "md:hidden" : ""
+            }`}
+          >
             <HorizonLogo className="h-full w-full" />
           </span>
           <div className="min-w-0 flex-1">
@@ -260,14 +301,53 @@ export function AppHeader({
           </div>
         </div>
 
-        <div className="ml-auto flex min-w-0 flex-shrink-0 flex-wrap items-center justify-end gap-2">
+        <div className="ml-auto flex min-w-0 flex-shrink-0 flex-wrap items-center justify-end gap-1.5 sm:gap-2">
+          <button
+            type="button"
+            data-compact="true"
+            onClick={triggerCommandPalette}
+            aria-label="Abrir paleta de comandos (Cmd+K o Ctrl+K)"
+            className="inline-flex min-h-[36px] items-center gap-1.5 rounded-xl border border-bht-line bg-bht-paper px-2.5 py-1.5 text-xs font-semibold text-bht-ink-soft transition hover:border-bht-cobalt hover:bg-white hover:text-bht-ink-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bht-cobalt cursor-pointer"
+          >
+            <SearchIcon className="h-3.5 w-3.5" />
+            <span className="hidden lg:inline">Ir a...</span>
+            <kbd className="rounded border border-bht-line bg-white px-1.5 py-0.5 font-mono text-[10px] font-semibold text-bht-ink-strong">
+              ⌘K
+            </kbd>
+          </button>
+
+          <button
+            type="button"
+            data-compact="true"
+            onClick={toggleDensity}
+            aria-pressed={density === "compact"}
+            aria-label={`Densidad de interfaz: ${
+              density === "compact" ? "Compacto" : "Cómodo"
+            }. Tocar para alternar`}
+            className="hidden sm:inline-flex min-h-[36px] items-center gap-1 rounded-xl border border-bht-line bg-white px-2.5 py-1.5 text-xs font-semibold text-bht-ink-soft transition hover:border-bht-line-strong hover:bg-bht-paper hover:text-bht-ink-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bht-cobalt cursor-pointer"
+          >
+            <span>{density === "compact" ? "Compacto" : "Cómodo"}</span>
+          </button>
+
           {actions}
+
+          <Link
+            href="/change-password"
+            data-compact="true"
+            aria-label="Cambiar contraseña"
+            title="Cambiar contraseña"
+            className="inline-flex min-h-[36px] items-center gap-1.5 rounded-xl border border-bht-line bg-white px-2.5 py-1.5 text-xs font-semibold text-bht-ink-soft transition hover:border-bht-cobalt hover:bg-bht-cobalt-bg/40 hover:text-bht-cobalt focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bht-cobalt"
+          >
+            <LockIcon className="h-3.5 w-3.5" />
+            <span className="hidden xl:inline">Clave</span>
+          </Link>
+
           <Button
             variant="outline"
             size="sm"
             onClick={onLogout}
             aria-label="Salir y cerrar sesión"
-            className="min-h-[38px] sm:min-h-[40px] rounded-xl px-3.5 text-xs sm:text-sm"
+            className="min-h-[36px] sm:min-h-[38px] rounded-xl px-3 text-xs sm:text-sm"
           >
             <LogOutIcon className="h-3.5 w-3.5" />
             <span className="hidden sm:inline">Salir</span>
@@ -307,14 +387,14 @@ export function DesktopTabBar<T extends string>({
             type="button"
             aria-current={active ? "page" : undefined}
             onClick={() => onChange(item.id)}
-            className={`flex flex-shrink-0 items-center gap-2 rounded-lg px-3.5 py-2 text-sm font-semibold transition-all duration-300 ease-in-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3373b0] focus-visible:ring-offset-1 cursor-pointer ${
+            className={`flex flex-shrink-0 items-center gap-2 rounded-lg px-3.5 py-2 text-sm font-semibold transition-all duration-300 ease-in-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bht-cobalt focus-visible:ring-offset-1 cursor-pointer ${
               active
-                ? "border border-[#3373b0]/30 bg-[#e7f1fb] text-[#3373b0] font-bold shadow-2xs"
-                : "border border-transparent text-[#5a6578] hover:bg-[#f1f5f9] hover:text-[#1c2127]"
+                ? "border border-bht-cobalt/30 bg-bht-cobalt-bg text-bht-cobalt font-bold shadow-2xs"
+                : "border border-transparent text-bht-ink-soft hover:bg-bht-mist hover:text-bht-ink-strong"
             }`}
           >
             <span
-              className={active ? "text-[#3373b0]" : "text-[#5a6578]"}
+              className={active ? "text-bht-cobalt" : "text-bht-ink-soft"}
               aria-hidden="true"
             >
               {item.icon}
@@ -324,8 +404,8 @@ export function DesktopTabBar<T extends string>({
               <span
                 className={`rounded-full px-2 py-0.5 text-[10px] font-bold tabular-nums leading-none ${
                   active
-                    ? "bg-[#1c2127] text-white"
-                    : "bg-[#e7f1fb] text-[#5a6578]"
+                    ? "bg-bht-navy-deep text-white"
+                    : "bg-bht-cobalt-bg text-bht-ink-soft"
                 }`}
               >
                 {item.badgeCount}
@@ -356,34 +436,56 @@ export function BottomNav<T extends string>({
   extraActions?: NavExtraAction[];
 }) {
   const [moreOpen, setMoreOpen] = useState(false);
-  const moreRef = useRef<HTMLDivElement>(null);
+  const popoverId = useId();
+  const popoverRef = useRef<HTMLDivElement>(null);
   const moreButtonRef = useRef<HTMLButtonElement>(null);
   const widthClass = maxWidth === "2xl" ? "max-w-2xl" : "max-w-full";
   const primaryItems = items.slice(0, visibleCount);
   const extraItems = items.slice(visibleCount);
   const selectedExtra = extraItems.find((item) => item.id === activeId);
-  useEffect(() => {
-    if (!moreOpen) return;
-    const closeOnOutside = (event: PointerEvent) => {
-      if (!moreRef.current?.contains(event.target as Node)) setMoreOpen(false);
-    };
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        setMoreOpen(false);
-        moreButtonRef.current?.focus();
+
+  function closeMorePopover() {
+    setMoreOpen(false);
+    const pop = popoverRef.current as
+      | (HTMLDivElement & { hidePopover?: () => void })
+      | null;
+    if (pop && typeof pop.hidePopover === "function") {
+      try {
+        pop.hidePopover();
+      } catch {
+        // Ignore if already closed
       }
-    };
-    document.addEventListener("pointerdown", closeOnOutside);
-    document.addEventListener("keydown", closeOnEscape);
-    return () => {
-      document.removeEventListener("pointerdown", closeOnOutside);
-      document.removeEventListener("keydown", closeOnEscape);
-    };
-  }, [moreOpen]);
+    }
+  }
+
+  function toggleMorePopover() {
+    const pop = popoverRef.current as
+      | (HTMLDivElement & {
+          showPopover?: () => void;
+          hidePopover?: () => void;
+        })
+      | null;
+    if (pop && typeof pop.showPopover === "function") {
+      try {
+        if (moreOpen) {
+          pop.hidePopover?.();
+          setMoreOpen(false);
+        } else {
+          pop.showPopover();
+          setMoreOpen(true);
+        }
+        return;
+      } catch {
+        // Fall through to React state toggle
+      }
+    }
+    setMoreOpen((prev) => !prev);
+  }
+
   return (
     <nav
       aria-label="Navegación inferior"
-      className={`bottom-bar fixed bottom-0 left-0 right-0 z-30 border-t border-[var(--border-hairline)] bg-white/95 backdrop-blur-md shadow-[0_-2px_10px_rgba(16,42,67,0.03)] ${className}`}
+      className={`bottom-bar fixed bottom-0 left-0 right-0 z-30 border-t border-[var(--border-hairline)] bg-white/95 backdrop-blur-md shadow-bht-elev-3 ${className}`}
     >
       <div className={`mx-auto flex ${widthClass} items-stretch gap-1 pt-1.5`}>
         {primaryItems.map((item) => {
@@ -394,22 +496,20 @@ export function BottomNav<T extends string>({
               type="button"
               aria-current={active ? "page" : undefined}
               onClick={() => onChange(item.id)}
-              className={`relative flex min-w-0 flex-1 min-h-[44px] flex-col items-center justify-center gap-1 rounded-xl py-1.5 px-1 text-xs font-semibold transition-all duration-300 ease-in-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3373b0] cursor-pointer ${
+              className={`relative flex min-w-0 flex-1 min-h-[44px] flex-col items-center justify-center gap-1 rounded-xl py-1.5 px-1 text-xs font-semibold transition-all duration-300 ease-in-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bht-cobalt cursor-pointer ${
                 active
-                  ? "text-[#3373b0]"
-                  : "text-[#5a6578] hover:text-[#1c2127]"
+                  ? "text-bht-cobalt"
+                  : "text-bht-ink-soft hover:text-bht-ink-strong"
               }`}
             >
               <div
                 className={`relative flex h-7 w-12 items-center justify-center rounded-full transition-all duration-300 ease-in-out ${
-                  active
-                    ? "bg-[#e7f1fb] text-[#3373b0]"
-                    : ""
+                  active ? "bg-bht-cobalt-bg text-bht-cobalt" : ""
                 }`}
               >
                 <span aria-hidden="true">{item.icon}</span>
                 {item.badgeCount !== undefined && item.badgeCount > 0 && (
-                  <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-[#1c2127] px-1 text-[10px] font-bold text-white tabular-nums">
+                  <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-bht-navy-deep px-1 text-[10px] font-bold text-white tabular-nums">
                     {item.badgeCount > 99 ? "99+" : item.badgeCount}
                   </span>
                 )}
@@ -421,70 +521,96 @@ export function BottomNav<T extends string>({
           );
         })}
         {(extraItems.length > 0 || (extraActions && extraActions.length > 0)) && (
-          <div ref={moreRef} className="relative flex min-w-0 flex-1">
-            {moreOpen && (
-              <div className="absolute bottom-full right-0 mb-3 w-56 rounded-xl border border-bht-slate-line bg-white p-1.5 shadow-lg">
-                {extraItems.map((item) => (
-                  <button
-                    key={item.id}
-                    type="button"
-                    aria-current={activeId === item.id ? "page" : undefined}
-                    onClick={() => {
-                      onChange(item.id);
-                      setMoreOpen(false);
-                      moreButtonRef.current?.focus();
-                    }}
-                    className={`flex min-h-11 w-full items-center gap-3 rounded-lg px-3 text-left text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bht-cobalt-vivid ${activeId === item.id ? "bg-bht-cobalt-bg text-bht-cobalt-strong" : "text-bht-slate-text hover:bg-bht-surface-cool"}`}
-                  >
-                    <span aria-hidden="true">{item.icon}</span>
-                    <span className="flex-1">{item.label}</span>
-                    {item.badgeCount !== undefined && item.badgeCount > 0 && (
-                      <span className="tabular-nums">
-                        {item.badgeCount > 99 ? "99+" : item.badgeCount}
-                      </span>
-                    )}
-                  </button>
-                ))}
-                {extraActions && extraActions.length > 0 && (
-                  <div
-                    className={
-                      extraItems.length > 0
-                        ? "mt-1.5 border-t border-bht-slate-line pt-1.5"
-                        : ""
-                    }
-                  >
-                    {extraActions.map((action) => (
-                      <button
-                        key={action.id}
-                        type="button"
-                        onClick={() => {
-                          setMoreOpen(false);
-                          action.onClick();
-                        }}
-                        className="flex min-h-11 w-full items-center gap-3 rounded-lg px-3 text-left text-sm font-medium text-bht-navy-deep hover:bg-bht-surface-cool focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bht-cobalt-vivid cursor-pointer"
-                      >
-                        <span aria-hidden="true">{action.icon}</span>
-                        <span className="flex-1">{action.label}</span>
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
+          <div className="relative flex min-w-0 flex-1">
+            <div
+              ref={popoverRef}
+              id={popoverId}
+              popover="auto"
+              onToggle={(e) => {
+                const evt = e as React.SyntheticEvent<HTMLDivElement> & {
+                  newState?: string;
+                };
+                if (evt.newState) {
+                  setMoreOpen(evt.newState === "open");
+                }
+              }}
+              className={`${
+                moreOpen ? "block" : "hidden"
+              } fixed inset-x-3 bottom-20 z-50 mx-auto w-auto max-w-sm rounded-xl border border-bht-slate-line bg-white p-1.5 shadow-bht-elev-17`}
+            >
+              {extraItems.map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  aria-current={activeId === item.id ? "page" : undefined}
+                  onClick={() => {
+                    onChange(item.id);
+                    closeMorePopover();
+                    moreButtonRef.current?.focus();
+                  }}
+                  className={`flex min-h-11 w-full items-center gap-3 rounded-lg px-3 text-left text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bht-cobalt-vivid ${
+                    activeId === item.id
+                      ? "bg-bht-cobalt-bg text-bht-cobalt-strong"
+                      : "text-bht-slate-text hover:bg-bht-surface-cool"
+                  }`}
+                >
+                  <span aria-hidden="true">{item.icon}</span>
+                  <span className="flex-1">{item.label}</span>
+                  {item.badgeCount !== undefined && item.badgeCount > 0 && (
+                    <span className="tabular-nums">
+                      {item.badgeCount > 99 ? "99+" : item.badgeCount}
+                    </span>
+                  )}
+                </button>
+              ))}
+              {extraActions && extraActions.length > 0 && (
+                <div
+                  className={
+                    extraItems.length > 0
+                      ? "mt-1.5 border-t border-bht-slate-line pt-1.5"
+                      : ""
+                  }
+                >
+                  {extraActions.map((action) => (
+                    <button
+                      key={action.id}
+                      type="button"
+                      onClick={() => {
+                        closeMorePopover();
+                        action.onClick();
+                      }}
+                      className="flex min-h-11 w-full items-center gap-3 rounded-lg px-3 text-left text-sm font-medium text-bht-navy-deep hover:bg-bht-surface-cool focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bht-cobalt-vivid cursor-pointer"
+                    >
+                      <span aria-hidden="true">{action.icon}</span>
+                      <span className="flex-1">{action.label}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
             <button
               ref={moreButtonRef}
               type="button"
+              popoverTarget={popoverId}
               aria-expanded={moreOpen}
               aria-label={
                 selectedExtra
                   ? `Más secciones, actual: ${selectedExtra.label}`
                   : "Más secciones"
               }
-              onClick={() => setMoreOpen((open) => !open)}
-              className={`flex min-h-11 w-full flex-col items-center justify-center gap-1 rounded-xl px-1 py-1.5 text-xs font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bht-cobalt-vivid ${selectedExtra || moreOpen ? "text-bht-cobalt-strong" : "text-bht-slate-text"}`}
+              onClick={toggleMorePopover}
+              className={`flex min-h-11 w-full flex-col items-center justify-center gap-1 rounded-xl px-1 py-1.5 text-xs font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bht-cobalt-vivid ${
+                selectedExtra || moreOpen
+                  ? "text-bht-cobalt-strong"
+                  : "text-bht-slate-text"
+              }`}
             >
               <span
-                className={`flex h-7 w-12 items-center justify-center rounded-full text-lg leading-none ${selectedExtra || moreOpen ? "bg-bht-cobalt-bg ring-1 ring-bht-info-line" : ""}`}
+                className={`flex h-7 w-12 items-center justify-center rounded-full text-lg leading-none ${
+                  selectedExtra || moreOpen
+                    ? "bg-bht-cobalt-bg ring-1 ring-bht-info-line"
+                    : ""
+                }`}
                 aria-hidden="true"
               >
                 ···

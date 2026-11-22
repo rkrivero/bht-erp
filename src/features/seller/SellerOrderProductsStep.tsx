@@ -92,8 +92,8 @@ export default function SellerOrderProductsStep({ flow }: { flow: SellerOrderFlo
                   key={prod.product_id}
                   className={`flex items-center justify-between gap-3 rounded-xl border p-3.5 transition-all duration-140 ${
                     inCartQty > 0
-                      ? "border-[var(--bht-cobalt)]/40 bg-[#F0F7FF]/50 shadow-xs"
-                      : "border-[var(--border-hairline)] bg-white shadow-2xs hover:border-[#CBD9E7] hover:shadow-xs"
+                      ? "border-[var(--bht-cobalt)]/40 bg-bht-cobalt-bg/50 shadow-xs"
+                      : "border-[var(--border-hairline)] bg-white shadow-2xs hover:border-bht-line-strong hover:shadow-xs"
                   }`}
                 >
                   <div className="min-w-0">

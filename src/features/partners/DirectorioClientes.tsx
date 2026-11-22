@@ -4,16 +4,22 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import { formatPen } from "@/components/socios/types";
 import { CustomerDetailContent } from "@/components/directory/CustomerDetailContent";
-import { PlusIcon, SearchIcon } from "@/components/ui/Icons";
+import {
+  ControlPanel,
+  type ControlPanelFacet,
+} from "@/components/ui/ControlPanel";
+import { PlusIcon } from "@/components/ui/Icons";
 import {
   Badge,
-  Button,
   Card,
-  EmptyState,
   INPUT_CLASS,
   ModalSheet,
-  SegmentedControl,
 } from "@/components/ui/Primitives";
+import {
+  ResponsiveDataTable,
+  type ResponsiveTableColumn,
+} from "@/components/ui/ResponsiveDataTable";
+import { SkeletonTable } from "@/components/ui/Skeleton";
 import { ApiClientError, fetchJson } from "@/lib/api-client";
 import { formatPartySecondaryName } from "@/lib/geo";
 import type {
@@ -163,6 +169,153 @@ export function DirectorioClientes({
     [customers]
   );
 
+  const facets: ControlPanelFacet[] = useMemo(() => {
+    const list: ControlPanelFacet[] = [];
+    if (zoneFilter) {
+      list.push({
+        id: "zone",
+        label: "Zona",
+        value: zoneFilter === "__NONE__" ? "Sin zona" : zoneFilter,
+        onRemove: () => setZoneFilter(""),
+      });
+    }
+    if (geoFilter !== "ALL") {
+      list.push({
+        id: "geo",
+        label: "GPS",
+        value: geoFilter === "WITH_GEO" ? "Con GPS" : "Sin GPS",
+        onRemove: () => setGeoFilter("ALL"),
+      });
+    }
+    if (statusFilter !== "ACTIVE") {
+      list.push({
+        id: "status",
+        label: "Estado",
+        value: statusFilter === "INACTIVE" ? "Inactivos" : "Todos",
+        onRemove: () => setStatusFilter("ACTIVE"),
+      });
+    }
+    if (searchInput.trim()) {
+      list.push({
+        id: "q",
+        label: "Búsqueda",
+        value: searchInput.trim(),
+        onRemove: () => setSearchInput(""),
+      });
+    }
+    return list;
+  }, [zoneFilter, geoFilter, statusFilter, searchInput]);
+
+  const customerColumns: ResponsiveTableColumn<CustomerDirectoryItem>[] = useMemo(
+    () => [
+      {
+        id: "name",
+        header: "Cliente",
+        sortable: true,
+        sortValue: (c) => c.display_name,
+        cell: (cust) => {
+          const secondaryName = formatPartySecondaryName(
+            cust.trade_name,
+            cust.legal_name
+          );
+          return (
+            <div>
+              <span className="font-bold text-bht-ink-strong">
+                {cust.display_name}
+              </span>
+              {secondaryName && secondaryName !== cust.display_name && (
+                <span className="block line-clamp-1 text-xs text-bht-ink-soft">
+                  {secondaryName}
+                </span>
+              )}
+            </div>
+          );
+        },
+      },
+      {
+        id: "zone",
+        header: "Zona / Estado",
+        sortable: true,
+        sortValue: (c) => c.city_zone ?? "",
+        cell: (cust) => (
+          <div className="flex flex-wrap items-center gap-1.5">
+            {cust.city_zone ? (
+              <Badge tone="horizon">{cust.city_zone}</Badge>
+            ) : (
+              <span className="text-xs text-bht-ink-muted">Sin zona</span>
+            )}
+            {!cust.is_active && <Badge tone="neutral">Inactivo</Badge>}
+          </div>
+        ),
+      },
+      {
+        id: "doc",
+        header: "Documento",
+        optional: true,
+        sortable: true,
+        sortValue: (c) => c.doc_number ?? "",
+        cell: (cust) => (
+          <span className="text-xs text-bht-ink-soft tabular-nums">
+            {cust.doc_number
+              ? `${cust.doc_type !== "NONE" ? cust.doc_type : "Doc."} ${cust.doc_number}`
+              : "Sin documento"}
+          </span>
+        ),
+      },
+      {
+        id: "contact",
+        header: "Contacto / GPS",
+        optional: true,
+        cell: (cust) => (
+          <span className="text-xs text-bht-ink-soft tabular-nums">
+            {cust.phone ? `Tel: ${cust.phone}` : "Sin tel."} ·{" "}
+            {cust.geo_lat !== null && cust.geo_lng !== null ? "Con GPS" : "Sin GPS"}
+          </span>
+        ),
+      },
+      {
+        id: "orders",
+        header: "Pedidos",
+        align: "right",
+        sortable: true,
+        sortValue: (c) => c.orders_count,
+        cell: (cust) => (
+          <div className="tabular-nums">
+            <span className="font-semibold text-bht-cobalt-strong">
+              {cust.orders_count}
+            </span>
+            {cust.last_order_date && (
+              <span className="block text-xs text-bht-ink-muted">
+                {cust.last_order_date}
+              </span>
+            )}
+          </div>
+        ),
+      },
+      {
+        id: "debt",
+        header: "Saldo Abierto",
+        align: "right",
+        sortable: true,
+        sortValue: (c) => c.open_balance_pen,
+        cell: (cust) => (
+          <span
+            className={`font-semibold tabular-nums ${
+              cust.open_balance_pen > 0.05
+                ? "text-bht-danger"
+                : "text-bht-ink-strong"
+            }`}
+          >
+            {cust.open_balance_pen > 0.05
+              ? formatPen(cust.open_balance_pen)
+              : "Sin deuda"}
+          </span>
+        ),
+      },
+    ],
+    []
+  );
+
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
@@ -196,49 +349,51 @@ export function DirectorioClientes({
         </Card>
       </div>
 
-      <Card padding="md" className="space-y-3">
-        <div className="grid grid-cols-1 gap-2.5 md:grid-cols-[minmax(280px,1fr)_auto] md:items-center">
-          <div className="relative min-w-0">
-            <SearchIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-bht-ink-muted" />
-            <input
-              type="search"
-              value={searchInput}
-              onChange={(e) => {
-                setSearchInput(e.target.value);
-                setLimit(100);
-              }}
-              placeholder="Buscar por alias, nombre, RUC/DNI, zona o teléfono..."
-              aria-label="Buscar clientes en directorio"
-              className={`${INPUT_CLASS} pl-9 pr-3`}
-            />
-          </div>
-
-          <div className="grid grid-cols-2 gap-2 md:flex md:items-center">
-            <SegmentedControl
-              value={viewMode}
-              onChange={setViewMode}
-              ariaLabel="Vista de clientes"
-              className="w-full md:w-auto"
-              options={[
-                { id: "list", label: "Lista" },
-                { id: "map", label: "Mapa" },
-              ]}
-            />
-            <Button
-              variant="primary"
-              size="sm"
-              className="w-full md:w-auto"
-              onClick={() => {
-                setEditingCustomer(null);
-                setModalMode("create");
-              }}
-            >
-              <PlusIcon className="h-3.5 w-3.5" />
-              Nuevo cliente
-            </Button>
-          </div>
-        </div>
-
+      <ControlPanel<"list" | "map">
+        title="Directorio de Clientes"
+        subtitle="Filtra por zona, estado o GPS y abre la ficha de cualquier cliente."
+        viewMode={viewMode}
+        onViewModeChange={setViewMode}
+        viewAriaLabel="Vista de clientes"
+        viewOptions={[
+          { id: "list", label: "Lista", count: totalCount },
+          { id: "map", label: "Mapa" },
+        ]}
+        primaryAction={{
+          label: "Nuevo cliente",
+          icon: <PlusIcon className="h-3.5 w-3.5" />,
+          onClick: () => {
+            setEditingCustomer(null);
+            setModalMode("create");
+          },
+        }}
+        searchValue={searchInput}
+        onSearchChange={(val) => {
+          setSearchInput(val);
+          setLimit(100);
+        }}
+        searchPlaceholder="Buscar por alias, nombre, RUC/DNI, zona o teléfono..."
+        searchAriaLabel="Buscar clientes en directorio"
+        facets={facets}
+        onClearAllFacets={() => {
+          setSearchInput("");
+          setZoneFilter("");
+          setGeoFilter("ALL");
+          setStatusFilter("ACTIVE");
+        }}
+        pagination={
+          viewMode === "list"
+            ? {
+                shownCount: customers.length,
+                totalCount,
+                itemLabel: "cliente(s)",
+                hasMore,
+                onLoadMore: () => setLimit((prev) => prev + 100),
+                loadMoreLabel: "Cargar más clientes",
+              }
+            : undefined
+        }
+      >
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
           <select
             aria-label="Filtrar por zona"
@@ -280,124 +435,41 @@ export function DirectorioClientes({
             <option value="ALL">Activos e inactivos</option>
           </select>
         </div>
-      </Card>
 
-      {loading && customers.length === 0 ? (
-        <Card className="p-8 text-center text-sm text-bht-ink-soft">
-          Cargando clientes…
-        </Card>
-      ) : customers.length === 0 ? (
-        <EmptyState
-          title="No hay clientes que coincidan con este filtro"
-          description="Prueba limpiando la búsqueda o registra un cliente nuevo."
-        />
-      ) : viewMode === "map" ? (
-        <div className="space-y-3">
-          {unlocatedFilteredCount > 0 && (
-            <Card
-              padding="sm"
-              className="border-bht-warning-line bg-bht-warning-bg text-xs text-bht-warning-strong"
-            >
-              Hay <strong className="tabular-nums">{unlocatedFilteredCount}</strong>{" "}
-              cliente(s) en este filtro que todavía no tienen pin GPS guardado.
-            </Card>
-          )}
-          <LeafletCustomersMap
-            customers={customers}
-            onEditCustomer={(cust) => {
-              setEditingCustomer(cust);
-              setModalMode("edit");
-            }}
-          />
-        </div>
-      ) : (
-        <div className="space-y-2.5">
-          <p className="text-xs text-bht-ink-soft">
-            Mostrando <strong className="tabular-nums">{customers.length}</strong> de{" "}
-            <strong className="tabular-nums">{totalCount}</strong> cliente(s).
-          </p>
-
-          <div className="space-y-2">
-            {customers.map((cust) => {
-              const secondaryName = formatPartySecondaryName(
-                cust.trade_name,
-                cust.legal_name
-              );
-              const docLabel = cust.doc_number
-                ? `${cust.doc_type !== "NONE" ? cust.doc_type : "Doc."} ${cust.doc_number}`
-                : "Sin documento";
-              const phoneLabel = cust.phone ? `Tel: ${cust.phone}` : "Sin teléfono";
-              const gpsLabel =
-                cust.geo_lat !== null && cust.geo_lng !== null ? "Con GPS" : "Sin GPS";
-              return (
-                <button
-                  key={cust.party_id}
-                  type="button"
-                  onClick={() => setDetailCustomer(cust)}
-                  className="flex w-full flex-col gap-2 rounded-xl border border-bht-line bg-white p-3 text-left transition hover:border-bht-line-blue hover:bg-bht-mist/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bht-navy-deep cursor-pointer"
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <h3 className="min-w-0 break-words text-base font-bold leading-snug text-bht-ink-strong sm:text-lg">
-                        {cust.display_name}
-                      </h3>
-                      {secondaryName && secondaryName !== cust.display_name && (
-                        <p className="mt-0.5 line-clamp-1 break-words text-xs text-bht-ink-soft">
-                          {secondaryName}
-                        </p>
-                      )}
-                    </div>
-                    <div className="flex flex-wrap items-center justify-end gap-1.5 shrink-0">
-                      {cust.city_zone && <Badge tone="horizon">{cust.city_zone}</Badge>}
-                      {!cust.is_active && <Badge tone="neutral">Inactivo</Badge>}
-                    </div>
-                  </div>
-                  <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1.5 text-sm">
-                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                      <span className="font-semibold text-bht-cobalt-strong tabular-nums">
-                        {cust.orders_count}{" "}
-                        {cust.orders_count === 1 ? "pedido" : "pedidos"}
-                      </span>
-                      {cust.last_order_date && (
-                        <span className="text-bht-ink-soft tabular-nums">
-                          Último: {cust.last_order_date}
-                        </span>
-                      )}
-                    </div>
-                    <span
-                      className={`font-semibold tabular-nums ${
-                        cust.open_balance_pen > 0.05
-                          ? "text-bht-danger"
-                          : "text-bht-ink-strong"
-                      }`}
-                    >
-                      {cust.open_balance_pen > 0.05
-                        ? `Saldo: ${formatPen(cust.open_balance_pen)}`
-                        : "Sin deuda"}
-                    </span>
-                  </div>
-                  <span className="text-xs text-bht-ink-soft tabular-nums">
-                    {docLabel} · {phoneLabel} · {gpsLabel}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-
-          {hasMore && (
-            <div className="flex justify-center pt-2">
-              <Button
-                type="button"
-                variant="outline"
-                size="md"
-                onClick={() => setLimit((prev) => prev + 100)}
+        {loading && customers.length === 0 ? (
+          <SkeletonTable rows={6} cols={5} />
+        ) : viewMode === "map" ? (
+          <div className="space-y-3">
+            {unlocatedFilteredCount > 0 && (
+              <Card
+                padding="sm"
+                className="border-bht-warning-line bg-bht-warning-bg text-xs text-bht-warning-strong"
               >
-                Cargar más clientes
-              </Button>
-            </div>
-          )}
-        </div>
-      )}
+                Hay <strong className="tabular-nums">{unlocatedFilteredCount}</strong>{" "}
+                cliente(s) en este filtro que todavía no tienen pin GPS guardado.
+              </Card>
+            )}
+            <LeafletCustomersMap
+              customers={customers}
+              onEditCustomer={(cust) => {
+                setEditingCustomer(cust);
+                setModalMode("edit");
+              }}
+            />
+          </div>
+        ) : (
+          <ResponsiveDataTable
+            columns={customerColumns}
+            data={customers}
+            getRowKey={(c) => c.party_id}
+            ariaLabel="Directorio de clientes"
+            onRowClick={(c) => setDetailCustomer(c)}
+            getRowAriaLabel={(c) => `Abrir ficha de ${c.display_name}`}
+            emptyTitle="No hay clientes que coincidan con este filtro"
+            emptyDescription="Prueba limpiando la búsqueda o registra un cliente nuevo."
+          />
+        )}
+      </ControlPanel>
 
       <ModalSheet
         open={detailCustomer !== null}
@@ -414,7 +486,7 @@ export function DirectorioClientes({
               } · ${detailCustomer.is_active ? "Activo" : "Inactivo"}`
             : undefined
         }
-        maxWidth="lg"
+        maxWidth="6xl"
       >
         {detailCustomer && (
           <CustomerDetailContent

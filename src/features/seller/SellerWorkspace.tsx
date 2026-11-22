@@ -12,8 +12,11 @@ import {
   type NavTabItem,
 } from "@/components/ui/AppShell";
 import {
+  CommandPalette,
+  type CommandPaletteItem,
+} from "@/components/ui/CommandPalette";
+import {
   ActivityIcon,
-  ChevronRightIcon,
   ClockIcon,
   PackageIcon,
   ShoppingBagIcon,
@@ -26,6 +29,7 @@ import {
   ToastBanner,
 } from "@/components/ui/Primitives";
 import { RecentUndoStrip } from "@/components/shared/RecentUndoStrip";
+import { formatPen } from "@/components/socios/types";
 import { ApiClientError } from "@/lib/api-client";
 import { notifyLocalSync, useLiveSync } from "@/lib/realtime/useLiveSync";
 import { executeUndoRequest } from "@/lib/undo-client";
@@ -91,6 +95,7 @@ export default function SellerWorkspace() {
     window.addEventListener("popstate", syncFromUrl);
     return () => window.removeEventListener("popstate", syncFromUrl);
   }, [router]);
+
   const handleTabChange = useCallback((nextTab: SellerTab) => {
     setTab(nextTab);
     const current = new URL(window.location.href);
@@ -188,10 +193,80 @@ export default function SellerWorkspace() {
     [cart.length, openQuotesCount, debtorsByOrder.length]
   );
 
-  const activeTabLabel =
-    navItems.find((item) => item.id === (tab === "cotizaciones" ? "pedidos" : tab))
-      ?.label ?? "Nuevo pedido";
   const navActiveTab: SellerTab = tab === "cotizaciones" ? "pedidos" : tab;
+
+  const commandPaletteItems: CommandPaletteItem[] = useMemo(() => {
+    const items: CommandPaletteItem[] = [
+      ...navItems.map((item) => ({
+        id: `tab-${item.id}`,
+        label: `Ir a ${item.label}`,
+        subtitle: "Sección de Ventas y Cobranzas",
+        group: "Secciones",
+        badge: item.badgeCount ? String(item.badgeCount) : undefined,
+        onSelect: () => handleTabChange(item.id),
+      })),
+      {
+        id: "tab-cotizaciones",
+        label: "Ir a Cotizaciones",
+        subtitle: "Cotizaciones abiertas y conversión a pedido",
+        group: "Secciones",
+        badge: openQuotesCount > 0 ? String(openQuotesCount) : undefined,
+        onSelect: () => handleTabChange("cotizaciones"),
+      },
+      {
+        id: "ws-offline",
+        label: "Bandeja de Sincronización Offline (/offline)",
+        subtitle: "Revisar cola local y resolver conflictos",
+        group: "Espacios ERP",
+        onSelect: () => router.push("/offline"),
+      },
+      {
+        id: "ws-password",
+        label: "Cambiar contraseña (/change-password)",
+        subtitle: "Seguridad de cuenta",
+        group: "Espacios ERP",
+        onSelect: () => router.push("/change-password"),
+      },
+    ];
+    if (isPartnerControlUser) {
+      items.push(
+        {
+          id: "ws-partners",
+          label: "Control Operativo (/socios)",
+          subtitle: "Tablero y administración de socios",
+          group: "Espacios ERP",
+          onSelect: () => router.push("/socios"),
+        },
+        {
+          id: "ws-warehouse",
+          label: "Almacén y Reparto (/almacen)",
+          subtitle: "Alistamiento y entregas",
+          group: "Espacios ERP",
+          onSelect: () => router.push("/almacen"),
+        }
+      );
+    }
+    for (const o of orders.slice(0, 15)) {
+      items.push({
+        id: `order-${o.order_id}`,
+        label: `${String(o.order_code)} · ${String(o.customer_name)}`,
+        subtitle: `${String(o.order_date)} · ${formatPen(o.total_pen)}`,
+        group: "Pedidos recientes",
+        onSelect: () => {
+          handleTabChange("pedidos");
+          setExpandedOrderId(Number(o.order_id));
+        },
+      });
+    }
+    return items;
+  }, [
+    navItems,
+    handleTabChange,
+    openQuotesCount,
+    router,
+    isPartnerControlUser,
+    orders,
+  ]);
 
   async function handleLogout() {
     if (loggingOut) return;
@@ -212,17 +287,20 @@ export default function SellerWorkspace() {
     currentUser?.fullName &&
     !/vendedor\s+externo|socio\s+operativo|socio\s+gerente/i.test(currentUser.fullName)
       ? currentUser.fullName
-      : currentUser?.username === "socio_admin"
-        ? "Renzo"
-        : null;
+      : null;
   const sellerHeaderRoleLabel =
     currentUser?.role === "PARTNER_ADMIN"
-      ? `${cleanSellerName || "Renzo"} · Ventas y Control`
+      ? cleanSellerName
+        ? `${cleanSellerName} · Ventas y Control`
+        : "Ventas y Control"
       : currentUser?.role === "PARTNER_MANAGER"
-        ? `${cleanSellerName || "Samuel"} · Gerencia`
+        ? cleanSellerName
+          ? `${cleanSellerName} · Gerencia`
+          : "Gerencia"
         : cleanSellerName
           ? `${cleanSellerName} · Vendedor S/`
           : "Vendedor · S/";
+
   const sellerExtraActions: NavExtraAction[] | undefined = useMemo(
     () =>
       isPartnerControlUser
@@ -246,6 +324,8 @@ export default function SellerWorkspace() {
 
   return (
     <div className="min-h-screen bg-bht-surface-cool pb-40 md:pb-12">
+      <CommandPalette items={commandPaletteItems} />
+
       <AppHeader
         title="Ventas y Cobranzas"
         roleLabel={sellerHeaderRoleLabel}
@@ -317,18 +397,6 @@ export default function SellerWorkspace() {
         tabIndex={-1}
         className="mx-auto max-w-6xl space-y-4 px-3.5 pt-4 sm:px-5 outline-none md:ml-[232px] md:max-w-none md:px-6 lg:px-8"
       >
-        <div
-          className="flex items-center gap-2 rounded-xl border border-bht-slate-line bg-white px-3.5 py-3 text-sm"
-          aria-label={`Ubicación actual: ${activeTabLabel}`}
-        >
-          <span className="font-medium text-bht-ink-muted">Ventas y Cobranzas</span>
-          <ChevronRightIcon
-            className="h-3.5 w-3.5 text-bht-tone-a8a49c"
-            aria-hidden="true"
-          />
-          <span className="font-semibold text-bht-navy-deep">{activeTabLabel}</span>
-        </div>
-
         {feedback && (
           <ToastBanner
             type={feedback.type}

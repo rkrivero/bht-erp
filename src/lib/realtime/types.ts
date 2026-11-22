@@ -1,9 +1,16 @@
 export type SyncScope =
-  "orders" | "inventory" | "collections" | "treasury" | "purchases" | "partners";
+  | "orders"
+  | "inventory"
+  | "collections"
+  | "treasury"
+  | "purchases"
+  | "partners";
 
 export type LiveStatus = "live" | "syncing" | "paused" | "offline";
 
 export type SyncEngineMode = "postgres-watermark" | "neon-realtime";
+
+export type LiveSyncTransport = "efficient" | "sse";
 
 export interface SyncSnapshotResponse {
   version: string;
@@ -20,7 +27,9 @@ export interface UseLiveSyncOptions {
   scopes?: SyncScope[];
   /** Enable or pause live synchronization (e.g. pause while editing a modal or logged out). Default: true. */
   enabled?: boolean;
-  /** Fallback HTTP conditional polling interval in ms if SSE is unavailable. Default: 5000. */
+  /** Transport mode: "efficient" (BroadcastChannel + 45s focus cooldown + 60s JSON poll) or "sse" (opt-in EventSource). Default: "efficient". */
+  transport?: LiveSyncTransport;
+  /** HTTP conditional polling interval in ms (Default: 60000 in "efficient" mode, 5000 in "sse" fallback). */
   pollIntervalMs?: number;
   /** Optional callback when /api/sync responds with 401 or 403. */
   onAuthError?: (status: number) => void;

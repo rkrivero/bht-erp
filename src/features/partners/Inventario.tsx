@@ -1,18 +1,25 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import { formatPen } from "@/components/socios/types";
-import { CloseIcon, EditIcon, SearchIcon } from "@/components/ui/Icons";
+import {
+  ControlPanel,
+  type ControlPanelFacet,
+} from "@/components/ui/ControlPanel";
+import { EditIcon } from "@/components/ui/Icons";
 import {
   Badge,
   Button,
   Card,
-  EmptyState,
-  INPUT_CLASS,
   SegmentedControl,
 } from "@/components/ui/Primitives";
+import {
+  ResponsiveDataTable,
+  type ResponsiveTableColumn,
+} from "@/components/ui/ResponsiveDataTable";
 import { formatFulfillmentModeEs, formatUnitTitleEs } from "@/lib/labels-es";
+import type { RawProductRow } from "@/lib/types";
 import type { ShowFeedback } from "./partnerShared";
 import type { InventoryAttentionFilter, InventoryFlow } from "./useInventoryFlow";
 
@@ -41,6 +48,13 @@ interface InventarioProps {
   onFeedback: ShowFeedback;
   flow: InventoryFlow;
 }
+
+const ATTENTION_LABELS: Record<Exclude<InventoryAttentionFilter, "ALL">, string> = {
+  OUT_OF_STOCK: "Agotados",
+  LOW_STOCK: "Stock bajo",
+  NO_COST: "Sin costo registrado",
+  MARGIN_RISK: "Margen en riesgo",
+};
 
 export function Inventario({
   negStockCount,
@@ -75,6 +89,7 @@ export function Inventario({
     filteredCatalog,
     openEditProduct,
   } = flow;
+
   const attentionCards: Array<{
     id: Exclude<InventoryAttentionFilter, "ALL">;
     label: string;
@@ -111,6 +126,145 @@ export function Inventario({
       tone: "danger",
     },
   ];
+
+  const facets: ControlPanelFacet[] = useMemo(() => {
+    const list: ControlPanelFacet[] = [];
+    if (attentionFilter !== "ALL") {
+      list.push({
+        id: "attention",
+        label: "Alerta",
+        value: ATTENTION_LABELS[attentionFilter],
+        onRemove: () => {
+          setAttentionFilter("ALL");
+          setShowAllCatalog(false);
+        },
+      });
+    }
+    if (searchSku.trim()) {
+      list.push({
+        id: "sku",
+        label: "Búsqueda",
+        value: searchSku.trim(),
+        onRemove: () => {
+          setSearchSku("");
+          setShowAllCatalog(false);
+        },
+      });
+    }
+    return list;
+  }, [attentionFilter, setAttentionFilter, searchSku, setSearchSku, setShowAllCatalog]);
+
+  const productColumns: ResponsiveTableColumn<RawProductRow>[] = useMemo(
+    () => [
+      {
+        id: "product",
+        header: "Código / Producto",
+        sortable: true,
+        sortValue: (p) => p.name,
+        cell: (p) => (
+          <div>
+            <span className="font-semibold text-bht-ink-strong">{p.name}</span>
+            <span className="block font-mono text-xs text-bht-ink-muted">
+              {p.sku}
+            </span>
+          </div>
+        ),
+      },
+      {
+        id: "mode",
+        header: "Modalidad",
+        sortable: true,
+        sortValue: (p) => p.fulfillment_mode,
+        cell: (p) => (
+          <Badge
+            tone={p.fulfillment_mode === "ON_DEMAND" ? "warning" : "neutral"}
+          >
+            {formatFulfillmentModeEs(p.fulfillment_mode)}
+          </Badge>
+        ),
+      },
+      {
+        id: "stock",
+        header: "Inventario",
+        align: "right",
+        sortable: true,
+        sortValue: (p) => Number(p.stock_on_hand ?? 0),
+        cell: (p) => (
+          <span
+            className={`font-semibold tabular-nums ${
+              p.stock_on_hand < 0 ? "text-bht-danger" : "text-bht-ink-strong"
+            }`}
+          >
+            {p.stock_on_hand}{" "}
+            <span
+              title={formatUnitTitleEs(p.unit_of_measure)}
+              className="text-xs font-normal text-bht-ink-muted"
+            >
+              {p.unit_of_measure}
+            </span>
+          </span>
+        ),
+      },
+      {
+        id: "cost",
+        header: "Costo Real",
+        align: "right",
+        optional: true,
+        sortable: true,
+        sortValue: (p) =>
+          p.ref_cost_pen !== null ? Number(p.ref_cost_pen) : -1,
+        cell: (p) => (
+          <span className="text-bht-ink-soft tabular-nums">
+            {p.ref_cost_pen !== null ? formatPen(p.ref_cost_pen) : "Sin costo"}
+          </span>
+        ),
+      },
+      {
+        id: "list_price",
+        header: "Precio Normal",
+        align: "right",
+        sortable: true,
+        sortValue: (p) => Number(p.list_sale_price_pen ?? 0),
+        cell: (p) => (
+          <span className="font-semibold text-bht-ink-strong tabular-nums">
+            {formatPen(p.list_sale_price_pen ?? 0)} / {p.unit_of_measure}
+          </span>
+        ),
+      },
+      {
+        id: "min_price",
+        header: "Precio Mínimo",
+        align: "right",
+        optional: true,
+        sortable: true,
+        sortValue: (p) => Number(p.min_sale_price_pen ?? 0),
+        cell: (p) => (
+          <span className="font-semibold text-bht-navy-mid tabular-nums">
+            {formatPen(p.min_sale_price_pen ?? 0)} / {p.unit_of_measure}
+          </span>
+        ),
+      },
+      {
+        id: "action",
+        header: "Acción",
+        align: "right",
+        stopRowClickPropagation: true,
+        cell: (p) => (
+          <Button
+            variant="outline"
+            size="sm"
+            aria-label={`Editar ${p.sku} (${p.name})`}
+            onClick={() => openEditProduct(p)}
+          >
+            <EditIcon className="h-3.5 w-3.5" />
+            Editar
+          </Button>
+        ),
+      },
+    ],
+    [openEditProduct]
+  );
+
   return (
     <div className="space-y-4">
       <SegmentedControl<InventorySubView>
@@ -179,6 +333,7 @@ export function Inventario({
               );
             })}
           </div>
+
           <Card tone={negStockCount > 0 ? "warning" : "default"} padding="md">
             <details className="group">
               <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bht-navy-deep">
@@ -208,7 +363,7 @@ export function Inventario({
                   size="md"
                   disabled={busyResetStock || negStockCount === 0}
                   onClick={() => setConfirmResetNegativeOpen(true)}
-                  className="border-bht-tone-f59e0b text-bht-warning-strong"
+                  className="border-bht-warning text-bht-warning-strong"
                 >
                   {busyResetStock
                     ? "Regularizando..."
@@ -218,248 +373,52 @@ export function Inventario({
             </details>
           </Card>
 
-          <Card padding="md" className="space-y-3.5">
-            <div className="flex flex-wrap items-center justify-between gap-2.5">
-              <div className="relative w-full sm:w-auto sm:min-w-[220px] sm:flex-1">
-                <span className="pointer-events-none absolute inset-y-0 left-3.5 flex items-center text-bht-ink-muted">
-                  <SearchIcon className="h-4 w-4" />
-                </span>
-                <input
-                  type="text"
-                  value={searchSku}
-                  onChange={(e) => {
-                    setSearchSku(e.target.value);
-                    setShowAllCatalog(false);
-                  }}
-                  aria-label="Buscar producto en inventario"
-                  placeholder="Buscar producto por nombre o código..."
-                  className={`${INPUT_CLASS} pl-10 pr-8`}
-                />
-                {searchSku && (
-                  <button
-                    type="button"
-                    data-compact="true"
-                    aria-label="Limpiar búsqueda de producto"
-                    onClick={() => {
-                      setSearchSku("");
-                      setShowAllCatalog(false);
-                    }}
-                    className="absolute inset-y-0 right-2.5 flex items-center text-bht-ink-muted hover:text-bht-ink-strong cursor-pointer"
-                  >
-                    <CloseIcon className="h-4 w-4" />
-                  </button>
-                )}
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-medium text-bht-ink-soft tabular-nums">
-                  Mostrando {visibleCatalog.length} de {filteredCatalog.length}{" "}
-                  productos
-                </span>
-                {filteredCatalog.length > 40 && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setShowAllCatalog((prev) => !prev)}
-                  >
-                    {showAllCatalog
-                      ? "Ver 40"
-                      : `Ver todos (${filteredCatalog.length})`}
-                  </Button>
-                )}
-              </div>
-            </div>
-
-            {visibleCatalog.length === 0 ? (
-              <EmptyState title="No se encontraron productos para esta búsqueda" />
-            ) : (
-              <>
-                {/* Mobile catalog cards */}
-                <div className="space-y-2.5 md:hidden">
-                  {visibleCatalog.map((p) => (
-                    <div
-                      key={p.product_id}
-                      className="rounded-xl border border-bht-line bg-bht-paper p-3 space-y-2 text-sm"
-                    >
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="min-w-0 flex-1">
-                          <p className="text-base font-bold text-bht-ink-strong">
-                            {p.name}
-                          </p>
-                          <p className="text-xs text-bht-ink-muted">{p.sku}</p>
-                        </div>
-                        <Badge
-                          tone={
-                            p.fulfillment_mode === "ON_DEMAND" ? "warning" : "neutral"
-                          }
-                        >
-                          {formatFulfillmentModeEs(p.fulfillment_mode)}
-                        </Badge>
-                      </div>
-                      <div className="grid grid-cols-2 gap-2 border-t border-bht-line/80 pt-2 tabular-nums">
-                        <div>
-                          <span className="block text-xs text-bht-ink-soft">
-                            Stock actual
-                          </span>
-                          <span
-                            className={`font-semibold ${
-                              p.stock_on_hand < 0
-                                ? "text-bht-danger"
-                                : "text-bht-ink-strong"
-                            }`}
-                          >
-                            {p.stock_on_hand}{" "}
-                            <span
-                              title={formatUnitTitleEs(p.unit_of_measure)}
-                              className="text-xs font-medium text-bht-ink-muted"
-                            >
-                              {p.unit_of_measure}
-                            </span>
-                          </span>
-                        </div>
-                        <div>
-                          <span className="block text-xs text-bht-ink-soft">
-                            Costo real
-                          </span>
-                          <span className="font-semibold text-bht-ink-strong">
-                            {p.ref_cost_pen !== null
-                              ? formatPen(p.ref_cost_pen)
-                              : "Sin costo"}
-                          </span>
-                        </div>
-                        <div>
-                          <span className="block text-xs text-bht-ink-soft">
-                            Precio normal
-                          </span>
-                          <span className="font-semibold text-bht-ink-strong">
-                            {formatPen(p.list_sale_price_pen ?? 0)} /{" "}
-                            {p.unit_of_measure}
-                          </span>
-                        </div>
-                        <div>
-                          <span className="block text-xs text-bht-ink-soft">
-                            Precio mínimo
-                          </span>
-                          <span className="font-semibold text-bht-navy-mid">
-                            {formatPen(p.min_sale_price_pen ?? 0)} / {p.unit_of_measure}
-                          </span>
-                        </div>
-                      </div>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        aria-label={`Editar precio o stock de ${p.sku} (${p.name})`}
-                        onClick={() => openEditProduct(p)}
-                        className="w-full"
-                      >
-                        <EditIcon className="h-3.5 w-3.5" />
-                        Editar precio / stock
-                      </Button>
-                    </div>
-                  ))}
-                </div>
-
-                {/* Desktop catalog table */}
-                <div
-                  tabIndex={0}
-                  role="region"
-                  aria-label="Inventario y precios de catálogo"
-                  className="table-wrapper hidden md:block"
+          <ControlPanel
+            title="Catálogo de Productos y Stock"
+            subtitle="Precios mayoristas en Soles (S/), costos de referencia y existencias actuales."
+            searchValue={searchSku}
+            onSearchChange={(val) => {
+              setSearchSku(val);
+              setShowAllCatalog(false);
+            }}
+            searchPlaceholder="Buscar producto por nombre o código..."
+            searchAriaLabel="Buscar producto en inventario"
+            facets={facets}
+            onClearAllFacets={() => {
+              setAttentionFilter("ALL");
+              setSearchSku("");
+              setShowAllCatalog(false);
+            }}
+            secondaryActions={
+              filteredCatalog.length > 40 ? (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowAllCatalog((prev) => !prev)}
                 >
-                  <table className="w-full text-left text-sm">
-                    <thead className="border-b border-bht-line bg-bht-paper text-xs font-semibold uppercase tracking-wide text-bht-ink-soft">
-                      <tr>
-                        <th scope="col" className="whitespace-nowrap p-2.5">
-                          Código / Producto
-                        </th>
-                        <th scope="col" className="whitespace-nowrap p-2.5">
-                          Modalidad
-                        </th>
-                        <th scope="col" className="whitespace-nowrap p-2.5 text-right">
-                          Inventario
-                        </th>
-                        <th scope="col" className="whitespace-nowrap p-2.5 text-right">
-                          Costo Real
-                        </th>
-                        <th scope="col" className="whitespace-nowrap p-2.5 text-right">
-                          Precio Normal
-                        </th>
-                        <th scope="col" className="whitespace-nowrap p-2.5 text-right">
-                          Precio Mínimo
-                        </th>
-                        <th scope="col" className="whitespace-nowrap p-2.5 text-right">
-                          Acción
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-bht-line">
-                      {visibleCatalog.map((p) => (
-                        <tr
-                          key={p.product_id}
-                          className="transition hover:bg-bht-paper"
-                        >
-                          <td className="min-w-[180px] p-2.5 font-medium text-bht-ink-strong">
-                            {p.name}
-                            <span className="block text-xs font-normal text-bht-ink-muted">
-                              {p.sku}
-                            </span>
-                          </td>
-                          <td className="whitespace-nowrap p-2.5">
-                            <Badge
-                              tone={
-                                p.fulfillment_mode === "ON_DEMAND"
-                                  ? "warning"
-                                  : "neutral"
-                              }
-                            >
-                              {formatFulfillmentModeEs(p.fulfillment_mode)}
-                            </Badge>
-                          </td>
-                          <td
-                            className={`whitespace-nowrap p-2.5 text-right font-semibold tabular-nums ${
-                              p.stock_on_hand < 0
-                                ? "text-bht-danger"
-                                : "text-bht-ink-strong"
-                            }`}
-                          >
-                            {p.stock_on_hand}{" "}
-                            <span
-                              title={formatUnitTitleEs(p.unit_of_measure)}
-                              className="text-xs font-normal text-bht-ink-muted"
-                            >
-                              {p.unit_of_measure}
-                            </span>
-                          </td>
-                          <td className="whitespace-nowrap p-2.5 text-right text-bht-ink-soft tabular-nums">
-                            {p.ref_cost_pen !== null
-                              ? formatPen(p.ref_cost_pen)
-                              : "Sin costo"}
-                          </td>
-                          <td className="p-2.5 text-right font-semibold text-bht-ink-strong tabular-nums">
-                            {formatPen(p.list_sale_price_pen ?? 0)} /{" "}
-                            {p.unit_of_measure}
-                          </td>
-                          <td className="p-2.5 text-right font-semibold text-bht-navy-mid tabular-nums">
-                            {formatPen(p.min_sale_price_pen ?? 0)} / {p.unit_of_measure}
-                          </td>
-                          <td className="p-2.5 text-right">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              aria-label={`Editar ${p.sku} (${p.name})`}
-                              onClick={() => openEditProduct(p)}
-                            >
-                              <EditIcon className="h-3.5 w-3.5" />
-                              Editar
-                            </Button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </>
-            )}
-          </Card>
+                  {showAllCatalog
+                    ? "Ver primeros 40"
+                    : `Ver todos (${filteredCatalog.length})`}
+                </Button>
+              ) : undefined
+            }
+            pagination={{
+              shownCount: visibleCatalog.length,
+              totalCount: filteredCatalog.length,
+              itemLabel: "productos",
+              hasMore: !showAllCatalog && filteredCatalog.length > 40,
+              onLoadMore: () => setShowAllCatalog(true),
+              loadMoreLabel: `Ver todos (${filteredCatalog.length})`,
+            }}
+          >
+            <ResponsiveDataTable
+              columns={productColumns}
+              data={visibleCatalog}
+              getRowKey={(p) => p.product_id}
+              ariaLabel="Inventario y precios de catálogo"
+              emptyTitle="No se encontraron productos para esta búsqueda"
+            />
+          </ControlPanel>
         </>
       )}
     </div>

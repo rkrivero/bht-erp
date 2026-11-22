@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getAuthenticatedERPActor, requireActiveSession } from "@/lib/auth";
-import { withClient, withTransaction } from "@/lib/db";
+import {
+  withAuthenticatedClient,
+  withAuthenticatedTransaction,
+} from "@/lib/auth";
 import { resolveHttpError } from "@/lib/http-errors";
-import { assertRole } from "@/lib/rbac";
+import { runIdempotentMutation } from "@/lib/idempotency";
 import {
   convertQuoteToOrder,
   createQuote,
@@ -10,31 +12,32 @@ import {
   updateQuote,
   updateQuoteStatus,
 } from "@/lib/services/operations-and-modules";
-import { ValidationError } from "@/lib/types";
+import { parseBody, readRawJsonBody } from "@/lib/validation/parse";
+import { quotesMutationSchema } from "@/lib/validation/quotes.schema";
 
 export const dynamic = "force-dynamic";
 
 const NO_STORE_HEADERS = { "Cache-Control": "no-store" };
 
+const QUOTE_ROLES = [
+  "PARTNER_ADMIN",
+  "PARTNER_MANAGER",
+  "EXTERNAL_SELLER",
+] as const;
+
 export async function GET(req: NextRequest) {
   try {
-    const parsedActor = assertRole(await getAuthenticatedERPActor(req), [
-      "PARTNER_ADMIN",
-      "PARTNER_MANAGER",
-      "EXTERNAL_SELLER",
-    ]);
     const limitParam = req.nextUrl.searchParams.get("limit");
     const limit = limitParam ? Number(limitParam) : 250;
 
-    const data = await withClient(async (client) => {
-      const actor = assertRole(await requireActiveSession(client, parsedActor), [
-        "PARTNER_ADMIN",
-        "PARTNER_MANAGER",
-        "EXTERNAL_SELLER",
-      ]);
-      const quotes = await listQuotes(client, actor, limit);
-      return { quotes };
-    });
+    const data = await withAuthenticatedClient(
+      req,
+      [...QUOTE_ROLES],
+      async (client, actor) => {
+        const quotes = await listQuotes(client, actor, limit);
+        return { quotes };
+      }
+    );
 
     return NextResponse.json(data, { headers: NO_STORE_HEADERS });
   } catch (err) {
@@ -49,88 +52,63 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const parsedActor = assertRole(await getAuthenticatedERPActor(req), [
-      "PARTNER_ADMIN",
-      "PARTNER_MANAGER",
-      "EXTERNAL_SELLER",
-    ]);
+    const rawBody = await readRawJsonBody(req);
 
-    const body = await req.json();
-    const action = String(body.action || "");
-
-    const result = await withTransaction(async (client) => {
-      const actor = assertRole(await requireActiveSession(client, parsedActor), [
-        "PARTNER_ADMIN",
-        "PARTNER_MANAGER",
-        "EXTERNAL_SELLER",
-      ]);
-      if (action === "create_quote") {
-        return await createQuote(client, actor, {
-          customerPartyId:
-            body.customerPartyId !== undefined && body.customerPartyId !== ""
-              ? Number(body.customerPartyId)
-              : null,
-          customerNameRaw: body.customerNameRaw ?? null,
-          currency: body.currency || "PEN",
-          taxRegime: body.taxRegime || "EXONERADA",
-          globalDiscountPen:
-            body.globalDiscountPen !== undefined && body.globalDiscountPen !== ""
-              ? Number(body.globalDiscountPen)
-              : 0,
-          notes: body.notes ?? null,
-          lines: Array.isArray(body.lines) ? body.lines : [],
-        });
+    const result = await withAuthenticatedTransaction(
+      req,
+      [...QUOTE_ROLES],
+      async (client, actor) => {
+        const body = parseBody(quotesMutationSchema, rawBody);
+        return runIdempotentMutation(
+          client,
+          req,
+          actor,
+          `quotes:${body.action}`,
+          body,
+          async () => {
+            if (body.action === "create_quote") {
+              return await createQuote(client, actor, {
+                customerPartyId: body.customerPartyId ?? null,
+                customerNameRaw: body.customerNameRaw ?? null,
+                currency: body.currency || "PEN",
+                taxRegime: body.taxRegime || "EXONERADA",
+                globalDiscountPen: body.globalDiscountPen ?? 0,
+                notes: body.notes ?? null,
+                lines: body.lines,
+              });
+            }
+            if (body.action === "update_quote") {
+              return await updateQuote(client, actor, {
+                quoteId: body.quoteId,
+                customerPartyId: body.customerPartyId ?? null,
+                customerNameRaw: body.customerNameRaw ?? null,
+                globalDiscountPen: body.globalDiscountPen ?? 0,
+                notes: body.notes ?? null,
+                reason: body.reason ?? null,
+                lines: body.lines,
+              });
+            }
+            if (body.action === "update_status") {
+              return await updateQuoteStatus(client, actor, {
+                quoteId: body.quoteId,
+                nextStatus: body.nextStatus,
+              });
+            }
+            return await convertQuoteToOrder(client, actor, {
+              quoteId: body.quoteId,
+              paymentMode: body.paymentMode || "CASH",
+              collectOnDelivery: Boolean(body.collectOnDelivery),
+              creditDays: body.creditDays,
+              promisedPaymentDate: body.promisedPaymentDate ?? null,
+              initialPaidPen: body.initialPaidPen,
+              paymentAccountId: body.paymentAccountId,
+              tripId: body.tripId ?? null,
+              notes: body.notes ?? undefined,
+            });
+          }
+        );
       }
-      if (action === "update_quote") {
-        return await updateQuote(client, actor, {
-          quoteId: Number(body.quoteId),
-          customerPartyId:
-            body.customerPartyId !== undefined && body.customerPartyId !== ""
-              ? Number(body.customerPartyId)
-              : null,
-          customerNameRaw: body.customerNameRaw ?? null,
-          globalDiscountPen:
-            body.globalDiscountPen !== undefined && body.globalDiscountPen !== ""
-              ? Number(body.globalDiscountPen)
-              : 0,
-          notes: body.notes ?? null,
-          reason: body.reason ? String(body.reason) : null,
-          lines: Array.isArray(body.lines) ? body.lines : [],
-        });
-      }
-      if (action === "update_status") {
-        return await updateQuoteStatus(client, actor, {
-          quoteId: Number(body.quoteId),
-          nextStatus: body.nextStatus,
-        });
-      }
-      if (action === "convert_to_order") {
-        return await convertQuoteToOrder(client, actor, {
-          quoteId: Number(body.quoteId),
-          paymentMode: body.paymentMode || "CASH",
-          collectOnDelivery: Boolean(body.collectOnDelivery),
-          creditDays:
-            body.creditDays !== undefined && body.creditDays !== ""
-              ? Number(body.creditDays)
-              : undefined,
-          promisedPaymentDate: body.promisedPaymentDate ?? null,
-          initialPaidPen:
-            body.initialPaidPen !== undefined && body.initialPaidPen !== ""
-              ? Number(body.initialPaidPen)
-              : undefined,
-          paymentAccountId:
-            body.paymentAccountId !== undefined && body.paymentAccountId !== ""
-              ? Number(body.paymentAccountId)
-              : undefined,
-          tripId:
-            body.tripId !== undefined && body.tripId !== ""
-              ? Number(body.tripId)
-              : null,
-          notes: body.notes ? String(body.notes) : undefined,
-        });
-      }
-      throw new ValidationError(`Acción de cotización desconocida: ${action}`);
-    });
+    );
 
     return NextResponse.json(result, { headers: NO_STORE_HEADERS });
   } catch (err) {

@@ -16,7 +16,7 @@ const NO_STORE_HEADERS = {
   Pragma: "no-cache",
 } as const;
 
-const SSE_POLL_INTERVAL_MS = 2000;
+const SSE_POLL_INTERVAL_MS = 5000;
 const SSE_HEARTBEAT_INTERVAL_MS = 15000;
 const SSE_MAX_LIFETIME_MS = 55000;
 

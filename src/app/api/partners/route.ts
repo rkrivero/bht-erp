@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import type { PoolClient } from "pg";
-import { getAuthenticatedERPActor, requireActiveSession } from "@/lib/auth";
-import { withClient, withTransaction } from "@/lib/db";
+import {
+  withAuthenticatedClient,
+  withAuthenticatedTransaction,
+} from "@/lib/auth";
 import { resolveHttpError } from "@/lib/http-errors";
+import { runIdempotentMutation } from "@/lib/idempotency";
 import { assertRole } from "@/lib/rbac";
 import {
   BI_NON_MONTHLY_SELECTS,
@@ -28,6 +31,8 @@ import {
   mapAuditFlagRow,
 } from "@/lib/services/operations-and-modules";
 import { type UserRole, ValidationError } from "@/lib/types";
+import { parseBody, readRawJsonBody } from "@/lib/validation/parse";
+import { partnersMutationSchema } from "@/lib/validation/partners.schema";
 
 export const dynamic = "force-dynamic";
 
@@ -141,19 +146,12 @@ async function recordUserAccessAudit(
 }
 
 export async function GET(req: NextRequest) {
-  void req;
   try {
-    const parsedActor = assertRole(await getAuthenticatedERPActor(req), [
-      "PARTNER_ADMIN",
-      "PARTNER_MANAGER",
-    ]);
-
-    const data = await withClient(async (client) => {
-      const actor = assertRole(await requireActiveSession(client, parsedActor), [
-        "PARTNER_ADMIN",
-        "PARTNER_MANAGER",
-      ]);
-      const isPartnerAdmin = actor.role === "PARTNER_ADMIN";
+    const data = await withAuthenticatedClient(
+      req,
+      ["PARTNER_ADMIN", "PARTNER_MANAGER"],
+      async (client, actor) => {
+        const isPartnerAdmin = actor.role === "PARTNER_ADMIN";
       // Batch all dashboard KPIs, alerts, users, and non-monthly BI panels into one query,
       // reusing `q1` rows for `biSummary.monthlyPerformance` instead of scanning the KPI view twice.
       const bundleRes = await client.query<PartnerDashboardBundleRow>(
@@ -570,314 +568,294 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const parsedActor = assertRole(await getAuthenticatedERPActor(req), [
-      "PARTNER_ADMIN",
-      "PARTNER_MANAGER",
-    ]);
+    const rawBody = await readRawJsonBody(req);
 
-    const body = await req.json();
-    const action = String(body.action || "");
-
-    const result = await withTransaction(async (client) => {
-      const actor = assertRole(await requireActiveSession(client, parsedActor), [
-        "PARTNER_ADMIN",
-        "PARTNER_MANAGER",
-      ]);
-      if (action === "reset_negative_stock") {
-        return await resetHistoricalNegativeStock(client, actor);
-      }
-      if (action === "update_product") {
-        await updateProductStockAndPricing(client, actor, {
-          productId: Number(body.productId),
-          physicalStock:
-            body.physicalStock !== undefined && body.physicalStock !== ""
-              ? Number(body.physicalStock)
-              : undefined,
-          refCostPen:
-            body.refCostPen !== undefined && body.refCostPen !== ""
-              ? Number(body.refCostPen)
-              : undefined,
-          listSalePricePen:
-            body.listSalePricePen !== undefined && body.listSalePricePen !== ""
-              ? Number(body.listSalePricePen)
-              : undefined,
-          minSalePricePen:
-            body.minSalePricePen !== undefined && body.minSalePricePen !== ""
-              ? Number(body.minSalePricePen)
-              : undefined,
-          fulfillmentMode: body.fulfillmentMode || undefined,
-          minStockQty:
-            body.minStockQty === undefined
-              ? undefined
-              : body.minStockQty === null || body.minStockQty === ""
-                ? null
-                : Number(body.minStockQty),
-          leadTimeDays:
-            body.leadTimeDays === undefined
-              ? undefined
-              : body.leadTimeDays === null || body.leadTimeDays === ""
-                ? null
-                : Number(body.leadTimeDays),
-          defaultSupplierPartyId:
-            body.defaultSupplierPartyId === undefined
-              ? undefined
-              : body.defaultSupplierPartyId === null ||
-                  body.defaultSupplierPartyId === ""
-                ? null
-                : Number(body.defaultSupplierPartyId),
-        });
-        return { ok: true };
-      }
-      if (action === "create_user") {
-        assertRole(actor, ["PARTNER_ADMIN"]);
-        const username = normalizeUsername(body.username);
-        const fullName = normalizeFullName(body.fullName);
-        const email = normalizeRequiredEmail(body.email);
-        const role = parseUserRole(body.role);
-        const createdRes = await client.query(
-          `WITH generated AS (
-             SELECT encode(sha256(gen_random_uuid()::text::bytea), 'hex') AS legacy_hash
-           )
-           INSERT INTO erp.app_users
-             (username, full_name, email, role, pin_hash, password_hash,
-              must_change_password, is_active)
-           SELECT $1, $2, $3, $4::erp.user_role, legacy_hash, legacy_hash, FALSE, TRUE
-           FROM generated
-           RETURNING user_id, username, full_name, email, role::text AS role, is_active`,
-          [username, fullName, email, role]
-        );
-        const created = toUserSnapshot(createdRes.rows[0]);
-        await recordUserAccessAudit(
+    const result = await withAuthenticatedTransaction(
+      req,
+      ["PARTNER_ADMIN", "PARTNER_MANAGER"],
+      async (client, actor) => {
+        const body = parseBody(partnersMutationSchema, rawBody);
+        const action = body.action;
+        return runIdempotentMutation(
           client,
-          actor.userId,
-          "USER_CREATED",
-          null,
-          created
-        );
-        return { ok: true, user: created };
-      }
-      if (action === "update_user_name") {
-        assertRole(actor, ["PARTNER_ADMIN"]);
-        const targetUserId = Number(body.userId);
-        if (!Number.isInteger(targetUserId) || targetUserId <= 0) {
-          throw new ValidationError("ID de usuario inválido");
-        }
-        const fullName = normalizeFullName(body.fullName);
-        const beforeRes = await client.query(
-          `SELECT user_id, username, full_name, email, role::text AS role, is_active
-           FROM erp.app_users WHERE user_id = $1 FOR UPDATE`,
-          [targetUserId]
-        );
-        if (beforeRes.rowCount === 0)
-          throw new ValidationError("Usuario no encontrado");
-        const before = toUserSnapshot(beforeRes.rows[0]);
-        const updRes = await client.query(
-          `UPDATE erp.app_users
-           SET full_name = $1
-           WHERE user_id = $2
-           RETURNING user_id, username, full_name, email, role::text AS role, is_active`,
-          [fullName, targetUserId]
-        );
-        const after = toUserSnapshot(updRes.rows[0]);
-        await recordUserAccessAudit(
-          client,
-          actor.userId,
-          "USER_NAME_CHANGED",
-          before,
-          after
-        );
-        return { ok: true, user: after };
-      }
-      if (action === "update_user_email") {
-        assertRole(actor, ["PARTNER_ADMIN"]);
-        const targetUserId = Number(body.userId);
-        if (!Number.isInteger(targetUserId) || targetUserId <= 0) {
-          throw new ValidationError("ID de usuario inválido");
-        }
-        const email = normalizeRequiredEmail(body.email);
-        const beforeRes = await client.query(
-          `SELECT user_id, username, full_name, email, role::text AS role, is_active
-           FROM erp.app_users WHERE user_id = $1 FOR UPDATE`,
-          [targetUserId]
-        );
-        if (beforeRes.rowCount === 0)
-          throw new ValidationError("Usuario no encontrado");
-        const before = toUserSnapshot(beforeRes.rows[0]);
-        const updRes = await client.query(
-          `UPDATE erp.app_users
-           SET neon_auth_user_id = CASE
-                 WHEN LOWER(BTRIM(COALESCE(email, ''))) = LOWER(BTRIM(COALESCE($1, '')))
-                   THEN neon_auth_user_id
-                 ELSE NULL
-               END,
-               email = $1
-           WHERE user_id = $2
-           RETURNING user_id, username, full_name, email, role::text AS role, is_active`,
-          [email, targetUserId]
-        );
-        const after = toUserSnapshot(updRes.rows[0]);
-        await recordUserAccessAudit(
-          client,
-          actor.userId,
-          "USER_EMAIL_CHANGED",
-          before,
-          after
-        );
-        return { ok: true, user: after };
-      }
-      if (action === "update_user_role") {
-        assertRole(actor, ["PARTNER_ADMIN"]);
-        const targetUserId = Number(body.userId);
-        if (!Number.isInteger(targetUserId) || targetUserId <= 0) {
-          throw new ValidationError("ID de usuario inválido");
-        }
-        if (targetUserId === actor.userId) {
-          throw new ValidationError("No puedes cambiar el rol de tu propia cuenta");
-        }
-        const role = parseUserRole(body.role);
-        const beforeRes = await client.query(
-          `SELECT user_id, username, full_name, email, role::text AS role, is_active
-           FROM erp.app_users WHERE user_id = $1 FOR UPDATE`,
-          [targetUserId]
-        );
-        if (beforeRes.rowCount === 0)
-          throw new ValidationError("Usuario no encontrado");
-        const before = toUserSnapshot(beforeRes.rows[0]);
-        if (
-          before.role === "PARTNER_ADMIN" &&
-          role !== "PARTNER_ADMIN" &&
-          before.is_active
-        ) {
-          const admins = await client.query<{ count: string }>(
-            `SELECT COUNT(*)::text AS count
-             FROM erp.app_users
-             WHERE role = 'PARTNER_ADMIN' AND is_active = TRUE`
-          );
-          if (Number(admins.rows[0]?.count ?? 0) <= 1) {
-            throw new ValidationError(
-              "Debe permanecer al menos un administrador activo"
-            );
+          req,
+          actor,
+          `partners:${action}`,
+          body,
+          async () => {
+            if (body.action === "reset_negative_stock") {
+              return await resetHistoricalNegativeStock(client, actor);
+            }
+            if (body.action === "update_product") {
+              await updateProductStockAndPricing(client, actor, {
+                productId: body.productId,
+                physicalStock: body.physicalStock,
+                refCostPen: body.refCostPen,
+                listSalePricePen: body.listSalePricePen,
+                minSalePricePen: body.minSalePricePen,
+                fulfillmentMode: body.fulfillmentMode,
+                minStockQty: body.minStockQty,
+                leadTimeDays: body.leadTimeDays,
+                defaultSupplierPartyId: body.defaultSupplierPartyId,
+              });
+              return { ok: true };
+            }
+            if (body.action === "create_user") {
+              assertRole(actor, ["PARTNER_ADMIN"]);
+              const username = normalizeUsername(body.username);
+              const fullName = normalizeFullName(body.fullName);
+              const email = normalizeRequiredEmail(body.email);
+              const role = parseUserRole(body.role);
+              const createdRes = await client.query(
+                `WITH generated AS (
+                   SELECT encode(sha256(gen_random_uuid()::text::bytea), 'hex') AS legacy_hash
+                 )
+                 INSERT INTO erp.app_users
+                   (username, full_name, email, role, password_hash,
+                    must_change_password, is_active)
+                 SELECT $1, $2, $3, $4::erp.user_role, legacy_hash, FALSE, TRUE
+                 FROM generated
+                 RETURNING user_id, username, full_name, email, role::text AS role, is_active`,
+                [username, fullName, email, role]
+              );
+              const created = toUserSnapshot(createdRes.rows[0]);
+              await recordUserAccessAudit(
+                client,
+                actor.userId,
+                "USER_CREATED",
+                null,
+                created
+              );
+              return { ok: true, user: created };
+            }
+            if (body.action === "update_user_name") {
+              assertRole(actor, ["PARTNER_ADMIN"]);
+              const targetUserId = Number(body.userId);
+              const fullName = normalizeFullName(body.fullName);
+              const beforeRes = await client.query(
+                `SELECT user_id, username, full_name, email, role::text AS role, is_active
+                 FROM erp.app_users WHERE user_id = $1 FOR UPDATE`,
+                [targetUserId]
+              );
+              if (beforeRes.rowCount === 0)
+                throw new ValidationError("Usuario no encontrado");
+              const before = toUserSnapshot(beforeRes.rows[0]);
+              const updRes = await client.query(
+                `UPDATE erp.app_users
+                 SET full_name = $1
+                 WHERE user_id = $2
+                 RETURNING user_id, username, full_name, email, role::text AS role, is_active`,
+                [fullName, targetUserId]
+              );
+              const after = toUserSnapshot(updRes.rows[0]);
+              await recordUserAccessAudit(
+                client,
+                actor.userId,
+                "USER_NAME_CHANGED",
+                before,
+                after
+              );
+              return { ok: true, user: after };
+            }
+            if (body.action === "update_user_email") {
+              assertRole(actor, ["PARTNER_ADMIN"]);
+              const targetUserId = Number(body.userId);
+              const email = normalizeRequiredEmail(body.email);
+              const beforeRes = await client.query(
+                `SELECT user_id, username, full_name, email, role::text AS role, is_active
+                 FROM erp.app_users WHERE user_id = $1 FOR UPDATE`,
+                [targetUserId]
+              );
+              if (beforeRes.rowCount === 0)
+                throw new ValidationError("Usuario no encontrado");
+              const before = toUserSnapshot(beforeRes.rows[0]);
+              const updRes = await client.query(
+                `UPDATE erp.app_users
+                 SET neon_auth_user_id = CASE
+                       WHEN LOWER(BTRIM(COALESCE(email, ''))) = LOWER(BTRIM(COALESCE($1, '')))
+                         THEN neon_auth_user_id
+                       ELSE NULL
+                     END,
+                     email = $1
+                 WHERE user_id = $2
+                 RETURNING user_id, username, full_name, email, role::text AS role, is_active`,
+                [email, targetUserId]
+              );
+              const after = toUserSnapshot(updRes.rows[0]);
+              await recordUserAccessAudit(
+                client,
+                actor.userId,
+                "USER_EMAIL_CHANGED",
+                before,
+                after
+              );
+              return { ok: true, user: after };
+            }
+            if (body.action === "update_user_role") {
+              assertRole(actor, ["PARTNER_ADMIN"]);
+              const targetUserId = Number(body.userId);
+              if (targetUserId === actor.userId) {
+                throw new ValidationError(
+                  "No puedes cambiar el rol de tu propia cuenta"
+                );
+              }
+              const role = parseUserRole(body.role);
+              const beforeRes = await client.query(
+                `SELECT user_id, username, full_name, email, role::text AS role, is_active
+                 FROM erp.app_users WHERE user_id = $1 FOR UPDATE`,
+                [targetUserId]
+              );
+              if (beforeRes.rowCount === 0)
+                throw new ValidationError("Usuario no encontrado");
+              const before = toUserSnapshot(beforeRes.rows[0]);
+              if (
+                before.role === "PARTNER_ADMIN" &&
+                role !== "PARTNER_ADMIN" &&
+                before.is_active
+              ) {
+                const admins = await client.query<{ count: string }>(
+                  `SELECT COUNT(*)::text AS count
+                   FROM erp.app_users
+                   WHERE role = 'PARTNER_ADMIN' AND is_active = TRUE`
+                );
+                if (Number(admins.rows[0]?.count ?? 0) <= 1) {
+                  throw new ValidationError(
+                    "Debe permanecer al menos un administrador activo"
+                  );
+                }
+              }
+              const updRes = await client.query(
+                `UPDATE erp.app_users
+                 SET role = $1::erp.user_role
+                 WHERE user_id = $2
+                 RETURNING user_id, username, full_name, email, role::text AS role, is_active`,
+                [role, targetUserId]
+              );
+              const after = toUserSnapshot(updRes.rows[0]);
+              await recordUserAccessAudit(
+                client,
+                actor.userId,
+                "USER_ROLE_CHANGED",
+                before,
+                after
+              );
+              return { ok: true, user: after };
+            }
+            if (body.action === "toggle_user_active") {
+              assertRole(actor, ["PARTNER_ADMIN"]);
+              const targetUserId = Number(body.userId);
+              if (targetUserId === actor.userId) {
+                throw new ValidationError(
+                  "No puedes desactivar tu propia cuenta de usuario"
+                );
+              }
+              const userRes = await client.query(
+                `SELECT user_id, username, full_name, email, role::text AS role, is_active
+                 FROM erp.app_users WHERE user_id = $1 FOR UPDATE`,
+                [targetUserId]
+              );
+              if (userRes.rowCount === 0) {
+                throw new ValidationError("Usuario no encontrado");
+              }
+              const before = toUserSnapshot(userRes.rows[0]);
+              const currentActive = before.is_active;
+              const nextActive =
+                typeof body.isActive === "boolean"
+                  ? body.isActive
+                  : !currentActive;
+              if (
+                before.role === "PARTNER_ADMIN" &&
+                currentActive &&
+                !nextActive
+              ) {
+                const admins = await client.query<{ count: string }>(
+                  `SELECT COUNT(*)::text AS count
+                   FROM erp.app_users
+                   WHERE role = 'PARTNER_ADMIN' AND is_active = TRUE`
+                );
+                if (Number(admins.rows[0]?.count ?? 0) <= 1) {
+                  throw new ValidationError(
+                    "Debe permanecer al menos un administrador activo"
+                  );
+                }
+              }
+              const updRes = await client.query(
+                `UPDATE erp.app_users
+                 SET is_active = $1
+                 WHERE user_id = $2
+                 RETURNING user_id, username, full_name, email, role::text AS role, is_active`,
+                [nextActive, targetUserId]
+              );
+              const after = toUserSnapshot(updRes.rows[0]);
+              await recordUserAccessAudit(
+                client,
+                actor.userId,
+                nextActive ? "USER_ACTIVATED" : "USER_DEACTIVATED",
+                before,
+                after
+              );
+              return { ok: true, user: after };
+            }
+            if (body.action === "delete_user") {
+              assertRole(actor, ["PARTNER_ADMIN"]);
+              const targetUserId = Number(body.userId);
+              if (targetUserId === actor.userId) {
+                throw new ValidationError(
+                  "No puedes eliminar tu propia cuenta de usuario"
+                );
+              }
+              const userRes = await client.query(
+                `SELECT user_id, username, full_name, email, role::text AS role, is_active
+                 FROM erp.app_users
+                 WHERE user_id = $1
+                   AND username NOT LIKE '%\\_\\_deleted\\_%' ESCAPE '\\'
+                 FOR UPDATE`,
+                [targetUserId]
+              );
+              if (userRes.rowCount === 0) {
+                throw new ValidationError("Usuario no encontrado");
+              }
+              const before = toUserSnapshot(userRes.rows[0]);
+              if (before.role === "PARTNER_ADMIN" && before.is_active) {
+                const admins = await client.query<{ count: string }>(
+                  `SELECT COUNT(*)::text AS count
+                   FROM erp.app_users
+                   WHERE role = 'PARTNER_ADMIN' AND is_active = TRUE`
+                );
+                if (Number(admins.rows[0]?.count ?? 0) <= 1) {
+                  throw new ValidationError(
+                    "Debe permanecer al menos un administrador activo"
+                  );
+                }
+              }
+              await client.query(
+                `UPDATE erp.app_users
+                 SET is_active = FALSE,
+                     email = NULL,
+                     neon_auth_user_id = NULL,
+                     username = username || '__deleted_' || user_id::text
+                 WHERE user_id = $1`,
+                [targetUserId]
+              );
+              await recordUserAccessAudit(
+                client,
+                actor.userId,
+                "USER_DEACTIVATED",
+                before,
+                {
+                  ...before,
+                  email: null,
+                  is_active: false,
+                  deleted: true,
+                }
+              );
+              return { ok: true, deletedUserId: targetUserId };
+            }
+            throw new ValidationError(`Acción desconocida: ${String(action)}`);
           }
-        }
-        const updRes = await client.query(
-          `UPDATE erp.app_users
-           SET role = $1::erp.user_role
-           WHERE user_id = $2
-           RETURNING user_id, username, full_name, email, role::text AS role, is_active`,
-          [role, targetUserId]
         );
-        const after = toUserSnapshot(updRes.rows[0]);
-        await recordUserAccessAudit(
-          client,
-          actor.userId,
-          "USER_ROLE_CHANGED",
-          before,
-          after
-        );
-        return { ok: true, user: after };
       }
-      if (action === "toggle_user_active") {
-        assertRole(actor, ["PARTNER_ADMIN"]);
-        const targetUserId = Number(body.userId);
-        if (!Number.isInteger(targetUserId) || targetUserId <= 0) {
-          throw new ValidationError("ID de usuario inválido");
-        }
-        if (targetUserId === actor.userId) {
-          throw new ValidationError("No puedes desactivar tu propia cuenta de usuario");
-        }
-        const userRes = await client.query(
-          `SELECT user_id, username, full_name, email, role::text AS role, is_active
-           FROM erp.app_users WHERE user_id = $1 FOR UPDATE`,
-          [targetUserId]
-        );
-        if (userRes.rowCount === 0) {
-          throw new ValidationError("Usuario no encontrado");
-        }
-        const before = toUserSnapshot(userRes.rows[0]);
-        const currentActive = before.is_active;
-        const nextActive =
-          typeof body.isActive === "boolean" ? body.isActive : !currentActive;
-        if (before.role === "PARTNER_ADMIN" && currentActive && !nextActive) {
-          const admins = await client.query<{ count: string }>(
-            `SELECT COUNT(*)::text AS count
-             FROM erp.app_users
-             WHERE role = 'PARTNER_ADMIN' AND is_active = TRUE`
-          );
-          if (Number(admins.rows[0]?.count ?? 0) <= 1) {
-            throw new ValidationError(
-              "Debe permanecer al menos un administrador activo"
-            );
-          }
-        }
-        const updRes = await client.query(
-          `UPDATE erp.app_users
-           SET is_active = $1
-           WHERE user_id = $2
-           RETURNING user_id, username, full_name, email, role::text AS role, is_active`,
-          [nextActive, targetUserId]
-        );
-        const after = toUserSnapshot(updRes.rows[0]);
-        await recordUserAccessAudit(
-          client,
-          actor.userId,
-          nextActive ? "USER_ACTIVATED" : "USER_DEACTIVATED",
-          before,
-          after
-        );
-        return { ok: true, user: after };
-      }
-      if (action === "delete_user") {
-        assertRole(actor, ["PARTNER_ADMIN"]);
-        const targetUserId = Number(body.userId);
-        if (!Number.isInteger(targetUserId) || targetUserId <= 0) {
-          throw new ValidationError("ID de usuario inválido");
-        }
-        if (targetUserId === actor.userId) {
-          throw new ValidationError("No puedes eliminar tu propia cuenta de usuario");
-        }
-        const userRes = await client.query(
-          `SELECT user_id, username, full_name, email, role::text AS role, is_active
-           FROM erp.app_users
-           WHERE user_id = $1
-             AND username NOT LIKE '%\\_\\_deleted\\_%' ESCAPE '\\'
-           FOR UPDATE`,
-          [targetUserId]
-        );
-        if (userRes.rowCount === 0) {
-          throw new ValidationError("Usuario no encontrado");
-        }
-        const before = toUserSnapshot(userRes.rows[0]);
-        if (before.role === "PARTNER_ADMIN" && before.is_active) {
-          const admins = await client.query<{ count: string }>(
-            `SELECT COUNT(*)::text AS count
-             FROM erp.app_users
-             WHERE role = 'PARTNER_ADMIN' AND is_active = TRUE`
-          );
-          if (Number(admins.rows[0]?.count ?? 0) <= 1) {
-            throw new ValidationError(
-              "Debe permanecer al menos un administrador activo"
-            );
-          }
-        }
-        await client.query(
-          `UPDATE erp.app_users
-           SET is_active = FALSE,
-               email = NULL,
-               neon_auth_user_id = NULL,
-               username = username || '__deleted_' || user_id::text
-           WHERE user_id = $1`,
-          [targetUserId]
-        );
-        await recordUserAccessAudit(client, actor.userId, "USER_DEACTIVATED", before, {
-          ...before,
-          email: null,
-          is_active: false,
-          deleted: true,
-        });
-        return { ok: true, deletedUserId: targetUserId };
-      }
-      throw new ValidationError(`Acción desconocida: ${action}`);
-    });
+    );
 
     return NextResponse.json(result, { headers: NO_STORE_HEADERS });
   } catch (err) {

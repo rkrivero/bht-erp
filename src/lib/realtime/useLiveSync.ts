@@ -11,6 +11,7 @@ import type {
 
 export type {
   LiveStatus,
+  LiveSyncTransport,
   SyncEngineMode,
   SyncScope,
   SyncSnapshotResponse,
@@ -18,14 +19,55 @@ export type {
   UseLiveSyncResult,
 } from "./types";
 
-const DEFAULT_POLL_INTERVAL_MS = 5000;
-const MIN_POLL_INTERVAL_MS = 1500;
-const BASE_BACKOFF_MS = 2000;
-const MAX_BACKOFF_MS = 30000;
-const SSE_RETRY_AFTER_FALLBACK_MS = 60000;
+export const DEFAULT_POLL_INTERVAL_MS = 60_000;
+export const DEFAULT_SSE_FALLBACK_POLL_INTERVAL_MS = 5_000;
+export const RESUME_COOLDOWN_MS = 45_000;
+const SSE_RESUME_COOLDOWN_MS = 1_500;
+const MIN_POLL_INTERVAL_MS = 1_500;
+const BASE_BACKOFF_MS = 2_000;
+const MAX_BACKOFF_MS = 30_000;
+const SSE_RETRY_AFTER_FALLBACK_MS = 60_000;
 export const BHT_SYNC_CHANNEL_NAME = "bht_live_sync_v1";
+export const BHT_SYNC_SCOPE_INVALIDATED_EVENT = "bht:sync-scopes-invalidated";
+
+type ScopeInvalidationListener = (scopes: SyncScope[]) => void;
+const scopeInvalidationListeners = new Set<ScopeInvalidationListener>();
+
+export function registerSyncScopeInvalidator(
+  listener: ScopeInvalidationListener
+): () => void {
+  scopeInvalidationListeners.add(listener);
+  return () => {
+    scopeInvalidationListeners.delete(listener);
+  };
+}
+
+export function emitSyncScopeInvalidation(scopes: SyncScope[]): void {
+  if (!scopes || scopes.length === 0) return;
+  for (const listener of scopeInvalidationListeners) {
+    try {
+      listener(scopes);
+    } catch {
+      // Ignore listener errors
+    }
+  }
+  if (typeof window !== "undefined" && typeof CustomEvent !== "undefined") {
+    try {
+      window.dispatchEvent(
+        new CustomEvent(BHT_SYNC_SCOPE_INVALIDATED_EVENT, {
+          detail: { scopes },
+        })
+      );
+    } catch {
+      // Ignore custom event errors in non-DOM test harnesses
+    }
+  }
+}
 
 export function notifyLocalSync(scopes?: SyncScope[]): void {
+  if (scopes && scopes.length > 0) {
+    emitSyncScopeInvalidation(scopes);
+  }
   if (typeof BroadcastChannel === "undefined") return;
   let ch: BroadcastChannel | null = null;
   try {
@@ -71,19 +113,27 @@ function isNavigatorOffline(): boolean {
 /**
  * Visibility-aware live synchronization hook for /socios, /vendedor, and /almacen.
  *
- * Uses SSE (`GET /api/sync` with `EventSource`) as primary transport with automatic
- * fallback to conditional JSON polling (`GET /api/sync?since=...`), pauses when the
- * tab is hidden, resumes immediately on `visibilitychange` / `focus` / `online`, and
- * applies exponential backoff when the network drops.
+ * Defaults to `"efficient"` transport (`BroadcastChannel` for instant cross-tab sync,
+ * `visibilitychange`/`focus`/`online` revalidation with a 45s cooldown, and 60s conditional
+ * JSON polling while visible) so Neon Free Tier can scale to zero when idle.
+ * Supports `"sse"` opt-in for continuous `EventSource` streaming.
  */
 export function useLiveSync({
   onRemoteChange,
   scopes,
   enabled = true,
-  pollIntervalMs = DEFAULT_POLL_INTERVAL_MS,
+  transport = "efficient",
+  pollIntervalMs,
   onAuthError,
 }: UseLiveSyncOptions): UseLiveSyncResult {
-  const effectivePollMs = Math.max(MIN_POLL_INTERVAL_MS, pollIntervalMs);
+  const defaultInterval =
+    transport === "sse"
+      ? DEFAULT_SSE_FALLBACK_POLL_INTERVAL_MS
+      : DEFAULT_POLL_INTERVAL_MS;
+  const effectivePollMs = Math.max(
+    MIN_POLL_INTERVAL_MS,
+    pollIntervalMs ?? defaultInterval
+  );
   const scopesKey = scopes ? Array.from(new Set(scopes)).sort().join(",") : "";
 
   const [liveStatus, setLiveStatus] = useState<LiveStatus>(() => {
@@ -157,10 +207,12 @@ export function useLiveSync({
       setLiveStatus("syncing");
       let succeeded = false;
       try {
+        emitSyncScopeInvalidation(matched);
         await onRemoteChangeRef.current(matched);
         while (queuedScopesRef.current.size > 0) {
           const queued = Array.from(queuedScopesRef.current);
           queuedScopesRef.current.clear();
+          emitSyncScopeInvalidation(queued);
           await onRemoteChangeRef.current(queued);
         }
         if (pendingVersionRef.current) {
@@ -285,6 +337,9 @@ export function useLiveSync({
     let pollModeUntil = 0;
     let lastCheckedMs = 0;
 
+    const resumeCooldownMs =
+      transport === "sse" ? SSE_RESUME_COOLDOWN_MS : RESUME_COOLDOWN_MS;
+
     const clearTimers = () => {
       if (pollTimer) {
         clearTimeout(pollTimer);
@@ -321,8 +376,12 @@ export function useLiveSync({
         stopAll("offline");
         return;
       }
+      if (pollTimer) {
+        clearTimeout(pollTimer);
+      }
 
       pollTimer = setTimeout(async () => {
+        pollTimer = null;
         if (disposed || stoppedByAuthRef.current || isTabHidden()) return;
         lastCheckedMs = Date.now();
         const outcome = await fetchSnapshotOnce(false);
@@ -346,7 +405,11 @@ export function useLiveSync({
           return;
         }
 
-        if (Date.now() >= pollModeUntil && typeof EventSource !== "undefined") {
+        if (
+          transport === "sse" &&
+          Date.now() >= pollModeUntil &&
+          typeof EventSource !== "undefined"
+        ) {
           startTransport();
           return;
         }
@@ -370,7 +433,9 @@ export function useLiveSync({
       setLiveStatus("syncing");
 
       const canUseSse =
-        typeof EventSource !== "undefined" && Date.now() >= pollModeUntil;
+        transport === "sse" &&
+        typeof EventSource !== "undefined" &&
+        Date.now() >= pollModeUntil;
 
       if (!canUseSse) {
         void (async () => {
@@ -478,10 +543,14 @@ export function useLiveSync({
 
     forceConnectRef.current = () => {
       if (es || pollTimer) return;
+      if (transport === "efficient" && lastCheckedMs > 0) {
+        schedulePollLoop();
+        return;
+      }
       startTransport();
     };
 
-    const scheduleResume = () => {
+    const scheduleResume = (forceImmediate = false) => {
       if (disposed || stoppedByAuthRef.current) return;
       if (isTabHidden()) {
         stopAll("paused");
@@ -494,11 +563,18 @@ export function useLiveSync({
       if (resumeDebounceTimer) clearTimeout(resumeDebounceTimer);
       resumeDebounceTimer = setTimeout(() => {
         if (disposed || isTabHidden() || isNavigatorOffline()) return;
-        // Reconnect immediately if paused/disconnected, or perform a quick catch-up check
+        const elapsed = Date.now() - lastCheckedMs;
+        const cooldownElapsed = lastCheckedMs === 0 || elapsed >= resumeCooldownMs;
+
         if (!es && !pollTimer) {
           backoffAttemptRef.current = 0;
+          if (transport === "efficient" && !forceImmediate && !cooldownElapsed) {
+            setLiveStatus(computeIdleStatus());
+            schedulePollLoop();
+            return;
+          }
           startTransport();
-        } else if (Date.now() - lastCheckedMs > 1500) {
+        } else if (forceImmediate || cooldownElapsed) {
           lastCheckedMs = Date.now();
           void fetchSnapshotOnce(false);
         }
@@ -509,18 +585,18 @@ export function useLiveSync({
       if (isTabHidden()) {
         stopAll("paused");
       } else {
-        scheduleResume();
+        scheduleResume(false);
       }
     };
 
     const handleFocus = () => {
-      scheduleResume();
+      scheduleResume(false);
     };
 
     const handleOnline = () => {
       backoffAttemptRef.current = 0;
       pollModeUntil = 0;
-      scheduleResume();
+      scheduleResume(true);
     };
 
     const handleOffline = () => {
@@ -531,7 +607,11 @@ export function useLiveSync({
     if (typeof BroadcastChannel !== "undefined") {
       try {
         broadcastChannel = new BroadcastChannel(BHT_SYNC_CHANNEL_NAME);
-        broadcastChannel.onmessage = () => {
+        broadcastChannel.onmessage = (ev: MessageEvent) => {
+          const payload = ev?.data as { scopes?: SyncScope[] } | undefined;
+          if (payload?.scopes && Array.isArray(payload.scopes) && payload.scopes.length > 0) {
+            emitSyncScopeInvalidation(payload.scopes);
+          }
           if (
             disposed ||
             !enabledRef.current ||
@@ -577,6 +657,7 @@ export function useLiveSync({
     enabled,
     fetchSnapshotOnce,
     scopesKey,
+    transport,
   ]);
 
   return {

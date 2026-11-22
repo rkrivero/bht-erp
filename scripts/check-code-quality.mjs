@@ -30,7 +30,10 @@ for (const f of files) {
   );
   if (/(^|\/)(socios|vendedor)\/page\.tsx$/.test(f) && lines.length > MAX_PAGE_LINES)
     errors.push(`${f}: ${lines.length} líneas (> ${MAX_PAGE_LINES})`);
-  if (/^src\/features\/(partners|seller)\//.test(f) && lines.length > MAX_MODULE_LINES)
+  if (
+    /^src\/(features\/(partners|seller)|components\/(socios|directory))\//.test(f) &&
+    lines.length > MAX_MODULE_LINES
+  )
     errors.push(`${f}: ${lines.length} líneas (> ${MAX_MODULE_LINES})`);
 }
 if (errors.length) {

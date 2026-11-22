@@ -103,6 +103,7 @@ export interface RawOrderWithLines {
   balance_due_pen: number;
   order_margin_pen?: number;
   is_settled?: boolean;
+  credit_limit_exceeded_flag?: boolean;
   notes?: string | null;
   created_by_user_id?: number | null;
   created_by_name: string | null;

@@ -15,6 +15,13 @@ const SYNC_HISTORY_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
 export const OUTBOX_EVENT = "bht:outbox-update";
 const snapshotWriteQueues = new Map<string, Promise<void>>();
 
+const memoryOutbox = new Map<string, OfflineMutation>();
+const memorySnapshots = new Map<string, { key: string; value: unknown; savedAt: number }>();
+
+function hasIndexedDb(): boolean {
+  return typeof indexedDB !== "undefined";
+}
+
 function enqueueSnapshotWrite(
   key: string,
   operation: () => Promise<void>
@@ -64,10 +71,17 @@ async function withStore<T>(
 }
 
 function announceOutboxChange(): void {
-  window.dispatchEvent(new CustomEvent(OUTBOX_EVENT));
+  if (typeof window !== "undefined" && typeof window.dispatchEvent === "function") {
+    window.dispatchEvent(new CustomEvent(OUTBOX_EVENT));
+  }
 }
 
 export async function listOutbox(): Promise<OfflineMutation[]> {
+  if (!hasIndexedDb()) {
+    return Array.from(memoryOutbox.values()).sort((a, b) =>
+      a.createdAt.localeCompare(b.createdAt)
+    );
+  }
   const items = await withStore<OfflineMutation[]>(OUTBOX_STORE, "readonly", (store) =>
     store.getAll()
   );
@@ -75,6 +89,12 @@ export async function listOutbox(): Promise<OfflineMutation[]> {
 }
 
 export async function putOutboxMutation(mutation: OfflineMutation): Promise<void> {
+  if (!hasIndexedDb()) {
+    memoryOutbox.set(mutation.id, mutation);
+    if (mutation.status === "synced") await pruneSyncHistory();
+    announceOutboxChange();
+    return;
+  }
   await withStore<IDBValidKey>(OUTBOX_STORE, "readwrite", (store) =>
     store.put(mutation)
   );
@@ -92,6 +112,10 @@ async function pruneSyncHistory(): Promise<void> {
   const excess = synced.slice(0, Math.max(0, synced.length - SYNC_HISTORY_LIMIT));
   const removeIds = new Set([...expired, ...excess].map((item) => item.id));
   if (!removeIds.size) return;
+  if (!hasIndexedDb()) {
+    removeIds.forEach((id) => memoryOutbox.delete(id));
+    return;
+  }
   const db = await openDb();
   try {
     await new Promise<void>((resolve, reject) => {
@@ -108,8 +132,91 @@ async function pruneSyncHistory(): Promise<void> {
 }
 
 export async function deleteOutboxMutation(id: string): Promise<void> {
+  if (!hasIndexedDb()) {
+    memoryOutbox.delete(id);
+    announceOutboxChange();
+    return;
+  }
   await withStore<undefined>(OUTBOX_STORE, "readwrite", (store) => store.delete(id));
   announceOutboxChange();
+}
+
+function shouldRegenerateIdempotencyKey(mutation: OfflineMutation): boolean {
+  return (
+    mutation.conflictCode === "IDEMPOTENCY_KEY_REUSED" ||
+    mutation.errorCode === "IDEMPOTENCY_KEY_REUSED"
+  );
+}
+
+export async function retryOutboxMutation(id: string): Promise<OfflineMutation | null> {
+  const items = await listOutbox();
+  const existing = items.find((item) => item.id === id);
+  if (!existing) return null;
+
+  const regenerate = shouldRegenerateIdempotencyKey(existing);
+  const nextId = regenerate ? crypto.randomUUID() : existing.id;
+  if (regenerate) {
+    await deleteOutboxMutation(existing.id);
+  }
+
+  const updated: OfflineMutation = {
+    ...existing,
+    id: nextId,
+    status: "pending",
+    lastError: undefined,
+    conflictCode: undefined,
+    errorCode: undefined,
+    causalKey: getOfflineCausalKey({
+      id: nextId,
+      kind: existing.kind,
+      actorUsername: existing.actorUsername,
+      body: existing.body,
+      causalKey: undefined,
+    }),
+  };
+
+  await putOutboxMutation(updated);
+  return updated;
+}
+
+export async function updateAndRetryOutboxMutation(
+  id: string,
+  nextPayload: Record<string, unknown>
+): Promise<OfflineMutation | null> {
+  const items = await listOutbox();
+  const existing = items.find((item) => item.id === id);
+  if (!existing) return null;
+
+  const regenerate = shouldRegenerateIdempotencyKey(existing);
+  const nextId = regenerate ? crypto.randomUUID() : existing.id;
+  if (regenerate) {
+    await deleteOutboxMutation(existing.id);
+  }
+
+  const nextBody: Record<string, unknown> = {
+    ...existing.body,
+    ...nextPayload,
+  };
+
+  const updated: OfflineMutation = {
+    ...existing,
+    id: nextId,
+    body: nextBody,
+    status: "pending",
+    lastError: undefined,
+    conflictCode: undefined,
+    errorCode: undefined,
+    causalKey: getOfflineCausalKey({
+      id: nextId,
+      kind: existing.kind,
+      actorUsername: existing.actorUsername,
+      body: nextBody,
+      causalKey: undefined,
+    }),
+  };
+
+  await putOutboxMutation(updated);
+  return updated;
 }
 
 export async function saveOfflineSnapshot(
@@ -118,6 +225,10 @@ export async function saveOfflineSnapshot(
   value: unknown
 ): Promise<void> {
   const key = `${actorUsername}:${name}`;
+  if (!hasIndexedDb()) {
+    memorySnapshots.set(key, { key, value, savedAt: Date.now() });
+    return;
+  }
   await enqueueSnapshotWrite(key, () =>
     withStore<IDBValidKey>(SNAPSHOT_STORE, "readwrite", (store) =>
       store.put({ key, value, savedAt: Date.now() })
@@ -129,10 +240,15 @@ export async function readOfflineSnapshot<T>(
   actorUsername: string,
   name: string
 ): Promise<T | null> {
+  const key = `${actorUsername}:${name}`;
+  if (!hasIndexedDb()) {
+    const row = memorySnapshots.get(key);
+    return (row?.value as T | undefined) ?? null;
+  }
   const row = await withStore<{ value: T } | undefined>(
     SNAPSHOT_STORE,
     "readonly",
-    (store) => store.get(`${actorUsername}:${name}`)
+    (store) => store.get(key)
   );
   return row?.value ?? null;
 }
@@ -142,6 +258,10 @@ export async function deleteOfflineSnapshot(
   name: string
 ): Promise<void> {
   const key = `${actorUsername}:${name}`;
+  if (!hasIndexedDb()) {
+    memorySnapshots.delete(key);
+    return;
+  }
   await enqueueSnapshotWrite(key, () =>
     withStore<undefined>(SNAPSHOT_STORE, "readwrite", (store) =>
       store.delete(key)
@@ -153,6 +273,12 @@ export async function deleteOfflineSnapshotsForActor(
   actorUsername: string
 ): Promise<void> {
   const prefix = `${actorUsername}:`;
+  if (!hasIndexedDb()) {
+    for (const key of Array.from(memorySnapshots.keys())) {
+      if (key.startsWith(prefix)) memorySnapshots.delete(key);
+    }
+    return;
+  }
   const db = await openDb();
   try {
     await new Promise<void>((resolve, reject) => {
@@ -182,6 +308,9 @@ export function getOfflineCausalKey(
 ): string {
   if (mutation.causalKey) return mutation.causalKey;
   const body = mutation.body;
+  if (mutation.kind === "WAREHOUSE_ADVANCE") {
+    return `order:${String(body.orderId ?? mutation.id)}`;
+  }
   const entity =
     body.orderId ??
     body.customerPartyId ??
@@ -225,7 +354,7 @@ export async function submitOfflineCapable<T>({
     }),
   };
 
-  if (navigator.onLine === false) {
+  if (typeof navigator !== "undefined" && navigator.onLine === false) {
     await putOutboxMutation(mutation);
     return { queued: true, mutationId: id };
   }

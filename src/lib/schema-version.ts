@@ -1,6 +1,11 @@
 import type { PoolClient } from "pg";
 
-export const REQUIRED_SCHEMA_VERSION = "026_quote_edits_global_discount_and_price_audit";
+export const REQUIRED_SCHEMA_VERSION = "028_stock_quants_and_system_settings";
+
+const COMPATIBLE_SCHEMA_VERSIONS = [
+  REQUIRED_SCHEMA_VERSION,
+  "027_sequences_period_locks_and_credit_gate",
+] as const;
 
 const verifiedBranches = new Set<"dev" | "main">();
 
@@ -13,9 +18,9 @@ export async function assertRequiredSchema(
     `SELECT EXISTS (
        SELECT 1
        FROM public.schema_migrations
-       WHERE version = $1
+       WHERE version = ANY($1::text[])
      ) AS present`,
-    [REQUIRED_SCHEMA_VERSION]
+    [COMPATIBLE_SCHEMA_VERSIONS]
   );
   if (!result.rows[0]?.present) {
     throw new Error(

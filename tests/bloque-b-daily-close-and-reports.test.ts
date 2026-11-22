@@ -580,6 +580,30 @@ describe("Bloque B: Financial Truth, Due Dates, Daily Close & Master Data", () =
         )
       ).rejects.toBeTruthy();
       await client.query("ROLLBACK TO SAVEPOINT sp_audit_guard");
+
+      // 6. Attempt a treasury cash_ledger mutation on the CLOSED date 2027-03-20 -> must return 409 Conflict (CLOSED_PERIOD)
+      // Reset the session-local GUC that saveDailyClosure set inside the savepoint-wrapped test transaction
+      await client.query(`SET LOCAL bht.allow_closed_period_override = 'false'`);
+      const closedPeriodTreasuryRes = await postTreasury(
+        new NextRequest("http://localhost:3000/api/treasury", {
+          method: "POST",
+          headers: {
+            cookie: `bht_session=${partnerToken}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            amountPen: 40,
+            expenseBucket: "ROUTE_OPEX",
+            expenseCategory: "COMBUSTIBLE",
+            txDate: "2027-03-20",
+            description: "Intento de gasto en periodo cerrado",
+          }),
+        })
+      );
+      expect(closedPeriodTreasuryRes.status).toBe(409);
+      const closedPeriodBody = await closedPeriodTreasuryRes.json();
+      expect(closedPeriodBody.code).toBe("CLOSED_PERIOD");
+      expect(closedPeriodBody.error).toMatch(/Periodo cerrado/i);
     } finally {
       spyClient.mockRestore();
       spyTx.mockRestore();

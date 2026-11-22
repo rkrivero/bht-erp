@@ -42,6 +42,27 @@
   --status-danger-bg: #fdf2f2;
   --status-danger-border: #fecaca;
   --status-danger-text: #991b1b;
+
+  --card-pad: 1.5rem;
+  --table-cell-py: 0.875rem;
+  --table-cell-px: 1.125rem;
+  --bht-floating-bottom: 1rem;
+}
+
+:where([data-density="compact"]) {
+  --card-pad: 1rem;
+  --table-cell-py: 0.5rem;
+  --table-cell-px: 0.75rem;
+}
+
+@container style(--density: compact) {
+  .bht-card-surface {
+    padding: 1rem;
+  }
+  .table-wrapper table th,
+  .table-wrapper table td {
+    padding: 0.5rem 0.75rem;
+  }
 }
 
 @media (pointer: coarse) {
@@ -203,20 +224,155 @@
   }
 
   .table-wrapper table th {
-    padding: 0.875rem 1.25rem;
+    padding: var(--table-cell-py, 0.875rem) var(--table-cell-px, 1.25rem);
     font-size: 0.75rem;
     font-weight: 600;
     letter-spacing: 0.03em;
     text-transform: uppercase;
     color: var(--ink-secondary);
-    background-color: #fafaf8;
+    background-color: var(--bg-canvas);
     border-bottom: 1px solid var(--border-hairline);
   }
 
   .table-wrapper table td {
-    padding: 1rem 1.25rem;
+    padding: var(--table-cell-py, 0.875rem) var(--table-cell-px, 1.25rem);
     font-size: 0.875rem;
     border-bottom: 1px solid var(--border-hairline);
+  }
+
+  .bht-defer-row {
+    content-visibility: auto;
+    contain-intrinsic-size: auto 48px;
+  }
+
+  .bht-contain-region {
+    content-visibility: auto;
+    contain-intrinsic-size: auto 320px;
+  }
+
+  .bht-tab-cached {
+    content-visibility: auto;
+    contain-intrinsic-size: auto 480px;
+  }
+
+  @container (width < 640px) {
+    .bht-responsive-table thead {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+
+    .bht-responsive-table,
+    .bht-responsive-table tbody,
+    .bht-responsive-table tr,
+    .bht-responsive-table td {
+      display: block;
+      width: 100%;
+    }
+
+    .bht-responsive-table tr {
+      margin-bottom: 0.75rem;
+      border: 1px solid var(--border-hairline);
+      border-radius: 0.75rem;
+      background-color: var(--bg-surface);
+      padding: 0.75rem;
+      box-shadow: var(--shadow-bht-elev-2);
+    }
+
+    .bht-responsive-table td {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 0.75rem;
+      padding: 0.375rem 0.25rem;
+      border-bottom: 1px dashed var(--border-hairline);
+      text-align: right;
+    }
+
+    .bht-responsive-table td:last-child {
+      border-bottom: 0;
+      padding-bottom: 0;
+    }
+
+    .bht-responsive-table td::before {
+      content: attr(data-label);
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: var(--ink-secondary);
+      text-align: left;
+      flex-shrink: 0;
+    }
+  }
+
+  dialog.bht-dialog {
+    opacity: 0;
+    transform: translateY(8px) scale(0.985);
+    transition:
+      opacity 180ms ease-out,
+      transform 180ms ease-out,
+      overlay 180ms ease-out allow-discrete,
+      display 180ms ease-out allow-discrete;
+  }
+
+  dialog.bht-dialog[open] {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+
+  @starting-style {
+    dialog.bht-dialog[open] {
+      opacity: 0;
+      transform: translateY(8px) scale(0.985);
+    }
+  }
+
+  dialog.bht-dialog::backdrop {
+    background-color: rgba(15, 23, 42, 0);
+    backdrop-filter: blur(0px);
+    transition:
+      background-color 180ms ease-out,
+      backdrop-filter 180ms ease-out,
+      overlay 180ms ease-out allow-discrete,
+      display 180ms ease-out allow-discrete;
+  }
+
+  dialog.bht-dialog[open]::backdrop {
+    background-color: rgba(15, 23, 42, 0.45);
+    backdrop-filter: blur(3px);
+  }
+
+  @starting-style {
+    dialog.bht-dialog[open]::backdrop {
+      background-color: rgba(15, 23, 42, 0);
+      backdrop-filter: blur(0px);
+    }
+  }
+
+  @supports (position-area: block-end) {
+    [popover].bht-anchored-popover {
+      position: fixed;
+      inset: auto;
+      position-area: block-end span-inline-start;
+      margin-top: 0.375rem;
+    }
+  }
+
+  @supports not (position-area: block-end) {
+    [popover].bht-anchored-popover:popover-open {
+      position: fixed;
+      inset-inline: 0.75rem;
+      inset-block-end: max(0.75rem, env(safe-area-inset-bottom, 0px));
+      inset-block-start: auto;
+      margin: 0 auto;
+      max-width: 28rem;
+      width: calc(100% - 1.5rem);
+    }
   }
 
   .bht-scrollbar {
@@ -288,46 +444,30 @@
   --color-bht-success-strong: #065f46;
   --color-bht-surface-cool: #f8fafc;
   --color-bht-tone-047857: #065f46;
-  --color-bht-tone-064fc3: #3373b0;
   --color-bht-tone-14532d: #065f46;
   --color-bht-tone-1d4ed8: #3373b0;
   --color-bht-tone-4338ca: #1c2127;
   --color-bht-tone-4ade80: #34d399;
-  --color-bht-tone-4f46e5: #3373b0;
   --color-bht-tone-5b89b5: #5a6578;
-  --color-bht-tone-7f1d1d: #991b1b;
-  --color-bht-tone-9a5a00: #b45309;
   --color-bht-tone-a7f3d0: #a7f3d0;
-  --color-bht-tone-a8a49c: #8c98a9;
   --color-bht-tone-a9c7e3: #bed4e9;
-  --color-bht-tone-b9d3fa: #bed4e9;
   --color-bht-tone-c7d2fe: #c7d2fe;
-  --color-bht-tone-cbd5e1: #cbd5e1;
-  --color-bht-tone-cbd9e7: #cbd5e1;
   --color-bht-tone-cfe0f0: #e7f1fb;
-  --color-bht-tone-d5e0e9: #e2e8f0;
   --color-bht-tone-d97706: #b45309;
-  --color-bht-tone-d9e7fa: #e7f1fb;
   --color-bht-tone-dbeafe: #bed4e9;
-  --color-bht-tone-dcfce7: #ecfdf5;
-  --color-bht-tone-e0e7ff: #e7f1fb;
   --color-bht-tone-e7d3b1: #fde68a;
   --color-bht-tone-e7eff7: #f1f5f9;
   --color-bht-tone-e8c5c5: #fecaca;
-  --color-bht-tone-eaf2fe: #e7f1fb;
   --color-bht-tone-ecfdf5: #ecfdf5;
   --color-bht-tone-edf3f8: #f8fafc;
   --color-bht-tone-eeece7: #f8fafc;
-  --color-bht-tone-eef2ff: #e7f1fb;
   --color-bht-tone-eef9f1: #ecfdf5;
   --color-bht-tone-f2f7fb: #f8fafc;
-  --color-bht-tone-f59e0b: #b45309;
   --color-bht-tone-f5fbf7: #ecfdf5;
   --color-bht-tone-f6f7ff: #f8fafc;
   --color-bht-tone-fbbf24: #fbbf24;
   --color-bht-tone-fee2e2: #fee2e2;
   --color-bht-tone-fef6f6: #fef2f2;
-  --color-bht-tone-fff7e8: #fffbeb;
   --color-bht-warning: #b45309;
   --color-bht-warning-bg: #fffbeb;
   --color-bht-warning-line: #fde68a;

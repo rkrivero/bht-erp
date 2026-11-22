@@ -425,9 +425,12 @@ export async function createRouteTrip(
     }
   }
 
-  const tripCode = `TRIP-${tripDate.replace(/-/g, "")}-${Math.floor(
-    1000 + Math.random() * 9000
-  )}`;
+  const tripPeriodKey = tripDate.replace(/-/g, "");
+  const tripSeqRes = await client.query<{ code: string }>(
+    `SELECT erp.fn_next_document_code('ROUTE_TRIP', 'TRIP', $1, 4) AS code`,
+    [tripPeriodKey]
+  );
+  const tripCode = String(tripSeqRes.rows[0].code);
 
   const ins = await client.query<{ trip_id: string; trip_code: string }>(
     `INSERT INTO erp.route_trips (
@@ -949,9 +952,12 @@ export async function createQuote(
   const totalPen = Number((subtotalPen - globalDiscountPen).toFixed(2));
 
   const issueDate = getLimaDateString(0);
-  const quoteCode = `COT-${issueDate.replace(/-/g, "")}-${Math.floor(
-    1000 + Math.random() * 9000
-  )}`;
+  const quotePeriodKey = issueDate.replace(/-/g, "");
+  const quoteSeqRes = await client.query<{ code: string }>(
+    `SELECT erp.fn_next_document_code('QUOTE', 'COT', $1, 4) AS code`,
+    [quotePeriodKey]
+  );
+  const quoteCode = String(quoteSeqRes.rows[0].code);
 
   const qIns = await client.query<{ quote_id: string; quote_code: string }>(
     `INSERT INTO erp.quotes (

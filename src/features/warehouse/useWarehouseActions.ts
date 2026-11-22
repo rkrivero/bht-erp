@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
+import type { CurrentUserInfo } from "@/components/socios/types";
 import { ApiClientError, fetchJson } from "@/lib/api-client";
 import type {
   UndoActionReceiptDto,
@@ -8,14 +9,17 @@ import type {
   WarehouseTripMutationResponseDto,
 } from "@/lib/contracts";
 import { formatOperationalStatusEs } from "@/lib/labels-es";
+import { submitOfflineCapable } from "@/lib/offline/outbox";
 import { notifyLocalSync } from "@/lib/realtime/useLiveSync";
 import type { NextOrderStatus, WarehouseFeedback } from "./types";
-import { isAuthStatus } from "./useWarehouseData";
+import { isAuthStatus, WAREHOUSE_LAST_ACTOR_STORAGE_KEY } from "./useWarehouseData";
 
 interface Options {
+  currentUser?: CurrentUserInfo | null;
   openTrips: WarehouseTripDto[];
   loadOrders: (opts?: { silent?: boolean }) => Promise<void>;
   setFeedback: (feedback: WarehouseFeedback | null) => void;
+  onOptimisticStatusChange?: (orderId: number, nextStatus: NextOrderStatus) => void;
 }
 
 function postJson<T>(url: string, body: unknown): Promise<T> {
@@ -26,7 +30,26 @@ function postJson<T>(url: string, body: unknown): Promise<T> {
   });
 }
 
-export function useWarehouseActions({ openTrips, loadOrders, setFeedback }: Options) {
+function resolveWarehouseActor(currentUser?: CurrentUserInfo | null): string {
+  if (currentUser?.username) return currentUser.username;
+  if (typeof sessionStorage !== "undefined") {
+    try {
+      const stored = sessionStorage.getItem(WAREHOUSE_LAST_ACTOR_STORAGE_KEY);
+      if (stored) return stored;
+    } catch {
+      // ignore storage errors
+    }
+  }
+  return "almacen";
+}
+
+export function useWarehouseActions({
+  currentUser,
+  openTrips,
+  loadOrders,
+  setFeedback,
+  onOptimisticStatusChange,
+}: Options) {
   const router = useRouter();
   const [selectedTripByOrder, setSelectedTripByOrder] = useState<
     Record<number, string>
@@ -46,7 +69,12 @@ export function useWarehouseActions({ openTrips, loadOrders, setFeedback }: Opti
     }
     setFeedback({
       type: "err",
-      msg: error instanceof ApiClientError ? error.message : fallbackNetwork,
+      msg:
+        error instanceof ApiClientError
+          ? error.message
+          : error instanceof Error && error.message
+            ? error.message
+            : fallbackNetwork,
     });
   }
 
@@ -142,15 +170,29 @@ export function useWarehouseActions({ openTrips, loadOrders, setFeedback }: Opti
     setFeedback(null);
     setBusyOrderId(orderId);
     try {
-      const res = await postJson<{ undoAction?: UndoActionReceiptDto }>("/api/orders", {
-        action: "advance",
-        orderId,
-        nextStatus,
+      const actorUsername = resolveWarehouseActor(currentUser);
+      const res = await submitOfflineCapable<{ undoAction?: UndoActionReceiptDto }>({
+        kind: "WAREHOUSE_ADVANCE",
+        actorUsername,
+        url: "/api/orders",
+        body: {
+          action: "advance",
+          orderId,
+          nextStatus,
+        },
       });
+      if (res.queued) {
+        onOptimisticStatusChange?.(orderId, nextStatus);
+        setFeedback({
+          type: "ok",
+          msg: `Operación guardada sin conexión (${formatOperationalStatusEs(nextStatus)}). Se sincronizará al recuperar red.`,
+        });
+        return;
+      }
       setFeedback({
         type: "ok",
         msg: `Pedido actualizado a ${formatOperationalStatusEs(nextStatus)}.`,
-        undoAction: res.undoAction,
+        undoAction: res.data?.undoAction,
       });
       notifyLocalSync(["orders", "inventory", "partners"]);
       await loadOrders({ silent: true });

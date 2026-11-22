@@ -12,6 +12,9 @@ const pools: Partial<Record<"dev" | "main", Pool>> =
   globalThis.__bhtPgPools ?? (globalThis.__bhtPgPools = {});
 
 function loadFallbackEnv(): Record<string, string> {
+  if (process.env.NODE_ENV === "production") {
+    return {};
+  }
   const result: Record<string, string> = {};
   const candidates = [
     path.resolve(process.cwd(), ".env.local"),
@@ -70,8 +73,9 @@ export function resolveDatabaseUrl(
   branch: "dev" | "main" = getDefaultBranch()
 ): string {
   const fallback = loadFallbackEnv();
+  let url: string | undefined;
   if (branch === "dev") {
-    const url =
+    url =
       process.env.NEON_DATABASE_URL_DEV ||
       process.env.DEV_DATABASE_URL ||
       fallback.NEON_DATABASE_URL_DEV ||
@@ -81,17 +85,26 @@ export function resolveDatabaseUrl(
         "Missing database URL for branch dev (NEON_DATABASE_URL_DEV or DEV_DATABASE_URL)"
       );
     }
-    return normalizeDatabaseUrl(url);
+  } else {
+    url =
+      process.env.NEON_DATABASE_URL_MAIN ||
+      process.env.DATABASE_URL ||
+      fallback.NEON_DATABASE_URL_MAIN ||
+      fallback.DATABASE_URL;
+    if (!url) {
+      throw new Error(
+        "Missing database URL for branch main (NEON_DATABASE_URL_MAIN or DATABASE_URL)"
+      );
+    }
   }
 
-  const url =
-    process.env.NEON_DATABASE_URL_MAIN ||
-    process.env.DATABASE_URL ||
-    fallback.NEON_DATABASE_URL_MAIN ||
-    fallback.DATABASE_URL;
-  if (!url) {
-    throw new Error(
-      "Missing database URL for branch main (NEON_DATABASE_URL_MAIN or DATABASE_URL)"
+  if (
+    process.env.NODE_ENV === "production" &&
+    url.includes(".neon.tech") &&
+    !url.includes("-pooler")
+  ) {
+    console.warn(
+      `[pg-pool:${branch}] Production Neon connection string does not include '-pooler'; consider using the pooled endpoint for serverless functions.`
     );
   }
   return normalizeDatabaseUrl(url);
@@ -101,8 +114,9 @@ export function getPool(branch: "dev" | "main" = getDefaultBranch()): Pool {
   if (!pools[branch]) {
     const pool = new Pool({
       connectionString: resolveDatabaseUrl(branch),
-      max: 6,
-      idleTimeoutMillis: 15000,
+      max: 3,
+      idleTimeoutMillis: 10000,
+      connectionTimeoutMillis: 8000,
     });
     pool.on("error", (err) => {
       console.error(`[pg-pool:${branch}] idle client error:`, err?.message || err);

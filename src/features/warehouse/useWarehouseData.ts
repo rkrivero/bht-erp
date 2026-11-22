@@ -8,7 +8,18 @@ import type {
   WarehouseTripDto,
   WarehouseTripsResponseDto,
 } from "@/lib/contracts";
-import type { WarehouseFeedback } from "./types";
+import { readOfflineSnapshot, saveOfflineSnapshot } from "@/lib/offline/outbox";
+import type { NextOrderStatus, WarehouseFeedback } from "./types";
+
+export const WAREHOUSE_LAST_ACTOR_STORAGE_KEY = "bht:last-warehouse-actor";
+const WAREHOUSE_SNAPSHOT_NAME = "warehouse-orders";
+
+interface WarehouseOfflineSnapshot {
+  currentUser: CurrentUserInfo | null;
+  orders: WarehouseOrderDto[];
+  trips: WarehouseTripDto[];
+  savedAt: string;
+}
 
 interface Options {
   setFeedback: (feedback: WarehouseFeedback | null) => void;
@@ -42,12 +53,36 @@ export function useWarehouseData({ setFeedback, pruneChecklist }: Options) {
             cache: "no-store",
           }).catch(() => null),
         ]);
-        if (data.currentUser) setCurrentUser(data.currentUser);
+        if (data.currentUser) {
+          setCurrentUser(data.currentUser);
+          try {
+            sessionStorage.setItem(
+              WAREHOUSE_LAST_ACTOR_STORAGE_KEY,
+              String(data.currentUser.username)
+            );
+          } catch {
+            // Online operation remains available if storage is restricted.
+          }
+        }
+        const loadedTrips =
+          tripsData && Array.isArray(tripsData.trips) ? tripsData.trips : [];
         if (tripsData) {
-          setTrips(Array.isArray(tripsData.trips) ? tripsData.trips : []);
+          setTrips(loadedTrips);
         }
         const loadedOrders = data.orders || [];
         setOrders(loadedOrders);
+        if (data.currentUser?.username) {
+          await saveOfflineSnapshot(
+            String(data.currentUser.username),
+            WAREHOUSE_SNAPSHOT_NAME,
+            {
+              currentUser: data.currentUser,
+              orders: loadedOrders,
+              trips: loadedTrips,
+              savedAt: new Date().toISOString(),
+            } satisfies WarehouseOfflineSnapshot
+          ).catch(() => undefined);
+        }
         const activeLineIds = new Set<number>();
         for (const ord of loadedOrders) {
           if (ord.operational_status !== "DELIVERED") {
@@ -62,6 +97,38 @@ export function useWarehouseData({ setFeedback, pruneChecklist }: Options) {
         if (isAuthStatus(error)) {
           router.push("/login");
           return;
+        }
+        let lastActor: string | null = null;
+        try {
+          lastActor = sessionStorage.getItem(WAREHOUSE_LAST_ACTOR_STORAGE_KEY);
+        } catch {
+          // Storage blocked
+        }
+        if (lastActor) {
+          const snapshot = await readOfflineSnapshot<WarehouseOfflineSnapshot>(
+            lastActor,
+            WAREHOUSE_SNAPSHOT_NAME
+          ).catch(() => null);
+          if (snapshot) {
+            setCurrentUser(
+              snapshot.currentUser ?? {
+                userId: 0,
+                username: lastActor,
+                fullName: lastActor,
+                role: "WAREHOUSE_DELIVERY",
+              }
+            );
+            setOrders(snapshot.orders || []);
+            setTrips(snapshot.trips || []);
+            hasLoadedRef.current = true;
+            if (!silent) {
+              setFeedback({
+                type: "ok",
+                msg: "Estás sin conexión. Se cargó la cola local de almacén; las entregas quedarán pendientes de sincronización.",
+              });
+            }
+            return;
+          }
         }
         if (!silent) {
           setFeedback({
@@ -79,11 +146,42 @@ export function useWarehouseData({ setFeedback, pruneChecklist }: Options) {
     [router, pruneChecklist, setFeedback]
   );
 
+  const applyLocalOrderStatus = useCallback(
+    (orderId: number, nextStatus: NextOrderStatus) => {
+      setOrders((prev) => {
+        const next = prev.map((order) =>
+          order.order_id === orderId
+            ? { ...order, operational_status: nextStatus }
+            : order
+        );
+        const actor = currentUser?.username;
+        if (actor) {
+          void saveOfflineSnapshot(actor, WAREHOUSE_SNAPSHOT_NAME, {
+            currentUser,
+            orders: next,
+            trips,
+            savedAt: new Date().toISOString(),
+          } satisfies WarehouseOfflineSnapshot).catch(() => undefined);
+        }
+        return next;
+      });
+    },
+    [currentUser, trips]
+  );
+
   useEffect(() => {
-    loadOrders({ silent: false });
+    void loadOrders({ silent: false });
   }, [loadOrders]);
 
   const openTrips = useMemo(() => trips.filter((t) => t.status === "OPEN"), [trips]);
 
-  return { currentUser, orders, trips, openTrips, loading, loadOrders };
+  return {
+    currentUser,
+    orders,
+    trips,
+    openTrips,
+    loading,
+    loadOrders,
+    applyLocalOrderStatus,
+  };
 }

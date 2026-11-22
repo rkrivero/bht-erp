@@ -1,4 +1,5 @@
 import {
+  AuthenticationError,
   AuthorizationError,
   type RawOrderWithLines,
   type RawProductRow,
@@ -11,7 +12,7 @@ export function assertRole(
   allowed: UserRole[]
 ): SessionUser {
   if (!actor) {
-    throw new AuthorizationError("Sesión no iniciada");
+    throw new AuthenticationError("Sesión no iniciada");
   }
   if (!allowed.includes(actor.role)) {
     throw new AuthorizationError(`Rol ${actor.role} no autorizado para esta operación`);
@@ -143,6 +144,7 @@ export function projectOrderForRole(
       paid_pen: Number(order.paid_pen),
       balance_due_pen: Number(order.balance_due_pen),
       is_settled: Boolean(order.is_settled),
+      credit_limit_exceeded_flag: Boolean(order.credit_limit_exceeded_flag),
       notes: order.notes ?? null,
       created_by_user_id: order.created_by_user_id ?? null,
       created_by_name: order.created_by_name,
@@ -228,6 +230,7 @@ export function projectOrderForRole(
     paid_pen: Number(order.paid_pen),
     balance_due_pen: Number(order.balance_due_pen),
     is_settled: Boolean(order.is_settled),
+    credit_limit_exceeded_flag: Boolean(order.credit_limit_exceeded_flag),
     order_margin_pen: Number(totalMarginPen.toFixed(2)),
     notes: order.notes ?? null,
     created_by_user_id: order.created_by_user_id ?? null,

@@ -25,6 +25,8 @@ const INITIAL_STATE: RuntimeState = {
   syncing: false,
 };
 
+const OFFLINE_WARM_ROUTES = ["/vendedor", "/almacen"] as const;
+
 export default function PwaRuntime() {
   const pathname = usePathname();
   const [state, setState] = useState<RuntimeState>(INITIAL_STATE);
@@ -90,6 +92,7 @@ export default function PwaRuntime() {
               syncedAt: new Date().toISOString(),
               lastError: undefined,
               conflictCode: undefined,
+              errorCode: undefined,
               entityRef: undefined,
             });
             continue;
@@ -107,6 +110,7 @@ export default function PwaRuntime() {
             status: "conflict",
             lastError: payload.error || "La operación cambió y requiere revisión",
             conflictCode: payload.code,
+            errorCode: payload.code,
             entityRef: payload.entityRef,
             causalKey,
           });
@@ -135,10 +139,14 @@ export default function PwaRuntime() {
         .then(async () => {
           await navigator.serviceWorker.ready;
           if (navigator.onLine) {
-            await fetch("/vendedor", {
-              cache: "no-store",
-              headers: { Accept: "text/html" },
-            }).catch(() => undefined);
+            await Promise.all(
+              OFFLINE_WARM_ROUTES.map((route) =>
+                fetch(route, {
+                  cache: "no-store",
+                  headers: { Accept: "text/html" },
+                }).catch(() => undefined)
+              )
+            );
           }
         })
         .catch(() => {
@@ -175,6 +183,19 @@ export default function PwaRuntime() {
 
   const visible =
     !state.online || state.pending > 0 || state.conflicts > 0 || state.syncing;
+
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    if (visible) {
+      document.documentElement.style.setProperty("--bht-pwa-banner-offset", "3.5rem");
+    } else {
+      document.documentElement.style.removeProperty("--bht-pwa-banner-offset");
+    }
+    return () => {
+      document.documentElement.style.removeProperty("--bht-pwa-banner-offset");
+    };
+  }, [visible]);
+
   if (!visible) return null;
 
   const message = state.conflicts
@@ -189,7 +210,7 @@ export default function PwaRuntime() {
     <div
       role={state.conflicts ? "alert" : "status"}
       aria-live={state.conflicts ? "assertive" : "polite"}
-      className={`fixed bottom-[5.4rem] left-1/2 z-50 w-[calc(100%-1.5rem)] max-w-md -translate-x-1/2 rounded-xl border px-3.5 py-2.5 text-center text-xs font-semibold shadow-lg md:bottom-4 ${
+      className={`fixed bottom-[var(--bht-floating-bottom,5.4rem)] left-1/2 z-50 w-[calc(100%-1.5rem)] max-w-md -translate-x-1/2 rounded-xl border px-3.5 py-2.5 text-center text-xs font-semibold shadow-lg md:bottom-4 ${
         state.conflicts
           ? "border-[var(--status-danger-border)] bg-[var(--status-danger-bg)] text-[var(--status-danger-text)]"
           : "border-[var(--horizon-border)] bg-white text-[var(--horizon-ink)]"

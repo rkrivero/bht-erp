@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Inter, JetBrains_Mono } from "next/font/google";
+import QueryProvider from "@/components/providers/QueryProvider";
 import PwaRuntime from "@/components/pwa/PwaRuntime";
 import "./globals.css";
 
@@ -50,8 +51,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         >
           Saltar al contenido principal
         </a>
-        {children}
-        <PwaRuntime />
+        <QueryProvider>
+          {children}
+          <PwaRuntime />
+        </QueryProvider>
       </body>
     </html>
   );

@@ -1,38 +1,40 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getAuthenticatedERPActor, requireActiveSession } from "@/lib/auth";
-import { withClient, withTransaction } from "@/lib/db";
+import {
+  withAuthenticatedClient,
+  withAuthenticatedTransaction,
+} from "@/lib/auth";
 import { resolveHttpError } from "@/lib/http-errors";
-import { assertRole } from "@/lib/rbac";
+import { runIdempotentMutation } from "@/lib/idempotency";
 import {
   listAuditFlags,
   updateAuditFlagStatus,
 } from "@/lib/services/operations-and-modules";
 import { ValidationError } from "@/lib/types";
+import { auditFlagsMutationSchema } from "@/lib/validation/audit-flags.schema";
+import { parseBody, readRawJsonBody } from "@/lib/validation/parse";
 
 export const dynamic = "force-dynamic";
 
 const NO_STORE_HEADERS = { "Cache-Control": "no-store" };
 
+const FLAG_ROLES = ["PARTNER_ADMIN", "PARTNER_MANAGER"] as const;
+
 export async function GET(req: NextRequest) {
   try {
-    const parsedActor = assertRole(await getAuthenticatedERPActor(req), [
-      "PARTNER_ADMIN",
-      "PARTNER_MANAGER",
-    ]);
     const statusParam = req.nextUrl.searchParams.get("status") || "ALL";
     const limitParam = req.nextUrl.searchParams.get("limit");
     const limit = limitParam ? Number(limitParam) : 80;
 
-    const data = await withClient(async (client) => {
-      const actor = assertRole(await requireActiveSession(client, parsedActor), [
-        "PARTNER_ADMIN",
-        "PARTNER_MANAGER",
-      ]);
-      return await listAuditFlags(client, actor, {
-        status: statusParam,
-        limit,
-      });
-    });
+    const data = await withAuthenticatedClient(
+      req,
+      [...FLAG_ROLES],
+      async (client, actor) => {
+        return await listAuditFlags(client, actor, {
+          status: statusParam,
+          limit,
+        });
+      }
+    );
 
     return NextResponse.json(data, { headers: NO_STORE_HEADERS });
   } catch (err) {
@@ -47,25 +49,14 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const parsedActor = assertRole(await getAuthenticatedERPActor(req), [
-      "PARTNER_ADMIN",
-      "PARTNER_MANAGER",
-    ]);
+    const rawBody = await readRawJsonBody(req);
 
-    const body = await req.json();
-    const action = String(body.action || "update_status");
-
-    const result = await withTransaction(async (client) => {
-      const actor = assertRole(await requireActiveSession(client, parsedActor), [
-        "PARTNER_ADMIN",
-        "PARTNER_MANAGER",
-      ]);
-      if (
-        action === "update_status" ||
-        action === "acknowledge" ||
-        action === "resolve" ||
-        action === "reopen"
-      ) {
+    const result = await withAuthenticatedTransaction(
+      req,
+      [...FLAG_ROLES],
+      async (client, actor) => {
+        const body = parseBody(auditFlagsMutationSchema, rawBody);
+        const action = body.action;
         const nextStatus =
           action === "acknowledge"
             ? "ACKNOWLEDGED"
@@ -74,14 +65,27 @@ export async function POST(req: NextRequest) {
               : action === "reopen"
                 ? "OPEN"
                 : body.nextStatus;
-        return await updateAuditFlagStatus(client, actor, {
-          flagId: Number(body.flagId),
-          nextStatus,
-          resolutionNote: body.resolutionNote ?? null,
-        });
+        if (!nextStatus) {
+          throw new ValidationError(
+            "Estado destino inválido (OPEN, ACKNOWLEDGED o RESOLVED)"
+          );
+        }
+
+        return runIdempotentMutation(
+          client,
+          req,
+          actor,
+          `audit-flags:${action}`,
+          body,
+          () =>
+            updateAuditFlagStatus(client, actor, {
+              flagId: body.flagId,
+              nextStatus,
+              resolutionNote: body.resolutionNote ?? null,
+            })
+        );
       }
-      throw new ValidationError(`Acción de alerta desconocida: ${action}`);
-    });
+    );
 
     return NextResponse.json(result, { headers: NO_STORE_HEADERS });
   } catch (err) {

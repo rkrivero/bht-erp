@@ -6,7 +6,6 @@ import {
   Badge,
   Button,
   Card,
-  EmptyState,
   FieldLabel,
   INPUT_CLASS,
 } from "@/components/ui/Primitives";
@@ -15,7 +14,9 @@ import { formatOperationalStatusEs } from "@/lib/labels-es";
 import { notifyLocalSync } from "@/lib/realtime/useLiveSync";
 import type { DailyClosureDraftResponse } from "@/lib/services/daily-closure";
 import { formatDatePe, formatPen } from "../types";
-import { formatAccountTypeEs, getTodayLimaIso } from "./caja-utils";
+import { getTodayLimaIso } from "./caja-utils";
+import CajaCierreAccountsTable from "./CajaCierreAccountsTable";
+import CajaCierreHistorySection from "./CajaCierreHistorySection";
 
 interface CajaCierreTabProps {
   onRefresh: () => Promise<void>;
@@ -302,290 +303,26 @@ export default function CajaCierreTab({
 
       {draft && (
         <form onSubmit={handleSaveClosure} className="space-y-4">
-          <Card padding="md" className="space-y-3">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div>
-                <h3 className="text-base font-bold text-bht-ink-strong sm:text-lg">
-                  Conciliación por cuenta ({draft.accounts.length})
-                </h3>
-                <p className="text-xs sm:text-sm text-bht-ink-soft">
-                  Compara el saldo calculado por el sistema contra lo que ves en caja
-                  física, bancos y billeteras.
-                </p>
-              </div>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={handleMatchAllSystemBalances}
-              >
-                Copiar saldos del sistema
-              </Button>
-            </div>
-
-            {draft.accounts.length === 0 ? (
-              <EmptyState title="No hay cuentas activas registradas" />
-            ) : (
-              <>
-                {/* Mobile account cards */}
-                <div className="space-y-2.5 md:hidden">
-                  {draft.accounts.map((acc) => {
-                    const countedVal = Number(
-                      countedByAccount[acc.accountId] ?? acc.systemBalancePen
-                    );
-                    const diff = Number.isFinite(countedVal)
-                      ? Number((countedVal - acc.systemBalancePen).toFixed(2))
-                      : 0;
-                    const diffClass =
-                      Math.abs(diff) < 0.01 ? "text-bht-success" : "text-bht-danger";
-                    return (
-                      <div
-                        key={acc.accountId}
-                        className="rounded-xl border border-bht-line bg-bht-paper p-3 space-y-2 text-sm"
-                      >
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="min-w-0">
-                            <p className="font-semibold text-bht-ink-strong">
-                              {acc.name}
-                            </p>
-                            <span className="text-xs text-bht-ink-muted">
-                              {acc.code} · {formatAccountTypeEs(acc.accountType)}
-                            </span>
-                          </div>
-                          <span className={`font-bold tabular-nums ${diffClass}`}>
-                            {diff >= 0 ? "+" : ""}
-                            {formatPen(diff)}
-                          </span>
-                        </div>
-                        <div className="grid grid-cols-2 gap-2 text-xs tabular-nums">
-                          <div>
-                            <span className="text-bht-ink-soft">Saldo sistema:</span>
-                            <p className="font-semibold text-bht-ink-strong">
-                              {formatPen(acc.systemBalancePen)}
-                            </p>
-                          </div>
-                          <div>
-                            <span className="text-bht-ink-soft">Mov. del día:</span>
-                            <p className="text-bht-ink-strong">
-                              +{formatPen(acc.dayInPen)} / -{formatPen(acc.dayOutPen)}
-                            </p>
-                          </div>
-                        </div>
-                        <div>
-                          <FieldLabel htmlFor={`m-cnt-${acc.accountId}`}>
-                            Saldo contado / extracto (S/)
-                          </FieldLabel>
-                          <div className="mt-1 flex items-center gap-2">
-                            <input
-                              id={`m-cnt-${acc.accountId}`}
-                              type="number"
-                              step="0.01"
-                              value={countedByAccount[acc.accountId] ?? ""}
-                              onChange={(e) => {
-                                setCountedByAccount((prev) => ({
-                                  ...prev,
-                                  [acc.accountId]: e.target.value,
-                                }));
-                                setDirty(true);
-                              }}
-                              className={`${INPUT_CLASS} flex-1 font-semibold tabular-nums`}
-                            />
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="sm"
-                              onClick={() => {
-                                setCountedByAccount((prev) => ({
-                                  ...prev,
-                                  [acc.accountId]: acc.systemBalancePen.toFixed(2),
-                                }));
-                                setDirty(true);
-                              }}
-                            >
-                              Igualar
-                            </Button>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-
-                {/* Desktop reconciliation table */}
-                <div className="table-wrapper hidden md:block">
-                  <table className="w-full text-left text-sm">
-                    <thead className="border-b border-bht-line bg-bht-paper text-xs font-semibold uppercase tracking-wide text-bht-ink-soft">
-                      <tr>
-                        <th scope="col" className="p-2.5">
-                          Cuenta
-                        </th>
-                        <th scope="col" className="p-2.5 text-right">
-                          Saldo sistema
-                        </th>
-                        <th scope="col" className="p-2.5 text-right">
-                          Mov. día (+ / -)
-                        </th>
-                        <th scope="col" className="p-2.5 text-right">
-                          Contado / extracto (S/)
-                        </th>
-                        <th scope="col" className="whitespace-nowrap p-2.5 text-right">
-                          Dif. (S/)
-                        </th>
-                        <th scope="col" className="p-2.5">
-                          Observación
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-bht-line">
-                      {draft.accounts.map((acc) => {
-                        const countedVal = Number(
-                          countedByAccount[acc.accountId] ?? acc.systemBalancePen
-                        );
-                        const diff = Number.isFinite(countedVal)
-                          ? Number((countedVal - acc.systemBalancePen).toFixed(2))
-                          : 0;
-                        return (
-                          <tr key={acc.accountId} className="hover:bg-bht-paper/60">
-                            <td className="p-2.5">
-                              <p className="font-semibold text-bht-ink-strong">
-                                {acc.name}
-                              </p>
-                              <div className="flex flex-wrap items-center gap-1.5 text-xs text-bht-ink-muted">
-                                <span>{acc.code}</span>
-                                <Badge tone="neutral">
-                                  {formatAccountTypeEs(acc.accountType)}
-                                </Badge>
-                                {acc.lastReconciledAt && (
-                                  <span>
-                                    · Conc.: {formatDatePe(acc.lastReconciledAt)}
-                                  </span>
-                                )}
-                              </div>
-                            </td>
-                            <td className="whitespace-nowrap p-2.5 text-right font-semibold text-bht-ink-strong tabular-nums">
-                              {formatPen(acc.systemBalancePen)}
-                            </td>
-                            <td className="whitespace-nowrap p-2.5 text-right text-xs text-bht-ink-soft tabular-nums">
-                              +{formatPen(acc.dayInPen)} / -{formatPen(acc.dayOutPen)}
-                            </td>
-                            <td className="p-2.5 text-right">
-                              <div className="inline-flex items-center gap-1.5">
-                                <input
-                                  aria-label={`Saldo contado para ${acc.name}`}
-                                  type="number"
-                                  step="0.01"
-                                  value={countedByAccount[acc.accountId] ?? ""}
-                                  onChange={(e) => {
-                                    setCountedByAccount((prev) => ({
-                                      ...prev,
-                                      [acc.accountId]: e.target.value,
-                                    }));
-                                    setDirty(true);
-                                  }}
-                                  className={`${INPUT_CLASS} w-32 text-right font-semibold tabular-nums`}
-                                />
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  size="sm"
-                                  className="whitespace-nowrap"
-                                  onClick={() => {
-                                    setCountedByAccount((prev) => ({
-                                      ...prev,
-                                      [acc.accountId]: acc.systemBalancePen.toFixed(2),
-                                    }));
-                                    setDirty(true);
-                                  }}
-                                >
-                                  Igualar
-                                </Button>
-                              </div>
-                            </td>
-                            <td
-                              className={`whitespace-nowrap p-2.5 text-right font-bold tabular-nums ${
-                                Math.abs(diff) < 0.01
-                                  ? "text-bht-success"
-                                  : "text-bht-danger"
-                              }`}
-                            >
-                              {diff >= 0 ? "+" : ""}
-                              {formatPen(diff)}
-                            </td>
-                            <td className="p-2.5">
-                              <input
-                                aria-label={`Nota de conciliación para ${acc.name}`}
-                                type="text"
-                                value={notesByAccount[acc.accountId] ?? ""}
-                                onChange={(e) => {
-                                  setNotesByAccount((prev) => ({
-                                    ...prev,
-                                    [acc.accountId]: e.target.value,
-                                  }));
-                                  setDirty(true);
-                                }}
-                                placeholder="Opcional"
-                                className={`${INPUT_CLASS} min-w-[140px]`}
-                              />
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              </>
-            )}
-
-            <div className="grid grid-cols-1 gap-2 rounded-xl border border-bht-line-blue bg-bht-mist/70 p-3 text-sm sm:grid-cols-3 tabular-nums">
-              <div>
-                <span className="text-xs text-bht-ink-soft">Esperado sistema</span>
-                <p className="font-bold text-bht-navy-deep">
-                  {formatPen(accountTotals.expected)}
-                </p>
-              </div>
-              <div>
-                <span className="text-xs text-bht-ink-soft">Contado confirmado</span>
-                <p className="font-bold text-bht-ink-strong">
-                  {formatPen(accountTotals.counted)}
-                </p>
-              </div>
-              <div>
-                <span className="text-xs text-bht-ink-soft">Diferencia total</span>
-                <p
-                  className={`font-bold ${
-                    Math.abs(accountTotals.variance) < 0.01
-                      ? "text-bht-success"
-                      : "text-bht-danger"
-                  }`}
-                >
-                  {accountTotals.variance >= 0 ? "+" : ""}
-                  {formatPen(accountTotals.variance)}
-                </p>
-              </div>
-            </div>
-
-            <label className="flex items-start gap-2.5 rounded-xl border border-bht-line bg-bht-paper p-3 text-sm cursor-pointer">
-              <input
-                type="checkbox"
-                checked={applyAdjustments}
-                onChange={(e) => {
-                  setApplyAdjustments(e.target.checked);
-                  setDirty(true);
-                }}
-                className="mt-1 h-4 w-4 rounded border-bht-line text-bht-navy-deep focus:ring-bht-cobalt"
-              />
-              <span className="space-y-0.5">
-                <strong className="block font-semibold text-bht-ink-strong">
-                  Aplicar ajuste de conciliación en libro de caja para diferencias
-                </strong>
-                <span className="block text-xs text-bht-ink-soft">
-                  Opcional. Registra un asiento auditable (CONCILIACION_SALDO) por la
-                  diferencia de cada cuenta para alinear el saldo en el sistema sin
-                  modificar ventas ni gastos pasados.
-                </span>
-              </span>
-            </label>
-          </Card>
+          <CajaCierreAccountsTable
+            accounts={draft.accounts}
+            countedByAccount={countedByAccount}
+            notesByAccount={notesByAccount}
+            accountTotals={accountTotals}
+            applyAdjustments={applyAdjustments}
+            onMatchAllSystemBalances={handleMatchAllSystemBalances}
+            onChangeCounted={(accountId, value) => {
+              setCountedByAccount((prev) => ({ ...prev, [accountId]: value }));
+              setDirty(true);
+            }}
+            onChangeNote={(accountId, value) => {
+              setNotesByAccount((prev) => ({ ...prev, [accountId]: value }));
+              setDirty(true);
+            }}
+            onChangeApplyAdjustments={(checked) => {
+              setApplyAdjustments(checked);
+              setDirty(true);
+            }}
+          />
 
           <Card padding="md" className="space-y-3">
             <div>
@@ -720,97 +457,13 @@ export default function CajaCierreTab({
         </form>
       )}
 
-      {draft && draft.corrections.length > 0 && (
-        <Card padding="md" className="space-y-3">
-          <h3 className="text-base font-bold text-bht-ink-strong sm:text-lg">
-            Historial de correcciones
-          </h3>
-          <div className="space-y-2">
-            {draft.corrections.map((item) => (
-              <div
-                key={item.auditId}
-                className="rounded-xl border border-bht-line p-3 text-sm"
-              >
-                <p className="font-semibold text-bht-ink-strong">
-                  {item.actorName} ·{" "}
-                  {new Date(item.createdAt).toLocaleString("es-PE", {
-                    timeZone: "America/Lima",
-                  })}
-                </p>
-                <p className="mt-1 text-bht-ink-soft">{item.reason}</p>
-                <p className="mt-1 tabular-nums text-bht-ink-strong">
-                  Contado: {formatPen(item.beforeData.closure.countedCashTotalPen)} →{" "}
-                  {formatPen(item.afterData.closure.countedCashTotalPen)} · Diferencia:{" "}
-                  {formatPen(item.beforeData.closure.varianceTotalPen)} →{" "}
-                  {formatPen(item.afterData.closure.varianceTotalPen)}
-                </p>
-                <details className="mt-2 text-xs text-bht-ink-soft">
-                  <summary className="cursor-pointer">Ver saldos por cuenta</summary>
-                  <div className="mt-2 space-y-1">
-                    {item.afterData.accounts.map((after) => {
-                      const before = item.beforeData.accounts.find(
-                        (row) => row.accountId === after.accountId
-                      );
-                      return (
-                        <p key={after.accountId}>
-                          {after.name}:{" "}
-                          {before?.countedBalancePen === null ||
-                          before?.countedBalancePen === undefined
-                            ? "—"
-                            : formatPen(before.countedBalancePen)}{" "}
-                          →{" "}
-                          {after.countedBalancePen === null
-                            ? "—"
-                            : formatPen(after.countedBalancePen)}
-                        </p>
-                      );
-                    })}
-                  </div>
-                </details>
-              </div>
-            ))}
-          </div>
-        </Card>
-      )}
-
-      {draft && draft.recentClosures.length > 0 && (
-        <Card padding="md" className="space-y-3">
-          <h3 className="text-base font-bold text-bht-ink-strong sm:text-lg">
-            Cierres recientes ({draft.recentClosures.length})
-          </h3>
-          <div className="space-y-2">
-            {draft.recentClosures.map((c) => (
-              <button
-                key={c.closureId}
-                type="button"
-                onClick={() => setClosureDate(c.closureDate)}
-                className={`flex w-full flex-wrap items-center justify-between gap-2 rounded-xl border p-3 text-left text-sm transition cursor-pointer ${
-                  c.closureDate === closureDate
-                    ? "border-bht-navy-deep bg-bht-mist"
-                    : "border-bht-line bg-bht-paper/60 hover:bg-bht-mist/60"
-                }`}
-              >
-                <div>
-                  <span className="font-semibold text-bht-ink-strong">
-                    {formatDatePe(c.closureDate)}
-                  </span>
-                  <span className="ml-2 text-xs text-bht-ink-soft">
-                    por {c.closedByName}
-                  </span>
-                </div>
-                <div className="flex flex-wrap items-center gap-3 text-xs tabular-nums">
-                  <span>Contado: {formatPen(c.countedCashTotalPen)}</span>
-                  <Badge
-                    tone={Math.abs(c.varianceTotalPen) < 0.01 ? "success" : "warning"}
-                  >
-                    Dif.: {c.varianceTotalPen >= 0 ? "+" : ""}
-                    {formatPen(c.varianceTotalPen)}
-                  </Badge>
-                </div>
-              </button>
-            ))}
-          </div>
-        </Card>
+      {draft && (
+        <CajaCierreHistorySection
+          closureDate={closureDate}
+          corrections={draft.corrections}
+          recentClosures={draft.recentClosures}
+          onSelectDate={setClosureDate}
+        />
       )}
     </div>
   );

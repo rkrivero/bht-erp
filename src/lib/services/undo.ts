@@ -12,6 +12,7 @@ import {
   parsePositiveInt,
   type SessionUser,
 } from "../types";
+import { getNumericSetting } from "./settings";
 
 export const NON_ADMIN_UNDO_WINDOW_SECONDS = 900; // 15 minutes
 
@@ -83,9 +84,17 @@ export async function recordUndoableAction(
   actor: SessionUser,
   input: RecordUndoableActionInput
 ): Promise<UndoActionReceipt> {
+  const configuredMinutes =
+    input.windowSeconds === undefined
+      ? await getNumericSetting(client, "undo_window_minutes", 15)
+      : null;
+  const defaultWindowSeconds =
+    configuredMinutes !== null
+      ? Math.round(configuredMinutes * 60)
+      : NON_ADMIN_UNDO_WINDOW_SECONDS;
   const windowSeconds = Math.max(
     60,
-    Math.floor(input.windowSeconds ?? NON_ADMIN_UNDO_WINDOW_SECONDS)
+    Math.floor(input.windowSeconds ?? defaultWindowSeconds)
   );
   const res = await client.query<{
     undo_id: string;
@@ -266,9 +275,10 @@ export async function listUndoableActions(
     };
   });
 
+  const configuredMinutes = await getNumericSetting(client, "undo_window_minutes", 15);
   return {
     scope,
-    windowSeconds: NON_ADMIN_UNDO_WINDOW_SECONDS,
+    windowSeconds: Math.max(60, Math.round(configuredMinutes * 60)),
     isAdmin,
     actions,
   };
@@ -414,12 +424,14 @@ async function cancelOrderForUndo(
   await client.query(
     `UPDATE erp.audit_flags
      SET status = 'RESOLVED', resolved_at = NOW(), resolved_by = $2
-     WHERE flag_code = 'ON_DEMAND_PENDING_PURCHASE'
-       AND entity_table = 'erp.sales_order_lines'
-       AND status = 'OPEN'
-       AND entity_id IN (
-         SELECT order_line_id::text FROM erp.sales_order_lines WHERE order_id = $1
-       )`,
+     WHERE flag_code IN ('ON_DEMAND_PENDING_PURCHASE', 'CREDIT_LIMIT_EXCEEDED')
+       AND (
+         (entity_table = 'erp.sales_order_lines' AND entity_id IN (
+           SELECT order_line_id::text FROM erp.sales_order_lines WHERE order_id = $1
+         ))
+         OR (entity_table = 'erp.sales_orders' AND entity_id = $1::text)
+       )
+       AND status = 'OPEN'`,
     [orderId, actor.username]
   );
 
@@ -556,6 +568,8 @@ export async function executeUndoAction(
         "El tiempo límite de 15 minutos para deshacer esta acción ya venció. Solicita al Administrador revertirla desde su panel."
       );
     }
+  } else {
+    await client.query(`SET LOCAL bht.allow_closed_period_override = 'true'`);
   }
 
   const payload = row.undo_payload ?? {};

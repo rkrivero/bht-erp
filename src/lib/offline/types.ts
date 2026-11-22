@@ -1,4 +1,9 @@
-export type OfflineMutationKind = "ORDER_CREATE" | "COLLECTION" | "ROUTE_EXPENSE";
+export type OfflineMutationKind =
+  | "ORDER_CREATE"
+  | "COLLECTION"
+  | "ROUTE_EXPENSE"
+  | "WAREHOUSE_ADVANCE";
+
 export type OutboxStatus = "pending" | "syncing" | "synced" | "conflict";
 
 export interface OfflineMutation {
@@ -12,6 +17,7 @@ export interface OfflineMutation {
   lastError?: string;
   syncedAt?: string;
   conflictCode?: string;
+  errorCode?: string;
   entityRef?: string;
   causalKey?: string;
 }

@@ -17,6 +17,7 @@ import {
   type SessionUser,
 } from "../types";
 import { recordPriceOverrides } from "./price-audit";
+import { getNumericSetting } from "./settings";
 import { recordUndoableAction, type UndoActionReceipt } from "./undo";
 
 const SALES_ORDER_COLUMNS = `
@@ -27,8 +28,8 @@ const SALES_ORDER_COLUMNS = `
   source_file, source_sheet, source_row_num, source_row_hash, notes,
   created_at, operational_status, created_by_user_id, approved_by_user_id,
   approved_at, picked_by_user_id, picked_at, delivered_by_user_id,
-  delivered_at, stock_deducted, promised_payment_date, updated_at,
-  ops_seq, fin_seq`;
+  delivered_at, stock_deducted, promised_payment_date, credit_limit_exceeded_flag,
+  updated_at, ops_seq, fin_seq`;
 
 export interface CreateOrderInput {
   customerPartyId?: number | null;
@@ -160,6 +161,7 @@ export async function createOrder(
   orderCode: string;
   operationalStatus: OrderOperationalStatus;
   requiresApproval: boolean;
+  creditLimitExceeded?: boolean;
   undoAction?: UndoActionReceipt;
 }> {
   assertRole(actor, ["PARTNER_ADMIN", "PARTNER_MANAGER", "EXTERNAL_SELLER"]);
@@ -370,44 +372,100 @@ export async function createOrder(
     validatedQuoteId = quoteId;
   }
 
-  const operationalStatus: OrderOperationalStatus = requiresApproval
-    ? "PENDING_PARTNER_APPROVAL"
-    : "REGISTERED";
-  const stockDeducted = !requiresApproval;
-
-  // Compute promised_payment_date for CREDIT or Contra Entrega orders in America/Lima timezone
+  // Compute promised_payment_date and evaluate credit_limit_pen gate for CREDIT orders
   let promisedPaymentDate: string | null = null;
+  let creditLimitExceededFlag = false;
+  let creditLimitDetails: {
+    creditLimitPen: number;
+    openArBalancePen: number;
+    projectedBalancePen: number;
+  } | null = null;
+
   if (input.paymentMode === "CREDIT") {
+    let agreedCreditDays: number | null = null;
+    if (input.customerPartyId) {
+      const partyCreditRes = await client.query<{
+        credit_days_agreed: number | null;
+        credit_limit_pen: string | number | null;
+        open_ar_balance_pen: string | number;
+      }>(
+        `SELECT
+           pa.credit_days_agreed,
+           pa.credit_limit_pen,
+           COALESCE((
+             SELECT SUM(so.balance_due_pen)
+             FROM erp.sales_orders so
+             WHERE so.customer_party_id = pa.party_id
+               AND so.is_settled = FALSE
+               AND so.balance_due_pen > 0.05
+               AND so.operational_status NOT IN ('CANCELLED', 'PENDING_PARTNER_APPROVAL')
+           ), 0)::NUMERIC(14,2) AS open_ar_balance_pen
+         FROM erp.parties pa
+         WHERE pa.party_id = $1
+         LIMIT 1`,
+        [input.customerPartyId]
+      );
+      const partyRow = partyCreditRes.rows[0];
+      if (
+        partyRow?.credit_days_agreed !== null &&
+        partyRow?.credit_days_agreed !== undefined &&
+        Number(partyRow.credit_days_agreed) >= 0
+      ) {
+        agreedCreditDays = Number(partyRow.credit_days_agreed);
+      }
+      if (
+        partyRow?.credit_limit_pen !== null &&
+        partyRow?.credit_limit_pen !== undefined &&
+        Number(partyRow.credit_limit_pen) > 0
+      ) {
+        const creditLimitPen = Number(partyRow.credit_limit_pen);
+        const openArBalancePen = Number(partyRow.open_ar_balance_pen ?? 0);
+        const initialAdvance = Math.max(0, Number(input.initialPaidPen ?? 0));
+        const orderCreditExposure = Math.max(
+          0,
+          Number((totalPen - initialAdvance).toFixed(2))
+        );
+        const projectedBalancePen = Number(
+          (openArBalancePen + orderCreditExposure).toFixed(2)
+        );
+        if (projectedBalancePen > creditLimitPen + 0.005) {
+          creditLimitExceededFlag = true;
+          creditLimitDetails = {
+            creditLimitPen,
+            openArBalancePen,
+            projectedBalancePen,
+          };
+          if (!isPartnerRole(actor.role)) {
+            requiresApproval = true;
+          }
+        }
+      }
+    }
+
     if (input.promisedPaymentDate) {
       promisedPaymentDate = input.promisedPaymentDate;
     } else if (input.creditDays && input.creditDays > 0) {
       promisedPaymentDate = getLimaDateString(input.creditDays);
     } else {
-      let days = 7;
-      if (input.customerPartyId) {
-        const partyCreditRes = await client.query<{
-          credit_days_agreed: number | null;
-        }>(
-          `SELECT credit_days_agreed
-           FROM erp.parties
-           WHERE party_id = $1
-           LIMIT 1`,
-          [input.customerPartyId]
-        );
-        const agreed = partyCreditRes.rows[0]?.credit_days_agreed;
-        if (agreed !== null && agreed !== undefined && Number(agreed) >= 0) {
-          days = Number(agreed);
-        }
-      }
+      const defaultDays = await getNumericSetting(client, "default_credit_days", 7);
+      const days = agreedCreditDays !== null ? agreedCreditDays : defaultDays;
       promisedPaymentDate = getLimaDateString(days);
     }
   } else if (input.collectOnDelivery) {
     promisedPaymentDate = getLimaDateString(0);
   }
 
-  const orderCode = `SO-${getLimaDateString(0).replace(/-/g, "")}-${Math.floor(
-    100000 + Math.random() * 900000
-  )}`;
+  const operationalStatus: OrderOperationalStatus = requiresApproval
+    ? "PENDING_PARTNER_APPROVAL"
+    : "REGISTERED";
+  const stockDeducted = !requiresApproval;
+
+  const periodKey = getLimaDateString(0).replace(/-/g, "");
+  const seqRes = await client.query<{ code: string }>(
+    `SELECT erp.fn_next_document_code('SALES_ORDER', 'SO', $1, 4) AS code`,
+    [periodKey]
+  );
+  const orderCode = String(seqRes.rows[0].code);
 
   const orderInsert = await client.query(
     `INSERT INTO erp.sales_orders (
@@ -415,13 +473,15 @@ export async function createOrder(
        payment_mode, operational_status, total_pen, global_discount_pen, paid_pen,
        due_date, promised_payment_date,
        created_by_user_id, approved_by_user_id, approved_at,
-       stock_deducted, trip_id, quote_id, source_origin, notes
+       stock_deducted, trip_id, quote_id, credit_limit_exceeded_flag,
+       source_origin, notes
      ) VALUES (
        $1, (NOW() AT TIME ZONE 'America/Lima')::date, $2, $3, $4,
        $5, $6, $7, $16, 0,
        $11, $11,
        $8, $9, $10,
-       $12, $13, $14, 'ERP_APP', $15
+       $12, $13, $14, $17,
+       'ERP_APP', $15
      ) RETURNING order_id`,
     [
       orderCode,
@@ -440,9 +500,49 @@ export async function createOrder(
       validatedQuoteId,
       input.notes ?? null,
       globalDiscountPen,
+      creditLimitExceededFlag,
     ]
   );
   const orderId = Number(orderInsert.rows[0].order_id);
+
+  if (creditLimitExceededFlag && creditLimitDetails) {
+    await client.query(
+      `INSERT INTO erp.audit_flags (
+         flag_code, severity, entity_table, entity_id,
+         message, details, status, source_origin
+       ) VALUES (
+         'CREDIT_LIMIT_EXCEEDED',
+         'WARNING',
+         'erp.sales_orders',
+         $1,
+         $2,
+         $3::jsonb,
+         'OPEN',
+         'ERP_APP'
+       )
+       ON CONFLICT (flag_code, entity_table, entity_id)
+       WHERE status = 'OPEN'
+       DO UPDATE SET
+         message = EXCLUDED.message,
+         details = EXCLUDED.details`,
+      [
+        String(orderId),
+        `Pedido ${orderCode} (${input.customerNameRaw.trim()}) excede límite de crédito: proyectado S/ ${creditLimitDetails.projectedBalancePen.toFixed(2)} > límite S/ ${creditLimitDetails.creditLimitPen.toFixed(2)}`,
+        JSON.stringify({
+          order_id: orderId,
+          order_code: orderCode,
+          customer_party_id: input.customerPartyId ?? null,
+          customer_name: input.customerNameRaw.trim(),
+          credit_limit_pen: creditLimitDetails.creditLimitPen,
+          open_ar_balance_pen: creditLimitDetails.openArBalancePen,
+          order_total_pen: totalPen,
+          projected_balance_pen: creditLimitDetails.projectedBalancePen,
+          actor_user_id: actor.userId,
+          actor_role: actor.role,
+        }),
+      ]
+    );
+  }
 
   const remainingStockByProduct = new Map<number, number>();
   for (const line of preparedLines) {
@@ -591,7 +691,9 @@ export async function createOrder(
       operationalStatus,
       actor.userId,
       requiresApproval
-        ? "Pedido registrado con precio bajo costo; pendiente de aprobación de Socio"
+        ? creditLimitExceededFlag
+          ? "Pedido registrado con exceso de línea de crédito; pendiente de aprobación de Socio"
+          : "Pedido registrado con precio bajo costo; pendiente de aprobación de Socio"
         : "Pedido registrado",
     ]
   );
@@ -618,6 +720,7 @@ export async function createOrder(
     orderCode,
     operationalStatus,
     requiresApproval,
+    creditLimitExceeded: creditLimitExceededFlag,
     undoAction,
   };
 }
@@ -787,6 +890,19 @@ export async function approveDiscountedOrder(
          stock_deducted = TRUE
      WHERE order_id = $2`,
     [actor.userId, orderId]
+  );
+
+  await client.query(
+    `UPDATE erp.audit_flags
+     SET status = 'RESOLVED',
+         resolved_at = NOW(),
+         resolved_by = $2,
+         resolution_note = COALESCE(resolution_note, 'Aprobado por Socio')
+     WHERE flag_code = 'CREDIT_LIMIT_EXCEEDED'
+       AND entity_table = 'erp.sales_orders'
+       AND entity_id = $1
+       AND status = 'OPEN'`,
+    [String(orderId), actor.username]
   );
 
   await client.query(
@@ -1413,20 +1529,25 @@ export async function cancelOrder(
     });
   }
 
-  // Close open ON_DEMAND purchase flags tied to cancelled order lines
+  // Close open ON_DEMAND purchase and CREDIT_LIMIT_EXCEEDED flags tied to cancelled order
   await client.query(
     `UPDATE erp.audit_flags
      SET status = 'RESOLVED',
          resolved_at = NOW(),
          resolved_by = $2
-     WHERE flag_code = 'ON_DEMAND_PENDING_PURCHASE'
-       AND entity_table = 'erp.sales_order_lines'
-       AND status = 'OPEN'
-       AND entity_id IN (
-         SELECT order_line_id::text
-         FROM erp.sales_order_lines
-         WHERE order_id = $1
-       )`,
+     WHERE (
+         (flag_code = 'ON_DEMAND_PENDING_PURCHASE'
+          AND entity_table = 'erp.sales_order_lines'
+          AND entity_id IN (
+            SELECT order_line_id::text
+            FROM erp.sales_order_lines
+            WHERE order_id = $1
+          ))
+         OR (flag_code = 'CREDIT_LIMIT_EXCEEDED'
+          AND entity_table = 'erp.sales_orders'
+          AND entity_id = $1::text)
+       )
+       AND status = 'OPEN'`,
     [orderId, actor.username]
   );
 
@@ -1528,12 +1649,18 @@ export interface OrdersPaginationMeta {
   hasMore: boolean;
 }
 
+export interface OrdersListFilters {
+  q?: string | null;
+  status?: string | null;
+}
+
 export async function listOrdersPaginatedForRole(
   client: PoolClient,
   actor: SessionUser,
   limit = 60,
   offset = 0,
-  customerPartyId: number | null = null
+  customerPartyId: number | null = null,
+  filters: OrdersListFilters = {}
 ): Promise<{
   orders: Record<string, unknown>[];
   pagination: OrdersPaginationMeta;
@@ -1560,16 +1687,60 @@ export async function listOrdersPaginatedForRole(
       : actor.role === "EXTERNAL_SELLER"
         ? `WHERE so.operational_status <> 'CANCELLED'`
         : `WHERE TRUE`;
+
+  const rawStatus = filters.status ? String(filters.status).trim().toUpperCase() : "";
+  const validStatuses = new Set([
+    "PENDING_PARTNER_APPROVAL",
+    "REGISTERED",
+    "PICKING",
+    "READY",
+    "IN_ROUTE",
+    "DELIVERED",
+    "CANCELLED",
+  ]);
+  const statusFilter =
+    rawStatus && rawStatus !== "ALL" && validStatuses.has(rawStatus)
+      ? rawStatus
+      : null;
+  const searchQuery = filters.q ? String(filters.q).trim().toLowerCase() : "";
+
+  const extraParams: unknown[] = [];
+  let extraWhere = "";
+  if (statusFilter) {
+    extraParams.push(statusFilter);
+    extraWhere += ` AND so.operational_status::text = $${extraParams.length + 1}`;
+  }
+  if (searchQuery) {
+    extraParams.push(`%${searchQuery}%`);
+    const qIdx = extraParams.length + 1;
+    extraWhere += ` AND (
+      LOWER(so.order_code) LIKE $${qIdx}
+      OR LOWER(COALESCE(so.customer_name_raw, '')) LIKE $${qIdx}
+      OR EXISTS (
+        SELECT 1 FROM erp.parties p_q
+        WHERE p_q.party_id = so.customer_party_id
+          AND (
+            LOWER(COALESCE(p_q.trade_name, '')) LIKE $${qIdx}
+            OR LOWER(COALESCE(p_q.legal_name, '')) LIKE $${qIdx}
+            OR LOWER(COALESCE(p_q.city_zone, '')) LIKE $${qIdx}
+          )
+      )
+    )`;
+  }
+
   const scopedFilterClause = `${filterClause}
-    AND ($1::bigint IS NULL OR so.customer_party_id = $1)`;
+    AND ($1::bigint IS NULL OR so.customer_party_id = $1)${extraWhere}`;
 
   const countRes = await client.query<{ total_count: number }>(
     `SELECT COUNT(*)::int AS total_count
      FROM erp.sales_orders so
      ${scopedFilterClause}`,
-    [safeCustomerPartyId]
+    [safeCustomerPartyId, ...extraParams]
   );
   const totalCount = Number(countRes.rows[0]?.total_count ?? 0);
+
+  const limitIdx = extraParams.length + 2;
+  const offsetIdx = extraParams.length + 3;
 
   const ordersRes = await client.query(
     `SELECT
@@ -1596,6 +1767,7 @@ export async function listOrdersPaginatedForRole(
        so.paid_pen,
        so.balance_due_pen,
        so.is_settled,
+       COALESCE(so.credit_limit_exceeded_flag, FALSE) AS credit_limit_exceeded_flag,
        so.notes,
        so.created_by_user_id,
        u_create.full_name AS created_by_name,
@@ -1618,8 +1790,8 @@ export async function listOrdersPaginatedForRole(
        CASE WHEN so.source_origin = 'ERP_APP' THEN 0 ELSE 1 END ASC,
        so.order_date DESC,
        so.order_id DESC
-     LIMIT $2 OFFSET $3`,
-    [safeCustomerPartyId, safeLimit, safeOffset]
+     LIMIT $${limitIdx} OFFSET $${offsetIdx}`,
+    [safeCustomerPartyId, ...extraParams, safeLimit, safeOffset]
   );
 
   if (ordersRes.rowCount === 0) {
@@ -1746,6 +1918,7 @@ export async function listOrdersPaginatedForRole(
       paid_pen: Number(row.paid_pen),
       balance_due_pen: Number(row.balance_due_pen),
       is_settled: Boolean(row.is_settled),
+      credit_limit_exceeded_flag: Boolean(row.credit_limit_exceeded_flag),
       notes: row.notes ?? null,
       created_by_user_id:
         row.created_by_user_id !== null ? Number(row.created_by_user_id) : null,

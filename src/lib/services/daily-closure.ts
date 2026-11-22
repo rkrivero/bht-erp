@@ -486,6 +486,9 @@ export async function saveDailyClosure(
     throw new ValidationError("Indica el motivo de la corrección del cierre");
   }
 
+  // Authorize audited post-closure corrections and reconciliation entries within this closure transaction
+  await client.query(`SET LOCAL bht.allow_closed_period_override = 'true'`);
+
   if (!Array.isArray(input.accounts) || input.accounts.length === 0) {
     throw new ValidationError("Ingresa el saldo contado de al menos una cuenta");
   }

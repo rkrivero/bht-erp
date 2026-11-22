@@ -33,12 +33,71 @@ import type {
   RecentPurchaseItem,
   SupplierItem,
 } from "@/components/socios/types";
+import {
+  dispatchSyncScopeInvalidation,
+  getBrowserQueryClient,
+} from "@/components/providers/QueryProvider";
+import { resolvePartnerNavigation } from "@/lib/navigation";
 import type { SyncScope } from "@/lib/realtime/useLiveSync";
-import type { PartnerFeedback } from "./partnerShared";
+import type { PartnerFeedback, PartnerTab } from "./partnerShared";
 
-export function usePartnerData() {
+type DatasetKey =
+  | "orders"
+  | "partners"
+  | "collections"
+  | "treasury"
+  | "purchases"
+  | "trips"
+  | "quotes";
+
+function getTabFromLocation(): PartnerTab {
+  if (typeof window === "undefined") return "control";
+  try {
+    return resolvePartnerNavigation(
+      new URLSearchParams(window.location.search)
+    ).legacyTab;
+  } catch {
+    return "control";
+  }
+}
+
+function getRequiredDatasetsForTab(tab: PartnerTab): Set<DatasetKey> {
+  switch (tab) {
+    case "control":
+      // Initial Hoy tab only fires the 2 essential requests: /api/orders and /api/partners
+      return new Set<DatasetKey>(["orders", "partners"]);
+    case "pedidos":
+      return new Set<DatasetKey>(["orders", "partners", "quotes", "trips"]);
+    case "deudores":
+      return new Set<DatasetKey>(["orders", "partners", "collections"]);
+    case "stock":
+      return new Set<DatasetKey>(["orders", "partners", "purchases"]);
+    case "caja":
+      return new Set<DatasetKey>([
+        "orders",
+        "partners",
+        "treasury",
+        "purchases",
+        "collections",
+      ]);
+    case "kpis":
+      return new Set<DatasetKey>(["orders", "partners"]);
+    case "directorio":
+    case "accesos":
+    default:
+      return new Set<DatasetKey>(["orders", "partners"]);
+  }
+}
+
+export function usePartnerData(externalActiveTab?: PartnerTab) {
   const dashboardAbortRef = useRef<AbortController | null>(null);
+  const loadedDatasetsRef = useRef<Set<DatasetKey>>(new Set());
+  const activeTabRef = useRef<PartnerTab>(externalActiveTab ?? "control");
   const router = useRouter();
+
+  const [activeTab, setActiveTab] = useState<PartnerTab>(
+    () => externalActiveTab ?? getTabFromLocation()
+  );
   const [loading, setLoading] = useState(true);
   const [orders, setOrders] = useState<SellerOrderDto[]>([]);
   const [ordersPagination, setOrdersPagination] = useState<PaginationDto | null>(null);
@@ -59,6 +118,44 @@ export function usePartnerData() {
   const [dataRefreshSeq, setDataRefreshSeq] = useState(0);
   const [feedback, setFeedback] = useState<PartnerFeedback | null>(null);
 
+  useEffect(() => {
+    if (externalActiveTab) {
+      activeTabRef.current = externalActiveTab;
+      setActiveTab(externalActiveTab);
+    }
+  }, [externalActiveTab]);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || externalActiveTab) return;
+    const syncTab = () => {
+      const next = getTabFromLocation();
+      if (activeTabRef.current !== next) {
+        activeTabRef.current = next;
+        setActiveTab(next);
+      }
+    };
+    syncTab();
+
+    const origPushState = window.history.pushState.bind(window.history);
+    const origReplaceState = window.history.replaceState.bind(window.history);
+
+    window.history.pushState = function (...args) {
+      origPushState(...args);
+      syncTab();
+    };
+    window.history.replaceState = function (...args) {
+      origReplaceState(...args);
+      syncTab();
+    };
+    window.addEventListener("popstate", syncTab);
+
+    return () => {
+      window.history.pushState = origPushState;
+      window.history.replaceState = origReplaceState;
+      window.removeEventListener("popstate", syncTab);
+    };
+  }, [externalActiveTab]);
+
   const showFeedback = useCallback(
     (msg: string, isError = false, undoAction?: UndoActionReceiptDto) => {
       setFeedback({ msg, isError, undoAction });
@@ -67,41 +164,82 @@ export function usePartnerData() {
   );
 
   const refreshDashboard = useCallback(
-    async (changedScopes?: SyncScope[], options?: { throwOnError?: boolean }) => {
+    async (
+      changedScopes?: SyncScope[],
+      options?: { throwOnError?: boolean; targetTab?: PartnerTab; onlyMissing?: boolean }
+    ) => {
+      const tabForLoad = options?.targetTab ?? activeTabRef.current;
+      const tabDatasets = getRequiredDatasetsForTab(tabForLoad);
+      const loaded = loadedDatasetsRef.current;
+
       const scopeSet =
         changedScopes && changedScopes.length > 0
           ? new Set<SyncScope>(changedScopes)
           : null;
 
-      const needOrders =
-        !scopeSet || scopeSet.has("orders") || scopeSet.has("inventory");
-      const needCollections =
-        !scopeSet || scopeSet.has("collections") || scopeSet.has("orders");
-      const needTreasury =
+      if (scopeSet) {
+        dispatchSyncScopeInvalidation(changedScopes!);
+      }
+
+      const shouldLoad = (ds: DatasetKey, scopeMatch: boolean): boolean => {
+        if (options?.onlyMissing) {
+          return tabDatasets.has(ds) && !loaded.has(ds);
+        }
+        if (!scopeSet) {
+          return tabDatasets.has(ds) || loaded.has(ds);
+        }
+        return (tabDatasets.has(ds) || loaded.has(ds)) && scopeMatch;
+      };
+
+      const needOrders = shouldLoad(
+        "orders",
+        !scopeSet || scopeSet.has("orders") || scopeSet.has("inventory")
+      );
+      const needPartners = shouldLoad(
+        "partners",
         !scopeSet ||
-        scopeSet.has("treasury") ||
-        scopeSet.has("collections") ||
-        scopeSet.has("purchases");
-      const needPurchases =
+          scopeSet.has("partners") ||
+          scopeSet.has("orders") ||
+          scopeSet.has("collections") ||
+          scopeSet.has("treasury") ||
+          scopeSet.has("purchases") ||
+          scopeSet.has("inventory")
+      );
+      const needCollections = shouldLoad(
+        "collections",
+        !scopeSet || scopeSet.has("collections") || scopeSet.has("orders")
+      );
+      const needTreasury = shouldLoad(
+        "treasury",
         !scopeSet ||
-        scopeSet.has("purchases") ||
-        scopeSet.has("inventory") ||
-        scopeSet.has("orders");
-      const needPartners =
+          scopeSet.has("treasury") ||
+          scopeSet.has("collections") ||
+          scopeSet.has("purchases")
+      );
+      const needPurchases = shouldLoad(
+        "purchases",
         !scopeSet ||
-        scopeSet.has("partners") ||
-        scopeSet.has("orders") ||
-        scopeSet.has("collections") ||
-        scopeSet.has("treasury") ||
-        scopeSet.has("purchases") ||
-        scopeSet.has("inventory");
+          scopeSet.has("purchases") ||
+          scopeSet.has("inventory") ||
+          scopeSet.has("orders")
+      );
+      const needTrips = shouldLoad(
+        "trips",
+        !scopeSet || scopeSet.has("orders") || scopeSet.has("partners")
+      );
+      const needQuotes = shouldLoad(
+        "quotes",
+        !scopeSet || scopeSet.has("orders") || scopeSet.has("partners")
+      );
 
       if (
         !needOrders &&
         !needCollections &&
         !needTreasury &&
         !needPurchases &&
-        !needPartners
+        !needPartners &&
+        !needTrips &&
+        !needQuotes
       ) {
         return;
       }
@@ -183,13 +321,13 @@ export function usePartnerData() {
               )
             ),
             request<TripsResponseDto>(
-              needOrders || needPartners,
+              needTrips,
               "/api/trips",
               hasTopLevelKeys<TripsResponseDto>("trips"),
               false
             ),
             request<QuotesResponseDto>(
-              needOrders || needPartners,
+              needQuotes,
               "/api/quotes",
               hasTopLevelKeys<QuotesResponseDto>("quotes"),
               false
@@ -198,7 +336,11 @@ export function usePartnerData() {
 
         if (controller.signal.aborted) return;
 
+        const queryClient = getBrowserQueryClient();
+
         if (ordJson) {
+          loadedDatasetsRef.current.add("orders");
+          queryClient.setQueryData(["orders", "partner-dashboard"], ordJson);
           setOrders(ordJson.orders || []);
           setOrdersPagination(ordJson.pagination || null);
           setCatalog(ordJson.catalog || []);
@@ -208,22 +350,34 @@ export function usePartnerData() {
           }
         }
         if (tripsJson && Array.isArray(tripsJson.trips)) {
+          loadedDatasetsRef.current.add("trips");
+          queryClient.setQueryData(["orders", "trips"], tripsJson);
           setRouteTrips(tripsJson.trips);
         }
         if (quotesJson && Array.isArray(quotesJson.quotes)) {
+          loadedDatasetsRef.current.add("quotes");
+          queryClient.setQueryData(["orders", "quotes"], quotesJson);
           setPartnerQuotes(quotesJson.quotes);
         }
         if (colJson) {
+          loadedDatasetsRef.current.add("collections");
+          queryClient.setQueryData(["collections", "partner"], colJson);
           setDebtorsByOrder(colJson.byOrder || []);
           setDebtorsByCustomer(colJson.byCustomer || []);
         }
         if (partJson) {
+          loadedDatasetsRef.current.add("partners");
+          queryClient.setQueryData(["partners", "dashboard"], partJson);
           setPartnerData(partJson);
         }
         if (trJson) {
+          loadedDatasetsRef.current.add("treasury");
+          queryClient.setQueryData(["treasury", "partner"], trJson);
           setTreasuryData(trJson);
         }
         if (purJson) {
+          loadedDatasetsRef.current.add("purchases");
+          queryClient.setQueryData(["purchases", "partner"], purJson);
           setPurchasesData(purJson);
         }
         if (
@@ -280,9 +434,19 @@ export function usePartnerData() {
     await refreshDashboard();
   }, [refreshDashboard]);
 
+  // Initial load on mount
   useEffect(() => {
-    void loadDashboard();
-  }, [loadDashboard]);
+    void refreshDashboard(undefined, { targetTab: activeTabRef.current });
+  }, [refreshDashboard]);
+
+  // Lazy-load secondary datasets when switching tabs
+  useEffect(() => {
+    activeTabRef.current = activeTab;
+    void refreshDashboard(undefined, {
+      targetTab: activeTab,
+      onlyMissing: true,
+    });
+  }, [activeTab, refreshDashboard]);
 
   const pendingApprovals = useMemo(
     () => orders.filter((o) => o.operational_status === "PENDING_PARTNER_APPROVAL"),

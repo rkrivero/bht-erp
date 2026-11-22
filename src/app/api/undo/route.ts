@@ -1,10 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getAuthenticatedERPActor, requireActiveSession } from "@/lib/auth";
-import { withClient, withTransaction } from "@/lib/db";
+import {
+  withAuthenticatedClient,
+  withAuthenticatedTransaction,
+} from "@/lib/auth";
 import { resolveHttpError } from "@/lib/http-errors";
-import { assertRole } from "@/lib/rbac";
+import { runIdempotentMutation } from "@/lib/idempotency";
 import { executeUndoAction, listUndoableActions } from "@/lib/services/undo";
 import { parsePositiveInt, ValidationError } from "@/lib/types";
+import { parseBody, readRawJsonBody } from "@/lib/validation/parse";
+import { undoMutationSchema } from "@/lib/validation/undo.schema";
 
 export const dynamic = "force-dynamic";
 
@@ -19,8 +23,6 @@ const ALL_ROLES = [
 
 export async function GET(req: NextRequest) {
   try {
-    const parsedActor = assertRole(await getAuthenticatedERPActor(req), [...ALL_ROLES]);
-
     const rawScope = req.nextUrl.searchParams.get("scope")?.trim().toLowerCase();
     const scope = rawScope === "all" || rawScope === "mine" ? rawScope : undefined;
     if (rawScope && rawScope !== "all" && rawScope !== "mine") {
@@ -42,17 +44,18 @@ export async function GET(req: NextRequest) {
     const limitParam = req.nextUrl.searchParams.get("limit");
     const limit = limitParam ? parsePositiveInt(limitParam, "Límite") : undefined;
 
-    const data = await withClient(async (client) => {
-      const actor = assertRole(await requireActiveSession(client, parsedActor), [
-        ...ALL_ROLES,
-      ]);
-      return await listUndoableActions(client, actor, {
-        scope,
-        status,
-        actionType,
-        limit,
-      });
-    });
+    const data = await withAuthenticatedClient(
+      req,
+      [...ALL_ROLES],
+      async (client, actor) => {
+        return await listUndoableActions(client, actor, {
+          scope,
+          status,
+          actionType,
+          limit,
+        });
+      }
+    );
 
     return NextResponse.json(data, { headers: NO_STORE_HEADERS });
   } catch (err) {
@@ -67,18 +70,27 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const parsedActor = assertRole(await getAuthenticatedERPActor(req), [...ALL_ROLES]);
-    const body = await req.json();
-    const undoId = parsePositiveInt(body.undoId, "Acción a deshacer");
-    const reason =
-      body.reason !== undefined && body.reason !== null ? String(body.reason) : null;
+    const rawBody = await readRawJsonBody(req);
 
-    const result = await withTransaction(async (client) => {
-      const actor = assertRole(await requireActiveSession(client, parsedActor), [
-        ...ALL_ROLES,
-      ]);
-      return await executeUndoAction(client, actor, { undoId, reason });
-    });
+    const result = await withAuthenticatedTransaction(
+      req,
+      [...ALL_ROLES],
+      async (client, actor) => {
+        const body = parseBody(undoMutationSchema, rawBody);
+        return runIdempotentMutation(
+          client,
+          req,
+          actor,
+          "undo:execute",
+          body,
+          () =>
+            executeUndoAction(client, actor, {
+              undoId: body.undoId,
+              reason: body.reason ?? null,
+            })
+        );
+      }
+    );
 
     return NextResponse.json(result, { headers: NO_STORE_HEADERS });
   } catch (err) {

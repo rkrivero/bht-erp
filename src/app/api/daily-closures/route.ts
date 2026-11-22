@@ -1,31 +1,34 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getAuthenticatedERPActor, requireActiveSession } from "@/lib/auth";
-import { withClient, withTransaction } from "@/lib/db";
+import {
+  withAuthenticatedClient,
+  withAuthenticatedTransaction,
+} from "@/lib/auth";
 import { resolveHttpError } from "@/lib/http-errors";
 import { runIdempotentMutation } from "@/lib/idempotency";
-import { assertRole } from "@/lib/rbac";
-import { getDailyClosureDraft, saveDailyClosure } from "@/lib/services/daily-closure";
-import { ValidationError } from "@/lib/types";
+import {
+  getDailyClosureDraft,
+  saveDailyClosure,
+} from "@/lib/services/daily-closure";
+import { saveDailyClosureSchema } from "@/lib/validation/daily-closures.schema";
+import { parseBody, readRawJsonBody } from "@/lib/validation/parse";
 
 export const dynamic = "force-dynamic";
 
 const NO_STORE_HEADERS = { "Cache-Control": "no-store" };
 
+const CLOSURE_ROLES = ["PARTNER_ADMIN", "PARTNER_MANAGER"] as const;
+
 export async function GET(req: NextRequest) {
   try {
-    const parsedActor = assertRole(await getAuthenticatedERPActor(req), [
-      "PARTNER_ADMIN",
-      "PARTNER_MANAGER",
-    ]);
     const dateParam = req.nextUrl.searchParams.get("date");
 
-    const data = await withClient(async (client) => {
-      const actor = assertRole(await requireActiveSession(client, parsedActor), [
-        "PARTNER_ADMIN",
-        "PARTNER_MANAGER",
-      ]);
-      return await getDailyClosureDraft(client, actor, dateParam);
-    });
+    const data = await withAuthenticatedClient(
+      req,
+      [...CLOSURE_ROLES],
+      async (client, actor) => {
+        return await getDailyClosureDraft(client, actor, dateParam);
+      }
+    );
 
     return NextResponse.json(data, { headers: NO_STORE_HEADERS });
   } catch (err) {
@@ -40,54 +43,33 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const parsedActor = assertRole(await getAuthenticatedERPActor(req), [
-      "PARTNER_ADMIN",
-      "PARTNER_MANAGER",
-    ]);
-    const body = (await req.json()) as Record<string, unknown> | null;
-    if (!body || typeof body !== "object") {
-      throw new ValidationError("Cuerpo JSON inválido");
-    }
+    const rawBody = await readRawJsonBody(req);
 
-    const result = await withTransaction(async (client) => {
-      const actor = assertRole(await requireActiveSession(client, parsedActor), [
-        "PARTNER_ADMIN",
-        "PARTNER_MANAGER",
-      ]);
-      return runIdempotentMutation(
-        client,
-        req,
-        actor,
-        "treasury:daily_closure",
-        body,
-        () =>
-          saveDailyClosure(client, actor, {
-            closureDate: body.closureDate ? String(body.closureDate) : undefined,
-            accounts: Array.isArray(body.accounts)
-              ? (body.accounts as Array<{
-                  accountId: number;
-                  countedBalancePen: number;
-                  notes?: string | null;
-                }>)
-              : [],
-            applyReconciliationAdjustments: Boolean(
-              body.applyReconciliationAdjustments
-            ),
-            nextDayNotes:
-              body.nextDayNotes !== undefined && body.nextDayNotes !== null
-                ? String(body.nextDayNotes)
-                : null,
-            notes:
-              body.notes !== undefined && body.notes !== null
-                ? String(body.notes)
-                : null,
-            correctionReason:
-              body.correctionReason !== undefined && body.correctionReason !== null
-                ? String(body.correctionReason)
-                : null,
-          })
-      );
-    });
+    const result = await withAuthenticatedTransaction(
+      req,
+      [...CLOSURE_ROLES],
+      async (client, actor) => {
+        const body = parseBody(saveDailyClosureSchema, rawBody);
+        return runIdempotentMutation(
+          client,
+          req,
+          actor,
+          "treasury:daily_closure",
+          body,
+          () =>
+            saveDailyClosure(client, actor, {
+              closureDate: body.closureDate,
+              accounts: body.accounts,
+              applyReconciliationAdjustments: Boolean(
+                body.applyReconciliationAdjustments
+              ),
+              nextDayNotes: body.nextDayNotes ?? null,
+              notes: body.notes ?? null,
+              correctionReason: body.correctionReason ?? null,
+            })
+        );
+      }
+    );
 
     return NextResponse.json(result, { headers: NO_STORE_HEADERS });
   } catch (err) {

@@ -127,3 +127,61 @@ test("recovers the seller shell offline without deleting a pending outbox", asyn
   expect(pendingStillExists).toBe(true);
   await context.setOffline(false);
 });
+
+test("renders conflict resolution actions on /offline for WAREHOUSE_ADVANCE", async ({
+  page,
+}) => {
+  await page.goto("/offline");
+  await page.evaluate(async () => {
+    await new Promise<void>((resolve, reject) => {
+      const request = indexedDB.open("bht-erp-offline-v1", 1);
+      request.onupgradeneeded = () => {
+        const db = request.result;
+        if (!db.objectStoreNames.contains("outbox")) {
+          db.createObjectStore("outbox", { keyPath: "id" });
+        }
+        if (!db.objectStoreNames.contains("snapshots")) {
+          db.createObjectStore("snapshots", { keyPath: "key" });
+        }
+      };
+      request.onerror = () => reject(request.error);
+      request.onsuccess = () => {
+        const db = request.result;
+        const tx = db.transaction("outbox", "readwrite");
+        tx.objectStore("outbox").put({
+          id: "wh-conflict-e2e",
+          kind: "WAREHOUSE_ADVANCE",
+          actorUsername: "almacen1",
+          url: "/api/orders",
+          body: { action: "advance", orderId: 901, nextStatus: "DELIVERED" },
+          createdAt: new Date().toISOString(),
+          status: "conflict",
+          lastError: "El pedido ya fue entregado por otro usuario",
+          conflictCode: "INVALID_STATE_TRANSITION",
+          causalKey: "order:901",
+        });
+        tx.oncomplete = () => {
+          db.close();
+          resolve();
+        };
+        tx.onerror = () => reject(tx.error);
+      };
+    });
+  });
+
+  await page.reload();
+  await expect(page.getByText("Entrega / Almacén")).toBeVisible();
+  await expect(page.getByText("Requiere revisión")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Reintentar" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Revisar/Editar" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Descartar" })).toBeVisible();
+
+  await page.getByRole("button", { name: "Revisar/Editar" }).click();
+  await expect(
+    page.getByLabel("Editar datos de la operación (JSON)")
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Descartar" }).click();
+  await expect(
+    page.getByText("No hay operaciones pendientes en este dispositivo.")
+  ).toBeVisible();
+});

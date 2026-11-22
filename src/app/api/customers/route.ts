@@ -1,16 +1,24 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getAuthenticatedERPActor, requireActiveSession } from "@/lib/auth";
-import { withClient, withTransaction } from "@/lib/db";
+import {
+  withAuthenticatedClient,
+  withAuthenticatedTransaction,
+} from "@/lib/auth";
 import { resolveHttpError } from "@/lib/http-errors";
+import { runIdempotentMutation } from "@/lib/idempotency";
 import { assertRole } from "@/lib/rbac";
 import {
   createCustomer,
+  getCustomerCreditSuggestion,
   listCustomers,
   updateCustomer,
   type CustomerGeoFilter,
   type CustomerStatusFilter,
 } from "@/lib/services/customers";
-import { ValidationError } from "@/lib/types";
+import {
+  createCustomerSchema,
+  updateCustomerSchema,
+} from "@/lib/validation/customers.schema";
+import { parseBody, readRawJsonBody } from "@/lib/validation/parse";
 
 export const dynamic = "force-dynamic";
 
@@ -30,32 +38,46 @@ function parseGeoFilter(raw: string | null): CustomerGeoFilter {
 
 export async function GET(req: NextRequest) {
   try {
-    const parsedActor = assertRole(await getAuthenticatedERPActor(req), [
-      "PARTNER_ADMIN",
-      "PARTNER_MANAGER",
-      "EXTERNAL_SELLER",
-    ]);
-
     const params = req.nextUrl.searchParams;
+    const action = params.get("action");
+
+    if (action === "credit_suggestion") {
+      const partyIdRaw = params.get("party_id") ?? params.get("partyId");
+      const data = await withAuthenticatedClient(
+        req,
+        ["PARTNER_ADMIN", "PARTNER_MANAGER"],
+        async (client, actor) => {
+          assertRole(actor, ["PARTNER_ADMIN", "PARTNER_MANAGER"]);
+          const suggestion = await getCustomerCreditSuggestion(
+            client,
+            actor,
+            partyIdRaw
+          );
+          return { suggestion, ...suggestion };
+        }
+      );
+      return NextResponse.json(data, { headers: NO_STORE_HEADERS });
+    }
+
     const limitParam = Number(params.get("limit") || 100);
     const offsetParam = Number(params.get("offset") || 0);
 
-    const data = await withClient(async (client) => {
-      const actor = assertRole(await requireActiveSession(client, parsedActor), [
-        "PARTNER_ADMIN",
-        "PARTNER_MANAGER",
-        "EXTERNAL_SELLER",
-      ]);
-      return await listCustomers(client, actor, {
-        q: params.get("q") ?? undefined,
-        zone: params.get("zone") ?? undefined,
-        status: parseStatusFilter(params.get("status")),
-        hasGeo: parseGeoFilter(params.get("hasGeo")),
-        withDebt: params.get("withDebt") === "1" || params.get("withDebt") === "true",
-        limit: Number.isFinite(limitParam) ? limitParam : 100,
-        offset: Number.isFinite(offsetParam) ? offsetParam : 0,
-      });
-    });
+    const data = await withAuthenticatedClient(
+      req,
+      ["PARTNER_ADMIN", "PARTNER_MANAGER", "EXTERNAL_SELLER"],
+      async (client, actor) => {
+        return await listCustomers(client, actor, {
+          q: params.get("q") ?? undefined,
+          zone: params.get("zone") ?? undefined,
+          status: parseStatusFilter(params.get("status")),
+          hasGeo: parseGeoFilter(params.get("hasGeo")),
+          withDebt:
+            params.get("withDebt") === "1" || params.get("withDebt") === "true",
+          limit: Number.isFinite(limitParam) ? limitParam : 100,
+          offset: Number.isFinite(offsetParam) ? offsetParam : 0,
+        });
+      }
+    );
 
     return NextResponse.json(data, { headers: NO_STORE_HEADERS });
   } catch (err) {
@@ -70,62 +92,40 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const parsedActor = assertRole(await getAuthenticatedERPActor(req), [
-      "PARTNER_ADMIN",
-      "PARTNER_MANAGER",
-      "EXTERNAL_SELLER",
-    ]);
+    const rawBody = await readRawJsonBody(req);
 
-    const body = (await req.json()) as Record<string, unknown> | null;
-    if (!body || typeof body !== "object") {
-      throw new ValidationError("Cuerpo JSON inválido");
-    }
-
-    const result = await withTransaction(async (client) => {
-      const actor = assertRole(await requireActiveSession(client, parsedActor), [
-        "PARTNER_ADMIN",
-        "PARTNER_MANAGER",
-        "EXTERNAL_SELLER",
-      ]);
-      return await createCustomer(client, actor, {
-        tradeName: body.tradeName as string | null | undefined,
-        legalName: body.legalName as string | null | undefined,
-        docType: body.docType as string | null | undefined,
-        docNumber: body.docNumber as string | null | undefined,
-        phone: body.phone as string | null | undefined,
-        email: body.email as string | null | undefined,
-        address: body.address as string | null | undefined,
-        cityZone: body.cityZone as string | null | undefined,
-        notes: body.notes as string | null | undefined,
-        geoLat:
-          body.geoLat !== undefined && body.geoLat !== null && body.geoLat !== ""
-            ? Number(body.geoLat)
-            : null,
-        geoLng:
-          body.geoLng !== undefined && body.geoLng !== null && body.geoLng !== ""
-            ? Number(body.geoLng)
-            : null,
-        geoAccuracyM:
-          body.geoAccuracyM !== undefined &&
-          body.geoAccuracyM !== null &&
-          body.geoAccuracyM !== ""
-            ? Number(body.geoAccuracyM)
-            : null,
-        creditDaysAgreed:
-          body.creditDaysAgreed !== undefined &&
-          body.creditDaysAgreed !== null &&
-          body.creditDaysAgreed !== ""
-            ? Number(body.creditDaysAgreed)
-            : null,
-        creditLimitPen:
-          body.creditLimitPen !== undefined &&
-          body.creditLimitPen !== null &&
-          body.creditLimitPen !== ""
-            ? Number(body.creditLimitPen)
-            : null,
-        lastContactDate: body.lastContactDate as string | null | undefined,
-      });
-    });
+    const result = await withAuthenticatedTransaction(
+      req,
+      ["PARTNER_ADMIN", "PARTNER_MANAGER", "EXTERNAL_SELLER"],
+      async (client, actor) => {
+        const body = parseBody(createCustomerSchema, rawBody);
+        return runIdempotentMutation(
+          client,
+          req,
+          actor,
+          "customers:create",
+          body,
+          () =>
+            createCustomer(client, actor, {
+              tradeName: body.tradeName,
+              legalName: body.legalName,
+              docType: body.docType,
+              docNumber: body.docNumber,
+              phone: body.phone,
+              email: body.email,
+              address: body.address,
+              cityZone: body.cityZone,
+              notes: body.notes,
+              geoLat: body.geoLat ?? null,
+              geoLng: body.geoLng ?? null,
+              geoAccuracyM: body.geoAccuracyM ?? null,
+              creditDaysAgreed: body.creditDaysAgreed ?? null,
+              creditLimitPen: body.creditLimitPen ?? null,
+              lastContactDate: body.lastContactDate,
+            })
+        );
+      }
+    );
 
     return NextResponse.json(result, { status: 201, headers: NO_STORE_HEADERS });
   } catch (err) {
@@ -140,70 +140,46 @@ export async function POST(req: NextRequest) {
 
 export async function PATCH(req: NextRequest) {
   try {
-    const parsedActor = assertRole(await getAuthenticatedERPActor(req), [
-      "PARTNER_ADMIN",
-      "PARTNER_MANAGER",
-      "EXTERNAL_SELLER",
-      "WAREHOUSE_DELIVERY",
-    ]);
+    const rawBody = await readRawJsonBody(req);
 
-    const body = (await req.json()) as Record<string, unknown> | null;
-    if (!body || typeof body !== "object") {
-      throw new ValidationError("Cuerpo JSON inválido");
-    }
-
-    const result = await withTransaction(async (client) => {
-      const actor = assertRole(await requireActiveSession(client, parsedActor), [
+    const result = await withAuthenticatedTransaction(
+      req,
+      [
         "PARTNER_ADMIN",
         "PARTNER_MANAGER",
         "EXTERNAL_SELLER",
         "WAREHOUSE_DELIVERY",
-      ]);
-
-      return await updateCustomer(client, actor, body.partyId, {
-        tradeName: body.tradeName as string | null | undefined,
-        legalName: body.legalName as string | null | undefined,
-        docType: body.docType as string | null | undefined,
-        docNumber: body.docNumber as string | null | undefined,
-        phone: body.phone as string | null | undefined,
-        email: body.email as string | null | undefined,
-        address: body.address as string | null | undefined,
-        cityZone: body.cityZone as string | null | undefined,
-        notes: body.notes as string | null | undefined,
-        isActive: body.isActive !== undefined ? Boolean(body.isActive) : undefined,
-        geoLat:
-          body.geoLat === undefined
-            ? undefined
-            : body.geoLat === null || body.geoLat === ""
-              ? null
-              : Number(body.geoLat),
-        geoLng:
-          body.geoLng === undefined
-            ? undefined
-            : body.geoLng === null || body.geoLng === ""
-              ? null
-              : Number(body.geoLng),
-        geoAccuracyM:
-          body.geoAccuracyM === undefined
-            ? undefined
-            : body.geoAccuracyM === null || body.geoAccuracyM === ""
-              ? null
-              : Number(body.geoAccuracyM),
-        creditDaysAgreed:
-          body.creditDaysAgreed === undefined
-            ? undefined
-            : body.creditDaysAgreed === null || body.creditDaysAgreed === ""
-              ? null
-              : Number(body.creditDaysAgreed),
-        creditLimitPen:
-          body.creditLimitPen === undefined
-            ? undefined
-            : body.creditLimitPen === null || body.creditLimitPen === ""
-              ? null
-              : Number(body.creditLimitPen),
-        lastContactDate: body.lastContactDate as string | null | undefined,
-      });
-    });
+      ],
+      async (client, actor) => {
+        const body = parseBody(updateCustomerSchema, rawBody);
+        return runIdempotentMutation(
+          client,
+          req,
+          actor,
+          "customers:update",
+          body,
+          () =>
+            updateCustomer(client, actor, body.partyId, {
+              tradeName: body.tradeName,
+              legalName: body.legalName,
+              docType: body.docType,
+              docNumber: body.docNumber,
+              phone: body.phone,
+              email: body.email,
+              address: body.address,
+              cityZone: body.cityZone,
+              notes: body.notes,
+              isActive: body.isActive,
+              geoLat: body.geoLat,
+              geoLng: body.geoLng,
+              geoAccuracyM: body.geoAccuracyM,
+              creditDaysAgreed: body.creditDaysAgreed,
+              creditLimitPen: body.creditLimitPen,
+              lastContactDate: body.lastContactDate,
+            })
+        );
+      }
+    );
 
     return NextResponse.json(result, { headers: NO_STORE_HEADERS });
   } catch (err) {

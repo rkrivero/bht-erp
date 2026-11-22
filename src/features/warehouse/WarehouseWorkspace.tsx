@@ -18,11 +18,11 @@ import {
 } from "@/components/ui/Icons";
 import {
   Button,
-  Card,
   EmptyState,
   INPUT_CLASS,
   ToastBanner,
 } from "@/components/ui/Primitives";
+import { SkeletonCards } from "@/components/ui/Skeleton";
 import { RecentUndoStrip } from "@/components/shared/RecentUndoStrip";
 import { ApiClientError } from "@/lib/api-client";
 import {
@@ -80,11 +80,24 @@ export default function WarehouseWorkspace() {
   }, [feedback]);
 
   const { checkedLines, toggleLineChecked, pruneChecklist } = useWarehouseChecklist();
-  const { currentUser, orders, openTrips, loading, loadOrders } = useWarehouseData({
+  const {
+    currentUser,
+    orders,
+    openTrips,
+    loading,
+    loadOrders,
+    applyLocalOrderStatus,
+  } = useWarehouseData({
     setFeedback,
     pruneChecklist,
   });
-  const actions = useWarehouseActions({ openTrips, loadOrders, setFeedback });
+  const actions = useWarehouseActions({
+    currentUser,
+    openTrips,
+    loadOrders,
+    setFeedback,
+    onOptimisticStatusChange: applyLocalOrderStatus,
+  });
 
   const handleExecuteUndo = useCallback(
     async (undoId: number) => {
@@ -396,9 +409,7 @@ export default function WarehouseWorkspace() {
         )}
 
         {loading && orders.length === 0 ? (
-          <Card className="p-8 text-center text-sm text-bht-ink-soft">
-            Cargando pedidos operativos...
-          </Card>
+          <SkeletonCards count={4} />
         ) : filtered.length === 0 ? (
           <EmptyState
             icon={<PackageIcon className="h-5 w-5" />}

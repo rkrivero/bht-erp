@@ -16,17 +16,21 @@ export type Tone =
 
 const CARD_TONE_CLASSES: Record<Tone, string> = {
   default:
-    "border-black/[0.06] bg-white shadow-[0_1px_3px_rgba(0,0,0,0.02),0_6px_20px_-4px_rgba(28,33,39,0.035)] transition-all duration-300 ease-in-out",
+    "border-bht-line bg-white shadow-bht-elev-1 transition-all duration-300 ease-in-out",
   subtle:
-    "border-black/[0.04] bg-[#f8fafc] shadow-[0_1px_2px_rgba(0,0,0,0.015)] transition-all duration-300 ease-in-out",
+    "border-bht-line bg-bht-paper shadow-bht-elev-4 transition-all duration-300 ease-in-out",
   horizon:
-    "border-[#3373b0]/20 bg-[#f4f8fc] shadow-[0_2px_12px_rgba(51,115,176,0.04)] transition-all duration-300 ease-in-out",
+    "border-bht-cobalt/20 bg-bht-cobalt-bg/60 shadow-bht-elev-3 transition-all duration-300 ease-in-out",
   brand:
-    "border-[#1c2127]/15 bg-[#f1f5f9] shadow-[0_2px_12px_rgba(28,33,39,0.04)] transition-all duration-300 ease-in-out",
-  success: "border-emerald-500/15 bg-emerald-50/50 shadow-[0_1px_2px_rgba(0,0,0,0.01)] transition-all duration-300 ease-in-out",
-  warning: "border-amber-500/15 bg-amber-50/50 shadow-[0_1px_2px_rgba(0,0,0,0.01)] transition-all duration-300 ease-in-out",
-  danger: "border-rose-500/15 bg-rose-50/50 shadow-[0_1px_2px_rgba(0,0,0,0.01)] transition-all duration-300 ease-in-out",
-  indigo: "border-[#1c2127]/15 bg-[#f1f5f9] shadow-[0_1px_2px_rgba(0,0,0,0.01)] transition-all duration-300 ease-in-out",
+    "border-bht-navy-deep/15 bg-bht-mist shadow-bht-elev-3 transition-all duration-300 ease-in-out",
+  success:
+    "border-emerald-500/15 bg-emerald-50/50 shadow-bht-elev-4 transition-all duration-300 ease-in-out",
+  warning:
+    "border-amber-500/15 bg-amber-50/50 shadow-bht-elev-4 transition-all duration-300 ease-in-out",
+  danger:
+    "border-rose-500/15 bg-rose-50/50 shadow-bht-elev-4 transition-all duration-300 ease-in-out",
+  indigo:
+    "border-bht-navy-deep/15 bg-bht-mist shadow-bht-elev-4 transition-all duration-300 ease-in-out",
 };
 
 export function Card({
@@ -47,17 +51,17 @@ export function Card({
     padding === "none"
       ? ""
       : padding === "sm"
-        ? "p-4 sm:p-5"
+        ? "p-3.5 sm:p-4"
         : padding === "lg"
-          ? "p-8 sm:p-12"
-          : "p-6 sm:p-8";
+          ? "p-7 sm:p-10"
+          : "p-[var(--card-pad,1.5rem)]";
   const accentClass =
     accent === "horizon"
-      ? "border-[#3373b0]/35 shadow-[0_4px_20px_rgba(51,115,176,0.08)] ring-1 ring-[#3373b0]/15"
+      ? "border-bht-cobalt/35 shadow-bht-elev-16 ring-1 ring-bht-cobalt/15"
       : "";
   return (
     <section
-      className={`min-w-0 rounded-2xl border ${CARD_TONE_CLASSES[tone]} ${accentClass} ${padClass} ${className}`}
+      className={`bht-card-surface min-w-0 rounded-xl border ${CARD_TONE_CLASSES[tone]} ${accentClass} ${padClass} ${className}`}
       {...props}
     >
       {children}
@@ -76,14 +80,14 @@ export type BadgeTone =
   | "indigo";
 
 const BADGE_CLASSES: Record<BadgeTone, string> = {
-  neutral: "border-black/[0.06] bg-[#f1f5f9] text-[#1c2127]",
-  obsidian: "border-[#1c2127] bg-[#1c2127] text-white shadow-xs",
-  horizon: "border-[#3373b0]/25 bg-[#e7f1fb] text-[#3373b0]",
-  brand: "border-[#1c2127]/20 bg-[#f1f5f9] text-[#1c2127]",
+  neutral: "border-bht-line bg-bht-mist text-bht-ink-strong",
+  obsidian: "border-bht-navy-deep bg-bht-navy-deep text-white shadow-xs",
+  horizon: "border-bht-cobalt/25 bg-bht-cobalt-bg text-bht-cobalt",
+  brand: "border-bht-navy-deep/20 bg-bht-mist text-bht-ink-strong",
   success: "border-emerald-600/20 bg-emerald-50 text-emerald-800",
   warning: "border-amber-600/20 bg-amber-50 text-amber-900",
   danger: "border-rose-600/20 bg-rose-50 text-rose-800",
-  indigo: "border-[#1c2127]/20 bg-[#f1f5f9] text-[#1c2127]",
+  indigo: "border-bht-navy-deep/20 bg-bht-mist text-bht-ink-strong",
 };
 
 export function Badge({
@@ -115,23 +119,29 @@ export function Badge({
 }
 
 export type ButtonVariant =
-  | "primary" | "brand" | "secondary" | "outline" | "ghost" | "success" | "danger";
+  | "primary"
+  | "brand"
+  | "secondary"
+  | "outline"
+  | "ghost"
+  | "success"
+  | "danger";
 
 const BUTTON_VARIANTS: Record<ButtonVariant, string> = {
   primary:
-    "bg-[#3373b0] text-white hover:bg-[#285d8f] shadow-[0_1px_2px_rgba(0,0,0,0.08),0_2px_8px_rgba(51,115,176,0.25)] transition-all duration-300 ease-in-out active:scale-[0.985]",
+    "bg-bht-cobalt text-white hover:bg-bht-cobalt-strong shadow-bht-elev-5 transition-all duration-300 ease-in-out active:scale-[0.985]",
   brand:
-    "bg-[#1c2127] text-white hover:bg-[#0b385f] shadow-[0_1px_2px_rgba(0,0,0,0.08)] transition-all duration-300 ease-in-out active:scale-[0.985]",
+    "bg-bht-navy-deep text-white hover:bg-bht-navy-mid shadow-bht-elev-6 transition-all duration-300 ease-in-out active:scale-[0.985]",
   secondary:
-    "bg-white text-[#1c2127] border border-black/[0.08] hover:bg-[#f8fafc] hover:border-black/[0.14] hover:text-[#1c2127] active:scale-[0.985] shadow-[0_1px_2px_rgba(0,0,0,0.02)] transition-all duration-300 ease-in-out",
+    "bg-white text-bht-ink-strong border border-bht-line hover:bg-bht-paper hover:border-bht-line-strong hover:text-bht-ink-strong active:scale-[0.985] shadow-bht-elev-2 transition-all duration-300 ease-in-out",
   outline:
-    "bg-white text-[#1c2127] border border-black/[0.08] hover:border-[#3373b0] hover:text-[#3373b0] hover:bg-[#e7f1fb]/50 active:scale-[0.985] shadow-[0_1px_2px_rgba(0,0,0,0.02)] transition-all duration-300 ease-in-out",
+    "bg-white text-bht-ink-strong border border-bht-line hover:border-bht-cobalt hover:text-bht-cobalt hover:bg-bht-cobalt-bg/50 active:scale-[0.985] shadow-bht-elev-2 transition-all duration-300 ease-in-out",
   ghost:
-    "bg-transparent text-[#5a6578] hover:bg-black/[0.04] hover:text-[#1c2127] active:scale-[0.985] transition-all duration-300 ease-in-out",
+    "bg-transparent text-bht-ink-soft hover:bg-bht-mist hover:text-bht-ink-strong active:scale-[0.985] transition-all duration-300 ease-in-out",
   success:
-    "bg-emerald-600 text-white hover:bg-emerald-700 shadow-[0_1px_2px_rgba(0,0,0,0.08)] active:scale-[0.985] transition-all duration-300 ease-in-out",
+    "bg-emerald-600 text-white hover:bg-emerald-700 shadow-bht-elev-8 active:scale-[0.985] transition-all duration-300 ease-in-out",
   danger:
-    "bg-[#dc2626] text-white hover:bg-[#b91c1c] shadow-[0_1px_2px_rgba(0,0,0,0.08)] active:scale-[0.985] transition-all duration-300 ease-in-out",
+    "bg-bht-danger text-white hover:bg-bht-danger-strong shadow-bht-elev-9 active:scale-[0.985] transition-all duration-300 ease-in-out",
 };
 
 const BUTTON_SIZES: Record<"sm" | "md" | "lg", string> = {
@@ -203,7 +213,7 @@ export function FieldLabel({
 }
 
 export const INPUT_CLASS =
-  "min-h-11 w-full rounded-xl border border-black/[0.08] bg-white px-4 py-2.5 text-sm text-[#1c2127] placeholder:text-[#8c98a9] shadow-[0_1px_2px_rgba(0,0,0,0.02)] transition-all duration-300 ease-in-out hover:border-black/[0.16] focus:border-[#3373b0] focus:outline-none focus:ring-4 focus:ring-[#3373b0]/10 disabled:bg-[#f1f5f9] disabled:text-[#8c98a9] disabled:border-black/[0.05]";
+  "min-h-11 w-full rounded-xl border border-bht-line bg-white px-4 py-2.5 text-sm text-bht-ink-strong placeholder:text-bht-ink-muted shadow-bht-elev-2 transition-all duration-300 ease-in-out hover:border-bht-line-strong focus:border-bht-cobalt focus:outline-none focus:ring-4 focus:ring-bht-cobalt/10 disabled:bg-bht-mist disabled:text-bht-ink-muted disabled:border-bht-line";
 
 export function SegmentedControl<T extends string>({
   options,
@@ -242,7 +252,7 @@ export function SegmentedControl<T extends string>({
 
   return (
     <div
-      className={`no-scrollbar flex min-w-0 max-w-full gap-1 overflow-x-auto rounded-xl border border-black/[0.06] bg-[#f1f5f9] p-1.5 transition-all duration-300 ease-in-out ${className}`}
+      className={`no-scrollbar flex min-w-0 max-w-full gap-1 overflow-x-auto rounded-xl border border-bht-line bg-bht-mist p-1.5 transition-all duration-300 ease-in-out ${className}`}
       role="radiogroup"
       aria-label={ariaLabel}
     >
@@ -260,10 +270,10 @@ export function SegmentedControl<T extends string>({
             tabIndex={active || (!hasMatch && idx === 0) ? 0 : -1}
             onClick={() => onChange(opt.id)}
             onKeyDown={(e) => handleKeyDown(e, idx)}
-            className={`min-h-10 min-w-max flex-1 shrink-0 rounded-lg px-3.5 py-1.5 text-xs font-semibold leading-tight transition-all duration-300 ease-in-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3373b0] focus-visible:ring-offset-1 sm:text-sm cursor-pointer ${
+            className={`min-h-10 min-w-max flex-1 shrink-0 rounded-lg px-3.5 py-1.5 text-xs font-semibold leading-tight transition-all duration-300 ease-in-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bht-cobalt focus-visible:ring-offset-1 sm:text-sm cursor-pointer ${
               active
-                ? "border border-black/[0.06] bg-white text-[#1c2127] font-semibold shadow-sm"
-                : "border border-transparent bg-transparent text-[#5a6578] hover:text-[#1c2127] hover:bg-white/60"
+                ? "border border-bht-line bg-white text-bht-ink-strong font-semibold shadow-sm"
+                : "border border-transparent bg-transparent text-bht-ink-soft hover:text-bht-ink-strong hover:bg-white/60"
             }`}
           >
             <span className="whitespace-nowrap">{opt.label}</span>
@@ -271,8 +281,8 @@ export function SegmentedControl<T extends string>({
               <span
                 className={`ml-2 inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold tabular-nums ${
                   active
-                    ? "bg-[#1c2127] text-white"
-                    : "bg-black/[0.06] text-[#5a6578]"
+                    ? "bg-bht-navy-deep text-white"
+                    : "bg-bht-line text-bht-ink-soft"
                 }`}
               >
                 {opt.count}
@@ -306,12 +316,14 @@ export function ToastBanner({
   message,
   action,
   onDismiss,
+  floating = true,
   className = "",
 }: {
   type: "ok" | "warn" | "err";
   message: string;
   action?: ToastBannerAction;
   onDismiss?: () => void;
+  floating?: boolean;
   className?: string;
 }) {
   const [anchorDeadlineMs, setAnchorDeadlineMs] = useState<number>(() => {
@@ -360,18 +372,21 @@ export function ToastBanner({
 
   const styles =
     type === "ok"
-      ? "border-bht-success-line bg-bht-success-bg text-bht-tone-14532d"
+      ? "border-bht-success-line bg-bht-success-bg text-bht-success-strong"
       : type === "warn"
         ? "border-bht-warning-line bg-bht-warning-bg text-bht-warning-text"
-        : "border-bht-danger-line bg-bht-danger-bg text-bht-tone-7f1d1d";
+        : "border-bht-danger-line bg-bht-danger-bg text-bht-danger-strong";
   const isError = type === "err";
+  const positionClass = floating
+    ? "fixed top-4 right-4 z-50 max-w-md w-[calc(100%-2rem)] shadow-bht-elev-17"
+    : "shadow-xs";
 
   return (
     <div
       role={isError ? "alert" : "status"}
       aria-live={isError ? "assertive" : "polite"}
       aria-atomic="true"
-      className={`flex items-start justify-between gap-3 rounded-xl border px-3.5 py-3 text-xs sm:text-sm font-medium shadow-xs ${styles} ${className}`}
+      className={`flex items-start justify-between gap-3 rounded-xl border px-3.5 py-3 text-xs sm:text-sm font-medium ${positionClass} ${styles} ${className}`}
     >
       <div className="flex min-w-0 flex-1 items-start gap-2.5">
         <span className="mt-0.5 flex-shrink-0">
@@ -426,92 +441,58 @@ export function ModalSheet({
   title,
   subtitle,
   maxWidth = "lg",
+  confirmLabel,
+  cancelLabel = "Cancelar",
+  onConfirm,
+  confirmVariant = "primary",
+  confirmDisabled = false,
   children,
 }: {
   open: boolean;
   onClose: () => void;
   title: string;
   subtitle?: string;
-  maxWidth?: "md" | "lg" | "2xl";
+  maxWidth?: "md" | "lg" | "2xl" | "4xl" | "6xl";
+  confirmLabel?: string;
+  cancelLabel?: string;
+  onConfirm?: () => void;
+  confirmVariant?: ButtonVariant;
+  confirmDisabled?: boolean;
   children: React.ReactNode;
 }) {
   const titleId = useId();
   const subtitleId = useId();
-  const panelRef = useRef<HTMLDivElement | null>(null);
-  const previousFocusRef = useRef<HTMLElement | null>(null);
+  const dialogRef = useRef<HTMLDialogElement | null>(null);
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
 
   useEffect(() => {
-    if (!open) return;
+    const dialog = dialogRef.current;
+    if (!dialog) return;
 
-    previousFocusRef.current =
-      document.activeElement instanceof HTMLElement ? document.activeElement : null;
-
-    const prevOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-
-    // Move focus into the dialog unless a child control already received autoFocus.
-    const panel = panelRef.current;
-    if (panel && !panel.contains(document.activeElement)) {
-      panel.focus({ preventScroll: true });
-    }
-
-    function onKeyDown(e: KeyboardEvent) {
-      if (e.key === "Escape") {
-        e.preventDefault();
-        e.stopPropagation();
-        onCloseRef.current();
-        return;
-      }
-
-      if (e.key === "Tab" && panelRef.current) {
-        const focusables = Array.from(
-          panelRef.current.querySelectorAll<HTMLElement>(
-            'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), [tabindex]:not([tabindex="-1"])'
-          )
-        ).filter((el) => el.offsetParent !== null || el === document.activeElement);
-
-        if (focusables.length === 0) {
-          e.preventDefault();
-          panelRef.current.focus();
-          return;
-        }
-
-        const first = focusables[0];
-        const last = focusables[focusables.length - 1];
-        const active = document.activeElement;
-
-        if (e.shiftKey) {
-          if (
-            active === first ||
-            active === panelRef.current ||
-            !panelRef.current.contains(active)
-          ) {
-            e.preventDefault();
-            last.focus();
+    if (open) {
+      if (typeof dialog.showModal === "function") {
+        if (!dialog.open) {
+          try {
+            dialog.showModal();
+          } catch {
+            dialog.setAttribute("open", "");
           }
-        } else if (active === last || !panelRef.current.contains(active)) {
-          e.preventDefault();
-          first.focus();
         }
+      } else {
+        dialog.setAttribute("open", "");
+      }
+    } else if (dialog.open) {
+      if (typeof dialog.close === "function") {
+        try {
+          dialog.close();
+        } catch {
+          dialog.removeAttribute("open");
+        }
+      } else {
+        dialog.removeAttribute("open");
       }
     }
-
-    window.addEventListener("keydown", onKeyDown);
-    return () => {
-      document.body.style.overflow = prevOverflow;
-      window.removeEventListener("keydown", onKeyDown);
-      const prev = previousFocusRef.current;
-      previousFocusRef.current = null;
-      if (prev && prev.isConnected && typeof prev.focus === "function") {
-        try {
-          prev.focus({ preventScroll: true });
-        } catch {
-          // Ignore focus restoration errors if element became unfocusable.
-        }
-      }
-    };
   }, [open]);
 
   if (!open) return null;
@@ -521,60 +502,100 @@ export function ModalSheet({
       ? "sm:max-w-md"
       : maxWidth === "2xl"
         ? "sm:max-w-2xl"
-        : "sm:max-w-lg";
+        : maxWidth === "4xl"
+          ? "sm:max-w-4xl"
+          : maxWidth === "6xl"
+            ? "sm:max-w-[1140px]"
+            : "sm:max-w-lg";
+
+  function handleDialogClick(e: React.MouseEvent<HTMLDialogElement>) {
+    const dialog = dialogRef.current;
+    if (!dialog) return;
+    if (e.target === dialog) {
+      const rect = dialog.getBoundingClientRect();
+      const clickedInside =
+        e.clientX >= rect.left &&
+        e.clientX <= rect.right &&
+        e.clientY >= rect.top &&
+        e.clientY <= rect.bottom;
+      if (!clickedInside) {
+        onCloseRef.current();
+      }
+    }
+  }
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-end justify-center bg-black/45 backdrop-blur-[3px] sm:items-center sm:p-4"
-      onClick={(e) => {
-        if (e.target === e.currentTarget) onCloseRef.current();
+    <dialog
+      ref={dialogRef}
+      closedby="any"
+      aria-labelledby={titleId}
+      aria-describedby={subtitle ? subtitleId : undefined}
+      onCancel={(e) => {
+        e.preventDefault();
+        onCloseRef.current();
       }}
+      onClose={() => {
+        if (open) onCloseRef.current();
+      }}
+      onClick={handleDialogClick}
+      className={`bht-dialog fixed inset-x-0 bottom-0 top-auto z-50 m-0 flex max-h-[92dvh] w-full max-w-full flex-col rounded-t-2xl border border-bht-line bg-white p-0 text-bht-ink-strong shadow-bht-elev-17 outline-none sm:inset-auto sm:m-auto sm:rounded-2xl ${widthClass}`}
     >
       <div
-        ref={panelRef}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby={titleId}
-        aria-describedby={subtitle ? subtitleId : undefined}
-        tabIndex={-1}
-        className={`flex max-h-[90dvh] w-full flex-col rounded-t-2xl sm:rounded-2xl border border-black/[0.06] bg-white shadow-[0_12px_40px_-6px_rgba(0,0,0,0.12),0_2px_8px_rgba(0,0,0,0.04)] outline-none ${widthClass}`}
-      >
-        <div
-          className="mx-auto mt-2 h-1 w-10 rounded-full bg-bht-line-strong sm:hidden"
-          aria-hidden="true"
-        />
-        <div className="flex items-start justify-between gap-3 border-b border-bht-line px-4 py-3.5 sm:px-5">
-          <div className="min-w-0">
-            <h2
-              id={titleId}
-              className="text-base sm:text-lg font-bold text-bht-ink-strong"
-            >
-              {title}
-            </h2>
-            {subtitle && (
-              <p
-                id={subtitleId}
-                className="mt-0.5 text-xs sm:text-sm text-bht-ink-soft"
-              >
-                {subtitle}
-              </p>
-            )}
-          </div>
-          <button
-            type="button"
-            data-compact="true"
-            onClick={() => onCloseRef.current()}
-            aria-label="Cerrar"
-            className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg text-bht-ink-soft transition hover:bg-bht-mist hover:text-bht-navy-deep focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bht-navy-deep cursor-pointer"
+        className="mx-auto mt-2 h-1 w-10 rounded-full bg-bht-line-strong sm:hidden"
+        aria-hidden="true"
+      />
+      <div className="flex items-start justify-between gap-3 border-b border-bht-line px-4 py-3.5 sm:px-5">
+        <div className="min-w-0">
+          <h2
+            id={titleId}
+            className="text-base sm:text-lg font-bold text-bht-ink-strong"
           >
-            <CloseIcon className="h-4 w-4" />
-          </button>
+            {title}
+          </h2>
+          {subtitle && (
+            <p
+              id={subtitleId}
+              className="mt-0.5 text-xs sm:text-sm text-bht-ink-soft"
+            >
+              {subtitle}
+            </p>
+          )}
         </div>
-        <div className="overflow-y-auto px-4 pt-4 pb-[calc(1.25rem+env(safe-area-inset-bottom,0px))] sm:px-5 sm:pb-5">
-          {children}
-        </div>
+        <button
+          type="button"
+          data-compact="true"
+          onClick={() => onCloseRef.current()}
+          aria-label="Cerrar"
+          className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg text-bht-ink-soft transition hover:bg-bht-mist hover:text-bht-navy-deep focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bht-navy-deep cursor-pointer"
+        >
+          <CloseIcon className="h-4 w-4" />
+        </button>
       </div>
-    </div>
+      <div className="overflow-y-auto px-4 pt-4 pb-[calc(1.25rem+env(safe-area-inset-bottom,0px))] sm:px-5 sm:pb-5">
+        {children}
+        {onConfirm && confirmLabel && (
+          <div className="mt-4 flex flex-col-reverse gap-2 border-t border-bht-line pt-3 sm:flex-row sm:justify-end">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => onCloseRef.current()}
+            >
+              {cancelLabel}
+            </Button>
+            <Button
+              type="button"
+              variant={confirmVariant}
+              size="sm"
+              disabled={confirmDisabled}
+              onClick={onConfirm}
+            >
+              {confirmLabel}
+            </Button>
+          </div>
+        )}
+      </div>
+    </dialog>
   );
 }
 

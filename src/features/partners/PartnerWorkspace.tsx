@@ -12,20 +12,24 @@ import {
   type NavTabItem,
 } from "@/components/ui/AppShell";
 import {
+  CommandPalette,
+  type CommandPaletteItem,
+} from "@/components/ui/CommandPalette";
+import {
   ActivityIcon,
   BarChartIcon,
   BuildingIcon,
-  ChevronRightIcon,
   LockIcon,
   PackageIcon,
   PlusIcon,
-  SearchIcon,
   ShoppingBagIcon,
   UsersIcon,
   WalletIcon,
 } from "@/components/ui/Icons";
-import { Button, Card, INPUT_CLASS, ToastBanner } from "@/components/ui/Primitives";
+import { Button, ToastBanner } from "@/components/ui/Primitives";
+import { SkeletonCards } from "@/components/ui/Skeleton";
 import { RecentUndoStrip } from "@/components/shared/RecentUndoStrip";
+import { formatPen } from "@/components/socios/types";
 import { formatRoleEs } from "@/lib/labels-es";
 import {
   notifyLocalSync,
@@ -40,12 +44,8 @@ import {
 import { deleteOfflineSnapshotsForActor } from "@/lib/offline/outbox";
 import type { CajaSubTab } from "@/components/socios/caja/caja-utils";
 import type { CustomerDirectoryItem } from "@/lib/services/customers";
-import { Cobranza, CobranzaModals } from "./Cobranza";
-import { Accesos } from "./Accesos";
-import { Finanzas } from "./Finanzas";
+import type { InventorySubView } from "./Inventario";
 import { Hoy } from "./Hoy";
-import { Inventario, InventarioModals, type InventorySubView } from "./Inventario";
-import { Ventas, VentasModals } from "./Ventas";
 import {
   formatActorName,
   SOCIOS_SYNC_SCOPES,
@@ -58,13 +58,36 @@ import { useOrderFlow } from "./useOrderFlow";
 import { usePartnerData } from "./usePartnerData";
 
 const Directorio = dynamic(() => import("./Directorio"));
+const Cobranza = dynamic(() =>
+  import("./Cobranza").then((m) => ({ default: m.Cobranza }))
+);
+const CobranzaModals = dynamic(() =>
+  import("./Cobranza").then((m) => ({ default: m.CobranzaModals }))
+);
+const Accesos = dynamic(() =>
+  import("./Accesos").then((m) => ({ default: m.Accesos }))
+);
+const Finanzas = dynamic(() =>
+  import("./Finanzas").then((m) => ({ default: m.Finanzas }))
+);
+const Inventario = dynamic(() =>
+  import("./Inventario").then((m) => ({ default: m.Inventario }))
+);
+const InventarioModals = dynamic(() =>
+  import("./Inventario").then((m) => ({ default: m.InventarioModals }))
+);
+const Ventas = dynamic(() =>
+  import("./Ventas").then((m) => ({ default: m.Ventas }))
+);
+const VentasModals = dynamic(() =>
+  import("./Ventas").then((m) => ({ default: m.VentasModals }))
+);
 
 export default function PartnerWorkspace() {
   const router = useRouter();
   const [tab, setTab] = useState<PartnerTab>("control");
   const [busyLogout, setBusyLogout] = useState(false);
   const [subTabEditing, setSubTabEditing] = useState(false);
-  const [globalSearch, setGlobalSearch] = useState("");
   const [preselectedPurchaseTarget, setPreselectedPurchaseTarget] =
     useState<PurchaseTarget | null>(null);
   const [initialCajaSubTab, setInitialCajaSubTab] = useState<CajaSubTab | null>(null);
@@ -116,13 +139,7 @@ export default function PartnerWorkspace() {
     showFeedback,
     refreshDashboard,
   });
-  const {
-    setMonitorSearch,
-    setMonitorStatusFilter,
-    setShowAllMonitor,
-    clearCustomerOrderScope,
-    openCustomerOrders,
-  } = orderFlow;
+  const { openCustomerOrders, setSelectedMonitorOrder } = orderFlow;
   const { setSearchSku, openEditProduct } = inventoryFlow;
 
   useEffect(() => {
@@ -144,11 +161,11 @@ export default function PartnerWorkspace() {
 
   const isEditingOrModalOpen = Boolean(
     inventoryFlow.editingProd ||
-    collectionsFlow.abonoOrder ||
-    collectionsFlow.fifoCustomer ||
-    inventoryFlow.confirmResetNegativeOpen ||
-    orderFlow.confirmCancelOrder ||
-    subTabEditing
+      collectionsFlow.abonoOrder ||
+      collectionsFlow.fifoCustomer ||
+      inventoryFlow.confirmResetNegativeOpen ||
+      orderFlow.confirmCancelOrder ||
+      subTabEditing
   );
 
   const handleRemoteChange = useCallback(
@@ -342,25 +359,79 @@ export default function PartnerWorkspace() {
     [router]
   );
 
-  const activeTabLabel =
-    navItems.find((item) => item.id === tab)?.label ??
-    (tab === "accesos" ? "Usuarios" : "Hoy");
-  const navActiveTab: PartnerTab = tab;
+  const commandPaletteItems: CommandPaletteItem[] = useMemo(() => {
+    const items: CommandPaletteItem[] = [
+      ...navItems.map((item) => ({
+        id: `tab-${item.id}`,
+        label: `Ir a ${item.label}`,
+        subtitle: item.group ?? "Sección de Control Operativo",
+        group: "Secciones",
+        badge: item.badgeCount ? String(item.badgeCount) : undefined,
+        onSelect: () => handleTabChange(item.id),
+      })),
+      {
+        id: "ws-seller",
+        label: "Tomar Pedido Mayorista (/vendedor)",
+        subtitle: "Abrir espacio de ventas en campo",
+        group: "Espacios ERP",
+        onSelect: () => router.push("/vendedor"),
+      },
+      {
+        id: "ws-warehouse",
+        label: "Almacén y Reparto (/almacen)",
+        subtitle: "Alistamiento y confirmación de entregas",
+        group: "Espacios ERP",
+        onSelect: () => router.push("/almacen"),
+      },
+      {
+        id: "ws-offline",
+        label: "Bandeja de Sincronización Offline (/offline)",
+        subtitle: "Revisar cola local y resolver conflictos",
+        group: "Espacios ERP",
+        onSelect: () => router.push("/offline"),
+      },
+      {
+        id: "ws-password",
+        label: "Cambiar contraseña (/change-password)",
+        subtitle: "Seguridad de cuenta",
+        group: "Espacios ERP",
+        onSelect: () => router.push("/change-password"),
+      },
+      ...orders.slice(0, 15).map((o) => ({
+        id: `order-${o.order_id}`,
+        label: `${String(o.order_code)} · ${String(o.customer_name)}`,
+        subtitle: `${String(o.order_date)} · ${formatPen(o.total_pen)}`,
+        group: "Pedidos recientes",
+        onSelect: () => {
+          handleTabChange("pedidos");
+          setSelectedMonitorOrder(o);
+        },
+      })),
+      ...catalog.slice(0, 15).map((p) => ({
+        id: `prod-${p.product_id}`,
+        label: `${p.name} (${p.sku})`,
+        subtitle: `Stock: ${p.stock_on_hand} ${p.unit_of_measure} · ${formatPen(
+          p.list_sale_price_pen ?? 0
+        )}`,
+        group: "Productos",
+        onSelect: () => {
+          handleTabChange("stock");
+          openEditProduct(p);
+        },
+      })),
+    ];
+    return items;
+  }, [
+    navItems,
+    handleTabChange,
+    router,
+    orders,
+    setSelectedMonitorOrder,
+    catalog,
+    openEditProduct,
+  ]);
 
-  function handleGlobalSearchSubmit(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const query = globalSearch.trim();
-    if (!query) {
-      clearCustomerOrderScope();
-      handleTabChange("pedidos");
-      return;
-    }
-    clearCustomerOrderScope();
-    setMonitorSearch(query);
-    setMonitorStatusFilter("ALL");
-    setShowAllMonitor(true);
-    handleTabChange("pedidos");
-  }
+  const navActiveTab: PartnerTab = tab;
 
   function handleOpenCustomerOrders(customer: CustomerDirectoryItem) {
     handleTabChange("pedidos");
@@ -369,6 +440,8 @@ export default function PartnerWorkspace() {
 
   return (
     <div className="min-h-screen bg-bht-surface-cool pb-24 md:pb-12">
+      <CommandPalette items={commandPaletteItems} />
+
       <AppHeader
         title="Control Operativo"
         roleLabel={headerRoleBadge}
@@ -452,48 +525,6 @@ export default function PartnerWorkspace() {
           </div>
         )}
 
-        <div className="flex flex-col gap-3 rounded-xl border border-bht-slate-line bg-white p-3 sm:flex-row sm:items-center sm:justify-between sm:p-3.5">
-          <div className="flex min-w-0 items-center gap-2 text-sm text-bht-ink-muted">
-            <span className="font-medium text-bht-ink-soft">Inicio</span>
-            <ChevronRightIcon
-              className="h-3.5 w-3.5 text-bht-tone-a8a49c"
-              aria-hidden="true"
-            />
-            <span className="truncate font-semibold text-bht-navy-deep">
-              {activeTabLabel}
-            </span>
-          </div>
-          <form
-            onSubmit={handleGlobalSearchSubmit}
-            className="flex min-w-0 flex-1 items-center gap-2 sm:max-w-md"
-            role="search"
-            aria-label="Búsqueda global"
-          >
-            <div className="relative min-w-0 flex-1">
-              <SearchIcon
-                className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-bht-ink-muted"
-                aria-hidden="true"
-              />
-              <input
-                type="search"
-                value={globalSearch}
-                onChange={(event) => setGlobalSearch(event.target.value)}
-                placeholder="Buscar pedido, cliente o vendedor..."
-                aria-label="Buscar pedido, cliente o vendedor"
-                className={`${INPUT_CLASS} pl-10 pr-3`}
-              />
-            </div>
-            <Button
-              type="submit"
-              variant="brand"
-              size="sm"
-              className="min-h-[42px] shrink-0"
-            >
-              Buscar
-            </Button>
-          </form>
-        </div>
-
         {feedback && (
           <ToastBanner
             type={feedback.isError ? "err" : "ok"}
@@ -530,10 +561,8 @@ export default function PartnerWorkspace() {
           onError={(errMsg) => showFeedback(errMsg, true)}
         />
 
-        {loading && !partnerData && (
-          <Card className="p-10 text-center text-sm font-medium text-bht-ink-soft">
-            Cargando datos en vivo desde Neon PostgreSQL...
-          </Card>
+        {loading && !partnerData && tab !== "control" && (
+          <SkeletonCards count={3} />
         )}
 
         {tab === "control" && (
