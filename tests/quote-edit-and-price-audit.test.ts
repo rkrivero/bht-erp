@@ -90,10 +90,9 @@ describe("Quote edits, direct negotiated unit prices, global discounts & price o
 
       // Verify immutability trigger on erp.price_override_log
       await expect(
-        client.query(
-          `DELETE FROM erp.price_override_log WHERE override_id = $1`,
-          [lower.override_id]
-        )
+        client.query(`DELETE FROM erp.price_override_log WHERE override_id = $1`, [
+          lower.override_id,
+        ])
       ).rejects.toThrow(/inmutable/i);
     } finally {
       await client.query("ROLLBACK");

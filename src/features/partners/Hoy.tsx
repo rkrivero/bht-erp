@@ -20,6 +20,7 @@ import type { CollectionsFlow } from "./useCollectionsFlow";
 import type { PriorityItem } from "./types";
 import { HoyDataStatusCard } from "./HoyDataStatusCard";
 import { HoyMonitor } from "./HoyMonitor";
+import { HoyPendingOnDemandCard } from "./HoyPendingOnDemandCard";
 import { HoyRoutesQuotes } from "./HoyRoutesQuotes";
 
 interface HoyProps {
@@ -191,7 +192,7 @@ export function Hoy({
             variant="primary"
             size="md"
             onClick={() => router.push("/vendedor")}
-            className="min-h-[42px] px-5 shadow-sm transition-all duration-300 ease-in-out"
+            className="min-h-[42px] px-5 shadow-sm"
           >
             <PlusIcon className="h-4 w-4" />
             <span>Tomar Nuevo Pedido</span>
@@ -201,7 +202,7 @@ export function Hoy({
             variant="outline"
             size="md"
             onClick={() => handleTabChange("kpis")}
-            className="min-h-[42px] px-4 transition-all duration-300 ease-in-out"
+            className="min-h-[42px] px-4"
           >
             Ir a Reportes →
           </Button>
@@ -257,15 +258,15 @@ export function Hoy({
                     return (
                       <div
                         key={item.id}
-                        className="grid gap-4 px-6 py-4 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:items-center sm:px-8 sm:py-5 transition-all duration-300 ease-in-out hover:bg-bht-cobalt-bg/40"
+                        className="grid gap-4 px-6 py-4 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:items-center sm:px-8 sm:py-5 transition-colors duration-150 hover:bg-bht-cobalt-bg/35"
                       >
                         <span
                           className={`flex h-10 w-10 items-center justify-center rounded-xl ${
                             item.level === "clear"
                               ? "bg-bht-mist text-bht-ink-soft"
                               : item.level === "critical"
-                                ? "bg-rose-50 text-rose-700"
-                                : "bg-amber-50 text-amber-800"
+                                ? "bg-bht-danger-bg text-bht-danger-strong"
+                                : "bg-bht-warning-bg text-bht-warning-strong"
                           }`}
                           aria-hidden="true"
                         >
@@ -276,11 +277,19 @@ export function Hoy({
                             <h4 className="text-sm font-semibold tracking-tight text-bht-ink-strong sm:text-base">
                               {item.title}
                             </h4>
-                            <span className="rounded-md bg-bht-cobalt-bg px-2.5 py-0.5 text-xs font-semibold text-bht-cobalt">
+                            <span
+                              className={`rounded-md px-2.5 py-0.5 text-xs font-semibold ${
+                                item.level === "clear"
+                                  ? "bg-bht-success-bg text-bht-success-strong"
+                                  : item.level === "critical"
+                                    ? "bg-bht-danger-bg text-bht-danger-strong"
+                                    : "bg-bht-warning-bg text-bht-warning-strong"
+                              }`}
+                            >
                               {item.dueLabel}
                             </span>
                           </div>
-                          <p className="mt-1 text-xs leading-relaxed text-bht-ink-soft sm:text-sm">
+                          <p className="mt-1 text-sm leading-relaxed text-bht-ink-soft">
                             {item.summary}
                           </p>
                         </div>
@@ -299,91 +308,232 @@ export function Hoy({
               </div>
             </Card>
 
-            {/* Operational Hub & Quick Navigation (Bento Card — col-span-1) */}
+            {/* Data Freshness & Reconciliation Hub (Bento Card — col-span-1) */}
             <Card
               padding="md"
-              className="lg:col-span-1 flex flex-col justify-between p-6 sm:p-8 bg-bht-paper/90 border border-bht-line"
+              className="lg:col-span-1 flex flex-col justify-between bg-white border border-bht-line"
             >
-              <div className="space-y-4">
-                <span className="inline-flex items-center gap-1.5 rounded-full bg-bht-cobalt-bg px-3 py-1 text-xs font-semibold text-bht-cobalt">
-                  <span
-                    className="h-1.5 w-1.5 rounded-full bg-bht-cobalt"
-                    aria-hidden="true"
-                  />
-                  Acciones de Despacho
-                </span>
-                <h3 className="text-lg font-bold tracking-tight text-bht-ink-strong">
-                  Flujo Operativo
-                </h3>
-                <p className="text-xs leading-relaxed text-bht-ink-soft">
-                  Acceso directo para ventas mayoristas en campo, alistamiento en almacén
-                  y arqueos de caja.
-                </p>
+              <div className="space-y-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <h3 className="text-base font-bold tracking-tight text-bht-ink-strong sm:text-lg">
+                    Vigencia y Conciliación
+                  </h3>
+                  <Badge
+                    tone={
+                      dataCut?.isStale || dataCut?.bankReconciled === false
+                        ? "warning"
+                        : "success"
+                    }
+                  >
+                    {dataCut?.bankReconciled === false
+                      ? "No conciliado"
+                      : dataCut?.isStale
+                        ? "Revisar corte"
+                        : "Al día"}
+                  </Badge>
+                </div>
+                <dl className="space-y-2 rounded-xl border border-bht-line bg-bht-paper/70 p-3.5 text-sm">
+                  <div className="flex items-center justify-between gap-2">
+                    <dt className="text-bht-ink-soft">Último pedido</dt>
+                    <dd className="font-semibold text-bht-ink-strong tabular-nums">
+                      {dataCut?.lastOrderDate || kpiQ1?.period_end
+                        ? formatDatePe(dataCut?.lastOrderDate ?? kpiQ1?.period_end)
+                        : "Sin registros"}
+                    </dd>
+                  </div>
+                  <div className="flex items-center justify-between gap-2">
+                    <dt className="text-bht-ink-soft">Saldo bancario</dt>
+                    <dd
+                      className={`font-semibold ${dataCut?.bankReconciled === false ? "text-bht-warning-strong" : "text-bht-success-strong"}`}
+                    >
+                      {dataCut?.bankReconciled === false
+                        ? "Pendiente de conciliar"
+                        : "Conciliado"}
+                    </dd>
+                  </div>
+                  {dataCut && (
+                    <div className="flex items-center justify-between gap-2">
+                      <dt className="text-bht-ink-soft">Caja actualizada</dt>
+                      <dd className="font-semibold text-bht-ink-strong tabular-nums">
+                        {formatDatePe(dataCut.lastCashLedgerDate)}
+                      </dd>
+                    </div>
+                  )}
+                </dl>
               </div>
-              <div className="mt-6 space-y-3">
-                <button
-                  type="button"
-                  onClick={() => router.push("/vendedor")}
-                  className="flex w-full items-center justify-between rounded-xl bg-white p-4 text-left shadow-2xs border border-bht-line transition-all duration-300 ease-in-out hover:border-bht-cobalt hover:shadow-xs group cursor-pointer"
-                >
-                  <div>
-                    <p className="text-sm font-semibold tracking-tight text-bht-ink-strong">
-                      Tomar Pedido Mayorista
-                    </p>
-                    <p className="text-xs leading-relaxed text-bht-ink-soft">
-                      Catálogo con stock disponible en Soles (S/)
-                    </p>
-                  </div>
-                  <span
-                    className="text-sm font-bold text-bht-cobalt transition-transform duration-300 group-hover:translate-x-1"
-                    aria-hidden="true"
+              <div className="mt-5 flex flex-wrap gap-2">
+                {onOpenDailyClose && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={onOpenDailyClose}
+                    className="flex-1"
                   >
-                    →
-                  </span>
-                </button>
-                <button
+                    Cierre diario
+                  </Button>
+                )}
+                <Button
                   type="button"
+                  variant="secondary"
+                  size="sm"
                   onClick={() => router.push("/almacen")}
-                  className="flex w-full items-center justify-between rounded-xl bg-white p-4 text-left shadow-2xs border border-bht-line transition-all duration-300 ease-in-out hover:border-bht-cobalt hover:shadow-xs group cursor-pointer"
+                  className="flex-1"
                 >
-                  <div>
-                    <p className="text-sm font-semibold tracking-tight text-bht-ink-strong">
-                      Almacén y Reparto
-                    </p>
-                    <p className="text-xs leading-relaxed text-bht-ink-soft">
-                      Alistamiento por etapas y rutas de entrega
-                    </p>
-                  </div>
-                  <span
-                    className="text-sm font-bold text-bht-cobalt transition-transform duration-300 group-hover:translate-x-1"
-                    aria-hidden="true"
-                  >
-                    →
-                  </span>
-                </button>
+                  Almacén →
+                </Button>
               </div>
             </Card>
           </div>
 
+          {/* 1-Tap Discount / Credit Limit Approval Queue — prioritized above KPIs when pending */}
+          {pendingApprovals.length > 0 && (
+            <Card
+              id="discount-approval-queue"
+              tone="warning"
+              padding="md"
+              className="bht-contain-region scroll-mt-24 space-y-3"
+            >
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <AlertTriangleIcon className="h-4 w-4 text-bht-warning" />
+                  <h2 className="text-base sm:text-lg font-bold text-bht-ink-strong">
+                    Aprobación de Descuentos y Excesos de Crédito
+                  </h2>
+                </div>
+                <Badge tone="warning">{pendingApprovals.length} pendiente(s)</Badge>
+              </div>
+              <div className="grid gap-3 md:grid-cols-2">
+                {pendingApprovals.map((o) => {
+                  const orderId = Number(o.order_id);
+                  const isBusyThis = busyApproveOrderId === orderId;
+                  const marginVal = Number(o.order_margin_pen ?? 0);
+                  const totalVal = Number(o.total_pen ?? 0);
+                  const marginPct = totalVal > 0 ? (marginVal / totalVal) * 100 : 0;
+                  const creditExceeded = Boolean(
+                    (o as { credit_limit_exceeded_flag?: boolean })
+                      .credit_limit_exceeded_flag
+                  );
+                  const lines = Array.isArray(o.lines) ? o.lines : [];
+                  const discountedLines = lines.filter(
+                    (ln) =>
+                      Number(ln.unit_discount_pen ?? 0) > 0 ||
+                      Number(ln.is_below_min_floor ?? 0) > 0
+                  );
+                  const displayLines =
+                    discountedLines.length > 0 ? discountedLines : lines;
+                  return (
+                    <div
+                      key={String(o.order_id)}
+                      className="rounded-xl border border-bht-line bg-white p-4 shadow-xs space-y-2.5"
+                    >
+                      <div className="flex flex-wrap items-center justify-between gap-1.5">
+                        <span className="text-xs font-medium text-bht-ink-soft">
+                          <span className="font-mono font-semibold text-bht-navy-mid">
+                            {String(o.order_code)}
+                          </span>{" "}
+                          · Vendedor:{" "}
+                          <strong className="text-bht-ink-strong">
+                            {formatActorName(o.created_by_name, "-")}
+                          </strong>
+                        </span>
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          {creditExceeded && (
+                            <Badge tone="danger">Excede límite de crédito</Badge>
+                          )}
+                          <Badge
+                            tone={getMarginTone(marginVal, totalVal)}
+                            className="tabular-nums"
+                          >
+                            Margen: {formatPen(marginVal)} ({marginPct.toFixed(1)}%)
+                          </Badge>
+                        </div>
+                      </div>
+                      <h3 className="text-sm sm:text-base font-semibold text-bht-ink-strong tabular-nums">
+                        {String(o.customer_name)} — {formatPen(o.total_pen)}
+                      </h3>
+                      {displayLines.length > 0 && (
+                        <div className="space-y-1 rounded-lg bg-bht-paper px-3 py-2 text-sm text-bht-ink-soft">
+                          {displayLines.slice(0, 4).map((ln, idx) => (
+                            <div
+                              key={String(ln.order_line_id ?? idx)}
+                              className="flex flex-wrap items-center justify-between gap-2 tabular-nums"
+                            >
+                              <span className="min-w-0 flex-1 truncate font-medium text-bht-ink-strong">
+                                {String(ln.raw_description || ln.sku)}
+                              </span>
+                              <span>
+                                {Number(ln.quantity)}{" "}
+                                {String(ln.unit_of_measure || "NIU")} ×{" "}
+                                {formatPen(ln.unit_price_pen)}
+                                {Number(ln.unit_discount_pen || 0) > 0
+                                  ? ` (-${formatPen(ln.unit_discount_pen)})`
+                                  : ""}
+                              </span>
+                            </div>
+                          ))}
+                          {displayLines.length > 4 && (
+                            <p className="text-xs font-medium text-bht-ink-muted">
+                              +{displayLines.length - 4} línea(s) adicional(es)
+                            </p>
+                          )}
+                        </div>
+                      )}
+                      <div className="flex flex-wrap gap-2">
+                        <Button
+                          variant="success"
+                          size="sm"
+                          disabled={
+                            busyApproveOrderId !== null || busyCancelOrderId !== null
+                          }
+                          aria-label={`Aprobar pedido ${String(o.order_code)} de ${String(o.customer_name)} y enviar a Almacén`}
+                          onClick={() => handleApproveDiscount(orderId)}
+                          className="flex-1"
+                        >
+                          <CheckIcon className="h-3.5 w-3.5" />
+                          {isBusyThis ? "Aprobando..." : "Aprobar y Enviar a Almacén"}
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          disabled={
+                            busyApproveOrderId !== null || busyCancelOrderId !== null
+                          }
+                          onClick={() => {
+                            setCancelOrderReason("");
+                            setConfirmCancelOrder(o);
+                          }}
+                          className="border-bht-danger-line text-bht-danger hover:bg-bht-danger-bg"
+                        >
+                          Anular
+                        </Button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </Card>
+          )}
+
           {/* Executive Business Summary (Bento Grid — 4 modular KPI Cards) */}
-          <div className="bht-contain-region grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="bht-contain-region grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
             <button
               type="button"
               onClick={() => handleTabChange("kpis")}
-              className="group rounded-xl border border-bht-line bg-white p-6 sm:p-8 text-left shadow-xs transition-all duration-300 ease-in-out hover:border-bht-cobalt/50 hover:-translate-y-1 hover:shadow-md cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bht-cobalt"
+              className="group flex flex-col justify-between rounded-2xl border border-bht-line bg-white p-5 text-left shadow-bht-elev-1 transition-all duration-150 hover:border-bht-cobalt/50 hover:shadow-bht-elev-16 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bht-cobalt"
             >
-              <div className="flex items-center justify-between gap-2">
+              <div className="flex w-full items-center justify-between gap-2">
                 <span className="text-xs font-semibold uppercase tracking-wider text-bht-ink-soft">
                   Ventas y Cobranza
                 </span>
                 <span
-                  className="text-xs text-bht-ink-soft transition-transform duration-300 group-hover:translate-x-1 group-hover:text-bht-cobalt"
+                  className="text-xs text-bht-ink-soft transition-transform duration-150 group-hover:translate-x-1 group-hover:text-bht-cobalt"
                   aria-hidden="true"
                 >
                   →
                 </span>
               </div>
-              <p className="mt-3 text-3xl font-bold tracking-tight text-bht-ink-strong tabular-nums">
+              <p className="mt-3 text-2xl font-bold tracking-tight text-bht-ink-strong tabular-nums xl:text-[1.75rem]">
                 {formatPen(kpiQ1?.total_sales_pen ?? 0)}
               </p>
               <p className="mt-2 text-xs font-medium leading-relaxed text-bht-ink-soft tabular-nums">
@@ -397,20 +547,20 @@ export function Hoy({
             <button
               type="button"
               onClick={() => handleTabChange("deudores")}
-              className="group rounded-xl border border-bht-line bg-white p-6 sm:p-8 text-left shadow-xs transition-all duration-300 ease-in-out hover:border-rose-400 hover:-translate-y-1 hover:shadow-md cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-500"
+              className="group flex flex-col justify-between rounded-2xl border border-bht-line bg-white p-5 text-left shadow-bht-elev-1 transition-all duration-150 hover:border-bht-danger/50 hover:shadow-bht-elev-16 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bht-danger"
             >
-              <div className="flex items-center justify-between gap-2">
+              <div className="flex w-full items-center justify-between gap-2">
                 <span className="text-xs font-semibold uppercase tracking-wider text-bht-ink-soft">
                   Cartera por Cobrar
                 </span>
                 <span
-                  className="text-xs text-bht-ink-soft transition-transform duration-300 group-hover:translate-x-1 group-hover:text-rose-600"
+                  className="text-xs text-bht-ink-soft transition-transform duration-150 group-hover:translate-x-1 group-hover:text-bht-danger"
                   aria-hidden="true"
                 >
                   →
                 </span>
               </div>
-              <p className="mt-3 text-3xl font-bold tracking-tight text-rose-700 tabular-nums">
+              <p className="mt-3 text-2xl font-bold tracking-tight text-bht-danger-strong tabular-nums xl:text-[1.75rem]">
                 {formatPen(totalReceivablePen)}
               </p>
               <p className="mt-2 text-xs font-medium leading-relaxed text-bht-ink-soft tabular-nums">
@@ -421,20 +571,20 @@ export function Hoy({
             <button
               type="button"
               onClick={() => handleTabChange("caja")}
-              className="group rounded-xl border border-bht-line bg-white p-6 sm:p-8 text-left shadow-xs transition-all duration-300 ease-in-out hover:border-bht-cobalt/50 hover:-translate-y-1 hover:shadow-md cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bht-cobalt"
+              className="group flex flex-col justify-between rounded-2xl border border-bht-line bg-white p-5 text-left shadow-bht-elev-1 transition-all duration-150 hover:border-bht-cobalt/50 hover:shadow-bht-elev-16 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bht-cobalt"
             >
-              <div className="flex items-center justify-between gap-2">
+              <div className="flex w-full items-center justify-between gap-2">
                 <span className="text-xs font-semibold uppercase tracking-wider text-bht-ink-soft">
                   Caja y Compras (CxP)
                 </span>
                 <span
-                  className="text-xs text-bht-ink-soft transition-transform duration-300 group-hover:translate-x-1 group-hover:text-bht-cobalt"
+                  className="text-xs text-bht-ink-soft transition-transform duration-150 group-hover:translate-x-1 group-hover:text-bht-cobalt"
                   aria-hidden="true"
                 >
                   →
                 </span>
               </div>
-              <p className="mt-3 text-3xl font-bold tracking-tight text-bht-cobalt tabular-nums">
+              <p className="mt-3 text-2xl font-bold tracking-tight text-bht-ink-strong tabular-nums xl:text-[1.75rem]">
                 {formatPen(totalCashPen)}
               </p>
               <p className="mt-2 text-xs font-medium leading-relaxed text-bht-ink-soft tabular-nums">
@@ -448,20 +598,20 @@ export function Hoy({
             <button
               type="button"
               onClick={() => handleTabChange("stock")}
-              className="group rounded-xl border border-bht-line bg-white p-6 sm:p-8 text-left shadow-xs transition-all duration-300 ease-in-out hover:border-amber-400 hover:-translate-y-1 hover:shadow-md cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
+              className="group flex flex-col justify-between rounded-2xl border border-bht-line bg-white p-5 text-left shadow-bht-elev-1 transition-all duration-150 hover:border-bht-warning/60 hover:shadow-bht-elev-16 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bht-warning"
             >
-              <div className="flex items-center justify-between gap-2">
+              <div className="flex w-full items-center justify-between gap-2">
                 <span className="text-xs font-semibold uppercase tracking-wider text-bht-ink-soft">
                   Inventario y Alertas
                 </span>
                 <span
-                  className="text-xs text-bht-ink-soft transition-transform duration-300 group-hover:translate-x-1 group-hover:text-amber-600"
+                  className="text-xs text-bht-ink-soft transition-transform duration-150 group-hover:translate-x-1 group-hover:text-bht-warning"
                   aria-hidden="true"
                 >
                   →
                 </span>
               </div>
-              <p className="mt-3 text-3xl font-bold tracking-tight text-amber-800 tabular-nums">
+              <p className="mt-3 text-2xl font-bold tracking-tight text-bht-warning-strong tabular-nums xl:text-[1.75rem]">
                 {lowStockCount + marginRiskCount + negStockCount}
               </p>
               <p className="mt-2 text-xs font-medium leading-relaxed text-bht-ink-soft tabular-nums">
@@ -473,181 +623,10 @@ export function Hoy({
         </>
       )}
 
-      {/* 1-Tap Discount / Credit Limit Approval Queue — only rendered when there are pending approvals */}
-      {pendingApprovals.length > 0 && (
-        <Card
-          id="discount-approval-queue"
-          tone="warning"
-          padding="md"
-          className="bht-contain-region scroll-mt-24 space-y-3"
-        >
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div className="flex items-center gap-2">
-              <AlertTriangleIcon className="h-4 w-4 text-bht-warning" />
-              <h2 className="text-base sm:text-lg font-bold text-bht-ink-strong">
-                Aprobación de Descuentos y Excesos de Crédito
-              </h2>
-            </div>
-            <Badge tone="warning">{pendingApprovals.length} pendiente(s)</Badge>
-          </div>
-          <div className="grid gap-3 md:grid-cols-2">
-            {pendingApprovals.map((o) => {
-              const orderId = Number(o.order_id);
-              const isBusyThis = busyApproveOrderId === orderId;
-              const marginVal = Number(o.order_margin_pen ?? 0);
-              const totalVal = Number(o.total_pen ?? 0);
-              const marginPct = totalVal > 0 ? (marginVal / totalVal) * 100 : 0;
-              const creditExceeded = Boolean(
-                (o as { credit_limit_exceeded_flag?: boolean }).credit_limit_exceeded_flag
-              );
-              const lines = Array.isArray(o.lines) ? o.lines : [];
-              const discountedLines = lines.filter(
-                (ln) =>
-                  Number(ln.unit_discount_pen ?? 0) > 0 ||
-                  Number(ln.is_below_min_floor ?? 0) > 0
-              );
-              const displayLines = discountedLines.length > 0 ? discountedLines : lines;
-              return (
-                <div
-                  key={String(o.order_id)}
-                  className="rounded-xl border border-bht-line bg-white p-3.5 shadow-xs space-y-2.5"
-                >
-                  <div className="flex flex-wrap items-center justify-between gap-1.5">
-                    <span className="text-xs font-medium text-bht-ink-soft">
-                      {String(o.order_code)} · Vendedor:{" "}
-                      <strong className="text-bht-ink-strong">
-                        {formatActorName(o.created_by_name, "-")}
-                      </strong>
-                    </span>
-                    <div className="flex flex-wrap items-center gap-1.5">
-                      {creditExceeded && (
-                        <Badge tone="danger">Excede límite de crédito</Badge>
-                      )}
-                      <Badge
-                        tone={getMarginTone(marginVal, totalVal)}
-                        className="tabular-nums"
-                      >
-                        Margen: {formatPen(marginVal)} ({marginPct.toFixed(1)}%)
-                      </Badge>
-                    </div>
-                  </div>
-                  <h3 className="text-sm font-semibold text-bht-ink-strong tabular-nums">
-                    {String(o.customer_name)} — {formatPen(o.total_pen)}
-                  </h3>
-                  {displayLines.length > 0 && (
-                    <div className="space-y-1 rounded-lg bg-bht-paper px-2.5 py-2 text-xs text-bht-ink-soft">
-                      {displayLines.slice(0, 4).map((ln, idx) => (
-                        <div
-                          key={String(ln.order_line_id ?? idx)}
-                          className="flex flex-wrap items-center justify-between gap-2 tabular-nums"
-                        >
-                          <span className="min-w-0 flex-1 truncate font-medium text-bht-ink-strong">
-                            {String(ln.raw_description || ln.sku)}
-                          </span>
-                          <span>
-                            {Number(ln.quantity)} {String(ln.unit_of_measure || "NIU")}{" "}
-                            × {formatPen(ln.unit_price_pen)}
-                            {Number(ln.unit_discount_pen || 0) > 0
-                              ? ` (-${formatPen(ln.unit_discount_pen)})`
-                              : ""}
-                          </span>
-                        </div>
-                      ))}
-                      {displayLines.length > 4 && (
-                        <p className="text-xs font-medium text-bht-ink-muted">
-                          +{displayLines.length - 4} línea(s) adicional(es)
-                        </p>
-                      )}
-                    </div>
-                  )}
-                  <div className="flex flex-wrap gap-2">
-                    <Button
-                      variant="success"
-                      size="sm"
-                      disabled={
-                        busyApproveOrderId !== null || busyCancelOrderId !== null
-                      }
-                      aria-label={`Aprobar pedido ${String(o.order_code)} de ${String(o.customer_name)} y enviar a Almacén`}
-                      onClick={() => handleApproveDiscount(orderId)}
-                      className="flex-1"
-                    >
-                      <CheckIcon className="h-3.5 w-3.5" />
-                      {isBusyThis
-                        ? "Aprobando..."
-                        : "Aprobar con 1 Toque y Enviar a Almacén"}
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      disabled={
-                        busyApproveOrderId !== null || busyCancelOrderId !== null
-                      }
-                      onClick={() => {
-                        setCancelOrderReason("");
-                        setConfirmCancelOrder(o);
-                      }}
-                      className="border-bht-danger-line text-bht-danger hover:bg-bht-danger-bg"
-                    >
-                      Anular
-                    </Button>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </Card>
-      )}
-
-      {/* ON_DEMAND Pending Supplier Purchases */}
-      {pendingOnDemand.length > 0 && (
-        <Card
-          tone="horizon"
-          accent="horizon"
-          padding="md"
-          className="bht-contain-region space-y-3"
-        >
-          <div className="flex items-center justify-between gap-2">
-            <h2 className="text-base sm:text-lg font-bold text-bht-navy-deep">
-              Pedidos Bajo Pedido Pendientes de Compra ({pendingOnDemand.length})
-            </h2>
-          </div>
-          <div className="grid gap-2.5 md:grid-cols-2">
-            {pendingOnDemand.map((od) => (
-              <div
-                key={od.order_line_id}
-                className="flex items-center justify-between gap-3 rounded-xl border border-bht-line-blue bg-white p-3 text-xs"
-              >
-                <div className="min-w-0 flex-1">
-                  <p className="truncate font-semibold text-bht-ink-strong">
-                    {od.sku} — {od.product_name} (×{Number(od.quantity)}{" "}
-                    {od.unit_of_measure || "NIU"})
-                  </p>
-                  <p className="mt-0.5 truncate text-bht-ink-soft tabular-nums">
-                    {od.order_code} · {od.customer_name || od.customer_name_raw || "-"}{" "}
-                    · {formatPen(od.line_total_pen)}
-                  </p>
-                </div>
-                <Button
-                  variant="primary"
-                  size="sm"
-                  aria-label={`Comprar ${od.sku} (${od.product_name})`}
-                  onClick={() =>
-                    handleGoToPurchaseProduct({
-                      productId: Number(od.product_id),
-                      quantity: Number(od.quantity || 1),
-                      orderLineId: Number(od.order_line_id),
-                    })
-                  }
-                  className="flex-shrink-0"
-                >
-                  <PlusIcon className="h-3.5 w-3.5" />
-                  Comprar
-                </Button>
-              </div>
-            ))}
-          </div>
-        </Card>
-      )}
+      <HoyPendingOnDemandCard
+        pendingOnDemand={pendingOnDemand}
+        onGoToPurchaseProduct={handleGoToPurchaseProduct}
+      />
 
       <div className="bht-contain-region">
         <HoyMonitor

@@ -17,27 +17,21 @@ export default function manifest(): MetadataRoute.Manifest {
         short_name: "Pedido",
         description: "Abrir Ventas para crear o continuar un pedido",
         url: "/vendedor",
-        icons: [
-          { src: "/icons/icon-192.png", sizes: "192x192", type: "image/png" },
-        ],
+        icons: [{ src: "/icons/icon-192.png", sizes: "192x192", type: "image/png" }],
       },
       {
         name: "Almacén y reparto",
         short_name: "Almacén",
         description: "Abrir cola de alistamiento, despacho y confirmación de entregas",
         url: "/almacen",
-        icons: [
-          { src: "/icons/icon-192.png", sizes: "192x192", type: "image/png" },
-        ],
+        icons: [{ src: "/icons/icon-192.png", sizes: "192x192", type: "image/png" }],
       },
       {
         name: "Estado offline",
         short_name: "Sincronización",
         description: "Revisar operaciones pendientes y conflictos",
         url: "/offline",
-        icons: [
-          { src: "/icons/icon-192.png", sizes: "192x192", type: "image/png" },
-        ],
+        icons: [{ src: "/icons/icon-192.png", sizes: "192x192", type: "image/png" }],
       },
     ],
     icons: [

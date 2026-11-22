@@ -1,14 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import {
-  withAuthenticatedClient,
-  withAuthenticatedTransaction,
-} from "@/lib/auth";
+import { withAuthenticatedClient, withAuthenticatedTransaction } from "@/lib/auth";
 import { resolveHttpError } from "@/lib/http-errors";
 import { runIdempotentMutation } from "@/lib/idempotency";
-import {
-  getSystemSettings,
-  updateSystemSettings,
-} from "@/lib/services/settings";
+import { getSystemSettings, updateSystemSettings } from "@/lib/services/settings";
 import { parseBody, readRawJsonBody } from "@/lib/validation/parse";
 import { patchSystemSettingsSchema } from "@/lib/validation/settings.schema";
 
@@ -58,13 +52,8 @@ export async function PATCH(req: NextRequest) {
             updates.push({ key: u.key, value: u.value });
           }
         }
-        return runIdempotentMutation(
-          client,
-          req,
-          actor,
-          "settings:update",
-          body,
-          () => updateSystemSettings(client, actor, updates)
+        return runIdempotentMutation(client, req, actor, "settings:update", body, () =>
+          updateSystemSettings(client, actor, updates)
         );
       }
     );

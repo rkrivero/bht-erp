@@ -1300,7 +1300,9 @@ export async function getCustomerCreditSuggestion(
     delivered_orders_6m: Number(r.delivered_orders_6m ?? 0),
     active_months_6m: Number(r.active_months_6m ?? 0),
     avg_monthly_sales_pen: Number(r.avg_monthly_sales_pen ?? 0),
-    monthly_run_rate_pen: Number(r.monthly_run_rate_pen ?? r.avg_monthly_sales_pen ?? 0),
+    monthly_run_rate_pen: Number(
+      r.monthly_run_rate_pen ?? r.avg_monthly_sales_pen ?? 0
+    ),
     cv_monthly_sales: Number(r.cv_monthly_sales ?? 0),
     monthly_cv: Number(r.monthly_cv ?? r.cv_monthly_sales ?? 0),
     avg_days_overdue: Number(r.avg_days_overdue ?? 0),

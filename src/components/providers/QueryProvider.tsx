@@ -2,10 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import {
-  BHT_SYNC_CHANNEL_NAME,
-  type SyncScope,
-} from "@/lib/realtime/useLiveSync";
+import { BHT_SYNC_CHANNEL_NAME, type SyncScope } from "@/lib/realtime/useLiveSync";
 
 export const BHT_QUERY_INVALIDATE_EVENT = "bht:sync-scopes";
 
@@ -34,10 +31,7 @@ export function getBrowserQueryClient(): QueryClient {
   return browserQueryClient;
 }
 
-export function invalidateQueryScopes(
-  client: QueryClient,
-  scopes?: SyncScope[]
-): void {
+export function invalidateQueryScopes(client: QueryClient, scopes?: SyncScope[]): void {
   if (!scopes || scopes.length === 0) {
     void client.invalidateQueries();
     return;
@@ -76,11 +70,7 @@ export function dispatchSyncScopeInvalidation(scopes: SyncScope[]): void {
   );
 }
 
-export default function QueryProvider({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default function QueryProvider({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState<QueryClient>(() => getBrowserQueryClient());
 
   useEffect(() => {
@@ -113,7 +103,5 @@ export default function QueryProvider({
     };
   }, [queryClient]);
 
-  return (
-    <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-  );
+  return <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>;
 }

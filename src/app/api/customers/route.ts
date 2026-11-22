@@ -1,8 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import {
-  withAuthenticatedClient,
-  withAuthenticatedTransaction,
-} from "@/lib/auth";
+import { withAuthenticatedClient, withAuthenticatedTransaction } from "@/lib/auth";
 import { resolveHttpError } from "@/lib/http-errors";
 import { runIdempotentMutation } from "@/lib/idempotency";
 import { assertRole } from "@/lib/rbac";
@@ -71,8 +68,7 @@ export async function GET(req: NextRequest) {
           zone: params.get("zone") ?? undefined,
           status: parseStatusFilter(params.get("status")),
           hasGeo: parseGeoFilter(params.get("hasGeo")),
-          withDebt:
-            params.get("withDebt") === "1" || params.get("withDebt") === "true",
+          withDebt: params.get("withDebt") === "1" || params.get("withDebt") === "true",
           limit: Number.isFinite(limitParam) ? limitParam : 100,
           offset: Number.isFinite(offsetParam) ? offsetParam : 0,
         });
@@ -99,30 +95,24 @@ export async function POST(req: NextRequest) {
       ["PARTNER_ADMIN", "PARTNER_MANAGER", "EXTERNAL_SELLER"],
       async (client, actor) => {
         const body = parseBody(createCustomerSchema, rawBody);
-        return runIdempotentMutation(
-          client,
-          req,
-          actor,
-          "customers:create",
-          body,
-          () =>
-            createCustomer(client, actor, {
-              tradeName: body.tradeName,
-              legalName: body.legalName,
-              docType: body.docType,
-              docNumber: body.docNumber,
-              phone: body.phone,
-              email: body.email,
-              address: body.address,
-              cityZone: body.cityZone,
-              notes: body.notes,
-              geoLat: body.geoLat ?? null,
-              geoLng: body.geoLng ?? null,
-              geoAccuracyM: body.geoAccuracyM ?? null,
-              creditDaysAgreed: body.creditDaysAgreed ?? null,
-              creditLimitPen: body.creditLimitPen ?? null,
-              lastContactDate: body.lastContactDate,
-            })
+        return runIdempotentMutation(client, req, actor, "customers:create", body, () =>
+          createCustomer(client, actor, {
+            tradeName: body.tradeName,
+            legalName: body.legalName,
+            docType: body.docType,
+            docNumber: body.docNumber,
+            phone: body.phone,
+            email: body.email,
+            address: body.address,
+            cityZone: body.cityZone,
+            notes: body.notes,
+            geoLat: body.geoLat ?? null,
+            geoLng: body.geoLng ?? null,
+            geoAccuracyM: body.geoAccuracyM ?? null,
+            creditDaysAgreed: body.creditDaysAgreed ?? null,
+            creditLimitPen: body.creditLimitPen ?? null,
+            lastContactDate: body.lastContactDate,
+          })
         );
       }
     );
@@ -144,39 +134,28 @@ export async function PATCH(req: NextRequest) {
 
     const result = await withAuthenticatedTransaction(
       req,
-      [
-        "PARTNER_ADMIN",
-        "PARTNER_MANAGER",
-        "EXTERNAL_SELLER",
-        "WAREHOUSE_DELIVERY",
-      ],
+      ["PARTNER_ADMIN", "PARTNER_MANAGER", "EXTERNAL_SELLER", "WAREHOUSE_DELIVERY"],
       async (client, actor) => {
         const body = parseBody(updateCustomerSchema, rawBody);
-        return runIdempotentMutation(
-          client,
-          req,
-          actor,
-          "customers:update",
-          body,
-          () =>
-            updateCustomer(client, actor, body.partyId, {
-              tradeName: body.tradeName,
-              legalName: body.legalName,
-              docType: body.docType,
-              docNumber: body.docNumber,
-              phone: body.phone,
-              email: body.email,
-              address: body.address,
-              cityZone: body.cityZone,
-              notes: body.notes,
-              isActive: body.isActive,
-              geoLat: body.geoLat,
-              geoLng: body.geoLng,
-              geoAccuracyM: body.geoAccuracyM,
-              creditDaysAgreed: body.creditDaysAgreed,
-              creditLimitPen: body.creditLimitPen,
-              lastContactDate: body.lastContactDate,
-            })
+        return runIdempotentMutation(client, req, actor, "customers:update", body, () =>
+          updateCustomer(client, actor, body.partyId, {
+            tradeName: body.tradeName,
+            legalName: body.legalName,
+            docType: body.docType,
+            docNumber: body.docNumber,
+            phone: body.phone,
+            email: body.email,
+            address: body.address,
+            cityZone: body.cityZone,
+            notes: body.notes,
+            isActive: body.isActive,
+            geoLat: body.geoLat,
+            geoLng: body.geoLng,
+            geoAccuracyM: body.geoAccuracyM,
+            creditDaysAgreed: body.creditDaysAgreed,
+            creditLimitPen: body.creditLimitPen,
+            lastContactDate: body.lastContactDate,
+          })
         );
       }
     );

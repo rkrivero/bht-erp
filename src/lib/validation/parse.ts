@@ -8,8 +8,7 @@ export function parseBody<T>(schema: z.ZodType<T>, raw: unknown): T {
   const result = schema.safeParse(raw);
   if (!result.success) {
     const issue = result.error.issues[0];
-    const pathLabel =
-      issue && issue.path.length > 0 ? `${issue.path.join(".")}: ` : "";
+    const pathLabel = issue && issue.path.length > 0 ? `${issue.path.join(".")}: ` : "";
     const msg = issue?.message || "Datos de entrada inválidos";
     throw new ValidationError(`${pathLabel}${msg}`);
   }

@@ -1,14 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import {
-  withAuthenticatedClient,
-  withAuthenticatedTransaction,
-} from "@/lib/auth";
+import { withAuthenticatedClient, withAuthenticatedTransaction } from "@/lib/auth";
 import { resolveHttpError } from "@/lib/http-errors";
 import { runIdempotentMutation } from "@/lib/idempotency";
-import {
-  getDailyClosureDraft,
-  saveDailyClosure,
-} from "@/lib/services/daily-closure";
+import { getDailyClosureDraft, saveDailyClosure } from "@/lib/services/daily-closure";
 import { saveDailyClosureSchema } from "@/lib/validation/daily-closures.schema";
 import { parseBody, readRawJsonBody } from "@/lib/validation/parse";
 

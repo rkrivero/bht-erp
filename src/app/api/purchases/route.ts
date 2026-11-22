@@ -1,8 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import {
-  withAuthenticatedClient,
-  withAuthenticatedTransaction,
-} from "@/lib/auth";
+import { withAuthenticatedClient, withAuthenticatedTransaction } from "@/lib/auth";
 import { resolveHttpError } from "@/lib/http-errors";
 import { runIdempotentMutation } from "@/lib/idempotency";
 import {
@@ -61,12 +58,8 @@ export async function POST(req: NextRequest) {
                 legalName: body.legalName,
                 tradeName: body.tradeName ?? null,
                 docType:
-                  (body.docType as
-                    | "NONE"
-                    | "RUC"
-                    | "DNI"
-                    | "CE"
-                    | "PASSPORT") || "NONE",
+                  (body.docType as "NONE" | "RUC" | "DNI" | "CE" | "PASSPORT") ||
+                  "NONE",
                 docNumber: body.docNumber ?? null,
                 phone: body.phone ?? null,
                 address: body.address ?? null,

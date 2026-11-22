@@ -14,20 +14,19 @@ import { type ReportResumenDto, formatPct } from "./reportes-types";
 interface ReportesResumenTabProps {
   data: ReportResumenDto;
   hasScopeFilter: boolean;
+  onResetFilters?: () => void;
 }
 
 export default function ReportesResumenTab({
   data,
   hasScopeFilter,
+  onResetFilters,
 }: ReportesResumenTabProps) {
   const [activeConcept, setActiveConcept] = useState<ActiveReportConcept | null>(null);
   const { totals, pnlMonthly, momComparison, openDebtorsCount } = data;
 
   const revenueBase = Math.max(1, totals.costCoveredSalesPen || totals.salesTotalPen);
-  const cogsSharePct = Math.min(
-    100,
-    Math.max(0, (totals.cogsPen / revenueBase) * 100)
-  );
+  const cogsSharePct = Math.min(100, Math.max(0, (totals.cogsPen / revenueBase) * 100));
   const routeSharePct = Math.min(
     100 - cogsSharePct,
     Math.max(0, (totals.routeOpexPen / revenueBase) * 100)
@@ -55,10 +54,10 @@ export default function ReportesResumenTab({
       <section aria-label="Resultado comercial parcial" className="space-y-3">
         <div className="flex flex-wrap items-end justify-between gap-2 px-1">
           <div>
-            <h3 className="text-base font-extrabold tracking-[-0.02em] text-bht-navy-deep sm:text-lg">
+            <h3 className="text-base font-bold tracking-[-0.02em] text-bht-navy-deep sm:text-lg">
               Resultado comercial y operativo
             </h3>
-            <p className="mt-0.5 text-xs text-bht-ink-soft">
+            <p className="mt-0.5 text-sm text-bht-ink-soft">
               Usa costos y movimientos del ERP. No reemplaza un estado de resultados ni
               una conciliación bancaria completa.
               {totals.ownerSalaryRecordedPen === 0 &&
@@ -89,7 +88,7 @@ export default function ReportesResumenTab({
             <span className="text-xs font-bold uppercase tracking-[0.06em] text-bht-steel">
               Ventas Totales ({totals.orderCount} ped.)
             </span>
-            <p className="text-2xl font-extrabold tracking-[-0.03em] text-bht-navy-deep tabular-nums">
+            <p className="text-2xl font-bold tracking-[-0.03em] text-bht-navy-deep tabular-nums">
               {formatPen(totals.salesTotalPen)}
             </p>
             <span className="inline-flex items-center rounded-lg border border-bht-line-blue bg-bht-mist px-2 py-0.5 text-xs font-semibold text-bht-navy-deep tabular-nums">
@@ -102,19 +101,19 @@ export default function ReportesResumenTab({
               setActiveConcept({
                 id: "margen_bruto_con_costo",
                 currentValue: formatPen(totals.grossMarginPen),
-                currentSubtext: `${formatPct(totals.grossMarginPct)} margen · COGS: ${formatPen(totals.cogsPen)}`,
+                currentSubtext: `${formatPct(totals.grossMarginPct)} margen · Costo: ${formatPen(totals.cogsPen)}`,
               })
             }
           >
             <span className="text-xs font-bold uppercase tracking-[0.06em] text-bht-steel">
               Margen bruto sobre ventas con costo
             </span>
-            <p className="text-2xl font-extrabold tracking-[-0.03em] text-bht-success tabular-nums">
+            <p className="text-2xl font-bold tracking-[-0.03em] text-bht-success tabular-nums">
               {formatPen(totals.grossMarginPen)}
             </p>
             <div className="flex flex-wrap items-center gap-1.5 text-xs text-bht-ink-soft tabular-nums">
               <Badge tone="success">{formatPct(totals.grossMarginPct)} margen</Badge>
-              <span>COGS: {formatPen(totals.cogsPen)}</span>
+              <span>Costo: {formatPen(totals.cogsPen)}</span>
             </div>
           </ConceptCardButton>
 
@@ -128,9 +127,9 @@ export default function ReportesResumenTab({
             }
           >
             <span className="text-xs font-bold uppercase tracking-[0.06em] text-bht-steel">
-              Gastos Operativos de Ruta (OpEx)
+              Gastos Operativos de Ruta
             </span>
-            <p className="text-2xl font-extrabold tracking-[-0.03em] text-bht-warning tabular-nums">
+            <p className="text-2xl font-bold tracking-[-0.03em] text-bht-warning tabular-nums">
               {formatPen(totals.routeOpexPen)}
             </p>
             <Badge
@@ -157,7 +156,7 @@ export default function ReportesResumenTab({
               Contribución después de gastos de ruta
             </span>
             <p
-              className={`text-2xl font-extrabold tracking-[-0.03em] tabular-nums ${
+              className={`text-2xl font-bold tracking-[-0.03em] tabular-nums ${
                 totals.operatingEbitdaPen >= 0
                   ? "text-bht-navy-deep"
                   : "text-bht-danger"
@@ -184,14 +183,14 @@ export default function ReportesResumenTab({
               setActiveConcept({
                 id: "gastos_fijos_admin",
                 currentValue: formatPen(totals.adminOpexPen),
-                currentSubtext: `Sueldo socio: ${formatPen(totals.ownerSalaryRecordedPen)} · Total OpEx: ${formatPen(totals.totalOpexPen)}`,
+                currentSubtext: `Sueldo socio: ${formatPen(totals.ownerSalaryRecordedPen)} · Total gastos: ${formatPen(totals.totalOpexPen)}`,
               })
             }
           >
             <span className="text-xs font-bold uppercase tracking-[0.06em] text-bht-steel">
               Gastos Fijos / Admin
             </span>
-            <p className="text-2xl font-extrabold tracking-[-0.03em] text-bht-ink-strong tabular-nums">
+            <p className="text-2xl font-bold tracking-[-0.03em] text-bht-ink-strong tabular-nums">
               {formatPen(totals.adminOpexPen)}
             </p>
             <span className="block text-xs text-bht-ink-soft tabular-nums">
@@ -204,7 +203,7 @@ export default function ReportesResumenTab({
               setActiveConcept({
                 id: "resultado_operativo_registrado",
                 currentValue: formatPen(totals.operatingResultPen),
-                currentSubtext: `${formatPct(totals.operatingResultPct)} sobre venta con costo · Total OpEx: ${formatPen(totals.totalOpexPen)}`,
+                currentSubtext: `${formatPct(totals.operatingResultPct)} sobre venta con costo · Total gastos: ${formatPen(totals.totalOpexPen)}`,
               })
             }
           >
@@ -212,7 +211,7 @@ export default function ReportesResumenTab({
               Resultado Operativo Registrado
             </span>
             <p
-              className={`text-2xl font-extrabold tracking-[-0.03em] tabular-nums ${
+              className={`text-2xl font-bold tracking-[-0.03em] tabular-nums ${
                 totals.operatingResultPen >= 0
                   ? "text-bht-navy-deep"
                   : "text-bht-danger"
@@ -271,7 +270,7 @@ export default function ReportesResumenTab({
               )}
               {adminSharePct > 0 && (
                 <div
-                  className="h-full bg-bht-ink-warm transition-all"
+                  className="h-full bg-bht-steel transition-all"
                   style={{ width: `${adminSharePct}%` }}
                 />
               )}
@@ -299,7 +298,7 @@ export default function ReportesResumenTab({
                 <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-bht-warning" />
                 <div className="min-w-0">
                   <span className="block text-xs font-medium text-bht-ink-soft">
-                    OpEx Ruta
+                    Gastos Ruta
                   </span>
                   <strong className="text-bht-ink-strong tabular-nums">
                     {routeSharePct.toFixed(1)}% · {formatPen(totals.routeOpexPen)}
@@ -307,7 +306,7 @@ export default function ReportesResumenTab({
                 </div>
               </div>
               <div className="flex items-center gap-2 rounded-lg bg-bht-paper px-2.5 py-2">
-                <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-bht-ink-warm" />
+                <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-bht-steel" />
                 <div className="min-w-0">
                   <span className="block text-xs font-medium text-bht-ink-soft">
                     Gastos Admin
@@ -421,7 +420,11 @@ export default function ReportesResumenTab({
         </div>
       </section>
 
-      <ReportesMonthlyPnlCard pnlMonthly={pnlMonthly} totals={totals} />
+      <ReportesMonthlyPnlCard
+        pnlMonthly={pnlMonthly}
+        totals={totals}
+        onResetFilters={onResetFilters}
+      />
 
       <ReportConceptModal
         concept={activeConcept}

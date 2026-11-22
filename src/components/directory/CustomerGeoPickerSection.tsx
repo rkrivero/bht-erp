@@ -21,7 +21,11 @@ interface CustomerGeoPickerSectionProps {
   geoAccuracyM: number | null;
   showMapPicker: boolean;
   onToggleMapPicker: () => void;
-  onChangeGeo: (lat: number | null, lng: number | null, accuracyM: number | null) => void;
+  onChangeGeo: (
+    lat: number | null,
+    lng: number | null,
+    accuracyM: number | null
+  ) => void;
   onError: (msg: string | null) => void;
 }
 
@@ -99,12 +103,7 @@ export default function CustomerGeoPickerSection({
             <NavigationIcon className="h-3.5 w-3.5" />
             {locatingGps ? "Ubicando..." : "Usar mi GPS actual"}
           </Button>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={onToggleMapPicker}
-          >
+          <Button type="button" variant="outline" size="sm" onClick={onToggleMapPicker}>
             <MapPinIcon className="h-3.5 w-3.5" />
             {showMapPicker ? "Ocultar mapa" : "Elegir en mapa"}
           </Button>
@@ -120,12 +119,7 @@ export default function CustomerGeoPickerSection({
           placeholder="Pegar link de Google Maps / WhatsApp o coords (-12.7123, -69.5841)"
           className={`${INPUT_CLASS} min-w-[200px] flex-1 py-2 text-xs`}
         />
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          onClick={handleApplyGeoLink}
-        >
+        <Button type="button" variant="outline" size="sm" onClick={handleApplyGeoLink}>
           Aplicar
         </Button>
       </div>

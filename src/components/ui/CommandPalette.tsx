@@ -25,8 +25,11 @@ export function CommandPalette({
   const [query, setQuery] = useState("");
   const [activeIndex, setActiveIndex] = useState(0);
   const titleId = useId();
+  const listboxId = useId();
+  const optionBaseId = useId();
   const dialogRef = useRef<HTMLDialogElement | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
+  const optionRefs = useRef<Array<HTMLButtonElement | null>>([]);
 
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
@@ -95,6 +98,18 @@ export function CommandPalette({
     setActiveIndex(0);
   }, [query]);
 
+  useEffect(() => {
+    if (!open) return;
+    optionRefs.current[activeIndex]?.scrollIntoView({ block: "nearest" });
+  }, [activeIndex, open]);
+
+  const activeOptionId =
+    filteredItems.length > 0 && filteredItems[activeIndex]
+      ? `${optionBaseId}-opt-${activeIndex}`
+      : undefined;
+
+  const pressedOutsideRef = useRef(false);
+
   if (!open) return null;
 
   function executeItem(item: CommandPaletteItem | undefined) {
@@ -103,16 +118,30 @@ export function CommandPalette({
     item.onSelect();
   }
 
-  function handleDialogClick(e: React.MouseEvent<HTMLDialogElement>) {
-    const dialog = dialogRef.current;
-    if (!dialog || e.target !== dialog) return;
+  function isOutsideDialog(
+    e: React.PointerEvent<HTMLDialogElement>,
+    dialog: HTMLDialogElement
+  ) {
     const rect = dialog.getBoundingClientRect();
-    const inside =
-      e.clientX >= rect.left &&
-      e.clientX <= rect.right &&
-      e.clientY >= rect.top &&
-      e.clientY <= rect.bottom;
-    if (!inside) setOpen(false);
+    return (
+      e.clientX < rect.left ||
+      e.clientX > rect.right ||
+      e.clientY < rect.top ||
+      e.clientY > rect.bottom
+    );
+  }
+
+  function handleDialogPointerDown(e: React.PointerEvent<HTMLDialogElement>) {
+    const dialog = dialogRef.current;
+    pressedOutsideRef.current = Boolean(dialog && isOutsideDialog(e, dialog));
+  }
+
+  function handleDialogPointerUp(e: React.PointerEvent<HTMLDialogElement>) {
+    const dialog = dialogRef.current;
+    if (pressedOutsideRef.current && dialog && isOutsideDialog(e, dialog)) {
+      setOpen(false);
+    }
+    pressedOutsideRef.current = false;
   }
 
   return (
@@ -127,8 +156,9 @@ export function CommandPalette({
       onClose={() => {
         if (open) setOpen(false);
       }}
-      onClick={handleDialogClick}
-      className="bht-dialog fixed inset-x-3 top-14 z-50 mx-auto max-h-[80dvh] w-full max-w-xl flex-col overflow-hidden rounded-2xl border border-bht-line bg-white p-0 text-bht-ink-strong shadow-bht-elev-17 outline-none"
+      onPointerDown={handleDialogPointerDown}
+      onPointerUp={handleDialogPointerUp}
+      className="bht-dialog fixed inset-x-0 top-14 z-50 mx-auto open:flex max-h-[80dvh] w-[calc(100%-1.5rem)] max-w-xl flex-col overflow-hidden rounded-2xl border border-bht-line bg-white p-0 text-bht-ink-strong shadow-bht-elev-17 outline-none"
     >
       <div className="flex items-center gap-2.5 border-b border-bht-line px-4 py-3">
         <SearchIcon className="h-4 w-4 text-bht-ink-muted" />
@@ -139,6 +169,11 @@ export function CommandPalette({
           ref={inputRef}
           id="bht-command-input"
           type="search"
+          role="combobox"
+          aria-autocomplete="list"
+          aria-expanded={open}
+          aria-controls={listboxId}
+          aria-activedescendant={activeOptionId}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={(e) => {
@@ -177,14 +212,29 @@ export function CommandPalette({
       </div>
 
       <div
+        id={listboxId}
         role="listbox"
         aria-label="Resultados de comandos"
         className="max-h-[60dvh] overflow-y-auto p-2"
       >
         {filteredItems.length === 0 ? (
-          <p className="px-4 py-8 text-center text-xs text-bht-ink-soft">
-            No se encontraron acciones o registros para &ldquo;{query}&rdquo;.
-          </p>
+          <div className="px-4 py-8 text-center">
+            <p className="text-sm text-bht-ink-soft">
+              No se encontraron acciones o registros para &ldquo;{query}&rdquo;.
+            </p>
+            {query && (
+              <button
+                type="button"
+                onClick={() => {
+                  setQuery("");
+                  inputRef.current?.focus();
+                }}
+                className="mt-2 rounded-lg border border-bht-line px-3 py-1.5 text-xs font-semibold text-bht-cobalt-strong hover:bg-bht-cobalt-bg cursor-pointer"
+              >
+                Limpiar búsqueda
+              </button>
+            )}
+          </div>
         ) : (
           filteredItems.map((item, idx) => {
             const active = idx === activeIndex;
@@ -198,14 +248,18 @@ export function CommandPalette({
                   </p>
                 )}
                 <button
+                  ref={(el) => {
+                    optionRefs.current[idx] = el;
+                  }}
+                  id={`${optionBaseId}-opt-${idx}`}
                   type="button"
                   role="option"
                   aria-selected={active}
                   onMouseEnter={() => setActiveIndex(idx)}
                   onClick={() => executeItem(item)}
-                  className={`flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2.5 text-left text-sm transition cursor-pointer ${
+                  className={`flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2.5 text-left text-sm transition-colors duration-150 cursor-pointer ${
                     active
-                      ? "bg-bht-cobalt-bg text-bht-cobalt-strong"
+                      ? "bg-bht-cobalt-bg/75 text-bht-navy-deep ring-1 ring-bht-cobalt/20"
                       : "text-bht-ink-strong hover:bg-bht-paper"
                   }`}
                 >

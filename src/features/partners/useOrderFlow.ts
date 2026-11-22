@@ -68,8 +68,9 @@ export function useOrderFlow({
     useState<SellerOrderDto | null>(null);
   const [selectedPartnerQuote, setSelectedPartnerQuote] =
     useState<SellerQuoteDto | null>(null);
-  const [editingPartnerQuote, setEditingPartnerQuote] =
-    useState<SellerQuoteDto | null>(null);
+  const [editingPartnerQuote, setEditingPartnerQuote] = useState<SellerQuoteDto | null>(
+    null
+  );
   const [busyApproveOrderId, setBusyApproveOrderId] = useState<number | null>(null);
   const [confirmCancelOrder, setConfirmCancelOrder] = useState<SellerOrderDto | null>(
     null
@@ -250,17 +251,24 @@ export function useOrderFlow({
 
   async function handlePartnerConvertQuote(
     quoteId: number,
-    paymentMode: "CASH" | "CREDIT"
-  ) {
-    if (busyQuoteId === quoteId) return;
+    paymentMode: "CASH" | "CREDIT",
+    options?: { initialPaidPen?: number; creditDays?: number }
+  ): Promise<boolean> {
+    if (busyQuoteId === quoteId) return false;
     setBusyQuoteId(quoteId);
     try {
       const data = await postJson<QuoteConversionResponse>("/api/quotes", {
         action: "convert_to_order",
         quoteId,
         paymentMode,
-        collectOnDelivery: paymentMode === "CASH",
-        creditDays: paymentMode === "CREDIT" ? 7 : undefined,
+        collectOnDelivery: false,
+        creditDays: paymentMode === "CREDIT" ? (options?.creditDays ?? 7) : undefined,
+        initialPaidPen:
+          paymentMode === "CREDIT" &&
+          options?.initialPaidPen &&
+          options.initialPaidPen > 0
+            ? options.initialPaidPen
+            : undefined,
       });
       showFeedback(
         `Cotización convertida en pedido ${data.order?.orderCode || ""} correctamente.`,
@@ -269,6 +277,7 @@ export function useOrderFlow({
       );
       notifyLocalSync(["orders", "inventory", "collections", "treasury", "partners"]);
       await refreshDashboard(["orders", "inventory", "collections", "partners"]);
+      return true;
     } catch (error) {
       showFeedback(
         mutationErrorMessage(
@@ -278,6 +287,7 @@ export function useOrderFlow({
         ),
         true
       );
+      return false;
     } finally {
       setBusyQuoteId(null);
     }
@@ -314,7 +324,10 @@ export function useOrderFlow({
     setBusyQuoteId(payload.quoteId);
     try {
       await postJson("/api/quotes", payload);
-      showFeedback("Cotización actualizada y registrada en auditoría correctamente.", false);
+      showFeedback(
+        "Cotización actualizada y registrada en auditoría correctamente.",
+        false
+      );
       notifyLocalSync(["orders", "partners"]);
       await refreshDashboard(["orders", "partners"]);
     } catch (error) {

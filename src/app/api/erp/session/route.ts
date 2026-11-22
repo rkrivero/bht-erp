@@ -20,10 +20,7 @@ export async function GET(req: NextRequest) {
       ALL_ERP_ROLES,
       async (_client, actor) => actor
     );
-    return NextResponse.json(
-      { session },
-      { headers: { "Cache-Control": "no-store" } }
-    );
+    return NextResponse.json({ session }, { headers: { "Cache-Control": "no-store" } });
   } catch (err) {
     const { status, ...payload } = resolveHttpError(
       err,

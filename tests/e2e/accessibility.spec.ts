@@ -1380,7 +1380,10 @@ test("regularization Excel export, partner quotes undo & PARTNER_ADMIN undo cent
     page.getByRole("heading", { name: "Productos por Regularizar Compra" })
   ).toBeVisible();
   await expect(
-    page.locator("td:visible, p:visible").filter({ hasText: "CALIPER PARA TOYOTA 57-25" }).first()
+    page
+      .locator("td:visible, p:visible")
+      .filter({ hasText: "CALIPER PARA TOYOTA 57-25" })
+      .first()
   ).toBeVisible();
   await page.getByRole("button", { name: "Exportar a Excel (.xlsx)" }).click();
   await expect.poll(() => xlsxRequested).toBe(true);
@@ -1414,9 +1417,7 @@ test("regularization Excel export, partner quotes undo & PARTNER_ADMIN undo cent
   ).toBeVisible();
   await expect(page.getByText("COT-000201")).toBeVisible();
   await page.getByRole("button", { name: "Anular" }).first().click();
-  await expect(
-    page.getByText("Cotización anulada correctamente.")
-  ).toBeVisible();
+  await expect(page.getByText("Cotización anulada correctamente.")).toBeVisible();
   await expect(page.getByRole("button", { name: "Deshacer" }).first()).toBeVisible();
   expect(
     await page.evaluate(

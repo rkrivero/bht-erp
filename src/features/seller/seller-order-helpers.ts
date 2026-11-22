@@ -9,7 +9,10 @@ import type {
   SellerQuoteDto,
   SellerQuoteUpdatePayload,
 } from "@/features/seller/types";
-import { isFractionalUom, normalizeOrderQuantity } from "@/features/seller/seller-utils";
+import {
+  isFractionalUom,
+  normalizeOrderQuantity,
+} from "@/features/seller/seller-utils";
 
 export function buildCancelledDraftPayload(params: {
   selectedCustomer: SellerCustomerDto | null;
@@ -126,7 +129,9 @@ export function buildCartLinesFromOrder(
       };
     }
     const quantity = Number(line.quantity);
-    const unitPricePen = Number(line.unit_price_pen ?? product.list_sale_price_pen ?? 0);
+    const unitPricePen = Number(
+      line.unit_price_pen ?? product.list_sale_price_pen ?? 0
+    );
     nextCart.push({
       product,
       quantity,
@@ -152,7 +157,9 @@ export function buildCartLinesFromQuote(
       };
     }
     const quantity = Number(line.quantity);
-    const unitPricePen = Number(line.unit_price_pen ?? product.list_sale_price_pen ?? 0);
+    const unitPricePen = Number(
+      line.unit_price_pen ?? product.list_sale_price_pen ?? 0
+    );
     nextCart.push({
       product,
       quantity,

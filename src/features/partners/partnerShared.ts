@@ -118,7 +118,7 @@ export function formatTraceabilitySummary(o: SellerOrderDto): string {
   const creator = formatActorName(o.created_by_name, "Histórico");
   const picker = formatActorName(o.picked_by_name, "");
   const driver = formatActorName(o.delivered_by_name, "");
-  const steps = [`Tomó: ${creator}`];
+  const steps = [creator];
   if (picker && picker !== "-") steps.push(`Preparó: ${picker}`);
   if (driver && driver !== "-") steps.push(`Entregó: ${driver}`);
   return steps.join(" · ");

@@ -4,12 +4,7 @@ import { ValidationError, type SessionUser } from "../types";
 
 export const SETTINGS_CACHE_TTL_MS = 30_000;
 
-export type SystemSettingValueType =
-  | "number"
-  | "string"
-  | "boolean"
-  | "date"
-  | "json";
+export type SystemSettingValueType = "number" | "string" | "boolean" | "date" | "json";
 
 export interface SystemSettingItem {
   setting_key: string;
@@ -256,11 +251,7 @@ export async function updateSystemSettings(
     }
 
     const existing = existingRes.rows[0];
-    const validatedValue = validateSettingValue(
-      key,
-      existing.value_type,
-      item.value
-    );
+    const validatedValue = validateSettingValue(key, existing.value_type, item.value);
 
     await client.query(
       `UPDATE erp.system_settings

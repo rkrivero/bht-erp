@@ -2,36 +2,36 @@
 
 :root {
   --target-size: 24px;
-  --bht-navy: #1c2127;
-  --bht-marine: #0b385f;
-  --bht-cobalt: #3373b0;
-  --bht-mist: #bed4e9;
-  --bht-glacial: #e7f1fb;
-  --bht-steel: #5a6578;
-  --bht-sky: #e7f1fb;
+  --bht-navy: #0f1e30;
+  --bht-marine: #16324f;
+  --bht-cobalt: #1d5fa8;
+  --bht-mist: #c7d8ea;
+  --bht-glacial: #edf4fc;
+  --bht-steel: #475569;
+  --bht-sky: #edf4fc;
   --bht-amber: #b45309;
-  --bht-ink: #1c2127;
-  --bht-paper: #f8fafc;
+  --bht-ink: #0f1e30;
+  --bht-paper: #f6f8fb;
 
-  --bg-canvas: #f8fafc;
+  --bg-canvas: #f6f8fb;
   --bg-surface: #ffffff;
-  --bg-subtle: #f1f5f9;
-  --border-hairline: rgba(28, 33, 39, 0.08);
-  --border-strong: #bed4e9;
+  --bg-subtle: #eef2f7;
+  --border-hairline: rgba(15, 30, 48, 0.1);
+  --border-strong: #94aec9;
   --ink-primary: var(--bht-ink);
   --ink-secondary: var(--bht-steel);
-  --ink-muted: #8c98a9;
+  --ink-muted: #556477;
 
-  /* Blue Horizon brand tokens — monochromatic graphite + single cobalt accent */
+  /* Blue Horizon brand tokens — crisp Horizon Navy + glacial neutrals + single Trade Cobalt accent */
   --horizon-ink: var(--bht-ink);
   --horizon-field: var(--bht-navy);
   --horizon-mid: var(--bht-cobalt);
-  --horizon-hover: #285d8f;
+  --horizon-hover: #164b86;
   --horizon-accent: var(--bht-cobalt);
   --horizon-marine: var(--bht-marine);
   --horizon-mist: var(--bht-mist);
   --horizon-pill: var(--bht-glacial);
-  --horizon-tint: #e7f1fb;
+  --horizon-tint: #edf4fc;
   --horizon-border: var(--border-hairline);
   --horizon-safety: var(--bht-amber);
 
@@ -94,8 +94,16 @@
     background-color: var(--bg-canvas);
     color: var(--ink-primary);
     font-family:
-      var(--font-inter), -apple-system, BlinkMacSystemFont, "SF Pro Text",
-      "SF Pro Display", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      var(--font-inter),
+      -apple-system,
+      BlinkMacSystemFont,
+      "SF Pro Text",
+      "SF Pro Display",
+      "Segoe UI",
+      Roboto,
+      Helvetica,
+      Arial,
+      sans-serif;
     letter-spacing: -0.011em;
     font-feature-settings: "cv02", "cv03", "cv04", "cv11";
     overflow-x: clip;
@@ -136,8 +144,8 @@
   pre,
   .font-mono {
     font-family:
-      var(--font-jetbrains-mono), ui-monospace, SFMono-Regular, Menlo, Monaco,
-      Consolas, monospace;
+      var(--font-jetbrains-mono), ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+      monospace;
     font-variant-numeric: tabular-nums;
   }
 
@@ -174,32 +182,70 @@
       transition-duration: 80ms !important;
     }
   }
+
+  @media (prefers-contrast: more) {
+    :root {
+      --border-hairline: rgba(15, 30, 48, 0.28);
+      --ink-secondary: #1e293b;
+      --ink-muted: #334155;
+    }
+  }
+
+  @media (forced-colors: active) {
+    dialog.bht-dialog,
+    [popover].bht-anchored-popover {
+      border: 1px solid CanvasText;
+    }
+
+    :where(
+      a,
+      button,
+      input,
+      select,
+      textarea,
+      [tabindex]:not([tabindex="-1"])
+    ):focus-visible {
+      outline: 2px solid Highlight;
+      outline-offset: 2px;
+    }
+  }
 }
 
 @layer components {
   .tnum,
   .tabular-nums {
     font-variant-numeric: tabular-nums;
-    font-feature-settings: "tnum" 1, "cv02", "cv03", "cv04", "cv11";
+    font-feature-settings:
+      "tnum" 1,
+      "cv02",
+      "cv03",
+      "cv04",
+      "cv11";
   }
 
   button,
   a[role="button"],
   .bht-transition-calm {
-    transition: all 300ms ease-in-out;
+    transition:
+      color 160ms ease,
+      background-color 160ms ease,
+      border-color 160ms ease,
+      box-shadow 160ms ease,
+      opacity 160ms ease,
+      transform 120ms ease;
   }
 
   button:active:not(:disabled),
   a[role="button"]:active {
     transform: scale(0.985);
-    transition: transform 150ms ease-in-out;
+    transition: transform 120ms ease-out;
   }
 
   .bht-table-row {
-    transition: background-color 300ms ease-in-out;
+    transition: background-color 150ms ease;
   }
   .bht-table-row:hover {
-    background-color: #f1f6fb;
+    background-color: #f2f7fd;
   }
 
   .table-wrapper {
@@ -227,7 +273,7 @@
     padding: var(--table-cell-py, 0.875rem) var(--table-cell-px, 1.25rem);
     font-size: 0.75rem;
     font-weight: 600;
-    letter-spacing: 0.03em;
+    letter-spacing: 0.05em;
     text-transform: uppercase;
     color: var(--ink-secondary);
     background-color: var(--bg-canvas);
@@ -255,17 +301,15 @@
     contain-intrinsic-size: auto 480px;
   }
 
+  .bht-responsive-table thead {
+    position: sticky;
+    inset-block-start: 0;
+    z-index: 1;
+  }
+
   @container (width < 640px) {
     .bht-responsive-table thead {
-      position: absolute;
-      width: 1px;
-      height: 1px;
-      padding: 0;
-      margin: -1px;
-      overflow: hidden;
-      clip: rect(0, 0, 0, 0);
-      white-space: nowrap;
-      border: 0;
+      display: none;
     }
 
     .bht-responsive-table,
@@ -332,7 +376,13 @@
     }
   }
 
+  dialog.bht-dialog:modal {
+    overscroll-behavior: contain;
+  }
+
   dialog.bht-dialog::backdrop {
+    overflow: hidden;
+    overscroll-behavior: contain;
     background-color: rgba(15, 23, 42, 0);
     backdrop-filter: blur(0px);
     transition:
@@ -358,8 +408,13 @@
     [popover].bht-anchored-popover {
       position: fixed;
       inset: auto;
-      position-area: block-end span-inline-start;
+      margin: 0;
       margin-top: 0.375rem;
+      position-area: block-end span-inline-start;
+      position-try-fallbacks:
+        flip-block,
+        flip-inline,
+        flip-block flip-inline;
     }
   }
 
@@ -409,62 +464,62 @@
 }
 
 @theme {
-  --color-bht-cobalt: #3373b0;
-  --color-bht-cobalt-bg: #e7f1fb;
-  --color-bht-cobalt-strong: #285d8f;
-  --color-bht-cobalt-vivid: #3b82f6;
+  --color-bht-cobalt: #1d5fa8;
+  --color-bht-cobalt-bg: #edf4fc;
+  --color-bht-cobalt-strong: #164b86;
+  --color-bht-cobalt-vivid: #2563eb;
   --color-bht-danger: #dc2626;
   --color-bht-danger-bg: #fdf2f2;
   --color-bht-danger-line: #fecaca;
   --color-bht-danger-strong: #991b1b;
   --color-bht-danger-vivid: #e11d48;
-  --color-bht-info-line: #bed4e9;
-  --color-bht-ink-deep: #1c2127;
-  --color-bht-ink-muted: #8c98a9;
-  --color-bht-ink-soft: #5a6578;
-  --color-bht-ink-strong: #1c2127;
-  --color-bht-ink-warm: #1c2127;
-  --color-bht-line: rgba(28, 33, 39, 0.08);
-  --color-bht-line-blue: rgba(51, 115, 176, 0.16);
-  --color-bht-line-strong: #bed4e9;
-  --color-bht-line-stronger: #9cbcdb;
-  --color-bht-mist: #f1f5f9;
-  --color-bht-navy-deep: #1c2127;
-  --color-bht-navy-mid: #0b385f;
-  --color-bht-navy-soft: #2d3540;
-  --color-bht-paper: #f8fafc;
-  --color-bht-paper-alt: #f1f5f9;
-  --color-bht-slate-line: rgba(28, 33, 39, 0.08);
-  --color-bht-slate-muted: #8c98a9;
-  --color-bht-slate-text: #5a6578;
-  --color-bht-steel: #5a6578;
+  --color-bht-info-line: #c7d8ea;
+  --color-bht-ink-deep: #0f1e30;
+  --color-bht-ink-muted: #556477;
+  --color-bht-ink-soft: #475569;
+  --color-bht-ink-strong: #0f1e30;
+  --color-bht-ink-warm: #0f1e30;
+  --color-bht-line: rgba(15, 30, 48, 0.1);
+  --color-bht-line-blue: rgba(29, 95, 168, 0.18);
+  --color-bht-line-strong: #94aec9;
+  --color-bht-line-stronger: #6f91b5;
+  --color-bht-mist: #eef2f7;
+  --color-bht-navy-deep: #0f1e30;
+  --color-bht-navy-mid: #16324f;
+  --color-bht-navy-soft: #1e3a57;
+  --color-bht-paper: #f6f8fb;
+  --color-bht-paper-alt: #eef2f7;
+  --color-bht-slate-line: rgba(15, 30, 48, 0.1);
+  --color-bht-slate-muted: #556477;
+  --color-bht-slate-text: #475569;
+  --color-bht-steel: #475569;
   --color-bht-success: #059669;
   --color-bht-success-bg: #ecfdf5;
   --color-bht-success-line: #a7f3d0;
   --color-bht-success-strong: #065f46;
-  --color-bht-surface-cool: #f8fafc;
+  --color-bht-surface-cool: #f6f8fb;
   --color-bht-tone-047857: #065f46;
   --color-bht-tone-14532d: #065f46;
-  --color-bht-tone-1d4ed8: #3373b0;
-  --color-bht-tone-4338ca: #1c2127;
+  --color-bht-tone-1d4ed8: #1d5fa8;
+  --color-bht-tone-4338ca: #0f1e30;
   --color-bht-tone-4ade80: #34d399;
-  --color-bht-tone-5b89b5: #5a6578;
+  --color-bht-tone-5b89b5: #475569;
   --color-bht-tone-a7f3d0: #a7f3d0;
-  --color-bht-tone-a9c7e3: #bed4e9;
+  --color-bht-tone-a9c7e3: #c7d8ea;
   --color-bht-tone-c7d2fe: #c7d2fe;
-  --color-bht-tone-cfe0f0: #e7f1fb;
+  --color-bht-tone-cfe0f0: #edf4fc;
   --color-bht-tone-d97706: #b45309;
-  --color-bht-tone-dbeafe: #bed4e9;
+  --color-bht-tone-dbeafe: #c7d8ea;
   --color-bht-tone-e7d3b1: #fde68a;
-  --color-bht-tone-e7eff7: #f1f5f9;
+  --color-bht-tone-e7eff7: #eef2f7;
   --color-bht-tone-e8c5c5: #fecaca;
   --color-bht-tone-ecfdf5: #ecfdf5;
-  --color-bht-tone-edf3f8: #f8fafc;
-  --color-bht-tone-eeece7: #f8fafc;
+  --color-bht-tone-edf3f8: #f6f8fb;
+  --color-bht-tone-eeece7: #f6f8fb;
   --color-bht-tone-eef9f1: #ecfdf5;
-  --color-bht-tone-f2f7fb: #f8fafc;
+  --color-bht-tone-f2f7fb: #f6f8fb;
   --color-bht-tone-f5fbf7: #ecfdf5;
-  --color-bht-tone-f6f7ff: #f8fafc;
+  --color-bht-tone-f6f7ff: #f6f8fb;
   --color-bht-tone-fbbf24: #fbbf24;
   --color-bht-tone-fee2e2: #fee2e2;
   --color-bht-tone-fef6f6: #fef2f2;
@@ -473,27 +528,29 @@
   --color-bht-warning-line: #fde68a;
   --color-bht-warning-strong: #92400e;
   --color-bht-warning-text: #92400e;
-  --shadow-bht-elev-1: 0 1px 3px rgba(0, 0, 0, 0.02), 0 6px 20px -4px rgba(28, 33, 39, 0.035);
-  --shadow-bht-elev-2: 0 1px 2px rgba(0, 0, 0, 0.02);
-  --shadow-bht-elev-3: 0 2px 8px -2px rgba(0, 0, 0, 0.03);
-  --shadow-bht-elev-4: 0 1px 2px rgba(0, 0, 0, 0.015);
-  --shadow-bht-elev-5: 0 1px 2px rgba(51, 115, 176, 0.12), 0 2px 6px -1px rgba(51, 115, 176, 0.18);
-  --shadow-bht-elev-6: 0 1px 2px rgba(0, 0, 0, 0.04);
-  --shadow-bht-elev-7: 0 1px 2px rgba(0, 0, 0, 0.02);
-  --shadow-bht-elev-8: 0 1px 2px rgba(5, 150, 105, 0.14);
-  --shadow-bht-elev-9: 0 1px 2px rgba(220, 38, 38, 0.14);
-  --shadow-bht-elev-10: 0 1px 2px rgba(0, 0, 0, 0.03);
-  --shadow-bht-elev-11: 0 2px 6px rgba(0, 0, 0, 0.05);
-  --shadow-bht-elev-12: 0 2px 10px rgba(0, 0, 0, 0.07);
-  --shadow-bht-elev-13: 0 1px 2px rgba(0, 0, 0, 0.02);
-  --shadow-bht-elev-14: 0 2px 8px rgba(0, 0, 0, 0.04);
-  --shadow-bht-elev-15: 0 2px 8px rgba(0, 0, 0, 0.05);
-  --shadow-bht-elev-16: 0 4px 16px -2px rgba(28, 33, 39, 0.04);
-  --shadow-bht-elev-17: 0 12px 28px -6px rgba(28, 33, 39, 0.06);
+  --shadow-bht-elev-1:
+    0 1px 2px rgba(15, 30, 48, 0.03), 0 4px 16px -4px rgba(15, 30, 48, 0.04);
+  --shadow-bht-elev-2: 0 1px 2px rgba(15, 30, 48, 0.03);
+  --shadow-bht-elev-3: 0 2px 8px -2px rgba(15, 30, 48, 0.04);
+  --shadow-bht-elev-4: 0 1px 2px rgba(15, 30, 48, 0.02);
+  --shadow-bht-elev-5:
+    0 1px 2px rgba(29, 95, 168, 0.16), 0 2px 6px -1px rgba(29, 95, 168, 0.22);
+  --shadow-bht-elev-6: 0 1px 2px rgba(15, 30, 48, 0.08);
+  --shadow-bht-elev-7: 0 1px 2px rgba(15, 30, 48, 0.03);
+  --shadow-bht-elev-8: 0 1px 2px rgba(5, 150, 105, 0.16);
+  --shadow-bht-elev-9: 0 1px 2px rgba(220, 38, 38, 0.16);
+  --shadow-bht-elev-10: 0 1px 2px rgba(15, 30, 48, 0.04);
+  --shadow-bht-elev-11: 0 2px 6px rgba(15, 30, 48, 0.07);
+  --shadow-bht-elev-12: 0 2px 10px rgba(15, 30, 48, 0.09);
+  --shadow-bht-elev-13: 0 1px 2px rgba(15, 30, 48, 0.03);
+  --shadow-bht-elev-14: 0 2px 8px rgba(15, 30, 48, 0.05);
+  --shadow-bht-elev-15: 0 2px 8px rgba(15, 30, 48, 0.06);
+  --shadow-bht-elev-16: 0 4px 16px -2px rgba(15, 30, 48, 0.06);
+  --shadow-bht-elev-17: 0 12px 28px -6px rgba(15, 30, 48, 0.1);
 }
 
 :root {
-  --glow-cobalt: rgba(7, 94, 232, 0.07);
+  --glow-cobalt: rgba(29, 95, 168, 0.08);
 }
 
 .bht-map-container {

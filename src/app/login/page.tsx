@@ -96,7 +96,7 @@ export default function LoginPage() {
               aria-describedby={errorScope === "email" ? "login-error" : undefined}
               placeholder="nombre@empresa.com"
               required
-              className={`${INPUT_CLASS} mt-1.5 w-full rounded-xl`}
+              className={`${INPUT_CLASS} mt-1.5`}
             />
           </div>
 
@@ -122,7 +122,7 @@ export default function LoginPage() {
                 aria-describedby={errorScope === "password" ? "login-error" : undefined}
                 placeholder="Tu contraseña"
                 required
-                className={`${INPUT_CLASS} w-full rounded-xl pl-10 pr-11`}
+                className={`${INPUT_CLASS} pl-10 pr-11`}
               />
               <button
                 type="button"
@@ -142,7 +142,7 @@ export default function LoginPage() {
 
           {error && (
             <div id="login-error">
-              <ToastBanner type="err" message={error} />
+              <ToastBanner type="err" message={error} floating={false} />
             </div>
           )}
 
@@ -150,22 +150,22 @@ export default function LoginPage() {
             Tu correo debe estar habilitado por un socio administrador. Tu sesión y
             permisos son personales.
           </p>
-          <div className="flex flex-wrap justify-between gap-3 text-xs font-medium">
+          <div className="flex flex-wrap justify-between gap-2 text-xs font-medium">
             <Link
               href="/signup"
-              className="text-bht-navy-soft underline-offset-4 hover:text-bht-cobalt hover:underline"
+              className="py-2 text-bht-navy-soft underline underline-offset-4 hover:text-bht-cobalt"
             >
               Crear cuenta
             </Link>
             <Link
               href="/verify-email"
-              className="text-bht-navy-soft underline-offset-4 hover:text-bht-cobalt hover:underline"
+              className="py-2 text-bht-navy-soft underline underline-offset-4 hover:text-bht-cobalt"
             >
               Verificar correo
             </Link>
             <Link
               href="/forgot-password"
-              className="text-bht-navy-soft underline-offset-4 hover:text-bht-cobalt hover:underline"
+              className="py-2 text-bht-navy-soft underline underline-offset-4 hover:text-bht-cobalt"
             >
               Olvidé mi contraseña
             </Link>
@@ -177,7 +177,7 @@ export default function LoginPage() {
           variant="primary"
           size="lg"
           disabled={loading}
-          className="mt-auto w-full sm:mt-6"
+          className="mt-6 w-full"
         >
           {loading ? "Ingresando..." : "Ingresar"}
         </Button>

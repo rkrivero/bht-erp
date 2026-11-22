@@ -1,18 +1,8 @@
 export type ReportSectionId =
-  | "resumen"
-  | "caja_cxp"
-  | "cartera"
-  | "comercial"
-  | "stock"
-  | "auditoria";
+  "resumen" | "caja_cxp" | "cartera" | "comercial" | "stock" | "auditoria";
 
 export type ReportPeriodPreset =
-  | "ALL"
-  | "MONTH"
-  | "THIS_MONTH"
-  | "LAST_30D"
-  | "LAST_90D"
-  | "CUSTOM";
+  "ALL" | "MONTH" | "THIS_MONTH" | "LAST_30D" | "LAST_90D" | "CUSTOM";
 
 export interface ReportFilterState {
   preset: ReportPeriodPreset;
@@ -33,12 +23,7 @@ export const INITIAL_REPORT_FILTERS: ReportFilterState = {
 };
 
 export type ApMaturityBucketId =
-  | "OVERDUE"
-  | "DUE_0_7"
-  | "DUE_8_15"
-  | "DUE_16_30"
-  | "DUE_31_PLUS"
-  | "NO_DUE_DATE";
+  "OVERDUE" | "DUE_0_7" | "DUE_8_15" | "DUE_16_30" | "DUE_31_PLUS" | "NO_DUE_DATE";
 
 export type ArAgingBucketId = "0_15" | "16_30" | "31_60" | "GT_60";
 

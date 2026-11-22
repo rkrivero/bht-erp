@@ -1,8 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import {
-  withAuthenticatedClient,
-  withAuthenticatedTransaction,
-} from "@/lib/auth";
+import { withAuthenticatedClient, withAuthenticatedTransaction } from "@/lib/auth";
 import { resolveHttpError } from "@/lib/http-errors";
 import { runIdempotentMutation } from "@/lib/idempotency";
 import { assertRole } from "@/lib/rbac";
@@ -43,8 +40,7 @@ export async function GET(req: NextRequest) {
     const customerPartyId = customerPartyIdParam
       ? parsePositiveInt(customerPartyIdParam, "Cliente")
       : null;
-    const offset =
-      offsetParam !== null && offsetParam !== "" ? Number(offsetParam) : 0;
+    const offset = offsetParam !== null && offsetParam !== "" ? Number(offsetParam) : 0;
     if (!Number.isInteger(offset) || offset < 0) {
       throw new ValidationError("Offset inválido");
     }

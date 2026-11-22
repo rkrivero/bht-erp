@@ -1,8 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import {
-  withAuthenticatedClient,
-  withAuthenticatedTransaction,
-} from "@/lib/auth";
+import { withAuthenticatedClient, withAuthenticatedTransaction } from "@/lib/auth";
 import { resolveHttpError } from "@/lib/http-errors";
 import { runIdempotentMutation } from "@/lib/idempotency";
 import {
@@ -71,19 +68,12 @@ export async function POST(req: NextRequest) {
           "suppliers:create",
           body,
           async () => {
-            const legalName = String(
-              body.legalName || body.tradeName || ""
-            ).trim();
+            const legalName = String(body.legalName || body.tradeName || "").trim();
             const created = await createSupplier(client, actor, {
               legalName,
               tradeName: body.tradeName ?? null,
               docType:
-                (body.docType as
-                  | "NONE"
-                  | "RUC"
-                  | "DNI"
-                  | "CE"
-                  | "PASSPORT") || "NONE",
+                (body.docType as "NONE" | "RUC" | "DNI" | "CE" | "PASSPORT") || "NONE",
               docNumber: body.docNumber ?? null,
               phone: body.phone ?? null,
               address: body.address ?? null,
@@ -99,15 +89,10 @@ export async function POST(req: NextRequest) {
                 ? body.email.trim().toLowerCase()
                 : null;
             if (cityZone || email) {
-              return await updateSupplier(
-                client,
-                actor,
-                created.supplier.party_id,
-                {
-                  cityZone,
-                  email,
-                }
-              );
+              return await updateSupplier(client, actor, created.supplier.party_id, {
+                cityZone,
+                email,
+              });
             }
             const { suppliers } = await listSuppliersDirectory(client, actor, {
               status: "ALL",
@@ -148,25 +133,19 @@ export async function PATCH(req: NextRequest) {
       [...SUPPLIER_ROLES],
       async (client, actor) => {
         const body = parseBody(updateSupplierDirectorySchema, rawBody);
-        return runIdempotentMutation(
-          client,
-          req,
-          actor,
-          "suppliers:update",
-          body,
-          () =>
-            updateSupplier(client, actor, body.partyId, {
-              tradeName: body.tradeName,
-              legalName: body.legalName,
-              docType: body.docType,
-              docNumber: body.docNumber,
-              phone: body.phone,
-              email: body.email,
-              address: body.address,
-              cityZone: body.cityZone,
-              notes: body.notes,
-              isActive: body.isActive,
-            })
+        return runIdempotentMutation(client, req, actor, "suppliers:update", body, () =>
+          updateSupplier(client, actor, body.partyId, {
+            tradeName: body.tradeName,
+            legalName: body.legalName,
+            docType: body.docType,
+            docNumber: body.docNumber,
+            phone: body.phone,
+            email: body.email,
+            address: body.address,
+            cityZone: body.cityZone,
+            notes: body.notes,
+            isActive: body.isActive,
+          })
         );
       }
     );

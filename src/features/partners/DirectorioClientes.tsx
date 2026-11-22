@@ -4,17 +4,9 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import { formatPen } from "@/components/socios/types";
 import { CustomerDetailContent } from "@/components/directory/CustomerDetailContent";
-import {
-  ControlPanel,
-  type ControlPanelFacet,
-} from "@/components/ui/ControlPanel";
+import { ControlPanel, type ControlPanelFacet } from "@/components/ui/ControlPanel";
 import { PlusIcon } from "@/components/ui/Icons";
-import {
-  Badge,
-  Card,
-  INPUT_CLASS,
-  ModalSheet,
-} from "@/components/ui/Primitives";
+import { Badge, Card, INPUT_CLASS, ModalSheet } from "@/components/ui/Primitives";
 import {
   ResponsiveDataTable,
   type ResponsiveTableColumn,
@@ -220,9 +212,7 @@ export function DirectorioClientes({
           );
           return (
             <div>
-              <span className="font-bold text-bht-ink-strong">
-                {cust.display_name}
-              </span>
+              <span className="font-bold text-bht-ink-strong">{cust.display_name}</span>
               {secondaryName && secondaryName !== cust.display_name && (
                 <span className="block line-clamp-1 text-xs text-bht-ink-soft">
                   {secondaryName}
@@ -301,9 +291,7 @@ export function DirectorioClientes({
         cell: (cust) => (
           <span
             className={`font-semibold tabular-nums ${
-              cust.open_balance_pen > 0.05
-                ? "text-bht-danger"
-                : "text-bht-ink-strong"
+              cust.open_balance_pen > 0.05 ? "text-bht-danger" : "text-bht-ink-strong"
             }`}
           >
             {cust.open_balance_pen > 0.05

@@ -1,8 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import {
-  withAuthenticatedClient,
-  withAuthenticatedTransaction,
-} from "@/lib/auth";
+import { withAuthenticatedClient, withAuthenticatedTransaction } from "@/lib/auth";
 import { resolveHttpError } from "@/lib/http-errors";
 import { runIdempotentMutation } from "@/lib/idempotency";
 import { executeUndoAction, listUndoableActions } from "@/lib/services/undo";
@@ -77,17 +74,11 @@ export async function POST(req: NextRequest) {
       [...ALL_ROLES],
       async (client, actor) => {
         const body = parseBody(undoMutationSchema, rawBody);
-        return runIdempotentMutation(
-          client,
-          req,
-          actor,
-          "undo:execute",
-          body,
-          () =>
-            executeUndoAction(client, actor, {
-              undoId: body.undoId,
-              reason: body.reason ?? null,
-            })
+        return runIdempotentMutation(client, req, actor, "undo:execute", body, () =>
+          executeUndoAction(client, actor, {
+            undoId: body.undoId,
+            reason: body.reason ?? null,
+          })
         );
       }
     );

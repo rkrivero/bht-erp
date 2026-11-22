@@ -367,11 +367,7 @@ export function useSellerOrderFlow({
   }
 
   function validateCartLines(): boolean {
-    const err = validateSellerCartLines(
-      cart,
-      cartSubtotalPen,
-      parsedGlobalDiscountPen
-    );
+    const err = validateSellerCartLines(cart, cartSubtotalPen, parsedGlobalDiscountPen);
     if (err) {
       setFeedback({ type: "err", msg: err });
       return false;

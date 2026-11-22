@@ -23,7 +23,9 @@ export const quoteLineInputSchema = z.object({
   rawDescription: z.string().nullable().optional(),
   quantity: z.preprocess(
     (v) => (typeof v === "string" && v.trim() !== "" ? Number(v) : v),
-    z.number({ message: "La cantidad debe ser mayor a 0" }).positive("La cantidad debe ser mayor a 0")
+    z
+      .number({ message: "La cantidad debe ser mayor a 0" })
+      .positive("La cantidad debe ser mayor a 0")
   ),
   unitPricePen: optionalNum,
 });

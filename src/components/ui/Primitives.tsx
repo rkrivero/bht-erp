@@ -15,22 +15,21 @@ export type Tone =
   | "indigo";
 
 const CARD_TONE_CLASSES: Record<Tone, string> = {
-  default:
-    "border-bht-line bg-white shadow-bht-elev-1 transition-all duration-300 ease-in-out",
+  default: "border-bht-line bg-white shadow-bht-elev-1 transition-colors duration-150",
   subtle:
-    "border-bht-line bg-bht-paper shadow-bht-elev-4 transition-all duration-300 ease-in-out",
+    "border-bht-line bg-bht-paper shadow-bht-elev-4 transition-colors duration-150",
   horizon:
-    "border-bht-cobalt/20 bg-bht-cobalt-bg/60 shadow-bht-elev-3 transition-all duration-300 ease-in-out",
+    "border-bht-cobalt/25 bg-bht-cobalt-bg/65 shadow-bht-elev-3 transition-colors duration-150",
   brand:
-    "border-bht-navy-deep/15 bg-bht-mist shadow-bht-elev-3 transition-all duration-300 ease-in-out",
+    "border-bht-navy-deep/15 bg-bht-mist shadow-bht-elev-3 transition-colors duration-150",
   success:
-    "border-emerald-500/15 bg-emerald-50/50 shadow-bht-elev-4 transition-all duration-300 ease-in-out",
+    "border-bht-success-line bg-bht-success-bg/75 shadow-bht-elev-4 transition-colors duration-150",
   warning:
-    "border-amber-500/15 bg-amber-50/50 shadow-bht-elev-4 transition-all duration-300 ease-in-out",
+    "border-bht-warning-line bg-bht-warning-bg/75 shadow-bht-elev-4 transition-colors duration-150",
   danger:
-    "border-rose-500/15 bg-rose-50/50 shadow-bht-elev-4 transition-all duration-300 ease-in-out",
+    "border-bht-danger-line bg-bht-danger-bg/75 shadow-bht-elev-4 transition-colors duration-150",
   indigo:
-    "border-bht-navy-deep/15 bg-bht-mist shadow-bht-elev-4 transition-all duration-300 ease-in-out",
+    "border-bht-navy-deep/15 bg-bht-mist shadow-bht-elev-4 transition-colors duration-150",
 };
 
 export function Card({
@@ -57,11 +56,11 @@ export function Card({
           : "p-[var(--card-pad,1.5rem)]";
   const accentClass =
     accent === "horizon"
-      ? "border-bht-cobalt/35 shadow-bht-elev-16 ring-1 ring-bht-cobalt/15"
+      ? "border-bht-cobalt/30 shadow-bht-elev-16 ring-1 ring-bht-cobalt/12"
       : "";
   return (
     <section
-      className={`bht-card-surface min-w-0 rounded-xl border ${CARD_TONE_CLASSES[tone]} ${accentClass} ${padClass} ${className}`}
+      className={`bht-card-surface min-w-0 rounded-2xl border ${CARD_TONE_CLASSES[tone]} ${accentClass} ${padClass} ${className}`}
       {...props}
     >
       {children}
@@ -82,11 +81,11 @@ export type BadgeTone =
 const BADGE_CLASSES: Record<BadgeTone, string> = {
   neutral: "border-bht-line bg-bht-mist text-bht-ink-strong",
   obsidian: "border-bht-navy-deep bg-bht-navy-deep text-white shadow-xs",
-  horizon: "border-bht-cobalt/25 bg-bht-cobalt-bg text-bht-cobalt",
+  horizon: "border-bht-cobalt/20 bg-bht-cobalt-bg text-bht-cobalt-strong",
   brand: "border-bht-navy-deep/20 bg-bht-mist text-bht-ink-strong",
-  success: "border-emerald-600/20 bg-emerald-50 text-emerald-800",
-  warning: "border-amber-600/20 bg-amber-50 text-amber-900",
-  danger: "border-rose-600/20 bg-rose-50 text-rose-800",
+  success: "border-bht-success-line bg-bht-success-bg text-bht-success-strong",
+  warning: "border-bht-warning-line bg-bht-warning-bg text-bht-warning-strong",
+  danger: "border-bht-danger-line bg-bht-danger-bg text-bht-danger-strong",
   indigo: "border-bht-navy-deep/20 bg-bht-mist text-bht-ink-strong",
 };
 
@@ -106,7 +105,7 @@ export function Badge({
   );
   return (
     <span
-      className={`inline-flex flex-shrink-0 items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium leading-4 transition-all duration-300 ease-in-out ${
+      className={`inline-flex flex-shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[11px] font-semibold tracking-[0.01em] leading-4 transition-colors duration-150 ${
         hasCustomWrap ? "" : "whitespace-nowrap"
       } ${BADGE_CLASSES[tone]} ${className}`}
     >
@@ -119,29 +118,18 @@ export function Badge({
 }
 
 export type ButtonVariant =
-  | "primary"
-  | "brand"
-  | "secondary"
-  | "outline"
-  | "ghost"
-  | "success"
-  | "danger";
+  "primary" | "brand" | "secondary" | "outline" | "ghost" | "success" | "danger";
 
 const BUTTON_VARIANTS: Record<ButtonVariant, string> = {
-  primary:
-    "bg-bht-cobalt text-white hover:bg-bht-cobalt-strong shadow-bht-elev-5 transition-all duration-300 ease-in-out active:scale-[0.985]",
-  brand:
-    "bg-bht-navy-deep text-white hover:bg-bht-navy-mid shadow-bht-elev-6 transition-all duration-300 ease-in-out active:scale-[0.985]",
+  primary: "bg-bht-cobalt text-white hover:bg-bht-cobalt-strong shadow-bht-elev-5",
+  brand: "bg-bht-navy-deep text-white hover:bg-bht-navy-mid shadow-bht-elev-6",
   secondary:
-    "bg-white text-bht-ink-strong border border-bht-line hover:bg-bht-paper hover:border-bht-line-strong hover:text-bht-ink-strong active:scale-[0.985] shadow-bht-elev-2 transition-all duration-300 ease-in-out",
+    "bg-white text-bht-ink-strong border border-bht-line hover:bg-bht-paper hover:border-bht-line-strong shadow-bht-elev-2",
   outline:
-    "bg-white text-bht-ink-strong border border-bht-line hover:border-bht-cobalt hover:text-bht-cobalt hover:bg-bht-cobalt-bg/50 active:scale-[0.985] shadow-bht-elev-2 transition-all duration-300 ease-in-out",
-  ghost:
-    "bg-transparent text-bht-ink-soft hover:bg-bht-mist hover:text-bht-ink-strong active:scale-[0.985] transition-all duration-300 ease-in-out",
-  success:
-    "bg-emerald-600 text-white hover:bg-emerald-700 shadow-bht-elev-8 active:scale-[0.985] transition-all duration-300 ease-in-out",
-  danger:
-    "bg-bht-danger text-white hover:bg-bht-danger-strong shadow-bht-elev-9 active:scale-[0.985] transition-all duration-300 ease-in-out",
+    "bg-white text-bht-ink-strong border border-bht-line-strong hover:border-bht-cobalt/60 hover:text-bht-cobalt-strong hover:bg-bht-cobalt-bg/40 shadow-bht-elev-2",
+  ghost: "bg-transparent text-bht-ink-soft hover:bg-bht-mist hover:text-bht-ink-strong",
+  success: "bg-bht-success text-white hover:bg-bht-success-strong shadow-bht-elev-8",
+  danger: "bg-bht-danger text-white hover:bg-bht-danger-strong shadow-bht-elev-9",
 };
 
 const BUTTON_SIZES: Record<"sm" | "md" | "lg", string> = {
@@ -178,7 +166,7 @@ export function Button({
     <button
       type={type}
       data-compact={isCompact ? "true" : undefined}
-      className={`${displayClass} items-center justify-center gap-2 font-semibold transition-all duration-120 active:scale-[0.985] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--bht-cobalt)] focus-visible:ring-offset-2 focus-visible:ring-offset-white disabled:pointer-events-none disabled:opacity-50 cursor-pointer ${BUTTON_VARIANTS[variant]} ${BUTTON_SIZES[size]} ${mobileTouchClass} ${className}`}
+      className={`${displayClass} items-center justify-center gap-2 font-semibold transition-all duration-150 active:scale-[0.985] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--bht-cobalt)] focus-visible:ring-offset-2 focus-visible:ring-offset-white disabled:pointer-events-none disabled:opacity-50 cursor-pointer ${BUTTON_VARIANTS[variant]} ${BUTTON_SIZES[size]} ${mobileTouchClass} ${className}`}
       {...props}
     >
       {children}
@@ -213,7 +201,7 @@ export function FieldLabel({
 }
 
 export const INPUT_CLASS =
-  "min-h-11 w-full rounded-xl border border-bht-line bg-white px-4 py-2.5 text-sm text-bht-ink-strong placeholder:text-bht-ink-muted shadow-bht-elev-2 transition-all duration-300 ease-in-out hover:border-bht-line-strong focus:border-bht-cobalt focus:outline-none focus:ring-4 focus:ring-bht-cobalt/10 disabled:bg-bht-mist disabled:text-bht-ink-muted disabled:border-bht-line";
+  "min-h-11 w-full rounded-xl border border-bht-line-strong bg-white px-3.5 py-2.5 text-sm text-bht-ink-strong placeholder:text-bht-ink-muted shadow-bht-elev-2 transition-colors duration-150 hover:border-bht-line-stronger focus:border-bht-cobalt focus:outline-none focus:ring-3 focus:ring-bht-cobalt/15 disabled:bg-bht-mist disabled:text-bht-ink-muted disabled:border-bht-line";
 
 export function SegmentedControl<T extends string>({
   options,
@@ -252,7 +240,7 @@ export function SegmentedControl<T extends string>({
 
   return (
     <div
-      className={`no-scrollbar flex min-w-0 max-w-full gap-1 overflow-x-auto rounded-xl border border-bht-line bg-bht-mist p-1.5 transition-all duration-300 ease-in-out ${className}`}
+      className={`no-scrollbar flex min-w-0 max-w-full gap-1 overflow-x-auto rounded-xl border border-bht-line bg-bht-mist/85 p-1 transition-colors duration-150 ${className}`}
       role="radiogroup"
       aria-label={ariaLabel}
     >
@@ -270,9 +258,9 @@ export function SegmentedControl<T extends string>({
             tabIndex={active || (!hasMatch && idx === 0) ? 0 : -1}
             onClick={() => onChange(opt.id)}
             onKeyDown={(e) => handleKeyDown(e, idx)}
-            className={`min-h-10 min-w-max flex-1 shrink-0 rounded-lg px-3.5 py-1.5 text-xs font-semibold leading-tight transition-all duration-300 ease-in-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bht-cobalt focus-visible:ring-offset-1 sm:text-sm cursor-pointer ${
+            className={`min-h-10 min-w-max flex-1 shrink-0 rounded-lg px-3.5 py-1.5 text-xs font-semibold leading-tight transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bht-cobalt focus-visible:ring-offset-1 sm:text-sm cursor-pointer ${
               active
-                ? "border border-bht-line bg-white text-bht-ink-strong font-semibold shadow-sm"
+                ? "border border-bht-cobalt/20 bg-white text-bht-navy-deep font-semibold shadow-bht-elev-2"
                 : "border border-transparent bg-transparent text-bht-ink-soft hover:text-bht-ink-strong hover:bg-white/60"
             }`}
           >
@@ -281,7 +269,7 @@ export function SegmentedControl<T extends string>({
               <span
                 className={`ml-2 inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold tabular-nums ${
                   active
-                    ? "bg-bht-navy-deep text-white"
+                    ? "bg-bht-cobalt-bg text-bht-cobalt-strong"
                     : "bg-bht-line text-bht-ink-soft"
                 }`}
               >
@@ -463,35 +451,18 @@ export function ModalSheet({
   const titleId = useId();
   const subtitleId = useId();
   const dialogRef = useRef<HTMLDialogElement | null>(null);
+  const pressedOutsideRef = useRef(false);
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
 
   useEffect(() => {
     const dialog = dialogRef.current;
-    if (!dialog) return;
-
-    if (open) {
-      if (typeof dialog.showModal === "function") {
-        if (!dialog.open) {
-          try {
-            dialog.showModal();
-          } catch {
-            dialog.setAttribute("open", "");
-          }
-        }
-      } else {
-        dialog.setAttribute("open", "");
-      }
-    } else if (dialog.open) {
-      if (typeof dialog.close === "function") {
-        try {
-          dialog.close();
-        } catch {
-          dialog.removeAttribute("open");
-        }
-      } else {
-        dialog.removeAttribute("open");
-      }
+    if (!open || !dialog || dialog.open) return;
+    try {
+      if (typeof dialog.showModal === "function") dialog.showModal();
+      else dialog.setAttribute("open", "");
+    } catch {
+      dialog.setAttribute("open", "");
     }
   }, [open]);
 
@@ -508,21 +479,16 @@ export function ModalSheet({
             ? "sm:max-w-[1140px]"
             : "sm:max-w-lg";
 
-  function handleDialogClick(e: React.MouseEvent<HTMLDialogElement>) {
-    const dialog = dialogRef.current;
-    if (!dialog) return;
-    if (e.target === dialog) {
-      const rect = dialog.getBoundingClientRect();
-      const clickedInside =
-        e.clientX >= rect.left &&
-        e.clientX <= rect.right &&
-        e.clientY >= rect.top &&
-        e.clientY <= rect.bottom;
-      if (!clickedInside) {
-        onCloseRef.current();
-      }
-    }
-  }
+  const outside = (e: React.PointerEvent<HTMLDialogElement>) => {
+    const r = dialogRef.current?.getBoundingClientRect();
+    return Boolean(
+      r &&
+      (e.clientX < r.left ||
+        e.clientX > r.right ||
+        e.clientY < r.top ||
+        e.clientY > r.bottom)
+    );
+  };
 
   return (
     <dialog
@@ -537,26 +503,29 @@ export function ModalSheet({
       onClose={() => {
         if (open) onCloseRef.current();
       }}
-      onClick={handleDialogClick}
-      className={`bht-dialog fixed inset-x-0 bottom-0 top-auto z-50 m-0 flex max-h-[92dvh] w-full max-w-full flex-col rounded-t-2xl border border-bht-line bg-white p-0 text-bht-ink-strong shadow-bht-elev-17 outline-none sm:inset-auto sm:m-auto sm:rounded-2xl ${widthClass}`}
+      onPointerDown={(e) => {
+        pressedOutsideRef.current = outside(e);
+      }}
+      onPointerUp={(e) => {
+        if (pressedOutsideRef.current && outside(e)) onCloseRef.current();
+        pressedOutsideRef.current = false;
+      }}
+      className={`bht-dialog fixed inset-x-0 bottom-0 top-auto z-50 m-0 open:flex max-h-[92dvh] w-full max-w-full flex-col rounded-t-2xl border border-bht-line bg-white p-0 text-bht-ink-strong shadow-bht-elev-17 outline-none sm:inset-0 sm:m-auto sm:h-fit sm:w-[calc(100%-2rem)] sm:rounded-2xl ${widthClass}`}
     >
       <div
         className="mx-auto mt-2 h-1 w-10 rounded-full bg-bht-line-strong sm:hidden"
         aria-hidden="true"
       />
-      <div className="flex items-start justify-between gap-3 border-b border-bht-line px-4 py-3.5 sm:px-5">
+      <div className="flex items-start justify-between gap-3 border-b border-bht-line bg-bht-paper/60 px-4 py-3.5 sm:px-5 sm:py-4">
         <div className="min-w-0">
           <h2
             id={titleId}
-            className="text-base sm:text-lg font-bold text-bht-ink-strong"
+            className="text-base sm:text-lg font-bold tracking-tight text-bht-ink-strong"
           >
             {title}
           </h2>
           {subtitle && (
-            <p
-              id={subtitleId}
-              className="mt-0.5 text-xs sm:text-sm text-bht-ink-soft"
-            >
+            <p id={subtitleId} className="mt-0.5 text-xs sm:text-sm text-bht-ink-soft">
               {subtitle}
             </p>
           )}
@@ -566,7 +535,7 @@ export function ModalSheet({
           data-compact="true"
           onClick={() => onCloseRef.current()}
           aria-label="Cerrar"
-          className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg text-bht-ink-soft transition hover:bg-bht-mist hover:text-bht-navy-deep focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bht-navy-deep cursor-pointer"
+          className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg text-bht-ink-soft transition-colors duration-150 hover:bg-bht-mist hover:text-bht-navy-deep focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bht-cobalt cursor-pointer"
         >
           <CloseIcon className="h-4 w-4" />
         </button>
@@ -609,15 +578,19 @@ export function EmptyState({
   description?: string;
 }) {
   return (
-    <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-bht-line-strong bg-white/70 px-6 py-10 text-center">
+    <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-bht-line-strong bg-bht-paper/60 px-6 py-10 text-center">
       {icon && (
-        <div className="mb-2.5 flex h-10 w-10 items-center justify-center rounded-full bg-bht-paper-alt text-bht-ink-soft">
+        <div className="mb-3 flex h-11 w-11 items-center justify-center rounded-full bg-bht-cobalt-bg/80 text-bht-cobalt ring-1 ring-bht-cobalt/15">
           {icon}
         </div>
       )}
-      <p className="text-base font-semibold text-bht-ink-strong">{title}</p>
+      <p className="text-base font-semibold tracking-tight text-bht-ink-strong">
+        {title}
+      </p>
       {description && (
-        <p className="mt-1 max-w-sm text-sm text-bht-ink-soft">{description}</p>
+        <p className="mt-1 max-w-sm text-sm leading-relaxed text-bht-ink-soft">
+          {description}
+        </p>
       )}
     </div>
   );

@@ -25,10 +25,7 @@ import {
   ResponsiveDataTable,
   type ResponsiveTableColumn,
 } from "@/components/ui/ResponsiveDataTable";
-import {
-  formatOperationalStatusEs,
-  formatQuoteStatusEs,
-} from "@/lib/labels-es";
+import { formatOperationalStatusEs, formatQuoteStatusEs } from "@/lib/labels-es";
 import type { SellerOrderDto } from "@/features/seller/types";
 import {
   formatActorName,
@@ -177,9 +174,7 @@ export function Ventas({ orders, ordersPagination, partnerQuotes, flow }: Ventas
               <Badge tone={operationalStatusTone(o.operational_status)}>
                 {formatOperationalStatusEs(o.operational_status)}
               </Badge>
-              {creditExceeded && (
-                <Badge tone="danger">Excede límite de crédito</Badge>
-              )}
+              {creditExceeded && <Badge tone="danger">Excede límite de crédito</Badge>}
             </div>
           );
         },
@@ -313,8 +308,7 @@ export function Ventas({ orders, ordersPagination, partnerQuotes, flow }: Ventas
           salesView === "orders"
             ? {
                 shownCount: monitorFilteredOrders.length,
-                totalCount:
-                  visibleOrdersPagination?.totalCount ?? visibleOrders.length,
+                totalCount: visibleOrdersPagination?.totalCount ?? visibleOrders.length,
                 itemLabel: "pedidos",
                 hasMore: Boolean(visibleOrdersPagination?.hasMore),
                 loadingMore: loadingMoreOrders,
@@ -466,7 +460,8 @@ export function VentasModals({ flow, openAbonoForOrderRecord }: VentasModalsProp
               selectedPartnerQuote.audit_history.length > 0 && (
                 <details className="rounded-lg border border-bht-line-blue bg-bht-mist/60 p-3">
                   <summary className="cursor-pointer font-semibold text-bht-navy-deep">
-                    Historial de modificaciones ({selectedPartnerQuote.audit_history.length})
+                    Historial de modificaciones (
+                    {selectedPartnerQuote.audit_history.length})
                   </summary>
                   <div className="mt-2 space-y-2">
                     {selectedPartnerQuote.audit_history.map((entry) => (

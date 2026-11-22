@@ -16,7 +16,10 @@ export const OUTBOX_EVENT = "bht:outbox-update";
 const snapshotWriteQueues = new Map<string, Promise<void>>();
 
 const memoryOutbox = new Map<string, OfflineMutation>();
-const memorySnapshots = new Map<string, { key: string; value: unknown; savedAt: number }>();
+const memorySnapshots = new Map<
+  string,
+  { key: string; value: unknown; savedAt: number }
+>();
 
 function hasIndexedDb(): boolean {
   return typeof indexedDB !== "undefined";

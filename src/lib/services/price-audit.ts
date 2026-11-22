@@ -56,7 +56,10 @@ export async function recordPriceOverrides(
   entries: PriceOverrideEntry[]
 ): Promise<number> {
   const modified = entries.filter((entry) => {
-    if (!Number.isFinite(entry.catalogPricePen) || !Number.isFinite(entry.appliedPricePen)) {
+    if (
+      !Number.isFinite(entry.catalogPricePen) ||
+      !Number.isFinite(entry.appliedPricePen)
+    ) {
       return false;
     }
     return Math.abs(entry.appliedPricePen - entry.catalogPricePen) > PRICE_EPSILON;

@@ -1,7 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { AlertTriangleIcon, MinusIcon, PlusIcon, TrashIcon } from "@/components/ui/Icons";
+import {
+  AlertTriangleIcon,
+  MinusIcon,
+  PlusIcon,
+  TrashIcon,
+} from "@/components/ui/Icons";
 import {
   Button,
   FieldLabel,
@@ -79,16 +84,17 @@ export function PartnerEditQuoteModal({
   if (!quote) return null;
 
   const subtotalPen = lines.reduce(
-    (acc, l) => acc + (Number.isFinite(l.quantity) ? l.quantity : 0) * (Number.isFinite(l.unitPricePen) ? l.unitPricePen : 0),
+    (acc, l) =>
+      acc +
+      (Number.isFinite(l.quantity) ? l.quantity : 0) *
+        (Number.isFinite(l.unitPricePen) ? l.unitPricePen : 0),
     0
   );
   const parsedGlobalDiscount = Math.max(0, Number(globalDiscountInput) || 0);
   const totalPen = Math.max(0, subtotalPen - parsedGlobalDiscount);
 
   function updateLine(idx: number, patch: Partial<EditableLine>) {
-    setLines((prev) =>
-      prev.map((l, i) => (i === idx ? { ...l, ...patch } : l))
-    );
+    setLines((prev) => prev.map((l, i) => (i === idx ? { ...l, ...patch } : l)));
   }
 
   function removeLine(idx: number) {
@@ -118,7 +124,9 @@ export function PartnerEditQuoteModal({
         return;
       }
       if (!Number.isFinite(l.unitPricePen) || l.unitPricePen <= 0) {
-        setError(`El precio unitario de "${l.raw_description}" debe ser mayor a S/ 0.00.`);
+        setError(
+          `El precio unitario de "${l.raw_description}" debe ser mayor a S/ 0.00.`
+        );
         return;
       }
     }
@@ -278,7 +286,8 @@ export function PartnerEditQuoteModal({
                             const raw = e.target.value.replace(",", ".");
                             const parsed = Number(raw);
                             updateLine(idx, {
-                              quantity: Number.isFinite(parsed) && parsed > 0 ? parsed : 0,
+                              quantity:
+                                Number.isFinite(parsed) && parsed > 0 ? parsed : 0,
                               quantityInput: raw,
                             });
                           }}
@@ -324,7 +333,8 @@ export function PartnerEditQuoteModal({
                             const raw = e.target.value.replace(",", ".");
                             const parsed = Number(raw);
                             updateLine(idx, {
-                              unitPricePen: Number.isFinite(parsed) && parsed >= 0 ? parsed : 0,
+                              unitPricePen:
+                                Number.isFinite(parsed) && parsed >= 0 ? parsed : 0,
                               unitPriceInput: raw,
                             });
                           }}

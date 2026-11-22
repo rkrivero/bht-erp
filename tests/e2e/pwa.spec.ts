@@ -177,9 +177,7 @@ test("renders conflict resolution actions on /offline for WAREHOUSE_ADVANCE", as
   await expect(page.getByRole("button", { name: "Descartar" })).toBeVisible();
 
   await page.getByRole("button", { name: "Revisar/Editar" }).click();
-  await expect(
-    page.getByLabel("Editar datos de la operación (JSON)")
-  ).toBeVisible();
+  await expect(page.getByLabel("Editar datos de la operación (JSON)")).toBeVisible();
   await page.getByRole("button", { name: "Descartar" }).click();
   await expect(
     page.getByText("No hay operaciones pendientes en este dispositivo.")

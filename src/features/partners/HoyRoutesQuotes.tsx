@@ -1,8 +1,18 @@
 "use client";
 
-import React from "react";
+import React, { useState } from "react";
+import dynamic from "next/dynamic";
 import { formatPen } from "@/components/socios/types";
 import { Badge, Button, Card, EmptyState } from "@/components/ui/Primitives";
+import type { SellerQuoteDto } from "@/features/seller/types";
+
+const ConvertCreditQuoteModal = dynamic(
+  () =>
+    import("@/components/ui/ConvertCreditQuoteModal").then((m) => ({
+      default: m.ConvertCreditQuoteModal,
+    })),
+  { ssr: false }
+);
 import { formatQuoteStatusEs, formatRouteTripStatusEs } from "@/lib/labels-es";
 import type { PartnerData } from "./usePartnerData";
 import type { OrderFlow } from "./useOrderFlow";
@@ -31,6 +41,7 @@ export function HoyRoutesQuotes({
     handlePartnerCancelQuote,
   } = flow;
 
+  const [creditQuote, setCreditQuote] = useState<SellerQuoteDto | null>(null);
   const openTrips = routeTrips.filter((tr) => String(tr.status) === "OPEN");
   const visibleTrips = openTrips.length > 0 ? openTrips : routeTrips.slice(0, 3);
   const openQuotes = partnerQuotes.filter((q) => String(q.status) === "OPEN");
@@ -78,11 +89,11 @@ export function HoyRoutesQuotes({
               return (
                 <div
                   key={tId}
-                  className="rounded-xl border border-bht-line bg-bht-paper p-3 text-sm space-y-2"
+                  className="rounded-xl border border-bht-line bg-bht-paper/70 p-3 text-sm space-y-2 transition-colors duration-150 hover:border-bht-line-strong"
                 >
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div>
-                      <span className="font-semibold text-bht-navy-deep tabular-nums">
+                      <span className="font-mono font-semibold text-bht-navy-deep tabular-nums">
                         {String(tr.trip_code)} · {String(tr.trip_date)}
                       </span>
                       <p className="text-bht-ink-soft">
@@ -162,11 +173,11 @@ export function HoyRoutesQuotes({
               return (
                 <div
                   key={qId}
-                  className="rounded-xl border border-bht-line bg-bht-paper p-3 text-sm space-y-2"
+                  className="rounded-xl border border-bht-line bg-bht-paper/70 p-3 text-sm space-y-2 transition-colors duration-150 hover:border-bht-line-strong"
                 >
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div className="min-w-0">
-                      <span className="font-semibold text-bht-navy-mid tabular-nums">
+                      <span className="font-mono font-semibold text-bht-navy-mid tabular-nums">
                         {String(q.quote_code)} · {String(q.issue_date)}
                       </span>
                       <p className="truncate font-semibold text-bht-ink-strong">
@@ -206,7 +217,7 @@ export function HoyRoutesQuotes({
                       size="sm"
                       data-compact="true"
                       disabled={isBusy}
-                      onClick={() => handlePartnerConvertQuote(qId, "CREDIT")}
+                      onClick={() => setCreditQuote(q)}
                     >
                       A Crédito
                     </Button>
@@ -227,6 +238,18 @@ export function HoyRoutesQuotes({
           </div>
         )}
       </Card>
+
+      <ConvertCreditQuoteModal
+        quote={creditQuote}
+        busy={creditQuote !== null && busyQuoteId === Number(creditQuote.quote_id)}
+        onClose={() => setCreditQuote(null)}
+        onConfirm={async (quoteId, opts) => {
+          const ok = await handlePartnerConvertQuote(quoteId, "CREDIT", opts);
+          if (ok !== false) {
+            setCreditQuote(null);
+          }
+        }}
+      />
     </div>
   );
 }

@@ -121,7 +121,10 @@ export default function CajaCierreAccountsTable({
                         variant="outline"
                         size="sm"
                         onClick={() =>
-                          onChangeCounted(acc.accountId, acc.systemBalancePen.toFixed(2))
+                          onChangeCounted(
+                            acc.accountId,
+                            acc.systemBalancePen.toFixed(2)
+                          )
                         }
                       >
                         Igualar

@@ -609,7 +609,11 @@ export function useLiveSync({
         broadcastChannel = new BroadcastChannel(BHT_SYNC_CHANNEL_NAME);
         broadcastChannel.onmessage = (ev: MessageEvent) => {
           const payload = ev?.data as { scopes?: SyncScope[] } | undefined;
-          if (payload?.scopes && Array.isArray(payload.scopes) && payload.scopes.length > 0) {
+          if (
+            payload?.scopes &&
+            Array.isArray(payload.scopes) &&
+            payload.scopes.length > 0
+          ) {
             emitSyncScopeInvalidation(payload.scopes);
           }
           if (

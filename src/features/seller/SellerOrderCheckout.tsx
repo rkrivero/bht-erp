@@ -171,7 +171,9 @@ export default function SellerOrderCheckout({ flow }: { flow: SellerOrderFlow })
               <span className="text-sm font-medium text-bht-line-blue">
                 {isEditingQuote ? "Total cotización" : "Total"}
               </span>
-              <span className="text-xl font-semibold">S/ {cartTotalPen.toFixed(2)}</span>
+              <span className="text-xl font-semibold">
+                S/ {cartTotalPen.toFixed(2)}
+              </span>
             </div>
           </div>
 

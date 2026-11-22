@@ -1,8 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import {
-  withAuthenticatedClient,
-  withAuthenticatedTransaction,
-} from "@/lib/auth";
+import { withAuthenticatedClient, withAuthenticatedTransaction } from "@/lib/auth";
 import { resolveHttpError } from "@/lib/http-errors";
 import { runIdempotentMutation } from "@/lib/idempotency";
 import {
@@ -19,11 +16,7 @@ export const dynamic = "force-dynamic";
 
 const NO_STORE_HEADERS = { "Cache-Control": "no-store" };
 
-const QUOTE_ROLES = [
-  "PARTNER_ADMIN",
-  "PARTNER_MANAGER",
-  "EXTERNAL_SELLER",
-] as const;
+const QUOTE_ROLES = ["PARTNER_ADMIN", "PARTNER_MANAGER", "EXTERNAL_SELLER"] as const;
 
 export async function GET(req: NextRequest) {
   try {

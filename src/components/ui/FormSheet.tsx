@@ -55,16 +55,15 @@ export function FormSheet({
     defaultTabId ?? tabs?.[0]?.id ?? ""
   );
 
-  const resolvedTabId =
-    tabs?.some((t) => t.id === activeTabId)
-      ? activeTabId
-      : (tabs?.[0]?.id ?? "");
+  const resolvedTabId = tabs?.some((t) => t.id === activeTabId)
+    ? activeTabId
+    : (tabs?.[0]?.id ?? "");
 
   return (
     <div className={`mx-auto w-full max-w-[1140px] space-y-3 text-sm ${className}`}>
       {/* Action Header + Pipeline Statusbar */}
       {(actions || (stages && stages.length > 0)) && (
-        <div className="flex flex-wrap items-center justify-between gap-2.5 rounded-xl border border-bht-line bg-bht-paper px-3.5 py-2.5">
+        <div className="flex flex-wrap items-center justify-between gap-2.5 rounded-2xl border border-bht-line bg-bht-paper px-4 py-2.5">
           {actions ? (
             <div className="flex flex-wrap items-center gap-2">{actions}</div>
           ) : (
@@ -80,19 +79,14 @@ export function FormSheet({
                 return (
                   <li key={stage.id} className="flex items-center gap-1">
                     {idx > 0 && (
-                      <span
-                        aria-hidden="true"
-                        className="text-xs text-bht-ink-muted"
-                      >
+                      <span aria-hidden="true" className="text-xs text-bht-ink-muted">
                         →
                       </span>
                     )}
                     <Badge
                       tone={isCurrent ? (stage.tone ?? "horizon") : "neutral"}
                       className={
-                        isCurrent
-                          ? "ring-1 ring-bht-cobalt/30 font-bold"
-                          : "opacity-75"
+                        isCurrent ? "ring-1 ring-bht-cobalt/30 font-bold" : "opacity-75"
                       }
                     >
                       {stage.label}
@@ -106,9 +100,12 @@ export function FormSheet({
       )}
 
       {/* White Document Sheet */}
-      <div className="rounded-xl border border-bht-line bg-white p-4 sm:p-5 shadow-bht-elev-2 space-y-4">
+      <div className="rounded-2xl border border-bht-line bg-white p-4 sm:p-6 shadow-bht-elev-2 space-y-4">
         {/* Document Header & Smart Buttons Row */}
-        {(documentCode || title || subtitle || (smartButtons && smartButtons.length > 0)) && (
+        {(documentCode ||
+          title ||
+          subtitle ||
+          (smartButtons && smartButtons.length > 0)) && (
           <div className="flex flex-col gap-3 border-b border-bht-line pb-3.5 sm:flex-row sm:items-start sm:justify-between">
             {(documentCode || title || subtitle) && (
               <div className="min-w-0 flex-1">
@@ -146,7 +143,10 @@ export function FormSheet({
                   const content = (
                     <>
                       {sb.icon && (
-                        <span className="text-bht-cobalt" aria-hidden="true">
+                        <span
+                          className="flex h-7 w-7 items-center justify-center rounded-lg bg-bht-cobalt-bg/70 text-bht-cobalt"
+                          aria-hidden="true"
+                        >
                           {sb.icon}
                         </span>
                       )}
@@ -170,7 +170,7 @@ export function FormSheet({
                         type="button"
                         data-compact="true"
                         onClick={sb.onClick}
-                        className="inline-flex min-h-11 items-center gap-2.5 rounded-xl border border-bht-line bg-bht-paper px-3 py-1.5 transition hover:border-bht-cobalt hover:bg-bht-cobalt-bg/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bht-cobalt cursor-pointer"
+                        className="inline-flex min-h-11 items-center gap-2.5 rounded-xl border border-bht-line bg-bht-paper px-3 py-1.5 transition-colors duration-150 hover:border-bht-cobalt/60 hover:bg-bht-cobalt-bg/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bht-cobalt cursor-pointer"
                       >
                         {content}
                       </button>
@@ -199,7 +199,7 @@ export function FormSheet({
             <div
               role="tablist"
               aria-label="Pestañas del documento"
-              className="flex flex-wrap gap-1 border-b border-bht-line pb-1.5"
+              className="flex flex-wrap gap-1 border-b border-bht-line"
             >
               {tabs.map((tab) => {
                 const selected = tab.id === resolvedTabId;
@@ -215,10 +215,10 @@ export function FormSheet({
                     aria-selected={selected}
                     aria-controls={panelDomId}
                     onClick={() => setActiveTabId(tab.id)}
-                    className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition cursor-pointer ${
+                    className={`inline-flex items-center gap-1.5 border-b-2 px-3 py-2 text-xs font-semibold transition-colors duration-150 cursor-pointer -mb-px ${
                       selected
-                        ? "bg-bht-cobalt-bg text-bht-cobalt-strong"
-                        : "text-bht-ink-soft hover:bg-bht-paper hover:text-bht-ink-strong"
+                        ? "border-bht-cobalt text-bht-cobalt-strong"
+                        : "border-transparent text-bht-ink-soft hover:text-bht-ink-strong"
                     }`}
                   >
                     <span>{tab.label}</span>

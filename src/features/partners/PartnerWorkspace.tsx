@@ -11,10 +11,15 @@ import {
   type NavExtraAction,
   type NavTabItem,
 } from "@/components/ui/AppShell";
-import {
-  CommandPalette,
-  type CommandPaletteItem,
-} from "@/components/ui/CommandPalette";
+import type { CommandPaletteItem } from "@/components/ui/CommandPalette";
+
+const CommandPalette = dynamic(
+  () =>
+    import("@/components/ui/CommandPalette").then((m) => ({
+      default: m.CommandPalette,
+    })),
+  { ssr: false }
+);
 import {
   ActivityIcon,
   BarChartIcon,
@@ -42,6 +47,7 @@ import {
   resolvePartnerNavigation,
 } from "@/lib/navigation";
 import { deleteOfflineSnapshotsForActor } from "@/lib/offline/outbox";
+import { useGlobalShortcuts } from "@/lib/useGlobalShortcuts";
 import type { CajaSubTab } from "@/components/socios/caja/caja-utils";
 import type { CustomerDirectoryItem } from "@/lib/services/customers";
 import type { InventorySubView } from "./Inventario";
@@ -76,9 +82,7 @@ const Inventario = dynamic(() =>
 const InventarioModals = dynamic(() =>
   import("./Inventario").then((m) => ({ default: m.InventarioModals }))
 );
-const Ventas = dynamic(() =>
-  import("./Ventas").then((m) => ({ default: m.Ventas }))
-);
+const Ventas = dynamic(() => import("./Ventas").then((m) => ({ default: m.Ventas })));
 const VentasModals = dynamic(() =>
   import("./Ventas").then((m) => ({ default: m.VentasModals }))
 );
@@ -94,7 +98,7 @@ export default function PartnerWorkspace() {
   const [initialInventoryView, setInitialInventoryView] =
     useState<InventorySubView | null>(null);
 
-  const data = usePartnerData();
+  const data = usePartnerData(tab);
   const {
     loading,
     feedback,
@@ -161,11 +165,11 @@ export default function PartnerWorkspace() {
 
   const isEditingOrModalOpen = Boolean(
     inventoryFlow.editingProd ||
-      collectionsFlow.abonoOrder ||
-      collectionsFlow.fifoCustomer ||
-      inventoryFlow.confirmResetNegativeOpen ||
-      orderFlow.confirmCancelOrder ||
-      subTabEditing
+    collectionsFlow.abonoOrder ||
+    collectionsFlow.fifoCustomer ||
+    inventoryFlow.confirmResetNegativeOpen ||
+    orderFlow.confirmCancelOrder ||
+    subTabEditing
   );
 
   const handleRemoteChange = useCallback(
@@ -324,8 +328,8 @@ export default function PartnerWorkspace() {
       items.push({
         id: "accesos",
         group: "Catálogos y control",
-        label: "Usuarios",
-        mobileLabel: "Usuarios",
+        label: "Usuarios y Config.",
+        mobileLabel: "Config.",
         icon: <LockIcon className="h-4 w-4" />,
         badgeCount: activeUsersCount || undefined,
       });
@@ -359,6 +363,26 @@ export default function PartnerWorkspace() {
     [router]
   );
 
+  const shortcutNav = useMemo(
+    () => ({
+      h: () => handleTabChange("control"),
+      p: () => handleTabChange("pedidos"),
+      c: () => handleTabChange("deudores"),
+      i: () => handleTabChange("stock"),
+      j: () => handleTabChange("caja"),
+      r: () => handleTabChange("kpis"),
+      d: () => handleTabChange("directorio"),
+      a: () => handleTabChange("accesos"),
+    }),
+    [handleTabChange]
+  );
+
+  useGlobalShortcuts({
+    onGoTo: shortcutNav,
+    onNewOrder: () => router.push("/vendedor"),
+    onOpenHelp: () => window.dispatchEvent(new CustomEvent("bht:open-command-palette")),
+  });
+
   const commandPaletteItems: CommandPaletteItem[] = useMemo(() => {
     const items: CommandPaletteItem[] = [
       ...navItems.map((item) => ({
@@ -370,34 +394,48 @@ export default function PartnerWorkspace() {
         onSelect: () => handleTabChange(item.id),
       })),
       {
+        id: "act-daily-close",
+        label: "Abrir cierre diario de caja",
+        subtitle: "Arqueo y consolidación del día",
+        group: "Acciones rápidas",
+        onSelect: handleGoToDailyClose,
+      },
+      {
+        id: "act-sync",
+        label: "Actualizar datos del tablero",
+        subtitle: "Recargar pedidos, caja y stock",
+        group: "Acciones rápidas",
+        onSelect: () => void refreshDashboard(SOCIOS_SYNC_SCOPES),
+      },
+      {
         id: "ws-seller",
-        label: "Tomar Pedido Mayorista (/vendedor)",
-        subtitle: "Abrir espacio de ventas en campo",
+        label: "Tomar nuevo pedido",
+        subtitle: "Espacio de ventas en campo · Atajo: N",
         group: "Espacios ERP",
         onSelect: () => router.push("/vendedor"),
       },
       {
         id: "ws-warehouse",
-        label: "Almacén y Reparto (/almacen)",
+        label: "Almacén y Reparto",
         subtitle: "Alistamiento y confirmación de entregas",
         group: "Espacios ERP",
         onSelect: () => router.push("/almacen"),
       },
       {
         id: "ws-offline",
-        label: "Bandeja de Sincronización Offline (/offline)",
+        label: "Bandeja de sincronización offline",
         subtitle: "Revisar cola local y resolver conflictos",
         group: "Espacios ERP",
         onSelect: () => router.push("/offline"),
       },
-      {
-        id: "ws-password",
-        label: "Cambiar contraseña (/change-password)",
-        subtitle: "Seguridad de cuenta",
-        group: "Espacios ERP",
-        onSelect: () => router.push("/change-password"),
-      },
-      ...orders.slice(0, 15).map((o) => ({
+      ...debtorsByCustomer.slice(0, 20).map((d) => ({
+        id: `debtor-${d.customerKey}`,
+        label: String(d.customerName),
+        subtitle: `Saldo por cobrar: ${formatPen(d.totalBalanceDuePen)} · ${d.openOrdersCount} ped.`,
+        group: "Clientes con saldo",
+        onSelect: () => handleTabChange("deudores"),
+      })),
+      ...orders.slice(0, 20).map((o) => ({
         id: `order-${o.order_id}`,
         label: `${String(o.order_code)} · ${String(o.customer_name)}`,
         subtitle: `${String(o.order_date)} · ${formatPen(o.total_pen)}`,
@@ -407,7 +445,7 @@ export default function PartnerWorkspace() {
           setSelectedMonitorOrder(o);
         },
       })),
-      ...catalog.slice(0, 15).map((p) => ({
+      ...catalog.slice(0, 20).map((p) => ({
         id: `prod-${p.product_id}`,
         label: `${p.name} (${p.sku})`,
         subtitle: `Stock: ${p.stock_on_hand} ${p.unit_of_measure} · ${formatPen(
@@ -424,7 +462,10 @@ export default function PartnerWorkspace() {
   }, [
     navItems,
     handleTabChange,
+    handleGoToDailyClose,
+    refreshDashboard,
     router,
+    debtorsByCustomer,
     orders,
     setSelectedMonitorOrder,
     catalog,
@@ -561,9 +602,7 @@ export default function PartnerWorkspace() {
           onError={(errMsg) => showFeedback(errMsg, true)}
         />
 
-        {loading && !partnerData && tab !== "control" && (
-          <SkeletonCards count={3} />
-        )}
+        {loading && !partnerData && tab !== "control" && <SkeletonCards count={3} />}
 
         {tab === "control" && (
           <Hoy

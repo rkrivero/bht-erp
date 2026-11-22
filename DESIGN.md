@@ -2,14 +2,14 @@
 name: Blue Horizon Trade ERP
 description: Precision Modern para decisiones y operación logística confiable
 colors:
-  horizon-navy: "#1C2127"
-  marine: "#0B385F"
-  trade-cobalt: "#3373B0"
-  mist: "#BED4E9"
-  glacial: "#E7F1FB"
-  steel: "#5A6578"
-  ink: "#1C2127"
-  paper: "#F8FAFC"
+  horizon-navy: "#0F1E30"
+  marine: "#16324F"
+  trade-cobalt: "#1D5FA8"
+  mist: "#C7D8EA"
+  glacial: "#EDF4FC"
+  steel: "#475569"
+  ink: "#0F1E30"
+  paper: "#F6F8FB"
   surface: "#FFFFFF"
   success: "#059669"
   warning: "#B45309"
@@ -83,12 +83,12 @@ La composición sigue “primero decidir, después ejecutar y finalmente analiza
 
 ## Colors
 
-- **Graphite Slate** (`#1C2127`): estructura primaria, sidebar, títulos y alta autoridad ("definitly, darker is nice").
-- **Marine Navy** (`#0B385F`): estructura profunda secundaria y estados hover oscuros.
-- **Cobalt Accent** (`#3373B0`): exactamente UN color de acento para acciones primarias, selecciones activas y foco.
-- **Mist Blue** (`#BED4E9`): bordes sutiles, hairlines y micro-divisores.
-- **Glacial Tint** (`#E7F1FB`): selección suave, chips activos y fondos de píldoras.
-- **Paper & Canvas** (`#F8FAFC` y `#FFFFFF`): lienzos y tarjetas con alta respiración visual.
+- **Horizon Navy** (`#0F1E30`): estructura primaria, sidebar, títulos y alta autoridad.
+- **Marine Navy** (`#16324F`): estructura profunda secundaria y estados hover oscuros.
+- **Trade Cobalt** (`#1D5FA8`): exactamente UN color de acento para acciones primarias, selecciones activas y foco.
+- **Mist Blue** (`#C7D8EA`): bordes sutiles, hairlines y micro-divisores.
+- **Glacial Tint** (`#EDF4FC`): selección suave, chips activos y fondos de píldoras.
+- **Paper & Canvas** (`#F6F8FB` y `#FFFFFF`): lienzos y tarjetas con alta respiración visual.
 
 ## Taste Rules (learn-taste / frontend-design)
 
@@ -105,7 +105,7 @@ La composición sigue “primero decidir, después ejecutar y finalmente analiza
   Aprovechar CSS Grid modular y asimétrico (`grid grid-cols-1 md:grid-cols-3`, `col-span-2`) para organizar tableros de control con alta densidad pero abundante espacio para respirar.
   <!-- 2026-11-20: "Build Bento Grids: Utilize Tailwind's CSS Grid classes to easily construct modular, asymmetrical layouts" -->
 - **Strictly Limit Your Palette:**
-  Limitar la paleta a una escala monocromática neutra (`#1C2127`, `#5A6578`, `#F8FAFC`, `#FFFFFF`) y definir **exactamente un color de acento** (`#3373B0`) para acciones primarias y estados activos.
+  Limitar la paleta a una escala monocromática fría (`#0F1E30`, `#475569`, `#F6F8FB`, `#FFFFFF`) y definir **exactamente un color de acento** (`#1D5FA8`) para acciones primarias y estados activos.
   <!-- 2026-11-20: "Strictly Limit Your Palette: define exactly one accent color for primary actions" -->
 
 ## Typography
@@ -158,11 +158,11 @@ Socios: Hoy, Ventas, Cobranza, Inventario, Finanzas y análisis. Vendedor: Vende
 
 ### Primitivas Enterprise Nativas (0 Librerías UI Externas)
 
-- **`ControlPanel`**: Cabecera de vista con *breadcrumbs*, CTA primario, barra contextual de acciones en lote, `SearchBar` con *facets* removibles, filtros en `popover="auto"` con CSS Anchor Positioning (`@supports (position-area: block-end)` y respaldo *bottom-sheet*), paginador y selector de vista sincronizados con `URLSearchParams`.
+- **`ControlPanel`**: Cabecera de vista con _breadcrumbs_, CTA primario, barra contextual de acciones en lote, `SearchBar` con _facets_ removibles, filtros en `popover="auto"` con CSS Anchor Positioning (`@supports (position-area: block-end)` y respaldo _bottom-sheet_), paginador y selector de vista sincronizados con `URLSearchParams`.
 - **`ResponsiveDataTable`**: Un único árbol DOM (`<table>`) dentro de `container-type: inline-size`. Ordenamiento con `aria-sort`, selector nativo de columnas opcionales (`popover="auto"`), transformación CSS a tarjetas en `@container (width < 640px)` vía `data-label` y diferimiento `.bht-defer-row` (`content-visibility: auto`) a partir de la fila índice 15.
-- **`ModalSheet` (`<dialog>`)**: Basado en `<dialog>` nativo con `showModal()`, `closedby="any"` y respaldo de clic en *backdrop* por coordenadas de puntero, animaciones top-layer con `@starting-style` y variante de confirmación.
+- **`ModalSheet` (`<dialog>`)**: Basado en `<dialog>` nativo con `showModal()`, `closedby="any"` y respaldo de clic en _backdrop_ por coordenadas de puntero, animaciones top-layer con `@starting-style` y variante de confirmación.
 - **`CommandPalette` (`Cmd/Ctrl+K`)**: Modal `<dialog>` ligero en cliente que indexa espacios RBAC, acciones rápidas y registros cargados en memoria.
-- **`FormSheet`**: Vista de documento estilo Odoo (`max-w-[1140px]`) con cabecera de acciones, *Statusbar* de etapas (pipeline), hoja blanca, fila de *Smart Buttons* sin consultas N+1 y *Notebook Tabs* accesibles (`role="tablist"`).
+- **`FormSheet`**: Vista de documento estilo Odoo (`max-w-[1140px]`) con cabecera de acciones, _Statusbar_ de etapas (pipeline), hoja blanca, fila de _Smart Buttons_ sin consultas N+1 y _Notebook Tabs_ accesibles (`role="tablist"`).
 - **`Skeleton` y `ToastBanner` (`CLS = 0`)**: Esqueletos con `aria-busy="true"` (`SkeletonLine`, `SkeletonTable`, `SkeletonCards`, `SkeletonKpiStrip`) y notificaciones flotantes fijas (`fixed top-4 right-4 z-50`).
 - **Densidad configurable**: Conmutador `Cómodo` / `Compacto` persistido en `localStorage` aplicando `data-density="compact"` en `document.documentElement`.
 

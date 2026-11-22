@@ -14,12 +14,7 @@ const optionalAccountId = z.preprocess(
 );
 
 const nextCollectionDaysSchema = z.preprocess(
-  (v) =>
-    v === null
-      ? null
-      : v === "" || v === undefined
-        ? undefined
-        : Number(v),
+  (v) => (v === null ? null : v === "" || v === undefined ? undefined : Number(v)),
   z.number().int().min(0).max(365).nullable().optional()
 );
 
@@ -28,12 +23,11 @@ export const singleOrderCollectionSchema = z.object({
   orderId: positiveInt,
   amountPen: z.preprocess(
     (v) => (typeof v === "string" && v.trim() !== "" ? Number(v) : v),
-    z.number({ message: "Monto de abono inválido" }).positive("El monto debe ser mayor a 0")
+    z
+      .number({ message: "Monto de abono inválido" })
+      .positive("El monto debe ser mayor a 0")
   ),
-  paymentMode: z
-    .enum(["CASH", "TRANSFER", "YAPE_PLIN"])
-    .optional()
-    .default("CASH"),
+  paymentMode: z.enum(["CASH", "TRANSFER", "YAPE_PLIN"]).optional().default("CASH"),
   accountId: optionalAccountId,
   notes: z.string().optional(),
   nextCollectionDays: nextCollectionDaysSchema,
@@ -45,12 +39,11 @@ export const fifoCustomerCollectionSchema = z.object({
   customerPartyId: positiveInt,
   totalAmountPen: z.preprocess(
     (v) => (typeof v === "string" && v.trim() !== "" ? Number(v) : v),
-    z.number({ message: "Monto total de abono inválido" }).positive("El monto debe ser mayor a 0")
+    z
+      .number({ message: "Monto total de abono inválido" })
+      .positive("El monto debe ser mayor a 0")
   ),
-  paymentMode: z
-    .enum(["CASH", "TRANSFER", "YAPE_PLIN"])
-    .optional()
-    .default("CASH"),
+  paymentMode: z.enum(["CASH", "TRANSFER", "YAPE_PLIN"]).optional().default("CASH"),
   accountId: optionalAccountId,
   notes: z.string().optional(),
   nextCollectionDays: nextCollectionDaysSchema,

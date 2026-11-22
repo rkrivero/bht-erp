@@ -1,6 +1,7 @@
 "use client";
 
 import { useDeferredValue, useMemo, useState } from "react";
+import dynamic from "next/dynamic";
 import { CloseIcon, EditIcon, SearchIcon } from "@/components/ui/Icons";
 import {
   Badge,
@@ -10,9 +11,18 @@ import {
   INPUT_CLASS,
   SegmentedControl,
 } from "@/components/ui/Primitives";
+import type { ConvertCreditQuoteOptions } from "@/components/ui/ConvertCreditQuoteModal";
 import type { SellerQuoteDto } from "@/features/seller/types";
 import { formatQuoteStatusEs } from "@/lib/labels-es";
 import { formatPen } from "./types";
+
+const ConvertCreditQuoteModal = dynamic(
+  () =>
+    import("@/components/ui/ConvertCreditQuoteModal").then((m) => ({
+      default: m.ConvertCreditQuoteModal,
+    })),
+  { ssr: false }
+);
 
 type QuoteStatusFilter = "OPEN" | "ALL" | "CONVERTED" | "CANCELLED";
 
@@ -21,7 +31,11 @@ interface PartnerQuotesPanelProps {
   busyQuoteId: number | null;
   onSelectQuote: (quote: SellerQuoteDto) => void;
   onEditQuote: (quote: SellerQuoteDto) => void;
-  onConvertQuote: (quoteId: number, mode: "CASH" | "CREDIT") => void;
+  onConvertQuote: (
+    quoteId: number,
+    mode: "CASH" | "CREDIT",
+    options?: ConvertCreditQuoteOptions
+  ) => Promise<boolean> | Promise<void> | void;
   onCancelQuote: (quoteId: number) => void;
 }
 
@@ -36,6 +50,7 @@ export function PartnerQuotesPanel({
   const [search, setSearch] = useState("");
   const deferredSearch = useDeferredValue(search);
   const [statusFilter, setStatusFilter] = useState<QuoteStatusFilter>("OPEN");
+  const [creditQuote, setCreditQuote] = useState<SellerQuoteDto | null>(null);
 
   const openCount = useMemo(
     () => quotes.filter((q) => q.status === "OPEN").length,
@@ -196,7 +211,7 @@ export function PartnerQuotesPanel({
                       size="sm"
                       data-compact="true"
                       disabled={isBusy}
-                      onClick={() => onConvertQuote(qId, "CREDIT")}
+                      onClick={() => setCreditQuote(q)}
                     >
                       A Crédito
                     </Button>
@@ -217,6 +232,18 @@ export function PartnerQuotesPanel({
           })}
         </div>
       )}
+
+      <ConvertCreditQuoteModal
+        quote={creditQuote}
+        busy={creditQuote !== null && busyQuoteId === Number(creditQuote.quote_id)}
+        onClose={() => setCreditQuote(null)}
+        onConfirm={async (quoteId, opts) => {
+          const ok = await onConvertQuote(quoteId, "CREDIT", opts);
+          if (ok !== false) {
+            setCreditQuote(null);
+          }
+        }}
+      />
     </Card>
   );
 }

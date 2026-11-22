@@ -6,12 +6,7 @@ const nullableNum = z.preprocess(
 );
 
 const triStateNum = z.preprocess(
-  (v) =>
-    v === undefined
-      ? undefined
-      : v === "" || v === null
-        ? null
-        : Number(v),
+  (v) => (v === undefined ? undefined : v === "" || v === null ? null : Number(v)),
   z.number({ message: "Valor numérico inválido" }).finite().nullable().optional()
 );
 

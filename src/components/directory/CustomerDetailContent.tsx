@@ -72,7 +72,12 @@ export function CustomerDetailContent({
             </Button>
           )}
           {customer.open_balance_pen > 0.05 && onOpenCollections && (
-            <Button type="button" variant="outline" size="sm" onClick={onOpenCollections}>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={onOpenCollections}
+            >
               Ir a Cobranza
             </Button>
           )}
@@ -95,8 +100,7 @@ export function CustomerDetailContent({
           value: formatPen(customer.open_balance_pen),
           icon: <WalletIcon className="h-4 w-4" />,
           tone: customer.open_balance_pen > 0.05 ? "danger" : "success",
-          onClick:
-            customer.open_balance_pen > 0.05 ? onOpenCollections : undefined,
+          onClick: customer.open_balance_pen > 0.05 ? onOpenCollections : undefined,
         },
         {
           id: "credit-limit",
@@ -115,10 +119,7 @@ export function CustomerDetailContent({
           content: (
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
               <DetailRow label="Documento" value={docLabel} />
-              <DetailRow
-                label="Teléfono"
-                value={customer.phone || "No registrado"}
-              />
+              <DetailRow label="Teléfono" value={customer.phone || "No registrado"} />
               <DetailRow label="Correo" value={customer.email || "No registrado"} />
               <DetailRow
                 label="Zona / Ruta"

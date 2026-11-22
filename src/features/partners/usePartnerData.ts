@@ -42,20 +42,13 @@ import type { SyncScope } from "@/lib/realtime/useLiveSync";
 import type { PartnerFeedback, PartnerTab } from "./partnerShared";
 
 type DatasetKey =
-  | "orders"
-  | "partners"
-  | "collections"
-  | "treasury"
-  | "purchases"
-  | "trips"
-  | "quotes";
+  "orders" | "partners" | "collections" | "treasury" | "purchases" | "trips" | "quotes";
 
 function getTabFromLocation(): PartnerTab {
   if (typeof window === "undefined") return "control";
   try {
-    return resolvePartnerNavigation(
-      new URLSearchParams(window.location.search)
-    ).legacyTab;
+    return resolvePartnerNavigation(new URLSearchParams(window.location.search))
+      .legacyTab;
   } catch {
     return "control";
   }
@@ -135,23 +128,9 @@ export function usePartnerData(externalActiveTab?: PartnerTab) {
       }
     };
     syncTab();
-
-    const origPushState = window.history.pushState.bind(window.history);
-    const origReplaceState = window.history.replaceState.bind(window.history);
-
-    window.history.pushState = function (...args) {
-      origPushState(...args);
-      syncTab();
-    };
-    window.history.replaceState = function (...args) {
-      origReplaceState(...args);
-      syncTab();
-    };
     window.addEventListener("popstate", syncTab);
 
     return () => {
-      window.history.pushState = origPushState;
-      window.history.replaceState = origReplaceState;
       window.removeEventListener("popstate", syncTab);
     };
   }, [externalActiveTab]);
@@ -166,7 +145,11 @@ export function usePartnerData(externalActiveTab?: PartnerTab) {
   const refreshDashboard = useCallback(
     async (
       changedScopes?: SyncScope[],
-      options?: { throwOnError?: boolean; targetTab?: PartnerTab; onlyMissing?: boolean }
+      options?: {
+        throwOnError?: boolean;
+        targetTab?: PartnerTab;
+        onlyMissing?: boolean;
+      }
     ) => {
       const tabForLoad = options?.targetTab ?? activeTabRef.current;
       const tabDatasets = getRequiredDatasetsForTab(tabForLoad);

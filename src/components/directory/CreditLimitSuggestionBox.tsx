@@ -29,7 +29,11 @@ function normalizeSuggestion(raw: unknown): NormalizedCreditSuggestion | null {
       : root;
 
   const partyId = Number(data.party_id ?? data.partyId ?? 0);
-  if (!partyId && data.suggested_credit_limit_pen === undefined && data.suggestedCreditLimitPen === undefined) {
+  if (
+    !partyId &&
+    data.suggested_credit_limit_pen === undefined &&
+    data.suggestedCreditLimitPen === undefined
+  ) {
     return null;
   }
 
@@ -44,18 +48,14 @@ function normalizeSuggestion(raw: unknown): NormalizedCreditSuggestion | null {
             data.currentCreditLimitPen !== undefined
           ? Number(data.currentCreditLimitPen)
           : null,
-    deliveredOrders6m: Number(
-      data.delivered_orders_6m ?? data.deliveredOrders6m ?? 0
-    ),
+    deliveredOrders6m: Number(data.delivered_orders_6m ?? data.deliveredOrders6m ?? 0),
     activeMonths6m: Number(data.active_months_6m ?? data.activeMonths6m ?? 0),
     avgMonthlySalesPen: Number(
       data.avg_monthly_sales_pen ?? data.avgMonthlySalesPen ?? 0
     ),
     cvMonthlySales: Number(data.cv_monthly_sales ?? data.cvMonthlySales ?? 0),
     avgDaysOverdue: Number(data.avg_days_overdue ?? data.avgDaysOverdue ?? 0),
-    punctualityFactor: Number(
-      data.punctuality_factor ?? data.punctualityFactor ?? 1
-    ),
+    punctualityFactor: Number(data.punctuality_factor ?? data.punctualityFactor ?? 1),
     volatilityFactor: Number(data.volatility_factor ?? data.volatilityFactor ?? 1),
     suggestedCreditLimitPen: Number(
       data.suggested_credit_limit_pen ?? data.suggestedCreditLimitPen ?? 0
@@ -91,9 +91,7 @@ export default function CreditLimitSuggestionBox({
   onApplyLimit,
 }: CreditLimitSuggestionBoxProps) {
   const [loading, setLoading] = useState(false);
-  const [suggestion, setSuggestion] = useState<NormalizedCreditSuggestion | null>(
-    null
-  );
+  const [suggestion, setSuggestion] = useState<NormalizedCreditSuggestion | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   async function handleFetchSuggestion() {
@@ -109,7 +107,9 @@ export default function CreditLimitSuggestionBox({
       );
       const parsed = normalizeSuggestion(res);
       if (!parsed) {
-        setError("No se encontró historial suficiente para calcular una línea sugerida.");
+        setError(
+          "No se encontró historial suficiente para calcular una línea sugerida."
+        );
       } else {
         setSuggestion(parsed);
       }
@@ -186,9 +186,7 @@ export default function CreditLimitSuggestionBox({
               </strong>
             </div>
             <div className="rounded-lg bg-bht-paper px-2.5 py-1.5">
-              <span className="block text-[11px] text-bht-ink-soft">
-                Mora promedio
-              </span>
+              <span className="block text-[11px] text-bht-ink-soft">Mora promedio</span>
               <strong className="text-bht-ink-strong">
                 {suggestion.avgDaysOverdue.toFixed(1)} días
               </strong>

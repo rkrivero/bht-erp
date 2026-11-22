@@ -111,50 +111,50 @@ export default function ReportesComercialTab({ data }: ReportesComercialTabProps
                 aria-labelledby="sales-zone-heading"
                 className="table-wrapper"
               >
-              <table className="w-full text-left text-sm">
-                <thead className="border-b border-bht-line bg-bht-paper text-xs font-semibold uppercase tracking-wide text-bht-ink-soft">
-                  <tr>
-                    <th scope="col" className="p-2">
-                      Zona
-                    </th>
-                    <th scope="col" className="p-2 text-right">
-                      Ped. / Cli.
-                    </th>
-                    <th scope="col" className="p-2 text-right">
-                      Ventas
-                    </th>
-                    <th scope="col" className="p-2 text-right">
-                      Margen Bruto
-                    </th>
-                    <th scope="col" className="p-2 text-right">
-                      Por Cobrar
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-bht-line">
-                  {byZone.map((z) => (
-                    <tr key={z.effective_zone} className="hover:bg-bht-paper">
-                      <td className="p-2 font-semibold text-bht-ink-strong">
-                        {z.effective_zone}
-                      </td>
-                      <td className="whitespace-nowrap p-2 text-right text-bht-ink-soft tabular-nums">
-                        {z.orders_count} / {z.customers_count}
-                      </td>
-                      <td className="whitespace-nowrap p-2 text-right font-semibold tabular-nums">
-                        {formatPen(z.sales_total_pen)}
-                      </td>
-                      <td className="whitespace-nowrap p-2 text-right font-semibold text-bht-success tabular-nums">
-                        {formatPen(z.gross_margin_pen)} ({formatPct(z.gross_margin_pct)}
-                        )
-                      </td>
-                      <td className="whitespace-nowrap p-2 text-right font-semibold text-bht-danger tabular-nums">
-                        {formatPen(z.ar_pending_pen)}
-                      </td>
+                <table className="w-full text-left text-sm">
+                  <thead className="border-b border-bht-line bg-bht-paper text-xs font-semibold uppercase tracking-wide text-bht-ink-soft">
+                    <tr>
+                      <th scope="col" className="p-2">
+                        Zona
+                      </th>
+                      <th scope="col" className="p-2 text-right">
+                        Ped. / Cli.
+                      </th>
+                      <th scope="col" className="p-2 text-right">
+                        Ventas
+                      </th>
+                      <th scope="col" className="p-2 text-right">
+                        Margen Bruto
+                      </th>
+                      <th scope="col" className="p-2 text-right">
+                        Por Cobrar
+                      </th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody className="divide-y divide-bht-line">
+                    {byZone.map((z) => (
+                      <tr key={z.effective_zone} className="hover:bg-bht-paper">
+                        <td className="p-2 font-semibold text-bht-ink-strong">
+                          {z.effective_zone}
+                        </td>
+                        <td className="whitespace-nowrap p-2 text-right text-bht-ink-soft tabular-nums">
+                          {z.orders_count} / {z.customers_count}
+                        </td>
+                        <td className="whitespace-nowrap p-2 text-right font-semibold tabular-nums">
+                          {formatPen(z.sales_total_pen)}
+                        </td>
+                        <td className="whitespace-nowrap p-2 text-right font-semibold text-bht-success tabular-nums">
+                          {formatPen(z.gross_margin_pen)} (
+                          {formatPct(z.gross_margin_pct)})
+                        </td>
+                        <td className="whitespace-nowrap p-2 text-right font-semibold text-bht-danger tabular-nums">
+                          {formatPen(z.ar_pending_pen)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </>
           )}
         </Card>
@@ -222,58 +222,58 @@ export default function ReportesComercialTab({ data }: ReportesComercialTabProps
                 aria-labelledby="sales-seller-heading"
                 className="table-wrapper"
               >
-              <table className="w-full text-left text-sm">
-                <thead className="border-b border-bht-line bg-bht-paper text-xs font-semibold uppercase tracking-wide text-bht-ink-soft">
-                  <tr>
-                    <th scope="col" className="p-2">
-                      Vendedor
-                    </th>
-                    <th scope="col" className="p-2 text-right">
-                      Vendido
-                    </th>
-                    <th scope="col" className="p-2 text-right">
-                      Cobrado
-                    </th>
-                    <th scope="col" className="p-2 text-right">
-                      Margen %
-                    </th>
-                    <th scope="col" className="p-2 text-right">
-                      Desc. S/
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-bht-line">
-                  {bySeller.map((s) => (
-                    <tr
-                      key={`${s.seller_user_id ?? "unassigned"}-${s.seller_name}`}
-                      className="hover:bg-bht-paper"
-                    >
-                      <td className="p-2">
-                        <p className="font-semibold text-bht-ink-strong">
-                          {s.seller_name}
-                        </p>
-                        <span className="text-bht-ink-soft tabular-nums">
-                          {s.orders_count} ped.
-                        </span>
-                      </td>
-                      <td className="whitespace-nowrap p-2 text-right font-semibold tabular-nums">
-                        {formatPen(s.sales_total_pen)}
-                      </td>
-                      <td className="whitespace-nowrap p-2 text-right text-bht-success tabular-nums">
-                        {formatPen(s.cash_collected_pen)} (
-                        {formatPct(s.collection_rate_pct, 0)})
-                      </td>
-                      <td className="whitespace-nowrap p-2 text-right font-semibold text-bht-navy-deep tabular-nums">
-                        {formatPct(s.gross_margin_pct)}
-                      </td>
-                      <td className="whitespace-nowrap p-2 text-right text-bht-warning tabular-nums">
-                        {formatPen(s.discount_total_pen)}
-                      </td>
+                <table className="w-full text-left text-sm">
+                  <thead className="border-b border-bht-line bg-bht-paper text-xs font-semibold uppercase tracking-wide text-bht-ink-soft">
+                    <tr>
+                      <th scope="col" className="p-2">
+                        Vendedor
+                      </th>
+                      <th scope="col" className="p-2 text-right">
+                        Vendido
+                      </th>
+                      <th scope="col" className="p-2 text-right">
+                        Cobrado
+                      </th>
+                      <th scope="col" className="p-2 text-right">
+                        Margen %
+                      </th>
+                      <th scope="col" className="p-2 text-right">
+                        Desc. S/
+                      </th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody className="divide-y divide-bht-line">
+                    {bySeller.map((s) => (
+                      <tr
+                        key={`${s.seller_user_id ?? "unassigned"}-${s.seller_name}`}
+                        className="hover:bg-bht-paper"
+                      >
+                        <td className="p-2">
+                          <p className="font-semibold text-bht-ink-strong">
+                            {s.seller_name}
+                          </p>
+                          <span className="text-bht-ink-soft tabular-nums">
+                            {s.orders_count} ped.
+                          </span>
+                        </td>
+                        <td className="whitespace-nowrap p-2 text-right font-semibold tabular-nums">
+                          {formatPen(s.sales_total_pen)}
+                        </td>
+                        <td className="whitespace-nowrap p-2 text-right text-bht-success tabular-nums">
+                          {formatPen(s.cash_collected_pen)} (
+                          {formatPct(s.collection_rate_pct, 0)})
+                        </td>
+                        <td className="whitespace-nowrap p-2 text-right font-semibold text-bht-navy-deep tabular-nums">
+                          {formatPct(s.gross_margin_pct)}
+                        </td>
+                        <td className="whitespace-nowrap p-2 text-right text-bht-warning tabular-nums">
+                          {formatPen(s.discount_total_pen)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </>
           )}
         </Card>

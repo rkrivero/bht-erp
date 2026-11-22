@@ -2,7 +2,6 @@
 
 import React from "react";
 import { formatPen } from "@/components/socios/types";
-import {} from "@/components/shared/CollectionControls";
 import { CloseIcon, SearchIcon } from "@/components/ui/Icons";
 import {
   Badge,
@@ -147,7 +146,7 @@ export function HoyMonitor({
           return (
             <div
               key={String(o.order_id)}
-              className="rounded-xl border border-bht-line bg-bht-paper p-3.5 space-y-2.5 text-sm"
+              className="rounded-xl border border-bht-line bg-bht-paper/70 p-3.5 space-y-2.5 text-sm transition-colors duration-150 hover:border-bht-line-strong"
             >
               <button
                 type="button"
@@ -156,7 +155,7 @@ export function HoyMonitor({
                 className="w-full text-left space-y-2 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bht-navy-deep/45 cursor-pointer"
               >
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <span className="text-xs font-semibold text-bht-navy-mid tabular-nums">
+                  <span className="font-mono text-xs font-semibold text-bht-navy-mid tabular-nums">
                     {String(o.order_code)} · {String(o.order_date)}
                   </span>
                   <div className="flex flex-wrap items-center gap-1.5">
@@ -291,18 +290,20 @@ export function HoyMonitor({
                 <tr
                   key={String(o.order_id)}
                   onClick={() => setSelectedMonitorOrder(o)}
-                  tabIndex={0}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" || e.key === " ") {
-                      e.preventDefault();
-                      setSelectedMonitorOrder(o);
-                    }
-                  }}
-                  aria-label={`Ver detalle del pedido ${String(o.order_code)}`}
-                  className="cursor-pointer transition hover:bg-bht-mist/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-bht-navy-deep/45"
+                  className="cursor-pointer transition-colors duration-150 hover:bg-bht-cobalt-bg/35"
                 >
-                  <td className="whitespace-nowrap p-3 font-semibold text-bht-navy-mid tabular-nums">
-                    {String(o.order_code)}
+                  <td
+                    className="whitespace-nowrap p-3 tabular-nums"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => setSelectedMonitorOrder(o)}
+                      aria-label={`Ver detalle del pedido ${String(o.order_code)}`}
+                      className="font-mono text-sm font-semibold text-bht-cobalt-strong hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bht-cobalt rounded cursor-pointer"
+                    >
+                      {String(o.order_code)}
+                    </button>
                     <span className="block text-xs font-normal text-bht-ink-muted">
                       {String(o.order_date)}
                     </span>

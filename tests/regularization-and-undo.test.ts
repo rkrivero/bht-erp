@@ -784,12 +784,16 @@ describe("Operational Undo System — All Action Types, Safety Guards & Timed RB
       const canonicalIds = await client.query<{ sku: string; product_id: number }>(
         `SELECT sku, product_id FROM erp.products WHERE sku IN ('47730-26120', '47730-20480')`
       );
-      const idBySku = new Map(canonicalIds.rows.map((r) => [r.sku, Number(r.product_id)]));
+      const idBySku = new Map(
+        canonicalIds.rows.map((r) => [r.sku, Number(r.product_id)])
+      );
 
       await createOrder(client, sellerActor, {
         customerNameRaw: "CLIENTE TEST REGULARIZACION ALIAS",
         paymentMode: "CREDIT",
-        lines: [{ productId: idBySku.get("47730-20480")!, quantity: 5, unitDiscountPen: 0 }],
+        lines: [
+          { productId: idBySku.get("47730-20480")!, quantity: 5, unitDiscountPen: 0 },
+        ],
       });
 
       const before5725 = await listUnpurchasedSalesRegularization(
@@ -826,14 +830,13 @@ describe("Operational Undo System — All Action Types, Safety Guards & Timed RB
       expect(aliasPurchase.lines[0].productId).toBe(idBySku.get("47730-26120"));
       expect(aliasPurchase.lines[1].productId).toBe(idBySku.get("47730-20480"));
 
-      const after5725 = await listUnpurchasedSalesRegularization(
-        client,
-        partnerAdmin,
-        { mode: "sold", search: "47730-20480" }
-      );
+      const after5725 = await listUnpurchasedSalesRegularization(client, partnerAdmin, {
+        mode: "sold",
+        search: "47730-20480",
+      });
       expect(
-        after5725.items.find((item) => item.sku === "47730-20480")
-          ?.qty_to_regularize ?? 0
+        after5725.items.find((item) => item.sku === "47730-20480")?.qty_to_regularize ??
+          0
       ).toBe(3);
 
       // 3) Strict UTC ISO-8601 timestamps & Spanish localization without raw DB enums
@@ -860,7 +863,9 @@ describe("Operational Undo System — All Action Types, Safety Guards & Timed RB
         order.orderId,
         "PICKING"
       );
-      expect(adv.undoAction?.summary).not.toMatch(/\b(REGISTERED|PICKING|CANCELLED|OPEN)\b/);
+      expect(adv.undoAction?.summary).not.toMatch(
+        /\b(REGISTERED|PICKING|CANCELLED|OPEN)\b/
+      );
 
       const advUndo = await executeUndoAction(client, partnerAdmin, {
         undoId: adv.undoAction!.undoId,
@@ -873,7 +878,9 @@ describe("Operational Undo System — All Action Types, Safety Guards & Timed RB
         status: "ALL",
         limit: 10,
       });
-      const listedAdv = listed.actions.find((a) => a.undo_id === adv.undoAction!.undoId);
+      const listedAdv = listed.actions.find(
+        (a) => a.undo_id === adv.undoAction!.undoId
+      );
       expect(listedAdv?.created_at).toMatch(isoUtcRe);
       expect(listedAdv?.expires_at).toMatch(isoUtcRe);
       expect(listedAdv?.undone_at).toMatch(isoUtcRe);
@@ -942,9 +949,10 @@ describe("Operational Undo System — All Action Types, Safety Guards & Timed RB
         await setupClient.query("BEGIN");
         await setupClient.query("SET LOCAL bht.allow_hard_delete = 'on'");
         if (createdUndoId !== null) {
-          await setupClient.query(`DELETE FROM erp.undoable_actions WHERE undo_id = $1`, [
-            createdUndoId,
-          ]);
+          await setupClient.query(
+            `DELETE FROM erp.undoable_actions WHERE undo_id = $1`,
+            [createdUndoId]
+          );
         }
         if (createdQuoteId !== null) {
           await setupClient.query(`DELETE FROM erp.quotes WHERE quote_id = $1`, [

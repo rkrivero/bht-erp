@@ -1,4 +1,8 @@
-import { SkeletonCards, SkeletonKpiStrip, SkeletonTable } from "@/components/ui/Skeleton";
+import {
+  SkeletonCards,
+  SkeletonKpiStrip,
+  SkeletonTable,
+} from "@/components/ui/Skeleton";
 
 export default function SociosLoading() {
   return (

@@ -6,12 +6,7 @@ export interface CatalogMatchCandidate {
 }
 
 export type CatalogMatchVia =
-  | "sku"
-  | "name"
-  | "alias"
-  | "canonical_sku"
-  | "canonical_name"
-  | "canonical_alias";
+  "sku" | "name" | "alias" | "canonical_sku" | "canonical_name" | "canonical_alias";
 
 export interface CatalogSearchMatch {
   matched: boolean;

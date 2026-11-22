@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useId, useMemo, useRef, useState } from "react";
+import React, { useId, useMemo, useState } from "react";
 import { Button, EmptyState } from "./Primitives";
 
 export interface ResponsiveTableColumn<T> {
@@ -43,7 +43,6 @@ export function ResponsiveDataTable<T>({
   className?: string;
 }) {
   const columnsPopoverId = useId();
-  const popoverRef = useRef<HTMLDivElement | null>(null);
   const [colsOpen, setColsOpen] = useState(false);
 
   const [hiddenColumnIds, setHiddenColumnIds] = useState<Set<string>>(() => {
@@ -85,9 +84,7 @@ export function ResponsiveDataTable<T>({
       if (typeof va === "number" && typeof vb === "number") {
         return (va - vb) * factor;
       }
-      return (
-        String(va).localeCompare(String(vb), "es-PE", { numeric: true }) * factor
-      );
+      return String(va).localeCompare(String(vb), "es-PE", { numeric: true }) * factor;
     });
   }, [data, sortState, columns]);
 
@@ -116,30 +113,6 @@ export function ResponsiveDataTable<T>({
     });
   }
 
-  function toggleColsPopover() {
-    const pop = popoverRef.current as
-      | (HTMLDivElement & {
-          showPopover?: () => void;
-          hidePopover?: () => void;
-        })
-      | null;
-    if (pop && typeof pop.showPopover === "function") {
-      try {
-        if (colsOpen) {
-          pop.hidePopover?.();
-          setColsOpen(false);
-        } else {
-          pop.showPopover();
-          setColsOpen(true);
-        }
-        return;
-      } catch {
-        // Fallback to React state
-      }
-    }
-    setColsOpen((prev) => !prev);
-  }
-
   if (data.length === 0) {
     return <EmptyState title={emptyTitle} description={emptyDescription} />;
   }
@@ -156,12 +129,10 @@ export function ResponsiveDataTable<T>({
               data-compact="true"
               popoverTarget={columnsPopoverId}
               aria-expanded={colsOpen}
-              onClick={toggleColsPopover}
             >
               Columnas ({visibleColumns.length}/{columns.length})
             </Button>
             <div
-              ref={popoverRef}
               id={columnsPopoverId}
               popover="auto"
               onToggle={(e) => {
@@ -172,9 +143,7 @@ export function ResponsiveDataTable<T>({
                   setColsOpen(evt.newState === "open");
                 }
               }}
-              className={`bht-anchored-popover ${
-                colsOpen ? "block" : "hidden"
-              } z-40 mt-1 w-56 rounded-xl border border-bht-line bg-white p-2.5 shadow-bht-elev-17`}
+              className="bht-anchored-popover z-40 mt-1 w-56 rounded-xl border border-bht-line bg-white p-2.5 shadow-bht-elev-17"
             >
               <p className="px-2 pb-1.5 text-xs font-semibold text-bht-ink-soft">
                 Columnas opcionales
@@ -208,7 +177,7 @@ export function ResponsiveDataTable<T>({
         role="region"
         aria-label={ariaLabel}
         aria-labelledby={ariaLabelledBy}
-        className="table-wrapper rounded-xl border border-bht-line bg-white"
+        className="table-wrapper rounded-2xl border border-bht-line bg-white shadow-bht-elev-2"
       >
         <table className="bht-responsive-table w-full text-left text-sm">
           <thead className="border-b border-bht-line bg-bht-paper text-xs font-semibold uppercase tracking-wide text-bht-ink-soft">
@@ -241,17 +210,15 @@ export function ResponsiveDataTable<T>({
                         type="button"
                         data-compact="true"
                         onClick={() => handleSort(col)}
-                        className={`inline-flex items-center gap-1 font-semibold uppercase tracking-wide text-bht-ink-soft hover:text-bht-ink-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bht-cobalt cursor-pointer ${
-                          col.align === "right" ? "ml-auto" : ""
-                        }`}
+                        className={`inline-flex items-center gap-1 font-semibold uppercase tracking-wider transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bht-cobalt cursor-pointer ${
+                          isSorted
+                            ? "text-bht-cobalt-strong"
+                            : "text-bht-ink-soft hover:text-bht-ink-strong"
+                        } ${col.align === "right" ? "ml-auto" : ""}`}
                       >
                         <span>{col.header}</span>
                         <span aria-hidden="true" className="text-[10px]">
-                          {isSorted
-                            ? sortState.direction === "asc"
-                              ? "▲"
-                              : "▼"
-                            : "⇅"}
+                          {isSorted ? (sortState.direction === "asc" ? "▲" : "▼") : "⇅"}
                         </span>
                       </button>
                     ) : (
@@ -267,7 +234,7 @@ export function ResponsiveDataTable<T>({
               const rowKey = getRowKey(row, rowIndex);
               const deferClass = rowIndex >= deferAfterRow ? "bht-defer-row" : "";
               const clickableClass = onRowClick
-                ? "cursor-pointer transition hover:bg-bht-mist/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-bht-cobalt"
+                ? "cursor-pointer transition-colors duration-150 hover:bg-bht-cobalt-bg/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-bht-cobalt"
                 : "bht-table-row";
 
               return (
@@ -308,9 +275,7 @@ export function ResponsiveDataTable<T>({
                       >
                         <div
                           className={
-                            col.align === "right"
-                              ? "min-w-0 sm:ml-auto"
-                              : "min-w-0"
+                            col.align === "right" ? "min-w-0 sm:ml-auto" : "min-w-0"
                           }
                         >
                           {col.cell(row, rowIndex)}

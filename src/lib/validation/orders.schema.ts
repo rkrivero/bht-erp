@@ -22,7 +22,9 @@ export const orderLineInputSchema = z.object({
   productId: positiveInt,
   quantity: z.preprocess(
     (v) => (typeof v === "string" && v.trim() !== "" ? Number(v) : v),
-    z.number({ message: "La cantidad debe ser mayor a 0" }).positive("La cantidad debe ser mayor a 0")
+    z
+      .number({ message: "La cantidad debe ser mayor a 0" })
+      .positive("La cantidad debe ser mayor a 0")
   ),
   packFactorApplied: optionalNum,
   unitPricePen: optionalNum,
@@ -60,7 +62,11 @@ export const createOrderBodySchema = z.object({
     z.number().int().positive().nullable().optional()
   ),
   globalDiscountPen: optionalNum,
-  notes: z.string().nullable().optional().transform((v) => v ?? undefined),
+  notes: z
+    .string()
+    .nullable()
+    .optional()
+    .transform((v) => v ?? undefined),
   lines: z
     .array(orderLineInputSchema, {
       message: "El pedido debe incluir al menos un producto",

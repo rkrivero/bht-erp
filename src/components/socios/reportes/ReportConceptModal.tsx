@@ -418,10 +418,10 @@ const BUTTON_TONE_CLASSES: Record<Tone, string> = {
   subtle: "border-bht-slate-line bg-bht-surface-cool",
   horizon: "border-bht-slate-line bg-bht-surface-cool",
   brand: "border-bht-info-line bg-bht-surface-cool",
-  success: "border-bht-success-line bg-bht-tone-f5fbf7",
-  warning: "border-bht-amber-line bg-bht-amber-bg",
-  danger: "border-bht-danger-line bg-bht-tone-fef6f6",
-  indigo: "border-bht-tone-c7d2fe bg-bht-tone-f6f7ff",
+  success: "border-bht-success-line bg-bht-success-bg",
+  warning: "border-bht-warning-line bg-bht-warning-bg",
+  danger: "border-bht-danger-line bg-bht-danger-bg",
+  indigo: "border-bht-info-line bg-bht-paper",
 };
 
 export function ConceptCardButton({
@@ -442,12 +442,15 @@ export function ConceptCardButton({
     <button
       type="button"
       onClick={onClick}
-      className={`group flex min-w-0 flex-col justify-between rounded-2xl border ${padClass} text-left shadow-bht-elev-4 transition hover:border-bht-navy-mid/45 hover:shadow-bht-elev-14 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bht-navy-deep cursor-pointer ${BUTTON_TONE_CLASSES[tone]} ${className}`}
+      className={`group relative flex min-w-0 flex-col justify-between rounded-2xl border ${padClass} text-left shadow-bht-elev-4 transition-colors duration-150 hover:border-bht-cobalt/50 hover:shadow-bht-elev-14 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bht-cobalt cursor-pointer ${BUTTON_TONE_CLASSES[tone]} ${className}`}
     >
-      <div className="space-y-1.5">{children}</div>
-      <span className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-bht-ink-muted transition-colors group-hover:text-bht-cobalt group-hover:underline">
-        Ver fórmula y guía →
+      <span
+        aria-hidden="true"
+        className="absolute right-3 top-3 inline-flex h-5 w-5 items-center justify-center rounded-full border border-bht-line bg-bht-paper text-[11px] font-semibold text-bht-ink-muted transition-colors group-hover:border-bht-cobalt/40 group-hover:bg-bht-cobalt-bg group-hover:text-bht-cobalt-strong"
+      >
+        ?
       </span>
+      <div className="space-y-1.5 pr-6">{children}</div>
     </button>
   );
 }

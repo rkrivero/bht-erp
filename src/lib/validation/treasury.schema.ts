@@ -8,7 +8,9 @@ const optionalPositiveInt = z.preprocess(
 export const treasuryCashOutflowSchema = z.object({
   amountPen: z.preprocess(
     (v) => (typeof v === "string" && v.trim() !== "" ? Number(v) : v),
-    z.number({ message: "Monto de egreso inválido" }).positive("El monto debe ser mayor a 0")
+    z
+      .number({ message: "Monto de egreso inválido" })
+      .positive("El monto debe ser mayor a 0")
   ),
   expenseBucket: z
     .enum(["ROUTE_OPEX", "ADMIN_OPEX", "MERCHANDISE_PAYMENT", "NON_OPEX_OR_CAPEX"])

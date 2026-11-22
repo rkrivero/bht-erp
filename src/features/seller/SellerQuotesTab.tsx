@@ -1,6 +1,7 @@
 "use client";
 
 import { useDeferredValue, useMemo, useState } from "react";
+import dynamic from "next/dynamic";
 import { CloseIcon, EditIcon, ReceiptIcon, SearchIcon } from "@/components/ui/Icons";
 import {
   Badge,
@@ -10,14 +11,27 @@ import {
   INPUT_CLASS,
   SegmentedControl,
 } from "@/components/ui/Primitives";
+import type { ConvertCreditQuoteOptions } from "@/components/ui/ConvertCreditQuoteModal";
 import type { SellerQuoteDto } from "./types";
+
+const ConvertCreditQuoteModal = dynamic(
+  () =>
+    import("@/components/ui/ConvertCreditQuoteModal").then((m) => ({
+      default: m.ConvertCreditQuoteModal,
+    })),
+  { ssr: false }
+);
 
 interface SellerQuotesTabProps {
   quotes: SellerQuoteDto[];
   busyQuoteId: number | null;
   onCreate: () => void;
   onEdit: (quote: SellerQuoteDto) => void;
-  onConvert: (quoteId: number, paymentMode: "CASH" | "CREDIT") => void;
+  onConvert: (
+    quoteId: number,
+    paymentMode: "CASH" | "CREDIT",
+    options?: ConvertCreditQuoteOptions
+  ) => Promise<boolean> | Promise<void> | void;
   onCancel: (quoteId: number) => void;
 }
 
@@ -32,6 +46,7 @@ export default function SellerQuotesTab({
   const [search, setSearch] = useState("");
   const deferredSearch = useDeferredValue(search);
   const [statusFilter, setStatusFilter] = useState<"OPEN" | "ALL">("OPEN");
+  const [creditQuote, setCreditQuote] = useState<SellerQuoteDto | null>(null);
 
   const openCount = useMemo(
     () => quotes.filter((q) => q.status === "OPEN").length,
@@ -182,26 +197,27 @@ export default function SellerQuotesTab({
                     </div>
                   )}
                 </div>
-                {Array.isArray(quote.audit_history) && quote.audit_history.length > 0 && (
-                  <details className="rounded-lg border border-bht-line bg-bht-mist/50 px-2.5 py-1.5 text-xs">
-                    <summary className="cursor-pointer font-medium text-bht-navy-mid">
-                      Modificaciones registradas ({quote.audit_history.length})
-                    </summary>
-                    <div className="mt-1.5 space-y-1.5 border-t border-bht-line pt-1.5 text-bht-ink-soft">
-                      {quote.audit_history.map((entry) => (
-                        <div key={entry.audit_id}>
-                          <p className="font-medium text-bht-ink-strong">
-                            {entry.reason}
-                          </p>
-                          <p>
-                            {entry.actor_name || "Usuario"} ·{" "}
-                            {new Date(entry.created_at).toLocaleString("es-PE")}
-                          </p>
-                        </div>
-                      ))}
-                    </div>
-                  </details>
-                )}
+                {Array.isArray(quote.audit_history) &&
+                  quote.audit_history.length > 0 && (
+                    <details className="rounded-lg border border-bht-line bg-bht-mist/50 px-2.5 py-1.5 text-xs">
+                      <summary className="cursor-pointer font-medium text-bht-navy-mid">
+                        Modificaciones registradas ({quote.audit_history.length})
+                      </summary>
+                      <div className="mt-1.5 space-y-1.5 border-t border-bht-line pt-1.5 text-bht-ink-soft">
+                        {quote.audit_history.map((entry) => (
+                          <div key={entry.audit_id}>
+                            <p className="font-medium text-bht-ink-strong">
+                              {entry.reason}
+                            </p>
+                            <p>
+                              {entry.actor_name || "Usuario"} ·{" "}
+                              {new Date(entry.created_at).toLocaleString("es-PE")}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    </details>
+                  )}
                 <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
                   <span className="font-semibold text-bht-navy-deep tabular-nums">
                     Total: S/ {quote.total_pen.toFixed(2)}
@@ -235,9 +251,9 @@ export default function SellerQuotesTab({
                         size="sm"
                         data-compact="true"
                         disabled={busy}
-                        onClick={() => onConvert(quote.quote_id, "CREDIT")}
+                        onClick={() => setCreditQuote(quote)}
                       >
-                        A Crédito 7d
+                        A Crédito
                       </Button>
                       <Button
                         type="button"
@@ -257,6 +273,18 @@ export default function SellerQuotesTab({
           })}
         </div>
       )}
+
+      <ConvertCreditQuoteModal
+        quote={creditQuote}
+        busy={creditQuote !== null && busyQuoteId === creditQuote.quote_id}
+        onClose={() => setCreditQuote(null)}
+        onConfirm={async (quoteId, opts) => {
+          const ok = await onConvert(quoteId, "CREDIT", opts);
+          if (ok !== false) {
+            setCreditQuote(null);
+          }
+        }}
+      />
     </section>
   );
 }

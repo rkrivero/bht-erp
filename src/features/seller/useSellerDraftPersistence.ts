@@ -137,7 +137,9 @@ export function useSellerDraftPersistence(
                   ? legacy.unitPricePen
                   : Math.max(
                       0,
-                      Number((listPrice - Number(legacy.unitDiscountPen ?? 0)).toFixed(2))
+                      Number(
+                        (listPrice - Number(legacy.unitDiscountPen ?? 0)).toFixed(2)
+                      )
                     );
               return {
                 ...rawLine,

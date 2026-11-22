@@ -5,7 +5,11 @@ import {
   resolveCatalogProductMatch,
   stripConsolidatedVariantTokens,
 } from "../src/lib/product-matching";
-import { formatCountdownMmSs, getRemainingSeconds, parseIsoTimestampMs } from "../src/lib/undo-client";
+import {
+  formatCountdownMmSs,
+  getRemainingSeconds,
+  parseIsoTimestampMs,
+} from "../src/lib/undo-client";
 
 const SAMPLE_CATALOG = [
   {
@@ -72,10 +76,8 @@ describe("Canonical SKU & Supplier Invoice Description Matching", () => {
 
     const caliper5725Search = SAMPLE_CATALOG.filter(
       (item) =>
-        matchCatalogItem(
-          item,
-          'CALIPER PARA TOYOTA LASER 57-25 LADO IZQUIERDO "NUEVO"'
-        ).matched
+        matchCatalogItem(item, 'CALIPER PARA TOYOTA LASER 57-25 LADO IZQUIERDO "NUEVO"')
+          .matched
     );
     expect(caliper5725Search.map((i) => i.sku)).toEqual(["47730-20480"]);
 
@@ -125,9 +127,7 @@ describe("Canonical SKU & Supplier Invoice Description Matching", () => {
     const pgMs = parseIsoTimestampMs("2026-11-19 10:36:12.123+00");
     expect(Number.isFinite(utcMs)).toBe(true);
     expect(pgMs).toBe(utcMs);
-    expect(
-      getRemainingSeconds("2026-11-19T10:36:12.123Z", utcMs - 125_000)
-    ).toBe(125);
+    expect(getRemainingSeconds("2026-11-19T10:36:12.123Z", utcMs - 125_000)).toBe(125);
     expect(formatCountdownMmSs(125)).toBe("2:05");
   });
 });

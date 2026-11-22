@@ -34,11 +34,15 @@ export const purchaseLineItemSchema = z.object({
   unitOfMeasure: z.string().optional(),
   quantity: z.preprocess(
     (v) => (typeof v === "string" && v.trim() !== "" ? Number(v) : v),
-    z.number({ message: "La cantidad debe ser mayor a 0" }).positive("La cantidad debe ser mayor a 0")
+    z
+      .number({ message: "La cantidad debe ser mayor a 0" })
+      .positive("La cantidad debe ser mayor a 0")
   ),
   unitCostPen: z.preprocess(
     (v) => (typeof v === "string" && v.trim() !== "" ? Number(v) : v),
-    z.number({ message: "El costo unitario debe ser válido" }).nonnegative("El costo unitario no puede ser negativo")
+    z
+      .number({ message: "El costo unitario debe ser válido" })
+      .nonnegative("El costo unitario no puede ser negativo")
   ),
   listSalePricePen: optionalNum,
   minSalePricePen: optionalNum,
@@ -86,7 +90,9 @@ export const payApObligationBodySchema = z.object({
   apId: positiveInt,
   amountPen: z.preprocess(
     (v) => (typeof v === "string" && v.trim() !== "" ? Number(v) : v),
-    z.number({ message: "Monto de pago inválido" }).positive("El monto debe ser mayor a 0")
+    z
+      .number({ message: "Monto de pago inválido" })
+      .positive("El monto debe ser mayor a 0")
   ),
   accountId: z.preprocess(
     (v) => (v === "" || v === null || v === undefined ? undefined : Number(v)),

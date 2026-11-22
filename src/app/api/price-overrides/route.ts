@@ -23,7 +23,9 @@ export async function GET(req: NextRequest) {
     const customerIdParam = req.nextUrl.searchParams.get("customer_party_id");
 
     const limit = limitParam ? parsePositiveInt(limitParam, "Límite") : 100;
-    const productId = productIdParam ? parsePositiveInt(productIdParam, "Producto") : null;
+    const productId = productIdParam
+      ? parsePositiveInt(productIdParam, "Producto")
+      : null;
     const customerPartyId = customerIdParam
       ? parsePositiveInt(customerIdParam, "Cliente")
       : null;

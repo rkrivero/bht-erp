@@ -80,17 +80,11 @@ export default function WarehouseWorkspace() {
   }, [feedback]);
 
   const { checkedLines, toggleLineChecked, pruneChecklist } = useWarehouseChecklist();
-  const {
-    currentUser,
-    orders,
-    openTrips,
-    loading,
-    loadOrders,
-    applyLocalOrderStatus,
-  } = useWarehouseData({
-    setFeedback,
-    pruneChecklist,
-  });
+  const { currentUser, orders, openTrips, loading, loadOrders, applyLocalOrderStatus } =
+    useWarehouseData({
+      setFeedback,
+      pruneChecklist,
+    });
   const actions = useWarehouseActions({
     currentUser,
     openTrips,

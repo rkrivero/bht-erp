@@ -1,14 +1,10 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import React, { useContext, useEffect, useMemo, useState } from "react";
-import {
-  QueryClient,
-  QueryClientContext,
-  useQuery,
-} from "@tanstack/react-query";
+import React, { useContext, useEffect, useMemo, useRef, useState } from "react";
+import { QueryClient, QueryClientContext, useQuery } from "@tanstack/react-query";
 import { ControlPanel, type ControlPanelFacet } from "@/components/ui/ControlPanel";
-import { ChevronRightIcon, CloseIcon } from "@/components/ui/Icons";
+import { ChevronRightIcon } from "@/components/ui/Icons";
 import { Badge, Button, Card, INPUT_CLASS } from "@/components/ui/Primitives";
 import { SkeletonCards } from "@/components/ui/Skeleton";
 import type { UndoActionReceiptDto } from "@/lib/contracts";
@@ -116,6 +112,7 @@ export default function ReportesWorkspace({
     months: [],
   });
   const [latestDataCut, setLatestDataCut] = useState<DataCutSummary | null>(null);
+  const tabButtonRefs = useRef<Array<HTMLButtonElement | null>>([]);
 
   useEffect(() => {
     return () => onEditingChange?.(false);
@@ -186,13 +183,26 @@ export default function ReportesWorkspace({
     }));
   }
 
+  function handleTabKeyDown(e: React.KeyboardEvent<HTMLButtonElement>, idx: number) {
+    const count = REPORT_TAB_ITEMS.length;
+    let nextIdx: number | null = null;
+    if (e.key === "ArrowRight") nextIdx = (idx + 1) % count;
+    else if (e.key === "ArrowLeft") nextIdx = (idx - 1 + count) % count;
+    else if (e.key === "Home") nextIdx = 0;
+    else if (e.key === "End") nextIdx = count - 1;
+    if (nextIdx !== null) {
+      e.preventDefault();
+      const target = REPORT_TAB_ITEMS[nextIdx];
+      if (target) {
+        setActiveSection(target.id);
+        tabButtonRefs.current[nextIdx]?.focus();
+      }
+    }
+  }
+
   function handleRetryOrRefresh() {
     void reportQuery.refetch();
   }
-
-  const hasActiveFilters = Boolean(
-    filters.from || filters.to || filters.zone || filters.sellerId
-  );
 
   const facets: ControlPanelFacet[] = useMemo(() => {
     const list: ControlPanelFacet[] = [];
@@ -223,9 +233,8 @@ export default function ReportesWorkspace({
       const sellerName =
         filters.sellerId === "UNASSIGNED"
           ? "Sin vendedor"
-          : (filterOptions.sellers.find(
-              (s) => String(s.user_id) === filters.sellerId
-            )?.full_name ?? filters.sellerId);
+          : (filterOptions.sellers.find((s) => String(s.user_id) === filters.sellerId)
+              ?.full_name ?? filters.sellerId);
       list.push({
         id: "seller",
         label: "Vendedor",
@@ -262,163 +271,14 @@ export default function ReportesWorkspace({
         className="no-print"
         facets={facets}
         onClearAllFacets={() => setFilters(INITIAL_REPORT_FILTERS)}
-        secondaryActions={
-          <div className="flex flex-wrap items-center gap-2">
-            {isFetching && displayPayload && (
-              <Badge tone="brand">Actualizando…</Badge>
-            )}
-            {hasActiveFilters && (
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => setFilters(INITIAL_REPORT_FILTERS)}
-              >
-                <CloseIcon className="h-3.5 w-3.5" />
-                Limpiar filtros
-              </Button>
-            )}
-            <Button
-              type="button"
-              variant="secondary"
-              size="sm"
-              onClick={handleRetryOrRefresh}
-            >
-              Actualizar
-            </Button>
-          </div>
-        }
-      >
-        {activeTabMeta && (
-          <details className="group max-w-3xl">
-            <summary className="inline-flex cursor-pointer list-none items-center gap-1.5 rounded-lg text-xs font-semibold text-bht-cobalt hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bht-cobalt focus-visible:ring-offset-2 [&::-webkit-details-marker]:hidden">
-              Guía de lectura
-              <ChevronRightIcon
-                aria-hidden="true"
-                className="h-3.5 w-3.5 transition group-open:rotate-90"
-              />
-            </summary>
-            <div className="mt-2 space-y-2 rounded-xl bg-bht-surface-cool p-3">
-              <dl className="grid gap-x-5 gap-y-2 sm:grid-cols-2 xl:grid-cols-4">
-                {activeTabMeta.concepts.map((concept) => (
-                  <div
-                    key={concept.term}
-                    className="min-w-0 text-xs leading-relaxed"
-                  >
-                    <dt className="font-bold text-bht-ink-strong">
-                      {concept.term}
-                    </dt>
-                    <dd className="text-bht-ink-soft">{concept.meaning}</dd>
-                  </div>
-                ))}
-              </dl>
-              <p className="border-t border-bht-line pt-2 text-xs text-bht-navy-deep">
-                Consejo: toca cualquier tarjeta de indicador para abrir su
-                explicación práctica y fórmula.
-              </p>
-            </div>
-          </details>
-        )}
-
-        {/* 6 Sub-tabs — primary report navigation */}
-        <div
-          role="tablist"
-          aria-label="Secciones de reportes"
-          className="grid grid-cols-2 gap-2 rounded-2xl border border-bht-line-blue bg-bht-mist p-1.5 sm:grid-cols-3 xl:grid-cols-6"
-        >
-          {REPORT_TAB_ITEMS.map((item) => {
-            const active = activeSection === item.id;
-            return (
-              <button
-                key={item.id}
-                type="button"
-                role="tab"
-                aria-selected={active}
-                onClick={() => setActiveSection(item.id)}
-                className={`min-h-11 rounded-xl border px-3 py-2.5 text-left transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bht-navy-deep cursor-pointer ${
-                  active
-                    ? "border-bht-navy-deep bg-bht-navy-deep text-white shadow-bht-elev-10"
-                    : "border-transparent bg-white/85 text-bht-navy-deep hover:border-bht-line-blue hover:bg-white"
-                }`}
-              >
-                <span className="block text-xs font-extrabold leading-tight sm:text-sm">
-                  {item.label}
-                </span>
-                <span
-                  className={`mt-0.5 hidden line-clamp-1 text-xs leading-snug xl:block ${
-                    active ? "text-bht-mist" : "text-bht-ink-soft"
-                  }`}
-                >
-                  {item.subtitle}
-                </span>
-              </button>
-            );
-          })}
-        </div>
-
-        {/* Period, Zone & Seller Filters */}
-        <div className="space-y-2.5 border-t border-bht-line pt-3">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div className="flex flex-wrap items-center gap-1.5">
-              {(
-                [
-                  { id: "ALL", label: "Todo el histórico" },
-                  { id: "THIS_MONTH", label: "Este mes" },
-                  { id: "LAST_30D", label: "Últ. 30 días" },
-                  { id: "LAST_90D", label: "Últ. 90 días" },
-                ] as const
-              ).map((presetOpt) => {
-                const selected = filters.preset === presetOpt.id;
-                return (
-                  <button
-                    key={presetOpt.id}
-                    type="button"
-                    data-compact="true"
-                    aria-pressed={selected}
-                    onClick={() => applyPreset(presetOpt.id)}
-                    className={`min-h-8 rounded-full border px-3 py-1 text-xs font-semibold transition cursor-pointer ${
-                      selected
-                        ? "border-bht-cobalt bg-bht-cobalt text-white"
-                        : "border-bht-line bg-white text-bht-ink-soft hover:bg-bht-mist"
-                    }`}
-                  >
-                    {presetOpt.label}
-                  </button>
-                );
-              })}
-            </div>
-
-            <div
-              role="status"
-              className="flex flex-wrap items-center gap-1.5 text-xs text-bht-ink-soft"
-            >
-              <span className="font-semibold text-bht-ink-strong">
-                {effectiveDataCut?.lastOrderDate
-                  ? `Ventas actualizadas hasta: ${formatDatePe(effectiveDataCut.lastOrderDate)}`
-                  : latestRecordedMonth
-                    ? `Último mes con ventas registradas: ${formatMonthLabel(latestRecordedMonth)}`
-                    : "Todavía no hay un período de ventas disponible"}
-              </span>
-              {effectiveDataCut && (
-                <span className="hidden tabular-nums lg:inline">
-                  · Caja: {formatDatePe(effectiveDataCut.lastCashLedgerDate)} · Compras:{" "}
-                  {formatDatePe(effectiveDataCut.lastPurchaseDate)}
-                </span>
-              )}
-              {effectiveDataCut && !effectiveDataCut.bankReconciled && (
-                <Badge tone="neutral">No conciliado</Badge>
-              )}
-              <Badge tone={dataNeedsReview ? "warning" : "horizon"}>
-                {dataNeedsReview ? "Datos desactualizados" : "Corte visible"}
-              </Badge>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+        filterButtonLabel="Filtros"
+        activeFiltersCount={facets.length}
+        filterPopoverContent={
+          <div className="space-y-3">
             <div>
               <label
                 htmlFor="rep-month"
-                className="mb-1 block text-xs font-medium text-bht-ink-soft"
+                className="mb-1 block text-xs font-semibold text-bht-ink-soft"
               >
                 Mes contable
               </label>
@@ -437,56 +297,58 @@ export default function ReportesWorkspace({
               </select>
             </div>
 
-            <div>
-              <label
-                htmlFor="rep-from"
-                className="mb-1 block text-xs font-medium text-bht-ink-soft"
-              >
-                Desde
-              </label>
-              <input
-                id="rep-from"
-                type="date"
-                value={filters.from}
-                onChange={(e) =>
-                  setFilters((prev) => ({
-                    ...prev,
-                    preset: "CUSTOM",
-                    month: "",
-                    from: e.target.value,
-                  }))
-                }
-                className={INPUT_CLASS}
-              />
-            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label
+                  htmlFor="rep-from"
+                  className="mb-1 block text-xs font-semibold text-bht-ink-soft"
+                >
+                  Desde
+                </label>
+                <input
+                  id="rep-from"
+                  type="date"
+                  value={filters.from}
+                  onChange={(e) =>
+                    setFilters((prev) => ({
+                      ...prev,
+                      preset: "CUSTOM",
+                      month: "",
+                      from: e.target.value,
+                    }))
+                  }
+                  className={INPUT_CLASS}
+                />
+              </div>
 
-            <div>
-              <label
-                htmlFor="rep-to"
-                className="mb-1 block text-xs font-medium text-bht-ink-soft"
-              >
-                Hasta
-              </label>
-              <input
-                id="rep-to"
-                type="date"
-                value={filters.to}
-                onChange={(e) =>
-                  setFilters((prev) => ({
-                    ...prev,
-                    preset: "CUSTOM",
-                    month: "",
-                    to: e.target.value,
-                  }))
-                }
-                className={INPUT_CLASS}
-              />
+              <div>
+                <label
+                  htmlFor="rep-to"
+                  className="mb-1 block text-xs font-semibold text-bht-ink-soft"
+                >
+                  Hasta
+                </label>
+                <input
+                  id="rep-to"
+                  type="date"
+                  value={filters.to}
+                  onChange={(e) =>
+                    setFilters((prev) => ({
+                      ...prev,
+                      preset: "CUSTOM",
+                      month: "",
+                      to: e.target.value,
+                    }))
+                  }
+                  className={INPUT_CLASS}
+                />
+              </div>
             </div>
 
             <div>
               <label
                 htmlFor="rep-zone"
-                className="mb-1 block text-xs font-medium text-bht-ink-soft"
+                className="mb-1 block text-xs font-semibold text-bht-ink-soft"
               >
                 Zona / Ruta
               </label>
@@ -510,7 +372,7 @@ export default function ReportesWorkspace({
             <div>
               <label
                 htmlFor="rep-seller"
-                className="mb-1 block text-xs font-medium text-bht-ink-soft"
+                className="mb-1 block text-xs font-semibold text-bht-ink-soft"
               >
                 Vendedor
               </label>
@@ -531,7 +393,154 @@ export default function ReportesWorkspace({
                 <option value="UNASSIGNED">Sin vendedor (Histórico)</option>
               </select>
             </div>
+
+            {facets.length > 0 && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setFilters(INITIAL_REPORT_FILTERS)}
+                className="w-full"
+              >
+                Limpiar filtros
+              </Button>
+            )}
           </div>
+        }
+        quickFilters={
+          <div className="flex flex-wrap items-center gap-1.5">
+            {(
+              [
+                { id: "ALL", label: "Todo el histórico" },
+                { id: "THIS_MONTH", label: "Este mes" },
+                { id: "LAST_30D", label: "Últ. 30 días" },
+                { id: "LAST_90D", label: "Últ. 90 días" },
+              ] as const
+            ).map((presetOpt) => {
+              const selected = filters.preset === presetOpt.id;
+              return (
+                <button
+                  key={presetOpt.id}
+                  type="button"
+                  aria-pressed={selected}
+                  onClick={() => applyPreset(presetOpt.id)}
+                  className={`min-h-9 rounded-full border px-3 py-1 text-xs font-semibold transition-colors duration-150 cursor-pointer ${
+                    selected
+                      ? "border-bht-cobalt bg-bht-cobalt text-white"
+                      : "border-bht-line bg-white text-bht-ink-soft hover:bg-bht-mist"
+                  }`}
+                >
+                  {presetOpt.label}
+                </button>
+              );
+            })}
+          </div>
+        }
+        secondaryActions={
+          <div className="flex flex-wrap items-center gap-2">
+            {isFetching && displayPayload && <Badge tone="brand">Actualizando…</Badge>}
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              onClick={handleRetryOrRefresh}
+            >
+              Actualizar
+            </Button>
+          </div>
+        }
+      >
+        {activeTabMeta && (
+          <details className="group max-w-3xl">
+            <summary className="inline-flex cursor-pointer list-none items-center gap-1.5 rounded-lg text-xs font-semibold text-bht-cobalt hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bht-cobalt focus-visible:ring-offset-2 [&::-webkit-details-marker]:hidden">
+              Guía de lectura
+              <ChevronRightIcon
+                aria-hidden="true"
+                className="h-3.5 w-3.5 transition group-open:rotate-90"
+              />
+            </summary>
+            <div className="mt-2 space-y-2 rounded-xl bg-bht-surface-cool p-3">
+              <dl className="grid gap-x-5 gap-y-2 sm:grid-cols-2 xl:grid-cols-4">
+                {activeTabMeta.concepts.map((concept) => (
+                  <div key={concept.term} className="min-w-0 text-xs leading-relaxed">
+                    <dt className="font-bold text-bht-ink-strong">{concept.term}</dt>
+                    <dd className="text-bht-ink-soft">{concept.meaning}</dd>
+                  </div>
+                ))}
+              </dl>
+              <p className="border-t border-bht-line pt-2 text-xs text-bht-navy-deep">
+                Consejo: toca cualquier tarjeta de indicador para abrir su explicación
+                práctica y fórmula.
+              </p>
+            </div>
+          </details>
+        )}
+
+        {/* 6 Sub-tabs — primary report navigation */}
+        <div
+          role="tablist"
+          aria-label="Secciones de reportes"
+          className="grid grid-cols-2 gap-2 rounded-2xl border border-bht-line-blue bg-bht-mist p-1.5 sm:grid-cols-3 xl:grid-cols-6"
+        >
+          {REPORT_TAB_ITEMS.map((item, idx) => {
+            const active = activeSection === item.id;
+            return (
+              <button
+                key={item.id}
+                ref={(el) => {
+                  tabButtonRefs.current[idx] = el;
+                }}
+                type="button"
+                role="tab"
+                aria-selected={active}
+                tabIndex={active ? 0 : -1}
+                onClick={() => setActiveSection(item.id)}
+                onKeyDown={(e) => handleTabKeyDown(e, idx)}
+                className={`min-h-11 rounded-xl border px-3 py-2.5 text-left transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bht-cobalt cursor-pointer ${
+                  active
+                    ? "border-bht-navy-deep bg-bht-navy-deep text-white shadow-bht-elev-10"
+                    : "border-transparent bg-white/85 text-bht-navy-deep hover:border-bht-line-blue hover:bg-white"
+                }`}
+              >
+                <span className="block text-xs font-bold leading-tight sm:text-sm">
+                  {item.label}
+                </span>
+                <span
+                  className={`mt-0.5 hidden line-clamp-1 text-xs leading-snug xl:block ${
+                    active ? "text-bht-mist" : "text-bht-ink-soft"
+                  }`}
+                >
+                  {item.subtitle}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Data Cut Status */}
+        <div
+          role="status"
+          className="flex flex-wrap items-center gap-1.5 border-t border-bht-line pt-2.5 text-xs text-bht-ink-soft"
+        >
+          <span className="font-semibold text-bht-ink-strong">
+            {effectiveDataCut?.lastOrderDate
+              ? `Ventas actualizadas hasta: ${formatDatePe(effectiveDataCut.lastOrderDate)}`
+              : latestRecordedMonth
+                ? `Último mes con ventas registradas: ${formatMonthLabel(latestRecordedMonth)}`
+                : "Todavía no hay un período de ventas disponible"}
+          </span>
+          {effectiveDataCut && (
+            <span className="hidden tabular-nums lg:inline">
+              · Caja: {formatDatePe(effectiveDataCut.lastCashLedgerDate)} · Compras:{" "}
+              {formatDatePe(effectiveDataCut.lastPurchaseDate)}
+            </span>
+          )}
+          {effectiveDataCut && !effectiveDataCut.bankReconciled && (
+            <Badge tone="neutral">No conciliado</Badge>
+          )}
+          <Badge tone={dataNeedsReview ? "warning" : "horizon"}>
+            {dataNeedsReview ? "Datos desactualizados" : "Corte visible"}
+          </Badge>
         </div>
       </ControlPanel>
 
@@ -562,6 +571,7 @@ export default function ReportesWorkspace({
           <ReportesResumenTab
             data={cachedOrLatest<ReportResumenDto>(displayPayload, "pnlMonthly")!}
             hasScopeFilter={Boolean(filters.zone || filters.sellerId)}
+            onResetFilters={() => setFilters(INITIAL_REPORT_FILTERS)}
           />
         )}
 

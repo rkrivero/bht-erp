@@ -15,8 +15,12 @@ export function useSellerQuotes(data: SellerData, setFeedback: SellerFeedbackSet
   const { loadAll, loadOrdersAndCatalog } = data;
   const [busyQuoteId, setBusyQuoteId] = useState<number | null>(null);
 
-  async function handleConvertQuote(quoteId: number, mode: "CASH" | "CREDIT") {
-    if (busyQuoteId === quoteId) return;
+  async function handleConvertQuote(
+    quoteId: number,
+    mode: "CASH" | "CREDIT",
+    options?: { initialPaidPen?: number; creditDays?: number }
+  ): Promise<boolean> {
+    if (busyQuoteId === quoteId) return false;
     setFeedback(null);
     setBusyQuoteId(quoteId);
     try {
@@ -24,23 +28,29 @@ export function useSellerQuotes(data: SellerData, setFeedback: SellerFeedbackSet
         action: "convert_to_order",
         quoteId,
         paymentMode: mode,
-        collectOnDelivery: mode === "CASH",
-        creditDays: mode === "CREDIT" ? 7 : undefined,
+        collectOnDelivery: false,
+        creditDays: mode === "CREDIT" ? (options?.creditDays ?? 7) : undefined,
+        initialPaidPen:
+          mode === "CREDIT" && options?.initialPaidPen && options.initialPaidPen > 0
+            ? options.initialPaidPen
+            : undefined,
       });
       setFeedback({
         type: converted.order?.requiresApproval ? "warn" : "ok",
         msg: converted.order?.requiresApproval
           ? `Cotización convertida a ${converted.order.orderCode} (pendiente de aprobación de Socio).`
-          : `Cotización convertida en pedido ${converted.order?.orderCode} y enviada a Almacén.`,
+          : `Cotización convertida en pedido ${converted.order?.orderCode} (Entregado).`,
         undoAction: converted.undoAction,
       });
       notifyLocalSync(["orders", "inventory", "collections", "treasury", "partners"]);
       await loadAll({ silent: true });
+      return true;
     } catch (error) {
       setFeedback({
         type: "err",
         msg: apiErrorMessage(error, "Error de conexión al convertir la cotización."),
       });
+      return false;
     } finally {
       setBusyQuoteId(null);
     }

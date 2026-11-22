@@ -408,9 +408,7 @@ export function ConfirmUserActionModal({
               confirmUserAction.kind === "delete" ? "Sí, eliminar" : "Sí, desactivar"
             }
             busyLabel={
-              confirmUserAction.kind === "delete"
-                ? "Eliminando..."
-                : "Desactivando..."
+              confirmUserAction.kind === "delete" ? "Eliminando..." : "Desactivando..."
             }
             onConfirm={onConfirm}
           />

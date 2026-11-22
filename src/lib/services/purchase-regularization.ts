@@ -238,9 +238,7 @@ export async function listUnpurchasedSalesRegularization(
       projectedRows.reduce((s, r) => s + r.projected_qty_to_regularize, 0).toFixed(4)
     ),
     totalProjectedPurchasePen: Number(
-      projectedRows
-        .reduce((s, r) => s + (r.projected_purchase_pen ?? 0), 0)
-        .toFixed(2)
+      projectedRows.reduce((s, r) => s + (r.projected_purchase_pen ?? 0), 0).toFixed(2)
     ),
     openQuotesTotalQty: Number(
       projectedRows.reduce((s, r) => s + r.open_quoted_qty, 0).toFixed(4)

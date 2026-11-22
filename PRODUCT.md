@@ -44,14 +44,14 @@ La aplicación conecta pedido, aprobación, alistamiento, ruta, entrega y cobran
 
 - Nombre: Blue Horizon Trade.
 - Dirección visual aprobada: **Precision Modern**; precisión y velocidad operativa por encima de decoración.
-- Paleta vinculante: Horizon Navy `#102A43`, Trade Cobalt `#1463FF`, Steel `#486581`, Sky `#D9E8FF`, Cargo Amber `#F6A623`, Ink `#0B192C` y Paper `#F7F5F0`.
-- Tipografía de producto: Plus Jakarta Sans variable, servida mediante `next/font/google`.
+- Paleta vinculante: Horizon Navy `#0F1E30`, Marine `#16324F`, Trade Cobalt `#1D5FA8`, Mist `#94AEC9`, Glacial `#EDF4FC`, Steel `#475569`, Ink `#0F1E30` y Paper `#F6F8FB`.
+- Tipografía de producto: `Inter` (interfaz y títulos) y `JetBrains Mono` (códigos y datos tabulares), servidas mediante `next/font/google`.
 - Un solo sistema visual para todos los roles; cada área se distingue mediante icono, etiqueta y acento funcional discreto.
 
 ## Evidence on Hand
 
 - Código y flujos operativos existentes en `src/app`, `src/components` y `src/lib`.
-- Logotipo de aplicación en `public/icon.svg`.
+- Logotipo e íconos de aplicación en `public/isotipo.svg` y `public/icons/` (`icon-192.png`, `icon-512.png`, `icon-maskable-512.png`).
 - Datos reales disponibles únicamente en los entornos autorizados; los conceptos y pruebas deben usar contenido neutral o fixtures controlados cuando no exista una sesión de desarrollo.
 - No hay testimonios, métricas de negocio ni cifras promocionales autorizadas para fabricar.
 

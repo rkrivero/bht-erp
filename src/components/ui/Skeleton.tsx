@@ -36,7 +36,7 @@ export function SkeletonKpiStrip({
       {Array.from({ length: count }).map((_, idx) => (
         <div
           key={idx}
-          className="rounded-xl border border-bht-line bg-white p-[var(--card-pad,1.5rem)] shadow-bht-elev-2 space-y-3"
+          className="rounded-2xl border border-bht-line bg-white p-[var(--card-pad,1.5rem)] shadow-bht-elev-2 space-y-3"
         >
           <SkeletonLine width="w-28" height="h-3" />
           <SkeletonLine width="w-36" height="h-7" />
@@ -95,7 +95,7 @@ export function SkeletonTable({
       role="status"
       aria-busy="true"
       aria-label="Cargando tabla de datos"
-      className={`overflow-hidden rounded-xl border border-bht-line bg-white shadow-bht-elev-2 ${className}`}
+      className={`overflow-hidden rounded-2xl border border-bht-line bg-white shadow-bht-elev-2 ${className}`}
     >
       <div className="grid grid-cols-5 gap-3 border-b border-bht-line bg-bht-paper px-4 py-3">
         {Array.from({ length: cols }).map((_, idx) => (

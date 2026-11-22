@@ -3,17 +3,9 @@
 import React, { useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import { formatPen } from "@/components/socios/types";
-import {
-  ControlPanel,
-  type ControlPanelFacet,
-} from "@/components/ui/ControlPanel";
+import { ControlPanel, type ControlPanelFacet } from "@/components/ui/ControlPanel";
 import { EditIcon } from "@/components/ui/Icons";
-import {
-  Badge,
-  Button,
-  Card,
-  SegmentedControl,
-} from "@/components/ui/Primitives";
+import { Badge, Button, Card, SegmentedControl } from "@/components/ui/Primitives";
 import {
   ResponsiveDataTable,
   type ResponsiveTableColumn,
@@ -164,9 +156,7 @@ export function Inventario({
         cell: (p) => (
           <div>
             <span className="font-semibold text-bht-ink-strong">{p.name}</span>
-            <span className="block font-mono text-xs text-bht-ink-muted">
-              {p.sku}
-            </span>
+            <span className="block font-mono text-xs text-bht-ink-muted">{p.sku}</span>
           </div>
         ),
       },
@@ -176,9 +166,7 @@ export function Inventario({
         sortable: true,
         sortValue: (p) => p.fulfillment_mode,
         cell: (p) => (
-          <Badge
-            tone={p.fulfillment_mode === "ON_DEMAND" ? "warning" : "neutral"}
-          >
+          <Badge tone={p.fulfillment_mode === "ON_DEMAND" ? "warning" : "neutral"}>
             {formatFulfillmentModeEs(p.fulfillment_mode)}
           </Badge>
         ),
@@ -211,8 +199,7 @@ export function Inventario({
         align: "right",
         optional: true,
         sortable: true,
-        sortValue: (p) =>
-          p.ref_cost_pen !== null ? Number(p.ref_cost_pen) : -1,
+        sortValue: (p) => (p.ref_cost_pen !== null ? Number(p.ref_cost_pen) : -1),
         cell: (p) => (
           <span className="text-bht-ink-soft tabular-nums">
             {p.ref_cost_pen !== null ? formatPen(p.ref_cost_pen) : "Sin costo"}

@@ -67,7 +67,9 @@ export default function SellerCartLineCard({
                       : "font-semibold text-bht-success"
                   }
                 >
-                  {delta > 0 ? `+S/ ${delta.toFixed(2)}` : `-S/ ${Math.abs(delta).toFixed(2)}`}
+                  {delta > 0
+                    ? `+S/ ${delta.toFixed(2)}`
+                    : `-S/ ${Math.abs(delta).toFixed(2)}`}
                 </span>
                 {" · "}
                 <button
@@ -111,9 +113,7 @@ export default function SellerCartLineCard({
               aria-label={`Reducir cantidad de ${line.product.name}`}
               onClick={() =>
                 updateLine((c) => {
-                  const cur = Number.isFinite(c.quantity)
-                    ? Math.max(0, c.quantity)
-                    : 1;
+                  const cur = Number.isFinite(c.quantity) ? Math.max(0, c.quantity) : 1;
                   const nextQty = fractional
                     ? Math.max(
                         0.01,
@@ -182,9 +182,7 @@ export default function SellerCartLineCard({
               aria-label={`Aumentar cantidad de ${line.product.name}`}
               onClick={() =>
                 updateLine((c) => {
-                  const cur = Number.isFinite(c.quantity)
-                    ? Math.max(0, c.quantity)
-                    : 0;
+                  const cur = Number.isFinite(c.quantity) ? Math.max(0, c.quantity) : 0;
                   const nextQty = fractional
                     ? normalizeOrderQuantity(cur + 1, true) || 1
                     : Math.max(1, Math.floor(cur) + 1);

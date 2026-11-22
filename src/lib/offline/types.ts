@@ -1,8 +1,5 @@
 export type OfflineMutationKind =
-  | "ORDER_CREATE"
-  | "COLLECTION"
-  | "ROUTE_EXPENSE"
-  | "WAREHOUSE_ADVANCE";
+  "ORDER_CREATE" | "COLLECTION" | "ROUTE_EXPENSE" | "WAREHOUSE_ADVANCE";
 
 export type OutboxStatus = "pending" | "syncing" | "synced" | "conflict";
 

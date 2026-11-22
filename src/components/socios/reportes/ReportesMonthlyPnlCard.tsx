@@ -1,98 +1,149 @@
 "use client";
 
-import { Badge, Card, EmptyState } from "@/components/ui/Primitives";
+"use client";
+
+import { useState } from "react";
+import {
+  Badge,
+  Button,
+  Card,
+  EmptyState,
+  SegmentedControl,
+} from "@/components/ui/Primitives";
 import { formatMonthLabel, formatPen } from "../types";
 import { type ReportResumenDto, formatPct } from "./reportes-types";
 
 interface ReportesMonthlyPnlCardProps {
   pnlMonthly: ReportResumenDto["pnlMonthly"];
   totals: ReportResumenDto["totals"];
+  onResetFilters?: () => void;
 }
 
 export default function ReportesMonthlyPnlCard({
   pnlMonthly,
   totals,
+  onResetFilters,
 }: ReportesMonthlyPnlCardProps) {
+  const [view, setView] = useState<"visual" | "table">("visual");
   const maxSalesBar = Math.max(
     1,
-    ...pnlMonthly.map((m) => Math.max(m.sales_total_pen, m.gross_margin_pen))
+    ...pnlMonthly.map((m) =>
+      Math.max(
+        Math.abs(m.sales_total_pen),
+        Math.abs(m.gross_margin_pen),
+        Math.abs(m.operating_ebitda_pen),
+        Math.abs(m.operating_result_pen)
+      )
+    )
   );
   const maxCashBar = Math.max(
     1,
     ...pnlMonthly.flatMap((m) => [
-      m.cash_collected_pen,
-      m.merchandise_outflow_pen,
-      m.non_opex_capex_drain_pen,
+      Math.abs(m.cash_collected_pen),
+      Math.abs(m.merchandise_outflow_pen),
+      Math.abs(m.non_opex_capex_drain_pen),
     ])
   );
 
   return (
     <Card padding="md" className="space-y-4">
-      <div>
-        <h3
-          id="pnl-monthly-heading"
-          className="text-base font-bold text-bht-ink-strong sm:text-lg"
-        >
-          Comparativo mensual de ventas y movimientos registrados
-        </h3>
-        <p className="mt-0.5 text-xs text-bht-ink-soft">
-          Compara ventas con costo conocido, contribución de ruta y salidas registradas.
-          Las cifras de caja requieren conciliación.
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h3
+            id="pnl-monthly-heading"
+            className="text-base font-bold text-bht-ink-strong sm:text-lg"
+          >
+            Comparativo mensual de ventas y movimientos registrados
+          </h3>
+          <p className="mt-0.5 text-sm text-bht-ink-soft">
+            Compara ventas con costo conocido, contribución de ruta y salidas
+            registradas. Las cifras de caja requieren conciliación.
+          </p>
+        </div>
+        {pnlMonthly.length > 0 && (
+          <SegmentedControl<"visual" | "table">
+            ariaLabel="Formato de comparativo mensual"
+            value={view}
+            onChange={setView}
+            className="hidden md:flex"
+            options={[
+              { id: "visual", label: "Resumen visual" },
+              { id: "table", label: "Tabla contable" },
+            ]}
+          />
+        )}
       </div>
 
       {pnlMonthly.length === 0 ? (
-        <EmptyState title="No hay movimientos en el período y filtros seleccionados" />
+        <div className="space-y-3">
+          <EmptyState title="No hay movimientos en el período y filtros seleccionados" />
+          {onResetFilters && (
+            <div className="flex justify-center">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={onResetFilters}
+              >
+                Limpiar filtros activos
+              </Button>
+            </div>
+          )}
+        </div>
       ) : (
         <>
-          <div className="grid grid-cols-1 gap-4">
+          <div
+            className={`grid grid-cols-1 gap-4 ${view === "table" ? "md:hidden" : ""}`}
+          >
             {pnlMonthly.map((m) => {
               const salesBars = [
                 {
                   label: "Ventas Totales",
-                  val: m.sales_total_pen,
+                  rawVal: m.sales_total_pen,
                   sub: `${m.order_count} ped.`,
                   color: "bg-bht-navy-deep",
                 },
                 {
                   label: "Margen Bruto",
-                  val: Math.max(0, m.gross_margin_pen),
+                  rawVal: m.gross_margin_pen,
                   sub: formatPct(m.gross_margin_pct),
-                  color: "bg-bht-success",
+                  color: m.gross_margin_pen >= 0 ? "bg-bht-success" : "bg-bht-danger",
                 },
                 {
                   label: "Contribución Ruta",
-                  val: Math.max(0, m.operating_ebitda_pen),
+                  rawVal: m.operating_ebitda_pen,
                   sub: formatPct(m.operating_ebitda_pct),
-                  color: "bg-bht-navy-mid",
+                  color:
+                    m.operating_ebitda_pen >= 0 ? "bg-bht-navy-mid" : "bg-bht-danger",
                 },
                 {
                   label: "Resultado Operativo",
-                  val: Math.max(0, m.operating_result_pen),
+                  rawVal: m.operating_result_pen,
                   sub: formatPct(m.operating_result_pct),
-                  color: "bg-bht-cobalt",
+                  color:
+                    m.operating_result_pen >= 0 ? "bg-bht-cobalt" : "bg-bht-danger",
                 },
               ];
               const cashBars = [
                 {
                   label: "Cobrado en Efectivo",
-                  val: m.cash_collected_pen,
+                  rawVal: m.cash_collected_pen,
                   color: "bg-bht-success-strong",
                 },
                 {
                   label: "Pagos Mercadería",
-                  val: m.merchandise_outflow_pen,
+                  rawVal: m.merchandise_outflow_pen,
                   color: "bg-bht-warning",
                 },
                 {
-                  label: "OpEx Ruta + Admin",
-                  val: m.route_opex_pen + m.admin_opex_pen,
-                  color: "bg-bht-ink-warm",
+                  label: "Gastos Ruta + Admin",
+                  rawVal: m.route_opex_pen + m.admin_opex_pen,
+                  color: "bg-bht-steel",
                 },
                 {
-                  label: "Retiros / No OpEx",
-                  val: m.non_opex_capex_drain_pen,
-                  color: "bg-bht-danger-vivid",
+                  label: "Retiros / No Operativos",
+                  rawVal: m.non_opex_capex_drain_pen,
+                  color: "bg-bht-danger",
                 },
               ];
               return (
@@ -102,7 +153,7 @@ export default function ReportesMonthlyPnlCard({
                 >
                   <div className="flex flex-wrap items-center justify-between gap-2 border-b border-bht-line pb-2.5">
                     <div>
-                      <span className="text-sm font-extrabold uppercase tracking-wide text-bht-navy-deep">
+                      <span className="text-sm font-bold uppercase tracking-wide text-bht-navy-deep">
                         {formatMonthLabel(m.period_month)}
                       </span>
                       <span className="ml-2 text-xs font-medium text-bht-ink-soft tabular-nums">
@@ -122,24 +173,28 @@ export default function ReportesMonthlyPnlCard({
 
                   <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
                     {/* Panel 1: Commercial Profitability */}
-                    <div className="space-y-2 rounded-xl border border-bht-line bg-white p-3">
+                    <div className="space-y-2.5 rounded-xl border border-bht-line bg-white p-3.5">
                       <p className="text-xs font-bold uppercase tracking-[0.06em] text-bht-steel">
                         1. Rentabilidad Comercial (Devengado)
                       </p>
                       {salesBars.map((b) => {
+                        const absVal = Math.abs(b.rawVal);
                         const pct = Math.min(
                           100,
-                          Math.max(b.val > 0 ? 3 : 0, (b.val / maxSalesBar) * 100)
+                          Math.max(absVal > 0 ? 3 : 0, (absVal / maxSalesBar) * 100)
                         );
+                        const isNeg = b.rawVal < 0;
                         return (
                           <div key={b.label} className="space-y-1">
-                            <div className="flex items-baseline justify-between gap-2 text-xs tabular-nums">
+                            <div className="flex items-baseline justify-between gap-2 text-xs sm:text-sm tabular-nums">
                               <span className="font-medium text-bht-ink-strong">
                                 {b.label}{" "}
                                 <span className="text-bht-ink-soft">({b.sub})</span>
                               </span>
-                              <span className="font-bold text-bht-navy-deep">
-                                {formatPen(b.val)}
+                              <span
+                                className={`font-bold ${isNeg ? "text-bht-danger" : "text-bht-navy-deep"}`}
+                              >
+                                {formatPen(b.rawVal)}
                               </span>
                             </div>
                             <div className="h-3 w-full overflow-hidden rounded-full bg-bht-paper-alt">
@@ -155,23 +210,27 @@ export default function ReportesMonthlyPnlCard({
                     </div>
 
                     {/* Panel 2: Cash Movements */}
-                    <div className="space-y-2 rounded-xl border border-bht-line bg-white p-3">
+                    <div className="space-y-2.5 rounded-xl border border-bht-line bg-white p-3.5">
                       <p className="text-xs font-bold uppercase tracking-[0.06em] text-bht-steel">
                         2. Flujo de Efectivo Registrado (Caja)
                       </p>
                       {cashBars.map((b) => {
+                        const absVal = Math.abs(b.rawVal);
                         const pct = Math.min(
                           100,
-                          Math.max(b.val > 0 ? 3 : 0, (b.val / maxCashBar) * 100)
+                          Math.max(absVal > 0 ? 3 : 0, (absVal / maxCashBar) * 100)
                         );
+                        const isNeg = b.rawVal < 0;
                         return (
                           <div key={b.label} className="space-y-1">
-                            <div className="flex items-baseline justify-between gap-2 text-xs tabular-nums">
+                            <div className="flex items-baseline justify-between gap-2 text-xs sm:text-sm tabular-nums">
                               <span className="font-medium text-bht-ink-strong">
                                 {b.label}
                               </span>
-                              <span className="font-bold text-bht-ink-strong">
-                                {formatPen(b.val)}
+                              <span
+                                className={`font-bold ${isNeg ? "text-bht-danger" : "text-bht-ink-strong"}`}
+                              >
+                                {formatPen(b.rawVal)}
                               </span>
                             </div>
                             <div className="h-3 w-full overflow-hidden rounded-full bg-bht-paper-alt">
@@ -195,7 +254,7 @@ export default function ReportesMonthlyPnlCard({
             tabIndex={0}
             role="region"
             aria-labelledby="pnl-monthly-heading"
-            className="table-wrapper hidden md:block"
+            className={`table-wrapper hidden ${view === "table" ? "md:block" : ""}`}
           >
             <table className="w-full text-left text-sm">
               <thead className="border-b border-bht-line bg-bht-paper text-xs font-semibold uppercase tracking-wide text-bht-ink-soft">
@@ -213,13 +272,13 @@ export default function ReportesMonthlyPnlCard({
                     Margen %
                   </th>
                   <th scope="col" className="p-2 text-right">
-                    OpEx Ruta
+                    Gastos Ruta
                   </th>
                   <th scope="col" className="p-2 text-right">
                     Contribución ruta
                   </th>
                   <th scope="col" className="p-2 text-right">
-                    Admin OpEx
+                    Gastos Admin
                   </th>
                   <th scope="col" className="p-2 text-right">
                     Resultado Op.
@@ -282,7 +341,9 @@ export default function ReportesMonthlyPnlCard({
                     </td>
                     <td
                       className={`p-2 text-right font-semibold tabular-nums ${
-                        m.net_cash_flow_pen >= 0 ? "text-bht-success" : "text-bht-danger"
+                        m.net_cash_flow_pen >= 0
+                          ? "text-bht-success"
+                          : "text-bht-danger"
                       }`}
                     >
                       {formatPen(m.net_cash_flow_pen)}

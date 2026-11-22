@@ -2,10 +2,7 @@ import { z } from "zod";
 
 const positiveInt = z.preprocess(
   (v) => (typeof v === "string" && v.trim() !== "" ? Number(v) : v),
-  z
-    .number({ message: "ID inválido" })
-    .int("ID inválido")
-    .positive("ID inválido")
+  z.number({ message: "ID inválido" }).int("ID inválido").positive("ID inválido")
 );
 
 const optionalNum = z.preprocess(
@@ -14,12 +11,7 @@ const optionalNum = z.preprocess(
 );
 
 const triStateNum = z.preprocess(
-  (v) =>
-    v === undefined
-      ? undefined
-      : v === "" || v === null
-        ? null
-        : Number(v),
+  (v) => (v === undefined ? undefined : v === "" || v === null ? null : Number(v)),
   z.number().finite().nullable().optional()
 );
 

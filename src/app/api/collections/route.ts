@@ -1,8 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import {
-  withAuthenticatedClient,
-  withAuthenticatedTransaction,
-} from "@/lib/auth";
+import { withAuthenticatedClient, withAuthenticatedTransaction } from "@/lib/auth";
 import { resolveHttpError } from "@/lib/http-errors";
 import { runIdempotentMutation } from "@/lib/idempotency";
 import {
@@ -71,19 +68,15 @@ export async function POST(req: NextRequest) {
           body,
           async () => {
             if (body.mode === "fifo_customer") {
-              const allocations = await registerCustomerFifoPayment(
-                client,
-                actor,
-                {
-                  customerPartyId: body.customerPartyId,
-                  totalAmountPen: body.totalAmountPen,
-                  paymentMode: body.paymentMode || "CASH",
-                  accountId: body.accountId,
-                  notes: body.notes,
-                  nextCollectionDays: body.nextCollectionDays,
-                  nextPromisedPaymentDate: body.nextPromisedPaymentDate ?? null,
-                }
-              );
+              const allocations = await registerCustomerFifoPayment(client, actor, {
+                customerPartyId: body.customerPartyId,
+                totalAmountPen: body.totalAmountPen,
+                paymentMode: body.paymentMode || "CASH",
+                accountId: body.accountId,
+                notes: body.notes,
+                nextCollectionDays: body.nextCollectionDays,
+                nextPromisedPaymentDate: body.nextPromisedPaymentDate ?? null,
+              });
               return { allocations };
             }
 

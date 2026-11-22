@@ -1,8 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import {
-  withAuthenticatedClient,
-  withAuthenticatedTransaction,
-} from "@/lib/auth";
+import { withAuthenticatedClient, withAuthenticatedTransaction } from "@/lib/auth";
 import { resolveHttpError } from "@/lib/http-errors";
 import { runIdempotentMutation } from "@/lib/idempotency";
 import { isPartnerRole } from "@/lib/rbac";
@@ -18,11 +15,7 @@ export const dynamic = "force-dynamic";
 
 const NO_STORE_HEADERS = { "Cache-Control": "no-store" };
 
-const TREASURY_ROLES = [
-  "PARTNER_ADMIN",
-  "PARTNER_MANAGER",
-  "EXTERNAL_SELLER",
-] as const;
+const TREASURY_ROLES = ["PARTNER_ADMIN", "PARTNER_MANAGER", "EXTERNAL_SELLER"] as const;
 
 export async function GET(req: NextRequest) {
   try {
@@ -134,9 +127,7 @@ export async function GET(req: NextRequest) {
             ledger_id: Number(r.ledger_id),
             account_id: Number(r.account_id),
             trip_id:
-              r.trip_id !== null && r.trip_id !== undefined
-                ? Number(r.trip_id)
-                : null,
+              r.trip_id !== null && r.trip_id !== undefined ? Number(r.trip_id) : null,
             amount_pen: Number(r.amount_pen),
           })),
           apObligations: (bundle.ap_obligations ?? []).map(mapApObligationRow),
@@ -153,8 +144,7 @@ export async function GET(req: NextRequest) {
                 ? String(r.trade_name)
                 : null,
             display_name: String(r.display_name),
-            phone:
-              r.phone !== null && r.phone !== undefined ? String(r.phone) : null,
+            phone: r.phone !== null && r.phone !== undefined ? String(r.phone) : null,
           })),
           accounts: (bundle.accounts ?? []).map((r) => ({
             account_id: Number(r.account_id),

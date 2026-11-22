@@ -1,9 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import type { PoolClient } from "pg";
-import {
-  withAuthenticatedClient,
-  withAuthenticatedTransaction,
-} from "@/lib/auth";
+import { withAuthenticatedClient, withAuthenticatedTransaction } from "@/lib/auth";
 import { resolveHttpError } from "@/lib/http-errors";
 import { runIdempotentMutation } from "@/lib/idempotency";
 import { assertRole } from "@/lib/rbac";
@@ -152,10 +149,10 @@ export async function GET(req: NextRequest) {
       ["PARTNER_ADMIN", "PARTNER_MANAGER"],
       async (client, actor) => {
         const isPartnerAdmin = actor.role === "PARTNER_ADMIN";
-      // Batch all dashboard KPIs, alerts, users, and non-monthly BI panels into one query,
-      // reusing `q1` rows for `biSummary.monthlyPerformance` instead of scanning the KPI view twice.
-      const bundleRes = await client.query<PartnerDashboardBundleRow>(
-        `WITH ${BI_SOLD_QTY_CTE}
+        // Batch all dashboard KPIs, alerts, users, and non-monthly BI panels into one query,
+        // reusing `q1` rows for `biSummary.monthlyPerformance` instead of scanning the KPI view twice.
+        const bundleRes = await client.query<PartnerDashboardBundleRow>(
+          `WITH ${BI_SOLD_QTY_CTE}
          SELECT
            COALESCE((
              SELECT json_agg(t)
@@ -351,209 +348,216 @@ export async function GET(req: NextRequest) {
            ${AUDIT_FLAG_COUNTS_SELECT} AS audit_flag_counts,
            ${buildAuditFlagsSelect("'ALL'", "60")} AS audit_flags,
            ${BI_NON_MONTHLY_SELECTS}`,
-        [isPartnerAdmin]
-      );
+          [isPartnerAdmin]
+        );
 
-      const bundle = bundleRes.rows[0];
-      const q1Raw = bundle?.q1 ?? [];
-      const q1Rows = q1Raw.map((r) => ({
-        ...r,
-        period_month: String(r.period_month),
-        order_count: Number(r.order_count ?? 0),
-        sales_total_pen: Number(r.sales_total_pen ?? 0),
-        cash_collected_pen: Number(r.cash_collected_pen ?? 0),
-        ar_pending_pen: Number(r.ar_pending_pen ?? 0),
-        route_opex_pen: Number(r.route_opex_pen ?? 0),
-        route_opex_pct:
-          r.route_opex_pct !== null && r.route_opex_pct !== undefined
-            ? Number(r.route_opex_pct)
-            : null,
-        route_operating_cash_margin_pen: Number(r.route_operating_cash_margin_pen ?? 0),
-        route_operating_cash_margin_pct:
-          r.route_operating_cash_margin_pct !== null &&
-          r.route_operating_cash_margin_pct !== undefined
-            ? Number(r.route_operating_cash_margin_pct)
-            : null,
-        merchandise_outflow_pen: Number(r.merchandise_outflow_pen ?? 0),
-        non_opex_capex_drain_pen: Number(r.non_opex_capex_drain_pen ?? 0),
-        internal_deposits_pen: Number(r.internal_deposits_pen ?? 0),
-        declared_net_cash_pen: Number(r.declared_net_cash_pen ?? 0),
-        expected_net_cash_pen: Number(r.expected_net_cash_pen ?? 0),
-        cash_reconciliation_gap_pen: Number(r.cash_reconciliation_gap_pen ?? 0),
-        cash_reconciliation_gap_pct:
-          r.cash_reconciliation_gap_pct !== null &&
-          r.cash_reconciliation_gap_pct !== undefined
-            ? Number(r.cash_reconciliation_gap_pct)
-            : null,
-        pre_route_foundational_outflow_pen: Number(
-          r.pre_route_foundational_outflow_pen ?? 0
-        ),
-      }));
-
-      const totalSalesPen = Number(
-        q1Rows.reduce((s, r) => s + r.sales_total_pen, 0).toFixed(2)
-      );
-      const cashCollectedPen = Number(
-        q1Rows.reduce((s, r) => s + r.cash_collected_pen, 0).toFixed(2)
-      );
-      const arPendingPen = Number(
-        q1Rows.reduce((s, r) => s + r.ar_pending_pen, 0).toFixed(2)
-      );
-      const routeOpexPen = Number(
-        q1Rows.reduce((s, r) => s + r.route_opex_pen, 0).toFixed(2)
-      );
-      const merchOutPen = Number(
-        q1Rows.reduce((s, r) => s + r.merchandise_outflow_pen, 0).toFixed(2)
-      );
-      const nonOpexDrainPen = Number(
-        q1Rows.reduce((s, r) => s + r.non_opex_capex_drain_pen, 0).toFixed(2)
-      );
-      const internalDepositsPen = Number(
-        q1Rows.reduce((s, r) => s + r.internal_deposits_pen, 0).toFixed(2)
-      );
-      const preRouteFoundationalOutflowPen = Number(
-        q1Rows.reduce((s, r) => s + r.pre_route_foundational_outflow_pen, 0).toFixed(2)
-      );
-      const declaredNetCashPen = Number(
-        q1Rows.reduce((s, r) => s + r.declared_net_cash_pen, 0).toFixed(2)
-      );
-      const expectedNetCashPen = Number(
-        q1Rows.reduce((s, r) => s + r.expected_net_cash_pen, 0).toFixed(2)
-      );
-      const reconGapPen = Number((declaredNetCashPen - expectedNetCashPen).toFixed(2));
-      const reconGapPct =
-        expectedNetCashPen === 0
-          ? 0
-          : Number(
-              (
-                (Math.abs(declaredNetCashPen - expectedNetCashPen) * 100) /
-                Math.max(Math.abs(expectedNetCashPen), 1)
-              ).toFixed(2)
-            );
-      const drainRatioPct =
-        merchOutPen + nonOpexDrainPen > 0
-          ? Number(
-              ((nonOpexDrainPen * 100) / (merchOutPen + nonOpexDrainPen)).toFixed(2)
-            )
-          : 0;
-      const openDebtorsCount = Number(bundle?.open_debtors_count ?? 0);
-
-      const kpiQ1Summary = {
-        period_start: "2026-06-26",
-        period_end: String(bundle?.period_end ?? "2026-09-29"),
-        total_sales_pen: totalSalesPen,
-        collected_sales_pen: cashCollectedPen,
-        cash_collected_pen: cashCollectedPen,
-        accounts_receivable_pen: arPendingPen,
-        ar_pending_pen: arPendingPen,
-        open_debtors_count: openDebtorsCount,
-        route_opex_pen: routeOpexPen,
-        merchandise_outflow_pen: merchOutPen,
-        non_opex_capex_drain_pen: nonOpexDrainPen,
-        internal_deposits_pen: internalDepositsPen,
-        pre_route_foundational_outflow_pen: preRouteFoundationalOutflowPen,
-        declared_net_cash_pen: declaredNetCashPen,
-        expected_net_cash_pen: expectedNetCashPen,
-        non_opex_vs_reinvestment_ratio_pct: drainRatioPct,
-        reinvestment_health_flag: drainRatioPct > 30 ? "ALERTA > 30%" : "SALUDABLE",
-        reconciliation_gap_pen: reconGapPen,
-        reconciliation_gap_pct: reconGapPct,
-        reconciliation_health_flag:
-          reconGapPct <= 1 ? "DENTRO DE META (<1%)" : "ALERTA BRECHA (>1%)",
-        monthlyRows: q1Rows,
-      };
-
-      const biSummary = mapBiSummaryFromPanels(bundle ?? {}, mapBiMonthlyRows(q1Raw));
-
-      return {
-        currentUser: actor,
-        kpiQ1: kpiQ1Summary,
-        openDebtorsCount,
-        kpiQ2TopSkus: (bundle?.q2 ?? []).map((r) => ({
+        const bundle = bundleRes.rows[0];
+        const q1Raw = bundle?.q1 ?? [];
+        const q1Rows = q1Raw.map((r) => ({
           ...r,
-          product_id: Number(r.product_id),
-          total_units_sold: Number(r.total_units_sold ?? 0),
-          total_revenue_pen: Number(r.total_revenue_pen ?? 0),
-          total_cogs_pen:
-            r.total_cogs_pen !== null && r.total_cogs_pen !== undefined
-              ? Number(r.total_cogs_pen)
+          period_month: String(r.period_month),
+          order_count: Number(r.order_count ?? 0),
+          sales_total_pen: Number(r.sales_total_pen ?? 0),
+          cash_collected_pen: Number(r.cash_collected_pen ?? 0),
+          ar_pending_pen: Number(r.ar_pending_pen ?? 0),
+          route_opex_pen: Number(r.route_opex_pen ?? 0),
+          route_opex_pct:
+            r.route_opex_pct !== null && r.route_opex_pct !== undefined
+              ? Number(r.route_opex_pct)
               : null,
-          gross_margin_pen:
-            r.gross_margin_pen !== null && r.gross_margin_pen !== undefined
-              ? Number(r.gross_margin_pen)
+          route_operating_cash_margin_pen: Number(
+            r.route_operating_cash_margin_pen ?? 0
+          ),
+          route_operating_cash_margin_pct:
+            r.route_operating_cash_margin_pct !== null &&
+            r.route_operating_cash_margin_pct !== undefined
+              ? Number(r.route_operating_cash_margin_pct)
               : null,
-          gross_margin_pct:
-            r.gross_margin_pct !== null && r.gross_margin_pct !== undefined
-              ? Number(r.gross_margin_pct)
+          merchandise_outflow_pen: Number(r.merchandise_outflow_pen ?? 0),
+          non_opex_capex_drain_pen: Number(r.non_opex_capex_drain_pen ?? 0),
+          internal_deposits_pen: Number(r.internal_deposits_pen ?? 0),
+          declared_net_cash_pen: Number(r.declared_net_cash_pen ?? 0),
+          expected_net_cash_pen: Number(r.expected_net_cash_pen ?? 0),
+          cash_reconciliation_gap_pen: Number(r.cash_reconciliation_gap_pen ?? 0),
+          cash_reconciliation_gap_pct:
+            r.cash_reconciliation_gap_pct !== null &&
+            r.cash_reconciliation_gap_pct !== undefined
+              ? Number(r.cash_reconciliation_gap_pct)
               : null,
-        })),
-        kpiQ3: bundle?.q3 ?? [],
-        qualityGaps: (bundle?.gaps ?? []).map((r) => ({
-          ...r,
-          gap_count: Number(r.gap_count ?? 0),
-          impacted_amount_pen: Number(r.impacted_amount_pen ?? 0),
-        })),
-        pendingOnDemand: (bundle?.on_demand ?? []).map((r) => ({
-          ...r,
-          order_line_id: Number(r.order_line_id),
-          order_id: Number(r.order_id),
-          warehouse_id: Number(r.warehouse_id),
-          customer_party_id:
-            r.customer_party_id !== null && r.customer_party_id !== undefined
-              ? Number(r.customer_party_id)
-              : null,
-          product_id: Number(r.product_id),
-          quantity: Number(r.quantity),
-          pack_factor_applied: Number(r.pack_factor_applied),
-          required_base_qty: Number(r.required_base_qty),
-          current_stock_on_hand: Number(r.current_stock_on_hand),
-          line_total_pen: Number(r.line_total_pen),
-          balance_due_pen: Number(r.balance_due_pen),
-          days_pending: Number(r.days_pending),
-          open_flag_id:
-            r.open_flag_id !== null && r.open_flag_id !== undefined
-              ? Number(r.open_flag_id)
-              : null,
-        })),
-        negativeStockSkuCount: Number(bundle?.neg_count ?? 0),
-        unpurchasedRegularizationCount: Number(bundle?.unpurchased_reg_count ?? 0),
-        users: isPartnerAdmin
-          ? (bundle?.users ?? []).map((u) => ({
-              user_id: Number(u.user_id),
-              username: String(u.username),
-              full_name: String(u.full_name),
-              role: String(u.role),
-              is_active: Boolean(u.is_active),
-              email: u.email ? String(u.email) : null,
-            }))
-          : [],
-        userAccessHistory: isPartnerAdmin
-          ? (bundle?.user_access_history ?? []).map((entry) => ({
-              audit_id: Number(entry.audit_id),
-              action: String(entry.action),
-              target_user_id: Number(entry.target_user_id),
-              target_username: String(entry.target_username),
-              target_name: String(entry.target_name),
-              actor_username: String(entry.actor_username),
-              actor_name: String(entry.actor_name),
-              before_data:
-                entry.before_data && typeof entry.before_data === "object"
-                  ? entry.before_data
-                  : null,
-              after_data:
-                entry.after_data && typeof entry.after_data === "object"
-                  ? entry.after_data
-                  : {},
-              created_at: String(entry.created_at),
-            }))
-          : [],
-        biSummary,
-        dataCut: mapDataCutSummary(bundle?.data_cut),
-        operationalQuality: mapOperationalQualitySummary(bundle?.operational_quality),
-        auditFlags: (bundle?.audit_flags ?? []).map(mapAuditFlagRow),
-        auditFlagCounts: mapAuditFlagCounts(bundle?.audit_flag_counts),
-      };
-    });
+          pre_route_foundational_outflow_pen: Number(
+            r.pre_route_foundational_outflow_pen ?? 0
+          ),
+        }));
+
+        const totalSalesPen = Number(
+          q1Rows.reduce((s, r) => s + r.sales_total_pen, 0).toFixed(2)
+        );
+        const cashCollectedPen = Number(
+          q1Rows.reduce((s, r) => s + r.cash_collected_pen, 0).toFixed(2)
+        );
+        const arPendingPen = Number(
+          q1Rows.reduce((s, r) => s + r.ar_pending_pen, 0).toFixed(2)
+        );
+        const routeOpexPen = Number(
+          q1Rows.reduce((s, r) => s + r.route_opex_pen, 0).toFixed(2)
+        );
+        const merchOutPen = Number(
+          q1Rows.reduce((s, r) => s + r.merchandise_outflow_pen, 0).toFixed(2)
+        );
+        const nonOpexDrainPen = Number(
+          q1Rows.reduce((s, r) => s + r.non_opex_capex_drain_pen, 0).toFixed(2)
+        );
+        const internalDepositsPen = Number(
+          q1Rows.reduce((s, r) => s + r.internal_deposits_pen, 0).toFixed(2)
+        );
+        const preRouteFoundationalOutflowPen = Number(
+          q1Rows
+            .reduce((s, r) => s + r.pre_route_foundational_outflow_pen, 0)
+            .toFixed(2)
+        );
+        const declaredNetCashPen = Number(
+          q1Rows.reduce((s, r) => s + r.declared_net_cash_pen, 0).toFixed(2)
+        );
+        const expectedNetCashPen = Number(
+          q1Rows.reduce((s, r) => s + r.expected_net_cash_pen, 0).toFixed(2)
+        );
+        const reconGapPen = Number(
+          (declaredNetCashPen - expectedNetCashPen).toFixed(2)
+        );
+        const reconGapPct =
+          expectedNetCashPen === 0
+            ? 0
+            : Number(
+                (
+                  (Math.abs(declaredNetCashPen - expectedNetCashPen) * 100) /
+                  Math.max(Math.abs(expectedNetCashPen), 1)
+                ).toFixed(2)
+              );
+        const drainRatioPct =
+          merchOutPen + nonOpexDrainPen > 0
+            ? Number(
+                ((nonOpexDrainPen * 100) / (merchOutPen + nonOpexDrainPen)).toFixed(2)
+              )
+            : 0;
+        const openDebtorsCount = Number(bundle?.open_debtors_count ?? 0);
+
+        const kpiQ1Summary = {
+          period_start: "2026-06-26",
+          period_end: String(bundle?.period_end ?? "2026-09-29"),
+          total_sales_pen: totalSalesPen,
+          collected_sales_pen: cashCollectedPen,
+          cash_collected_pen: cashCollectedPen,
+          accounts_receivable_pen: arPendingPen,
+          ar_pending_pen: arPendingPen,
+          open_debtors_count: openDebtorsCount,
+          route_opex_pen: routeOpexPen,
+          merchandise_outflow_pen: merchOutPen,
+          non_opex_capex_drain_pen: nonOpexDrainPen,
+          internal_deposits_pen: internalDepositsPen,
+          pre_route_foundational_outflow_pen: preRouteFoundationalOutflowPen,
+          declared_net_cash_pen: declaredNetCashPen,
+          expected_net_cash_pen: expectedNetCashPen,
+          non_opex_vs_reinvestment_ratio_pct: drainRatioPct,
+          reinvestment_health_flag: drainRatioPct > 30 ? "ALERTA > 30%" : "SALUDABLE",
+          reconciliation_gap_pen: reconGapPen,
+          reconciliation_gap_pct: reconGapPct,
+          reconciliation_health_flag:
+            reconGapPct <= 1 ? "DENTRO DE META (<1%)" : "ALERTA BRECHA (>1%)",
+          monthlyRows: q1Rows,
+        };
+
+        const biSummary = mapBiSummaryFromPanels(bundle ?? {}, mapBiMonthlyRows(q1Raw));
+
+        return {
+          currentUser: actor,
+          kpiQ1: kpiQ1Summary,
+          openDebtorsCount,
+          kpiQ2TopSkus: (bundle?.q2 ?? []).map((r) => ({
+            ...r,
+            product_id: Number(r.product_id),
+            total_units_sold: Number(r.total_units_sold ?? 0),
+            total_revenue_pen: Number(r.total_revenue_pen ?? 0),
+            total_cogs_pen:
+              r.total_cogs_pen !== null && r.total_cogs_pen !== undefined
+                ? Number(r.total_cogs_pen)
+                : null,
+            gross_margin_pen:
+              r.gross_margin_pen !== null && r.gross_margin_pen !== undefined
+                ? Number(r.gross_margin_pen)
+                : null,
+            gross_margin_pct:
+              r.gross_margin_pct !== null && r.gross_margin_pct !== undefined
+                ? Number(r.gross_margin_pct)
+                : null,
+          })),
+          kpiQ3: bundle?.q3 ?? [],
+          qualityGaps: (bundle?.gaps ?? []).map((r) => ({
+            ...r,
+            gap_count: Number(r.gap_count ?? 0),
+            impacted_amount_pen: Number(r.impacted_amount_pen ?? 0),
+          })),
+          pendingOnDemand: (bundle?.on_demand ?? []).map((r) => ({
+            ...r,
+            order_line_id: Number(r.order_line_id),
+            order_id: Number(r.order_id),
+            warehouse_id: Number(r.warehouse_id),
+            customer_party_id:
+              r.customer_party_id !== null && r.customer_party_id !== undefined
+                ? Number(r.customer_party_id)
+                : null,
+            product_id: Number(r.product_id),
+            quantity: Number(r.quantity),
+            pack_factor_applied: Number(r.pack_factor_applied),
+            required_base_qty: Number(r.required_base_qty),
+            current_stock_on_hand: Number(r.current_stock_on_hand),
+            line_total_pen: Number(r.line_total_pen),
+            balance_due_pen: Number(r.balance_due_pen),
+            days_pending: Number(r.days_pending),
+            open_flag_id:
+              r.open_flag_id !== null && r.open_flag_id !== undefined
+                ? Number(r.open_flag_id)
+                : null,
+          })),
+          negativeStockSkuCount: Number(bundle?.neg_count ?? 0),
+          unpurchasedRegularizationCount: Number(bundle?.unpurchased_reg_count ?? 0),
+          users: isPartnerAdmin
+            ? (bundle?.users ?? []).map((u) => ({
+                user_id: Number(u.user_id),
+                username: String(u.username),
+                full_name: String(u.full_name),
+                role: String(u.role),
+                is_active: Boolean(u.is_active),
+                email: u.email ? String(u.email) : null,
+              }))
+            : [],
+          userAccessHistory: isPartnerAdmin
+            ? (bundle?.user_access_history ?? []).map((entry) => ({
+                audit_id: Number(entry.audit_id),
+                action: String(entry.action),
+                target_user_id: Number(entry.target_user_id),
+                target_username: String(entry.target_username),
+                target_name: String(entry.target_name),
+                actor_username: String(entry.actor_username),
+                actor_name: String(entry.actor_name),
+                before_data:
+                  entry.before_data && typeof entry.before_data === "object"
+                    ? entry.before_data
+                    : null,
+                after_data:
+                  entry.after_data && typeof entry.after_data === "object"
+                    ? entry.after_data
+                    : {},
+                created_at: String(entry.created_at),
+              }))
+            : [],
+          biSummary,
+          dataCut: mapDataCutSummary(bundle?.data_cut),
+          operationalQuality: mapOperationalQualitySummary(bundle?.operational_quality),
+          auditFlags: (bundle?.audit_flags ?? []).map(mapAuditFlagRow),
+          auditFlagCounts: mapAuditFlagCounts(bundle?.audit_flag_counts),
+        };
+      }
+    );
 
     return NextResponse.json(data, { headers: NO_STORE_HEADERS });
   } catch (err) {
@@ -760,14 +764,8 @@ export async function POST(req: NextRequest) {
               const before = toUserSnapshot(userRes.rows[0]);
               const currentActive = before.is_active;
               const nextActive =
-                typeof body.isActive === "boolean"
-                  ? body.isActive
-                  : !currentActive;
-              if (
-                before.role === "PARTNER_ADMIN" &&
-                currentActive &&
-                !nextActive
-              ) {
+                typeof body.isActive === "boolean" ? body.isActive : !currentActive;
+              if (before.role === "PARTNER_ADMIN" && currentActive && !nextActive) {
                 const admins = await client.query<{ count: string }>(
                   `SELECT COUNT(*)::text AS count
                    FROM erp.app_users

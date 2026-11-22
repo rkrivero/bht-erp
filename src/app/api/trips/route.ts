@@ -1,8 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import {
-  withAuthenticatedClient,
-  withAuthenticatedTransaction,
-} from "@/lib/auth";
+import { withAuthenticatedClient, withAuthenticatedTransaction } from "@/lib/auth";
 import { resolveHttpError } from "@/lib/http-errors";
 import { runIdempotentMutation } from "@/lib/idempotency";
 import {
@@ -25,12 +22,7 @@ export async function GET(req: NextRequest) {
 
     const data = await withAuthenticatedClient(
       req,
-      [
-        "PARTNER_ADMIN",
-        "PARTNER_MANAGER",
-        "WAREHOUSE_DELIVERY",
-        "EXTERNAL_SELLER",
-      ],
+      ["PARTNER_ADMIN", "PARTNER_MANAGER", "WAREHOUSE_DELIVERY", "EXTERNAL_SELLER"],
       async (client, actor) => {
         const trips = await listRouteTrips(client, actor, limit);
         return { trips };

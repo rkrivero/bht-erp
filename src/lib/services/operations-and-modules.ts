@@ -1102,7 +1102,8 @@ export async function updateQuote(
         ? Number(existingQuote.customer_party_id)
         : null;
   let customerNameRaw =
-    input.customerNameRaw?.trim() || String(existingQuote.customer_name_raw || "").trim();
+    input.customerNameRaw?.trim() ||
+    String(existingQuote.customer_name_raw || "").trim();
 
   if (customerPartyId !== null) {
     const cRes = await client.query<{ display_name: string }>(
@@ -1435,6 +1436,7 @@ export async function convertQuoteToOrder(
   const qRes = await client.query<{
     quote_id: string;
     quote_code: string;
+    issue_date: string;
     customer_party_id: string | null;
     customer_name_raw: string | null;
     global_discount_pen: string | number;
@@ -1445,6 +1447,7 @@ export async function convertQuoteToOrder(
     `SELECT
        quote_id::text,
        quote_code,
+       issue_date::text AS issue_date,
        customer_party_id::text,
        customer_name_raw,
        COALESCE(global_discount_pen, 0) AS global_discount_pen,
@@ -1522,6 +1525,8 @@ export async function convertQuoteToOrder(
       paymentAccountId: input.paymentAccountId,
       tripId: input.tripId ?? null,
       quoteId,
+      orderDate: quote.issue_date,
+      initialOperationalStatus: "DELIVERED",
       globalDiscountPen: Number(quote.global_discount_pen ?? 0),
       notes:
         input.notes?.trim() ||

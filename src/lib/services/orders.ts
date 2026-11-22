@@ -43,6 +43,8 @@ export interface CreateOrderInput {
   quoteId?: number | null;
   tripId?: number | null;
   globalDiscountPen?: number;
+  orderDate?: string | null;
+  initialOperationalStatus?: "REGISTERED" | "DELIVERED";
   notes?: string;
   lines: Array<{
     productId: number;
@@ -52,6 +54,12 @@ export interface CreateOrderInput {
     unitDiscountPen?: number;
     overrideBasePricePen?: number;
   }>;
+}
+
+export function addDaysToIsoDate(isoDate: string, days: number): string {
+  const [y, m, d] = isoDate.split("-").map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d + days));
+  return dt.toISOString().slice(0, 10);
 }
 
 export function getLimaDateString(offsetDays = 0): string {
@@ -381,6 +389,11 @@ export async function createOrder(
     projectedBalancePen: number;
   } | null = null;
 
+  const effectiveOrderDate =
+    input.orderDate && /^\d{4}-\d{2}-\d{2}$/.test(input.orderDate)
+      ? input.orderDate
+      : getLimaDateString(0);
+
   if (input.paymentMode === "CREDIT") {
     let agreedCreditDays: number | null = null;
     if (input.customerPartyId) {
@@ -445,27 +458,30 @@ export async function createOrder(
     if (input.promisedPaymentDate) {
       promisedPaymentDate = input.promisedPaymentDate;
     } else if (input.creditDays && input.creditDays > 0) {
-      promisedPaymentDate = getLimaDateString(input.creditDays);
+      promisedPaymentDate = addDaysToIsoDate(effectiveOrderDate, input.creditDays);
     } else {
       const defaultDays = await getNumericSetting(client, "default_credit_days", 7);
       const days = agreedCreditDays !== null ? agreedCreditDays : defaultDays;
-      promisedPaymentDate = getLimaDateString(days);
+      promisedPaymentDate = addDaysToIsoDate(effectiveOrderDate, days);
     }
   } else if (input.collectOnDelivery) {
-    promisedPaymentDate = getLimaDateString(0);
+    promisedPaymentDate = effectiveOrderDate;
   }
 
   const operationalStatus: OrderOperationalStatus = requiresApproval
     ? "PENDING_PARTNER_APPROVAL"
-    : "REGISTERED";
+    : (input.initialOperationalStatus ?? "REGISTERED");
   const stockDeducted = !requiresApproval;
 
-  const periodKey = getLimaDateString(0).replace(/-/g, "");
+  const periodKey = effectiveOrderDate.replace(/-/g, "");
   const seqRes = await client.query<{ code: string }>(
     `SELECT erp.fn_next_document_code('SALES_ORDER', 'SO', $1, 4) AS code`,
     [periodKey]
   );
   const orderCode = String(seqRes.rows[0].code);
+
+  const isDeliveredOnCreate = operationalStatus === "DELIVERED";
+  const deliveredAtIso = isDeliveredOnCreate ? new Date().toISOString() : null;
 
   const orderInsert = await client.query(
     `INSERT INTO erp.sales_orders (
@@ -473,13 +489,15 @@ export async function createOrder(
        payment_mode, operational_status, total_pen, global_discount_pen, paid_pen,
        due_date, promised_payment_date,
        created_by_user_id, approved_by_user_id, approved_at,
+       delivered_by_user_id, delivered_at,
        stock_deducted, trip_id, quote_id, credit_limit_exceeded_flag,
        source_origin, notes
      ) VALUES (
-       $1, (NOW() AT TIME ZONE 'America/Lima')::date, $2, $3, $4,
+       $1, $18::date, $2, $3, $4,
        $5, $6, $7, $16, 0,
        $11, $11,
        $8, $9, $10,
+       $19, $20,
        $12, $13, $14, $17,
        'ERP_APP', $15
      ) RETURNING order_id`,
@@ -501,6 +519,9 @@ export async function createOrder(
       input.notes ?? null,
       globalDiscountPen,
       creditLimitExceededFlag,
+      effectiveOrderDate,
+      isDeliveredOnCreate ? actor.userId : null,
+      deliveredAtIso,
     ]
   );
   const orderId = Number(orderInsert.rows[0].order_id);
@@ -652,7 +673,7 @@ export async function createOrder(
          expense_category, is_internal_transfer, reference_table, reference_id,
          description, source_origin
        ) VALUES (
-         (NOW() AT TIME ZONE 'America/Lima')::date, $1, $2, 'IN', $3,
+         $6::date, $1, $2, 'IN', $3,
          'COBRANZA_VENTA', FALSE, 'erp.sales_orders', $4,
          $5, 'ERP_APP'
        ) RETURNING ledger_id`,
@@ -662,6 +683,7 @@ export async function createOrder(
         initialPaid,
         String(orderId),
         `Cobro inicial pedido ${orderCode} (${input.customerNameRaw.trim()})`,
+        effectiveOrderDate,
       ]
     );
 
@@ -670,7 +692,7 @@ export async function createOrder(
          order_id, payment_date, amount_pen, payment_mode,
          account_id, reference_doc, collected_by_user_id,
          source_origin, notes
-       ) VALUES ($1, (NOW() AT TIME ZONE 'America/Lima')::date, $2, $3, $4, $5, $6, 'ERP_APP', $7)`,
+       ) VALUES ($1, $8::date, $2, $3, $4, $5, $6, 'ERP_APP', $7)`,
       [
         orderId,
         initialPaid,
@@ -679,6 +701,7 @@ export async function createOrder(
         `LEDGER-${ledgerRes.rows[0].ledger_id}`,
         actor.userId,
         input.paymentMode === "CREDIT" ? "Adelanto inicial" : "Pago al contado",
+        effectiveOrderDate,
       ]
     );
   }
@@ -694,7 +717,9 @@ export async function createOrder(
         ? creditLimitExceededFlag
           ? "Pedido registrado con exceso de línea de crédito; pendiente de aprobación de Socio"
           : "Pedido registrado con precio bajo costo; pendiente de aprobación de Socio"
-        : "Pedido registrado",
+        : isDeliveredOnCreate
+          ? "Pedido registrado y entregado (conversión de cotización)"
+          : "Pedido registrado",
     ]
   );
 
@@ -1202,10 +1227,9 @@ export async function updateOrder(
     };
   });
   const globalDiscountPen = Number(
-    (
-      input.globalDiscountPen !== undefined
-        ? input.globalDiscountPen
-        : Number(order.global_discount_pen ?? 0)
+    (input.globalDiscountPen !== undefined
+      ? input.globalDiscountPen
+      : Number(order.global_discount_pen ?? 0)
     ).toFixed(2)
   );
   if (!Number.isFinite(globalDiscountPen) || globalDiscountPen < 0) {
@@ -1699,9 +1723,7 @@ export async function listOrdersPaginatedForRole(
     "CANCELLED",
   ]);
   const statusFilter =
-    rawStatus && rawStatus !== "ALL" && validStatuses.has(rawStatus)
-      ? rawStatus
-      : null;
+    rawStatus && rawStatus !== "ALL" && validStatuses.has(rawStatus) ? rawStatus : null;
   const searchQuery = filters.q ? String(filters.q).trim().toLowerCase() : "";
 
   const extraParams: unknown[] = [];

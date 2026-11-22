@@ -41,7 +41,7 @@ export function DesktopSidebar<T extends string>({
 }) {
   return (
     <aside className="fixed inset-y-0 left-0 z-40 hidden w-[232px] flex-col bg-bht-navy-deep border-r border-bht-navy-soft px-3.5 py-5 text-white md:flex">
-      <div className="flex items-center gap-3 px-2 pb-6">
+      <div className="mb-4 flex items-center gap-3 border-b border-white/10 px-2 pb-5">
         <span className="flex h-10 w-16 flex-none items-center justify-center rounded-xl bg-white/10 border border-white/15 p-1 shadow-xs">
           <HorizonLogo className="h-full w-full" />
         </span>
@@ -63,7 +63,7 @@ export function DesktopSidebar<T extends string>({
             <React.Fragment key={item.id}>
               {showGroupHeader && (
                 <p
-                  className={`px-3 pb-1 text-[11px] font-semibold uppercase tracking-[0.1em] text-bht-ink-muted ${
+                  className={`px-3 pb-1 text-[11px] font-semibold uppercase tracking-[0.1em] text-bht-info-line/75 ${
                     idx === 0 ? "pt-0" : "mt-2 border-t border-white/10 pt-3"
                   }`}
                 >
@@ -74,16 +74,16 @@ export function DesktopSidebar<T extends string>({
                 type="button"
                 aria-current={active ? "page" : undefined}
                 onClick={() => onChange(item.id)}
-                className={`relative flex min-h-10 w-full items-center gap-3 rounded-xl px-3 text-left text-sm transition-all duration-300 ease-in-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white cursor-pointer ${
+                className={`relative flex min-h-10 w-full items-center gap-3 rounded-xl px-3 text-left text-sm transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white cursor-pointer ${
                   active
-                    ? "bg-white font-semibold text-bht-ink-strong shadow-sm"
-                    : "text-bht-info-line/80 hover:bg-white/10 hover:text-white font-medium"
+                    ? "bg-white font-semibold text-bht-navy-deep shadow-sm"
+                    : "text-bht-info-line/85 hover:bg-white/[0.08] hover:text-white font-medium"
                 }`}
               >
                 {active && (
                   <span
                     aria-hidden="true"
-                    className="absolute left-1 top-2.5 bottom-2.5 w-1 rounded-full bg-bht-cobalt"
+                    className="absolute left-1 top-2.5 bottom-2.5 w-[3px] rounded-full bg-bht-cobalt"
                   />
                 )}
                 <span
@@ -99,7 +99,7 @@ export function DesktopSidebar<T extends string>({
                   <span
                     className={`rounded-full px-2 py-0.5 text-[10px] font-bold tabular-nums ${
                       active
-                        ? "bg-bht-navy-deep text-white"
+                        ? "bg-bht-cobalt-bg text-bht-cobalt-strong"
                         : "bg-white/15 text-white"
                     }`}
                   >
@@ -112,7 +112,7 @@ export function DesktopSidebar<T extends string>({
         })}
       </nav>
       {footer && (
-        <div className="mt-auto border-t border-white/10 px-2 pt-4 text-xs text-bht-ink-muted">
+        <div className="mt-auto border-t border-white/10 px-2 pt-4 text-xs text-bht-info-line/75">
           {footer}
         </div>
       )}
@@ -173,8 +173,22 @@ export function AppHeader({
   onOpenCommandPalette?: () => void;
   withSidebar?: boolean;
 }) {
+  const accountMenuId = useId();
+  const [accountMenuOpen, setAccountMenuOpen] = useState(false);
   const [displaySyncStatus, setDisplaySyncStatus] = useState(syncStatus);
   const [density, setDensity] = useState<UiDensity>("comfortable");
+  const [shortcutHint, setShortcutHint] = useState("Ctrl K");
+
+  useEffect(() => {
+    try {
+      const isApple = /Mac|iPhone|iPad|iPod/i.test(
+        navigator.platform || navigator.userAgent || ""
+      );
+      setShortcutHint(isApple ? "⌘K" : "Ctrl K");
+    } catch {
+      // Keep default
+    }
+  }, []);
 
   useEffect(() => {
     try {
@@ -246,7 +260,7 @@ export function AppHeader({
       className={`sticky top-0 z-30 border-b border-[var(--border-hairline)] bg-white/95 backdrop-blur-md ${withSidebar ? "md:ml-[232px]" : ""}`}
     >
       <div
-        className={`mx-auto grid ${widthClass} grid-cols-[minmax(0,1fr)_auto] items-start gap-x-2 gap-y-2 px-3.5 py-2.5 sm:flex sm:flex-wrap sm:items-center sm:justify-between sm:gap-3 sm:px-5`}
+        className={`mx-auto grid ${widthClass} grid-cols-[minmax(0,1fr)_auto] items-start gap-x-2 gap-y-2 px-3.5 py-2.5 sm:flex sm:flex-wrap sm:items-center sm:justify-between sm:gap-3 sm:px-5 sm:py-3`}
       >
         <div className="flex min-w-0 flex-1 items-center gap-3">
           <span
@@ -307,51 +321,72 @@ export function AppHeader({
             data-compact="true"
             onClick={triggerCommandPalette}
             aria-label="Abrir paleta de comandos (Cmd+K o Ctrl+K)"
-            className="inline-flex min-h-[36px] items-center gap-1.5 rounded-xl border border-bht-line bg-bht-paper px-2.5 py-1.5 text-xs font-semibold text-bht-ink-soft transition hover:border-bht-cobalt hover:bg-white hover:text-bht-ink-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bht-cobalt cursor-pointer"
+            className="inline-flex min-h-[36px] items-center gap-1.5 rounded-xl border border-bht-line-strong/80 bg-bht-paper/80 px-2.5 py-1.5 text-xs font-semibold text-bht-ink-soft transition-colors duration-150 hover:border-bht-cobalt/50 hover:bg-white hover:text-bht-navy-deep focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bht-cobalt cursor-pointer"
           >
             <SearchIcon className="h-3.5 w-3.5" />
             <span className="hidden lg:inline">Ir a...</span>
-            <kbd className="rounded border border-bht-line bg-white px-1.5 py-0.5 font-mono text-[10px] font-semibold text-bht-ink-strong">
-              ⌘K
+            <kbd className="hidden md:inline-block rounded border border-bht-line bg-white px-1.5 py-0.5 font-mono text-[11px] font-semibold text-bht-ink-strong">
+              {shortcutHint}
             </kbd>
-          </button>
-
-          <button
-            type="button"
-            data-compact="true"
-            onClick={toggleDensity}
-            aria-pressed={density === "compact"}
-            aria-label={`Densidad de interfaz: ${
-              density === "compact" ? "Compacto" : "Cómodo"
-            }. Tocar para alternar`}
-            className="hidden sm:inline-flex min-h-[36px] items-center gap-1 rounded-xl border border-bht-line bg-white px-2.5 py-1.5 text-xs font-semibold text-bht-ink-soft transition hover:border-bht-line-strong hover:bg-bht-paper hover:text-bht-ink-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bht-cobalt cursor-pointer"
-          >
-            <span>{density === "compact" ? "Compacto" : "Cómodo"}</span>
           </button>
 
           {actions}
 
-          <Link
-            href="/change-password"
-            data-compact="true"
-            aria-label="Cambiar contraseña"
-            title="Cambiar contraseña"
-            className="inline-flex min-h-[36px] items-center gap-1.5 rounded-xl border border-bht-line bg-white px-2.5 py-1.5 text-xs font-semibold text-bht-ink-soft transition hover:border-bht-cobalt hover:bg-bht-cobalt-bg/40 hover:text-bht-cobalt focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bht-cobalt"
-          >
-            <LockIcon className="h-3.5 w-3.5" />
-            <span className="hidden xl:inline">Clave</span>
-          </Link>
-
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={onLogout}
-            aria-label="Salir y cerrar sesión"
-            className="min-h-[36px] sm:min-h-[38px] rounded-xl px-3 text-xs sm:text-sm"
-          >
-            <LogOutIcon className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">Salir</span>
-          </Button>
+          <div className="relative">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              popoverTarget={accountMenuId}
+              aria-expanded={accountMenuOpen}
+              className="min-h-[36px] sm:min-h-[38px] rounded-xl px-3 text-xs sm:text-sm"
+            >
+              <span>Cuenta</span>
+            </Button>
+            <div
+              id={accountMenuId}
+              popover="auto"
+              onToggle={(e) => {
+                const evt = e as React.SyntheticEvent<HTMLDivElement> & {
+                  newState?: string;
+                };
+                if (evt.newState) {
+                  setAccountMenuOpen(evt.newState === "open");
+                }
+              }}
+              className="bht-anchored-popover z-40 mt-1.5 w-60 max-w-[calc(100vw-1.5rem)] rounded-xl border border-bht-line bg-white p-2 shadow-bht-elev-17"
+            >
+              <div className="space-y-1 text-sm">
+                <button
+                  type="button"
+                  onClick={toggleDensity}
+                  aria-pressed={density === "compact"}
+                  className="flex min-h-10 w-full items-center justify-between rounded-lg px-2.5 py-2 font-medium text-bht-ink-strong transition-colors duration-150 hover:bg-bht-paper cursor-pointer"
+                >
+                  <span>Densidad visual</span>
+                  <span className="rounded-md border border-bht-cobalt/20 bg-bht-cobalt-bg px-2 py-0.5 text-xs font-semibold text-bht-cobalt-strong">
+                    {density === "compact" ? "Compacto" : "Cómodo"}
+                  </span>
+                </button>
+                <Link
+                  href="/change-password"
+                  className="flex min-h-10 w-full items-center gap-2 rounded-lg px-2.5 py-2 font-medium text-bht-ink-strong transition-colors duration-150 hover:bg-bht-paper"
+                >
+                  <LockIcon className="h-4 w-4 text-bht-ink-soft" />
+                  <span>Cambiar contraseña</span>
+                </Link>
+                <div className="my-1 border-t border-bht-line" />
+                <button
+                  type="button"
+                  onClick={onLogout}
+                  className="flex min-h-10 w-full items-center gap-2 rounded-lg px-2.5 py-2 font-semibold text-bht-danger transition-colors duration-150 hover:bg-bht-danger-bg cursor-pointer"
+                >
+                  <LogOutIcon className="h-4 w-4" />
+                  <span>Cerrar sesión</span>
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </header>
@@ -387,9 +422,9 @@ export function DesktopTabBar<T extends string>({
             type="button"
             aria-current={active ? "page" : undefined}
             onClick={() => onChange(item.id)}
-            className={`flex flex-shrink-0 items-center gap-2 rounded-lg px-3.5 py-2 text-sm font-semibold transition-all duration-300 ease-in-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bht-cobalt focus-visible:ring-offset-1 cursor-pointer ${
+            className={`flex flex-shrink-0 items-center gap-2 rounded-lg px-3.5 py-2 text-sm font-semibold transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bht-cobalt focus-visible:ring-offset-1 cursor-pointer ${
               active
-                ? "border border-bht-cobalt/30 bg-bht-cobalt-bg text-bht-cobalt font-bold shadow-2xs"
+                ? "border border-bht-cobalt/25 bg-bht-cobalt-bg text-bht-cobalt-strong font-bold shadow-2xs"
                 : "border border-transparent text-bht-ink-soft hover:bg-bht-mist hover:text-bht-ink-strong"
             }`}
           >
@@ -404,7 +439,7 @@ export function DesktopTabBar<T extends string>({
               <span
                 className={`rounded-full px-2 py-0.5 text-[10px] font-bold tabular-nums leading-none ${
                   active
-                    ? "bg-bht-navy-deep text-white"
+                    ? "bg-bht-cobalt text-white"
                     : "bg-bht-cobalt-bg text-bht-ink-soft"
                 }`}
               >
@@ -447,8 +482,7 @@ export function BottomNav<T extends string>({
   function closeMorePopover() {
     setMoreOpen(false);
     const pop = popoverRef.current as
-      | (HTMLDivElement & { hidePopover?: () => void })
-      | null;
+      (HTMLDivElement & { hidePopover?: () => void }) | null;
     if (pop && typeof pop.hidePopover === "function") {
       try {
         pop.hidePopover();
@@ -496,15 +530,17 @@ export function BottomNav<T extends string>({
               type="button"
               aria-current={active ? "page" : undefined}
               onClick={() => onChange(item.id)}
-              className={`relative flex min-w-0 flex-1 min-h-[44px] flex-col items-center justify-center gap-1 rounded-xl py-1.5 px-1 text-xs font-semibold transition-all duration-300 ease-in-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bht-cobalt cursor-pointer ${
+              className={`relative flex min-w-0 flex-1 min-h-[44px] flex-col items-center justify-center gap-1 rounded-xl py-1.5 px-1 text-xs font-semibold transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bht-cobalt cursor-pointer ${
                 active
-                  ? "text-bht-cobalt"
+                  ? "text-bht-cobalt-strong"
                   : "text-bht-ink-soft hover:text-bht-ink-strong"
               }`}
             >
               <div
-                className={`relative flex h-7 w-12 items-center justify-center rounded-full transition-all duration-300 ease-in-out ${
-                  active ? "bg-bht-cobalt-bg text-bht-cobalt" : ""
+                className={`relative flex h-7 w-12 items-center justify-center rounded-full transition-colors duration-150 ${
+                  active
+                    ? "bg-bht-cobalt-bg text-bht-cobalt-strong ring-1 ring-bht-cobalt/20"
+                    : ""
                 }`}
               >
                 <span aria-hidden="true">{item.icon}</span>

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useId, useRef, useState } from "react";
+import React, { useId, useState } from "react";
 import { ChevronRightIcon, CloseIcon, SearchIcon } from "./Icons";
 import {
   Badge,
@@ -141,32 +141,7 @@ export function ControlPanel<TView extends string = string>({
   children?: React.ReactNode;
 }) {
   const filterPopoverId = useId();
-  const popoverRef = useRef<HTMLDivElement | null>(null);
   const [filterOpen, setFilterOpen] = useState(false);
-
-  function toggleFilterPopover() {
-    const pop = popoverRef.current as
-      | (HTMLDivElement & {
-          showPopover?: () => void;
-          hidePopover?: () => void;
-        })
-      | null;
-    if (pop && typeof pop.showPopover === "function") {
-      try {
-        if (filterOpen) {
-          pop.hidePopover?.();
-          setFilterOpen(false);
-        } else {
-          pop.showPopover();
-          setFilterOpen(true);
-        }
-        return;
-      } catch {
-        // Fallback to React state toggle
-      }
-    }
-    setFilterOpen((prev) => !prev);
-  }
 
   return (
     <Card padding="md" className={`space-y-3 ${className}`}>
@@ -176,7 +151,7 @@ export function ControlPanel<TView extends string = string>({
         primaryAction ||
         secondaryActions ||
         (viewOptions && viewMode && onViewModeChange)) && (
-        <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="flex flex-wrap items-start justify-between gap-3 sm:items-center">
           <div className="min-w-0 flex-1">
             {breadcrumbs && breadcrumbs.length > 0 && (
               <nav
@@ -223,9 +198,7 @@ export function ControlPanel<TView extends string = string>({
                 {title}
               </h2>
             )}
-            {subtitle && (
-              <p className="mt-0.5 text-xs text-bht-ink-soft">{subtitle}</p>
-            )}
+            {subtitle && <p className="mt-0.5 text-xs text-bht-ink-soft">{subtitle}</p>}
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
@@ -258,7 +231,7 @@ export function ControlPanel<TView extends string = string>({
         <div
           role="region"
           aria-label="Acciones en lote"
-          className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-bht-cobalt/30 bg-bht-cobalt-bg px-3.5 py-2 text-xs"
+          className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-bht-cobalt/25 bg-bht-cobalt-bg/70 px-3.5 py-2 text-xs"
         >
           <div className="flex items-center gap-2">
             <Badge tone="horizon" className="tabular-nums">
@@ -334,7 +307,6 @@ export function ControlPanel<TView extends string = string>({
                   size="sm"
                   popoverTarget={filterPopoverId}
                   aria-expanded={filterOpen}
-                  onClick={toggleFilterPopover}
                 >
                   <span>{filterButtonLabel}</span>
                   {activeFiltersCount > 0 && (
@@ -344,7 +316,6 @@ export function ControlPanel<TView extends string = string>({
                   )}
                 </Button>
                 <div
-                  ref={popoverRef}
                   id={filterPopoverId}
                   popover="auto"
                   onToggle={(e) => {
@@ -355,9 +326,7 @@ export function ControlPanel<TView extends string = string>({
                       setFilterOpen(evt.newState === "open");
                     }
                   }}
-                  className={`bht-anchored-popover ${
-                    filterOpen ? "block" : "hidden"
-                  } z-40 mt-1.5 w-80 max-w-[calc(100vw-1.5rem)] rounded-xl border border-bht-line bg-white p-4 shadow-bht-elev-17`}
+                  className="bht-anchored-popover z-40 mt-1.5 w-80 max-w-[calc(100vw-1.5rem)] rounded-xl border border-bht-line bg-white p-4 shadow-bht-elev-17"
                 >
                   {filterPopoverContent}
                 </div>
@@ -375,7 +344,7 @@ export function ControlPanel<TView extends string = string>({
           {facets.map((facet) => (
             <span
               key={facet.id}
-              className="inline-flex items-center gap-1.5 rounded-full border border-bht-cobalt/25 bg-bht-cobalt-bg px-2.5 py-1 text-xs font-medium text-bht-cobalt-strong"
+              className="inline-flex items-center gap-1.5 rounded-full border border-bht-info-line bg-bht-cobalt-bg/80 px-2.5 py-1 text-xs font-medium text-bht-cobalt-strong"
             >
               <span className="text-bht-ink-soft">{facet.label}:</span>
               <strong className="font-semibold">{facet.value}</strong>
@@ -408,8 +377,9 @@ export function ControlPanel<TView extends string = string>({
       {pagination && (
         <div className="flex flex-wrap items-center justify-between gap-2 border-t border-bht-line pt-2.5 text-xs text-bht-ink-soft">
           <span className="tabular-nums">
-            Mostrando <strong className="text-bht-ink-strong">{pagination.shownCount}</strong>{" "}
-            de <strong className="text-bht-ink-strong">{pagination.totalCount}</strong>{" "}
+            Mostrando{" "}
+            <strong className="text-bht-ink-strong">{pagination.shownCount}</strong> de{" "}
+            <strong className="text-bht-ink-strong">{pagination.totalCount}</strong>{" "}
             {pagination.itemLabel ?? "registros"}
           </span>
           {pagination.hasMore && pagination.onLoadMore && (

@@ -1,7 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useState, type FormEvent } from "react";
-import { Badge, Button, Card, FieldLabel, INPUT_CLASS } from "@/components/ui/Primitives";
+import {
+  Badge,
+  Button,
+  Card,
+  FieldLabel,
+  INPUT_CLASS,
+} from "@/components/ui/Primitives";
 import { SkeletonCards } from "@/components/ui/Skeleton";
 import { ApiClientError, fetchJson } from "@/lib/api-client";
 import { notifyLocalSync } from "@/lib/realtime/useLiveSync";
@@ -372,12 +378,7 @@ export default function SystemSettingsPanel({
         </div>
 
         <div className="flex flex-wrap items-center justify-end gap-2 border-t border-bht-line pt-3">
-          <Button
-            type="submit"
-            variant="primary"
-            size="md"
-            disabled={saving || !dirty}
-          >
+          <Button type="submit" variant="primary" size="md" disabled={saving || !dirty}>
             {saving ? "Guardando..." : "Guardar configuración"}
           </Button>
         </div>

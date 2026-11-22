@@ -74,9 +74,7 @@ export function OrderDetailSheet({
           <Badge tone={operationalStatusTone(order.operational_status)}>
             {formatOperationalStatusEs(order.operational_status)}
           </Badge>
-          {creditExceeded && (
-            <Badge tone="danger">Excede límite de crédito</Badge>
-          )}
+          {creditExceeded && <Badge tone="danger">Excede límite de crédito</Badge>}
           {canAbonar && (
             <Button type="button" variant="primary" size="sm" onClick={onAbonar}>
               Registrar Abono ({formatPen(debtVal)})

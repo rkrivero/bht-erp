@@ -1683,7 +1683,9 @@ describe("API Route Role Enforcement, DB Branch Isolation & Endpoint Contracts",
       expect(conflictIdemCust.status).toBe(409);
 
       // 8. Zod validation on mutating routes & GET/PATCH /api/settings
-      const invalidOrderZod = await (await import("../src/app/api/orders/route")).POST(
+      const invalidOrderZod = await (
+        await import("../src/app/api/orders/route")
+      ).POST(
         new NextRequest("http://localhost:3000/api/orders", {
           method: "POST",
           headers: {

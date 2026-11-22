@@ -4,10 +4,7 @@ import React, { useDeferredValue, useMemo } from "react";
 import { PlusIcon, TrashIcon } from "@/components/ui/Icons";
 import { Button, Card, FieldLabel, INPUT_CLASS } from "@/components/ui/Primitives";
 import { formatFulfillmentModeEs } from "@/lib/labels-es";
-import {
-  matchCatalogItem,
-  resolveCatalogProductMatch,
-} from "@/lib/product-matching";
+import { matchCatalogItem, resolveCatalogProductMatch } from "@/lib/product-matching";
 import { formatPen, type PartnerCatalogItem, type PendingOnDemandItem } from "../types";
 import type { PurchaseLineDraft } from "./caja-utils";
 
@@ -37,7 +34,10 @@ export const PurchaseLineRow = React.memo(function PurchaseLineRow({
   const filteredMatches = useMemo(() => {
     const q = deferredSearch.trim();
     if (!q) {
-      return catalog.map((product) => ({ product, viaAlias: undefined as string | undefined }));
+      return catalog.map((product) => ({
+        product,
+        viaAlias: undefined as string | undefined,
+      }));
     }
     const matches: Array<{ product: PartnerCatalogItem; viaAlias?: string }> = [];
     for (const p of catalog) {
@@ -123,9 +123,7 @@ export const PurchaseLineRow = React.memo(function PurchaseLineRow({
             <button
               type="button"
               data-compact="true"
-              onClick={() =>
-                onSelectProduct(row.key, String(deducedMatch.productId))
-              }
+              onClick={() => onSelectProduct(row.key, String(deducedMatch.productId))}
               className="shrink-0 rounded-md border border-bht-cobalt bg-white px-2 py-0.5 text-xs font-semibold text-bht-cobalt-strong hover:bg-bht-cobalt-bg cursor-pointer"
             >
               Usar SKU único: {deducedMatch.sku}

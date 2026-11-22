@@ -63,7 +63,10 @@ export function RecentUndoStrip({
   }, [items.length]);
 
   function computeRemaining(item: UndoableActionDto): number {
-    if (typeof item.remaining_seconds === "number" && Number.isFinite(item.remaining_seconds)) {
+    if (
+      typeof item.remaining_seconds === "number" &&
+      Number.isFinite(item.remaining_seconds)
+    ) {
       const elapsedSec = Math.max(0, Math.floor((nowMs - fetchedAtMs) / 1000));
       return Math.max(0, item.remaining_seconds - elapsedSec);
     }
