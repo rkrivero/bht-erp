@@ -16,6 +16,8 @@ export default defineConfig([
   globalIgnores([
     ".next/**",
     "node_modules/**",
+    ".agent/**",
+    ".agents/**",
     ".playwright-mcp/**",
     "playwright-report/**",
     "test-results/**",
