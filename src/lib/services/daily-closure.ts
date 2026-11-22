@@ -32,8 +32,8 @@ export interface DailyClosureHistoryItem {
   expensesTotalPen: number;
   depositsTotalPen: number;
   expectedCashTotalPen: number;
-  countedCashTotalPen: number;
-  varianceTotalPen: number;
+  countedCashTotalPen: number | null;
+  varianceTotalPen: number | null;
   pendingDeliveriesCount: number;
   pendingCollectionsCount: number;
   pendingAp7dCount: number;
@@ -133,6 +133,12 @@ function toNum(v: unknown, fallback = 0): number {
   return Number.isFinite(n) ? Number(n.toFixed(2)) : fallback;
 }
 
+function toNullableNum(v: unknown): number | null {
+  if (v === null || v === undefined || v === "") return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? Number(n.toFixed(2)) : null;
+}
+
 function mapClosureHistoryRow(r: Record<string, unknown>): DailyClosureHistoryItem {
   return {
     closureId: Number(r.closure_id),
@@ -145,8 +151,8 @@ function mapClosureHistoryRow(r: Record<string, unknown>): DailyClosureHistoryIt
     expensesTotalPen: toNum(r.expenses_total_pen),
     depositsTotalPen: toNum(r.deposits_total_pen),
     expectedCashTotalPen: toNum(r.expected_cash_total_pen),
-    countedCashTotalPen: toNum(r.counted_cash_total_pen),
-    varianceTotalPen: toNum(r.variance_total_pen),
+    countedCashTotalPen: toNullableNum(r.counted_cash_total_pen),
+    varianceTotalPen: toNullableNum(r.variance_total_pen),
     pendingDeliveriesCount: Number(r.pending_deliveries_count ?? 0),
     pendingCollectionsCount: Number(r.pending_collections_count ?? 0),
     pendingAp7dCount: Number(r.pending_ap_7d_count ?? 0),
@@ -465,7 +471,7 @@ export async function saveDailyClosure(
     closureDate?: string;
     accounts: Array<{
       accountId: number;
-      countedBalancePen: number;
+      countedBalancePen: number | null;
       notes?: string | null;
     }>;
     applyReconciliationAdjustments?: boolean;
@@ -495,23 +501,28 @@ export async function saveDailyClosure(
 
   const submittedMap = new Map<
     number,
-    { accountId: number; countedBalancePen: number; notes: string | null }
+    { accountId: number; countedBalancePen: number | null; notes: string | null }
   >();
   for (const row of input.accounts) {
     const accountId = Number(row.accountId);
-    const counted = Number(row.countedBalancePen);
+    const rawCounted = row.countedBalancePen;
+    let countedBalancePen: number | null = null;
+    if (rawCounted !== null && rawCounted !== undefined) {
+      const counted = Number(rawCounted);
+      if (!Number.isFinite(counted)) {
+        throw new ValidationError("El saldo contado debe ser un número válido");
+      }
+      countedBalancePen = Number(counted.toFixed(2));
+    }
     if (!Number.isInteger(accountId) || accountId <= 0) {
       throw new ValidationError("ID de cuenta inválido en el cierre");
-    }
-    if (!Number.isFinite(counted)) {
-      throw new ValidationError("El saldo contado debe ser un número válido");
     }
     if (submittedMap.has(accountId)) {
       throw new ValidationError("No repitas cuentas en el cierre diario");
     }
     submittedMap.set(accountId, {
       accountId,
-      countedBalancePen: Number(counted.toFixed(2)),
+      countedBalancePen,
       notes: row.notes ? String(row.notes).trim() || null : null,
     });
   }
@@ -559,9 +570,10 @@ export async function saveDailyClosure(
     const acctId = Number(dbAcct.account_id);
     const submitted = submittedMap.get(acctId)!;
     const systemBalancePen = toNum(dbAcct.system_balance_pen);
-    const variancePen = Number(
-      (submitted.countedBalancePen - systemBalancePen).toFixed(2)
-    );
+    const variancePen =
+      submitted.countedBalancePen === null
+        ? null
+        : Number((submitted.countedBalancePen - systemBalancePen).toFixed(2));
     return {
       accountId: acctId,
       code: String(dbAcct.code),
@@ -575,12 +587,18 @@ export async function saveDailyClosure(
   const expectedCashTotalPen = Number(
     accountSnapshots.reduce((s, a) => s + a.systemBalancePen, 0).toFixed(2)
   );
-  const countedCashTotalPen = Number(
-    accountSnapshots.reduce((s, a) => s + a.countedBalancePen, 0).toFixed(2)
-  );
-  const varianceTotalPen = Number(
-    (countedCashTotalPen - expectedCashTotalPen).toFixed(2)
-  );
+  const allCounted =
+    accountSnapshots.length > 0 &&
+    accountSnapshots.every((a) => a.countedBalancePen !== null);
+  const countedCashTotalPen = allCounted
+    ? Number(
+        accountSnapshots.reduce((s, a) => s + (a.countedBalancePen ?? 0), 0).toFixed(2)
+      )
+    : null;
+  const varianceTotalPen =
+    countedCashTotalPen !== null
+      ? Number((countedCashTotalPen - expectedCashTotalPen).toFixed(2))
+      : null;
 
   const upsertRes = await client.query<{ closure_id: string }>(
     `INSERT INTO erp.daily_closures (
@@ -675,7 +693,7 @@ export async function saveDailyClosure(
           )
           .toFixed(2)
       );
-      const desiredAmount = applyAdjustments ? snap.variancePen : 0;
+      const desiredAmount = applyAdjustments ? (snap.variancePen ?? 0) : 0;
       if (previousAmount === desiredAmount) continue;
       changedAdjustments.add(snap.accountId);
       for (const old of oldRows) {
@@ -717,6 +735,7 @@ export async function saveDailyClosure(
     if (
       applyAdjustments &&
       changedAdjustments.has(snap.accountId) &&
+      snap.variancePen !== null &&
       Math.abs(snap.variancePen) >= 0.01
     ) {
       const direction = snap.variancePen > 0 ? "IN" : "OUT";
@@ -746,28 +765,36 @@ export async function saveDailyClosure(
       );
     }
 
+    const isAccountReconciled =
+      snap.countedBalancePen !== null &&
+      (applyAdjustments ||
+        (snap.variancePen !== null && Math.abs(snap.variancePen) < 0.01));
+
     await client.query(
       `INSERT INTO erp.daily_closure_accounts (
          closure_id, account_id, system_balance_pen,
          counted_balance_pen, is_reconciled, notes
-       ) VALUES ($1, $2, $3, $4, TRUE, $5)`,
+       ) VALUES ($1, $2, $3, $4, $5, $6)`,
       [
         closureId,
         snap.accountId,
         snap.systemBalancePen,
         snap.countedBalancePen,
+        isAccountReconciled,
         snap.notes,
       ]
     );
 
-    await client.query(
-      `UPDATE erp.cash_accounts
-       SET last_reconciled_at = NOW(),
-           last_reconciled_balance_pen = $2,
-           last_reconciled_by_user_id = $3
-       WHERE account_id = $1`,
-      [snap.accountId, snap.countedBalancePen, actor.userId]
-    );
+    if (snap.countedBalancePen !== null) {
+      await client.query(
+        `UPDATE erp.cash_accounts
+         SET last_reconciled_at = NOW(),
+             last_reconciled_balance_pen = $2,
+             last_reconciled_by_user_id = $3
+         WHERE account_id = $1`,
+        [snap.accountId, snap.countedBalancePen, actor.userId]
+      );
+    }
   }
 
   const saved = await getDailyClosureDraft(client, actor, closureDate);

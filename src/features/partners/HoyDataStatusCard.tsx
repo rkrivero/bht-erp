@@ -34,7 +34,6 @@ export function HoyDataStatusCard({
   }
 
   const isStale = dataCut?.isStale ?? false;
-  const bankReconciled = dataCut?.bankReconciled ?? false;
   const coverage = operationalQuality?.registrationCoverage24h;
   const latestClosure = operationalQuality?.latestDailyClosure ?? null;
   const checklist = operationalQuality?.startupChecklist ?? [];
@@ -57,7 +56,6 @@ export function HoyDataStatusCard({
             </span>
           )}
           {isStale && <Badge tone="warning">Revisar vigencia</Badge>}
-          {!bankReconciled && <Badge tone="neutral">Saldos no conciliados</Badge>}
         </div>
 
         <div className="flex flex-wrap items-center gap-1.5">
@@ -80,13 +78,18 @@ export function HoyDataStatusCard({
           {latestClosure && (
             <Badge
               tone={
-                Math.abs(latestClosure.varianceTotalPen) < 0.01 ? "success" : "warning"
+                latestClosure.varianceTotalPen === null ||
+                Math.abs(latestClosure.varianceTotalPen) < 0.01
+                  ? "success"
+                  : "warning"
               }
               className="tabular-nums"
             >
-              {Math.abs(latestClosure.varianceTotalPen) < 0.01
-                ? `Últ. cierre: ${formatDatePe(latestClosure.closureDate)}`
-                : `Últ. cierre: ${formatDatePe(latestClosure.closureDate)} (dif. S/ ${latestClosure.varianceTotalPen.toFixed(2)})`}
+              {latestClosure.varianceTotalPen === null
+                ? `Últ. cierre: ${formatDatePe(latestClosure.closureDate)} (sin conteo)`
+                : Math.abs(latestClosure.varianceTotalPen) < 0.01
+                  ? `Últ. cierre: ${formatDatePe(latestClosure.closureDate)}`
+                  : `Últ. cierre: ${formatDatePe(latestClosure.closureDate)} (dif. S/ ${latestClosure.varianceTotalPen.toFixed(2)})`}
             </Badge>
           )}
           {onOpenDailyClose && (
@@ -97,7 +100,7 @@ export function HoyDataStatusCard({
               compact
               onClick={onOpenDailyClose}
             >
-              Cierre diario
+              Cierre del día
             </Button>
           )}
           <Button

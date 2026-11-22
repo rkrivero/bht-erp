@@ -22,6 +22,16 @@ export interface CurrentUserInfo {
   role: string;
 }
 
+export interface DailyCashFlowSummary {
+  asOfLimaDate: string;
+  inflowsTodayPen: number;
+  outflowsTodayPen: number;
+  netTodayPen: number;
+  inflowsMonthPen: number;
+  outflowsMonthPen: number;
+  netMonthPen: number;
+}
+
 export interface CashAccountItem {
   account_id: number;
   code: string;
@@ -29,6 +39,13 @@ export interface CashAccountItem {
   account_type: string;
   current_balance_pen?: number | string;
   is_active?: boolean;
+  dayInPen?: number;
+  dayOutPen?: number;
+  dayTransfersNetPen?: number;
+  dayNetPen?: number;
+  monthInPen?: number;
+  monthOutPen?: number;
+  monthNetPen?: number;
 }
 
 export interface CashLedgerEntry {
@@ -292,7 +309,7 @@ export interface WeeklyCoverageCohort {
 
 export interface LatestDailyClosureSummary {
   closureDate: string;
-  varianceTotalPen: number;
+  varianceTotalPen: number | null;
   closedByName: string;
   updatedAt: string;
 }

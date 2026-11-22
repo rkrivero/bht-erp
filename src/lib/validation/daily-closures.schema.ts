@@ -9,8 +9,16 @@ export const dailyClosureAccountInputSchema = z.object({
       .positive("ID de cuenta inválido en el cierre")
   ),
   countedBalancePen: z.preprocess(
-    (v) => (typeof v === "string" && v.trim() !== "" ? Number(v) : v),
-    z.number({ message: "El saldo contado debe ser un número válido" }).finite()
+    (v) =>
+      v === "" || v === null || v === undefined
+        ? null
+        : typeof v === "string"
+          ? Number(v.trim())
+          : v,
+    z
+      .number({ message: "El saldo contado debe ser un número válido" })
+      .finite()
+      .nullable()
   ),
   notes: z.string().nullable().optional(),
 });

@@ -38,6 +38,7 @@ export default function CajaCierreTab({
   const [countedByAccount, setCountedByAccount] = useState<Record<number, string>>({});
   const [notesByAccount, setNotesByAccount] = useState<Record<number, string>>({});
   const [applyAdjustments, setApplyAdjustments] = useState(false);
+  const [showOptionalCount, setShowOptionalCount] = useState(false);
   const [nextDayNotes, setNextDayNotes] = useState("");
   const [notes, setNotes] = useState("");
   const [correctionReason, setCorrectionReason] = useState("");
@@ -51,14 +52,19 @@ export default function CajaCierreTab({
   const hydrateFormFromDraft = useCallback((next: DailyClosureDraftResponse) => {
     const nextCounts: Record<number, string> = {};
     const nextAcctNotes: Record<number, string> = {};
+    let hasAnyCount = false;
     for (const acc of next.accounts) {
-      const seedVal =
-        acc.countedBalancePen !== null ? acc.countedBalancePen : acc.systemBalancePen;
-      nextCounts[acc.accountId] = seedVal.toFixed(2);
+      if (acc.countedBalancePen !== null) {
+        hasAnyCount = true;
+        nextCounts[acc.accountId] = acc.countedBalancePen.toFixed(2);
+      } else {
+        nextCounts[acc.accountId] = "";
+      }
       nextAcctNotes[acc.accountId] = acc.notes ?? "";
     }
     setCountedByAccount(nextCounts);
     setNotesByAccount(nextAcctNotes);
+    setShowOptionalCount(hasAnyCount);
     setApplyAdjustments(next.hasAppliedAdjustments);
     setNextDayNotes(next.existingClosure?.nextDayNotes ?? "");
     setNotes(next.existingClosure?.notes ?? "");
@@ -95,19 +101,34 @@ export default function CajaCierreTab({
 
   const accountTotals = useMemo(() => {
     if (!draft) {
-      return { expected: 0, counted: 0, variance: 0 };
+      return { expected: 0, counted: null, variance: null, countedCount: 0 };
     }
     let expected = 0;
-    let counted = 0;
+    let countedSum = 0;
+    let countedCount = 0;
     for (const acc of draft.accounts) {
       expected += acc.systemBalancePen;
-      const raw = Number(countedByAccount[acc.accountId] ?? acc.systemBalancePen);
-      counted += Number.isFinite(raw) ? raw : acc.systemBalancePen;
+      const rawStr = (countedByAccount[acc.accountId] ?? "").trim();
+      if (rawStr !== "") {
+        const parsed = Number(rawStr);
+        if (Number.isFinite(parsed)) {
+          countedSum += parsed;
+          countedCount += 1;
+        }
+      }
     }
+    const allCounted =
+      draft.accounts.length > 0 && countedCount === draft.accounts.length;
+    const expectedRounded = Number(expected.toFixed(2));
+    const countedRounded = allCounted ? Number(countedSum.toFixed(2)) : null;
     return {
-      expected: Number(expected.toFixed(2)),
-      counted: Number(counted.toFixed(2)),
-      variance: Number((counted - expected).toFixed(2)),
+      expected: expectedRounded,
+      counted: countedRounded,
+      variance:
+        countedRounded !== null
+          ? Number((countedRounded - expectedRounded).toFixed(2))
+          : null,
+      countedCount,
     };
   }, [draft, countedByAccount]);
 
@@ -131,19 +152,24 @@ export default function CajaCierreTab({
 
     const payloadAccounts: Array<{
       accountId: number;
-      countedBalancePen: number;
+      countedBalancePen: number | null;
       notes: string | null;
     }> = [];
 
     for (const acc of draft.accounts) {
-      const val = Number(countedByAccount[acc.accountId]);
-      if (!Number.isFinite(val)) {
-        onFeedback(`Ingresa un saldo contado válido para ${acc.name}.`, true);
-        return;
+      const rawStr = (countedByAccount[acc.accountId] ?? "").trim();
+      let countedBalancePen: number | null = null;
+      if (rawStr !== "") {
+        const val = Number(rawStr);
+        if (!Number.isFinite(val)) {
+          onFeedback(`Ingresa un saldo contado válido para ${acc.name}.`, true);
+          return;
+        }
+        countedBalancePen = Number(val.toFixed(2));
       }
       payloadAccounts.push({
         accountId: acc.accountId,
-        countedBalancePen: Number(val.toFixed(2)),
+        countedBalancePen,
         notes: notesByAccount[acc.accountId]?.trim() || null,
       });
     }
@@ -188,7 +214,7 @@ export default function CajaCierreTab({
           <div>
             <div className="flex flex-wrap items-center gap-2">
               <h3 className="text-base font-bold text-bht-ink-strong sm:text-lg">
-                Cierre diario de 10 minutos
+                Cierre del día
               </h3>
               {draft && (
                 <Badge tone={draft.isClosed ? "success" : "warning"}>
@@ -197,8 +223,8 @@ export default function CajaCierreTab({
               )}
             </div>
             <p className="mt-0.5 text-xs sm:text-sm text-bht-ink-soft">
-              Confirma efectivo contado, saldos bancarios y pendientes antes de terminar
-              el día.
+              Confirma el cierre en 1 clic con el resumen del día; si conoces el
+              efectivo o saldo bancario exacto, despliega el conteo real opcional.
             </p>
           </div>
 
@@ -303,26 +329,40 @@ export default function CajaCierreTab({
 
       {draft && (
         <form onSubmit={handleSaveClosure} className="space-y-4">
-          <CajaCierreAccountsTable
-            accounts={draft.accounts}
-            countedByAccount={countedByAccount}
-            notesByAccount={notesByAccount}
-            accountTotals={accountTotals}
-            applyAdjustments={applyAdjustments}
-            onMatchAllSystemBalances={handleMatchAllSystemBalances}
-            onChangeCounted={(accountId, value) => {
-              setCountedByAccount((prev) => ({ ...prev, [accountId]: value }));
-              setDirty(true);
-            }}
-            onChangeNote={(accountId, value) => {
-              setNotesByAccount((prev) => ({ ...prev, [accountId]: value }));
-              setDirty(true);
-            }}
-            onChangeApplyAdjustments={(checked) => {
-              setApplyAdjustments(checked);
-              setDirty(true);
-            }}
-          />
+          <details
+            open={showOptionalCount}
+            onToggle={(e) => setShowOptionalCount(e.currentTarget.open)}
+            className="rounded-2xl border border-bht-line bg-white p-3.5"
+          >
+            <summary className="cursor-pointer select-none text-sm font-semibold text-bht-navy-deep">
+              Conteo real (opcional)
+              {accountTotals.countedCount > 0
+                ? ` · ${accountTotals.countedCount}/${draft.accounts.length} cuentas ingresadas`
+                : " · Solo si conoces el monto exacto"}
+            </summary>
+            <div className="mt-3">
+              <CajaCierreAccountsTable
+                accounts={draft.accounts}
+                countedByAccount={countedByAccount}
+                notesByAccount={notesByAccount}
+                accountTotals={accountTotals}
+                applyAdjustments={applyAdjustments}
+                onMatchAllSystemBalances={handleMatchAllSystemBalances}
+                onChangeCounted={(accountId, value) => {
+                  setCountedByAccount((prev) => ({ ...prev, [accountId]: value }));
+                  setDirty(true);
+                }}
+                onChangeNote={(accountId, value) => {
+                  setNotesByAccount((prev) => ({ ...prev, [accountId]: value }));
+                  setDirty(true);
+                }}
+                onChangeApplyAdjustments={(checked) => {
+                  setApplyAdjustments(checked);
+                  setDirty(true);
+                }}
+              />
+            </div>
+          </details>
 
           <Card padding="md" className="space-y-3">
             <div>
@@ -449,8 +489,8 @@ export default function CajaCierreTab({
                 {saving
                   ? "Guardando cierre…"
                   : draft.isClosed
-                    ? "Actualizar cierre diario"
-                    : "Guardar cierre diario"}
+                    ? "Actualizar cierre del día"
+                    : "Confirmar cierre del día"}
               </Button>
             </div>
           </Card>

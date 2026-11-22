@@ -20,7 +20,6 @@ import type {
   SellerFeedbackSetter,
   SellerOrderDto,
   SellerOrderMutationResultDto,
-  SellerOrderPayload,
   SellerPaymentMode,
   SellerQuoteCreateResultDto,
   SellerQuoteDto,
@@ -30,6 +29,7 @@ import {
   buildCartLinesFromOrder,
   buildCartLinesFromQuote,
   buildQuoteSubmitPayload,
+  buildSellerOrderPayload,
   validateSellerCartLines,
 } from "@/features/seller/seller-order-helpers";
 import type { CustomerDirectoryItem } from "@/lib/services/customers";
@@ -71,8 +71,9 @@ export function useSellerOrderFlow({
   clearExpandedOrder,
 }: SellerOrderFlowParams) {
   const router = useRouter();
-  const { currentUser, catalog, customers, initialLoading } = data;
+  const { currentUser, catalog, customers, sellerAccounts, initialLoading } = data;
   const { loadAll, loadOrdersAndCatalog } = data;
+  const [yapePlinChannel, setYapePlinChannel] = useState<"YAPE" | "PLIN">("YAPE");
   const draftApi = useSellerOrderDraftState();
   const {
     state: orderDraft,
@@ -80,6 +81,7 @@ export function useSellerOrderFlow({
     setCustomerNameRaw,
     setSelectedCustomer,
     setPaymentMode,
+    setPaymentAccountId,
     setCollectOnDelivery,
     setCreditDays,
     setCustomPromiseDate,
@@ -93,6 +95,7 @@ export function useSellerOrderFlow({
     customerNameRaw,
     selectedCustomer,
     paymentMode,
+    paymentAccountId,
     collectOnDelivery,
     creditDays,
     customPromiseDate,
@@ -255,13 +258,28 @@ export function useSellerOrderFlow({
     }
   }
 
+  function findActiveAccId(code: string): number | null {
+    const match = sellerAccounts.find(
+      (acc) => acc.code === code && acc.is_active !== false
+    );
+    return match ? Number(match.account_id) : null;
+  }
+
   function handleSelectPaymentMode(mode: SellerPaymentMode) {
     setPaymentMode(mode);
-    if (mode === "YAPE_PLIN" || mode === "TRANSFER") {
-      setCollectOnDelivery(false);
-    } else if (mode === "CASH") {
+    if (mode === "YAPE_PLIN" || mode === "TRANSFER") setCollectOnDelivery(false);
+    else if (mode === "CASH") {
       setCollectOnDelivery(true);
-    }
+      setPaymentAccountId(findActiveAccId("CAJA_RUTA"));
+    } else if (mode === "CREDIT") setPaymentAccountId(null);
+  }
+
+  function handleSelectYapePlin(channel: "YAPE" | "PLIN") {
+    setYapePlinChannel(channel);
+    setPaymentMode("YAPE_PLIN");
+    setCollectOnDelivery(false);
+    const id = findActiveAccId(channel === "YAPE" ? "BCP_BHT" : "INTERBANK_BHT");
+    if (id !== null) setPaymentAccountId(id);
   }
 
   function resetOrderDraft() {
@@ -270,6 +288,7 @@ export function useSellerOrderFlow({
     setSelectedCustomer(null);
     setCustomerDropdownOpen(false);
     setPaymentMode("CASH");
+    setPaymentAccountId(null);
     setCollectOnDelivery(true);
     setCreditDays(7);
     setCustomPromiseDate("");
@@ -508,43 +527,24 @@ export function useSellerOrderFlow({
         setFeedback({ type: "err", msg: "Describe brevemente el otro motivo." });
         return;
       }
-      const payload: SellerOrderPayload = {
-        action: editingOrderId === null ? "create" : "update",
-        orderId: editingOrderId ?? undefined,
-        reason:
-          editingOrderId === null
-            ? undefined
-            : editReasonCode === "OTHER"
-              ? `Otro: ${editReasonNote.trim()}`
-              : selectedEditReason?.label || "Ajuste operativo",
-        customerPartyId: selectedCustomer ? selectedCustomer.party_id : null,
+      const payload = buildSellerOrderPayload({
+        editingOrderId,
+        editReasonCode,
+        editReasonNote,
+        editReasonLabel: selectedEditReason?.label,
+        selectedCustomer,
         customerNameRaw,
         paymentMode,
-        collectOnDelivery:
-          paymentMode !== "CREDIT"
-            ? requiresPartnerApproval
-              ? true
-              : collectOnDelivery
-            : undefined,
-        creditDays: paymentMode === "CREDIT" ? creditDays : undefined,
-        promisedPaymentDate:
-          paymentMode === "CREDIT" && customPromiseDate ? customPromiseDate : null,
-        initialPaidPen:
-          !requiresPartnerApproval && paymentMode === "CREDIT" && parsedInitialPaid > 0
-            ? parsedInitialPaid
-            : undefined,
-        globalDiscountPen:
-          parsedGlobalDiscountPen > 0 ? parsedGlobalDiscountPen : undefined,
+        paymentAccountId: paymentAccountId ?? null,
+        requiresPartnerApproval,
+        collectOnDelivery,
+        creditDays,
+        customPromiseDate,
+        parsedInitialPaid,
+        parsedGlobalDiscountPen,
         notes,
-        lines: cart.map((c) => {
-          const fractional = isFractionalUom(c.product.unit_of_measure);
-          return {
-            productId: c.product.product_id,
-            quantity: normalizeOrderQuantity(c.quantity, fractional),
-            unitPricePen: Number(c.unitPricePen.toFixed(4)),
-          };
-        }),
-      };
+        cart,
+      });
       const result =
         editingOrderId === null
           ? await submitOfflineCapable<SellerOrderMutationResultDto>({
@@ -623,6 +623,11 @@ export function useSellerOrderFlow({
     customerNameRaw,
     selectedCustomer,
     paymentMode,
+    paymentAccountId,
+    setPaymentAccountId,
+    yapePlinChannel,
+    sellerAccounts,
+    handleSelectYapePlin,
     collectOnDelivery,
     creditDays,
     customPromiseDate,

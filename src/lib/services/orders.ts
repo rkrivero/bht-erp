@@ -1,4 +1,5 @@
 import type { PoolClient } from "pg";
+import { resolveActiveCashAccount } from "./cash-account-resolver";
 import { formatOperationalStatusEs } from "../labels-es";
 import {
   assertRole,
@@ -91,39 +92,8 @@ async function getDefaultCashAccountId(
   actor: SessionUser,
   explicitAccountId?: number
 ): Promise<number> {
-  const targetId = explicitAccountId || actor.defaultCashAccountId || null;
-  if (targetId) {
-    const res = await client.query<{
-      account_id: number;
-      account_type: string;
-      is_active: boolean;
-    }>(
-      `SELECT account_id, account_type, is_active
-       FROM erp.cash_accounts
-       WHERE account_id = $1
-       LIMIT 1`,
-      [targetId]
-    );
-    if (res.rowCount === 0 || !res.rows[0].is_active) {
-      throw new ValidationError("Cuenta de caja inválida o inactiva");
-    }
-    if (
-      actor.role === "EXTERNAL_SELLER" &&
-      res.rows[0].account_type === "PARTNER_CUSTODY"
-    ) {
-      throw new AuthorizationError(
-        "El Vendedor Externo no puede operar sobre cuentas de custodia de socio"
-      );
-    }
-    return Number(res.rows[0].account_id);
-  }
-  const res = await client.query(
-    `SELECT account_id FROM erp.cash_accounts WHERE code = 'CAJA_RUTA' AND is_active = TRUE LIMIT 1`
-  );
-  if (res.rowCount === 0) {
-    throw new ValidationError("Cuenta de caja por defecto no encontrada");
-  }
-  return Number(res.rows[0].account_id);
+  const resolved = await resolveActiveCashAccount(client, actor, explicitAccountId);
+  return resolved.accountId;
 }
 
 async function deductStockForOrderLines(

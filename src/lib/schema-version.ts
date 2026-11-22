@@ -1,11 +1,9 @@
 import type { PoolClient } from "pg";
 
-export const REQUIRED_SCHEMA_VERSION = "028_stock_quants_and_system_settings";
+export const REQUIRED_SCHEMA_VERSION =
+  "029_simplify_cash_accounts_and_optional_closure_count";
 
-const COMPATIBLE_SCHEMA_VERSIONS = [
-  REQUIRED_SCHEMA_VERSION,
-  "027_sequences_period_locks_and_credit_gate",
-] as const;
+const COMPATIBLE_SCHEMA_VERSIONS = [REQUIRED_SCHEMA_VERSION] as const;
 
 const verifiedBranches = new Set<"dev" | "main">();
 

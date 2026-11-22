@@ -158,6 +158,7 @@ export function AbonoModal({
   busy?: boolean;
 }) {
   const amountInputId = useId();
+  const [yapePlinChannel, setYapePlinChannel] = useState<"YAPE" | "PLIN">("YAPE");
   const paymentLabelId = useId();
   const accountSelectId = useId();
   const nextDaysLabelId = useId();
@@ -225,24 +226,59 @@ export function AbonoModal({
           <div
             role="radiogroup"
             aria-labelledby={paymentLabelId}
-            className="mt-1.5 grid grid-cols-3 gap-2"
+            className="mt-1.5 grid grid-cols-2 gap-2 sm:grid-cols-4"
           >
-            {(["CASH", "YAPE_PLIN", "TRANSFER"] as const).map((m) => {
-              const active = paymentMode === m;
+            {(
+              [
+                { id: "CASH", label: "Efectivo", mode: "CASH", channel: null },
+                { id: "YAPE", label: "Yape", mode: "YAPE_PLIN", channel: "YAPE" },
+                { id: "PLIN", label: "Plin", mode: "YAPE_PLIN", channel: "PLIN" },
+                {
+                  id: "TRANSFER",
+                  label: "Transferencia",
+                  mode: "TRANSFER",
+                  channel: null,
+                },
+              ] as const
+            ).map((opt) => {
+              const active =
+                opt.mode === "YAPE_PLIN"
+                  ? paymentMode === "YAPE_PLIN" && yapePlinChannel === opt.channel
+                  : paymentMode === opt.mode;
               return (
                 <button
-                  key={m}
+                  key={opt.id}
                   type="button"
                   role="radio"
                   aria-checked={active}
-                  onClick={() => onPaymentModeChange(m)}
+                  onClick={() => {
+                    if (opt.channel) {
+                      setYapePlinChannel(opt.channel);
+                      const targetCode =
+                        opt.channel === "YAPE" ? "BCP_BHT" : "INTERBANK_BHT";
+                      const targetAcc = activeAccounts.find(
+                        (a) => a.code === targetCode
+                      );
+                      if (targetAcc && onAccountIdChange) {
+                        onAccountIdChange(String(targetAcc.account_id));
+                      }
+                    } else if (opt.mode === "CASH") {
+                      const cashAcc = activeAccounts.find(
+                        (a) => a.code === "CAJA_RUTA"
+                      );
+                      if (cashAcc && onAccountIdChange) {
+                        onAccountIdChange(String(cashAcc.account_id));
+                      }
+                    }
+                    onPaymentModeChange(opt.mode);
+                  }}
                   className={`rounded-xl border px-3 py-2.5 text-xs font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bht-navy-deep focus-visible:ring-offset-1 cursor-pointer ${
                     active
                       ? "border-bht-navy-deep bg-bht-tone-edf3f8 text-bht-navy-deep ring-1 ring-bht-navy-deep/15"
                       : "border-bht-line bg-white text-bht-ink-soft hover:border-bht-line-blue hover:bg-bht-mist/60 hover:text-bht-navy-deep"
                   }`}
                 >
-                  {formatPaymentModeEs(m)}
+                  {opt.label}
                 </button>
               );
             })}

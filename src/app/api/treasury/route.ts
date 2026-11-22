@@ -3,6 +3,10 @@ import { withAuthenticatedClient, withAuthenticatedTransaction } from "@/lib/aut
 import { resolveHttpError } from "@/lib/http-errors";
 import { runIdempotentMutation } from "@/lib/idempotency";
 import { isPartnerRole } from "@/lib/rbac";
+import {
+  getCashAccountFlowBreakdown,
+  getCashFlowSummary,
+} from "@/lib/services/cash-flow-summary";
 import { registerCashOutflow } from "@/lib/services/collections-and-treasury";
 import {
   AP_OBLIGATIONS_DETAIL_SUBQUERY,
@@ -121,7 +125,11 @@ export async function GET(req: NextRequest) {
           suppliers: [],
         };
 
+        const cashFlowSummary = await getCashFlowSummary(client);
+        const accountFlowMap = await getCashAccountFlowBreakdown(client);
+
         return {
+          cashFlowSummary,
           ledger: (bundle.ledger ?? []).map((r) => ({
             ...r,
             ledger_id: Number(r.ledger_id),
@@ -146,13 +154,24 @@ export async function GET(req: NextRequest) {
             display_name: String(r.display_name),
             phone: r.phone !== null && r.phone !== undefined ? String(r.phone) : null,
           })),
-          accounts: (bundle.accounts ?? []).map((r) => ({
-            account_id: Number(r.account_id),
-            code: String(r.code),
-            name: String(r.name),
-            account_type: String(r.account_type),
-            current_balance_pen: Number(r.current_balance_pen ?? 0),
-          })),
+          accounts: (bundle.accounts ?? []).map((r) => {
+            const accountId = Number(r.account_id);
+            const flow = accountFlowMap.get(accountId);
+            return {
+              account_id: accountId,
+              code: String(r.code),
+              name: String(r.name),
+              account_type: String(r.account_type),
+              current_balance_pen: Number(r.current_balance_pen ?? 0),
+              dayInPen: flow?.dayInPen ?? 0,
+              dayOutPen: flow?.dayOutPen ?? 0,
+              dayTransfersNetPen: flow?.dayTransfersNetPen ?? 0,
+              dayNetPen: flow?.dayNetPen ?? 0,
+              monthInPen: flow?.monthInPen ?? 0,
+              monthOutPen: flow?.monthOutPen ?? 0,
+              monthNetPen: flow?.monthNetPen ?? 0,
+            };
+          }),
         };
       }
     );

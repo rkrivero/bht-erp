@@ -5,6 +5,7 @@ export const initialSellerOrderDraft: SellerOrderDraft = {
   customerNameRaw: "",
   selectedCustomer: null,
   paymentMode: "CASH",
+  paymentAccountId: null,
   collectOnDelivery: true,
   creditDays: 7,
   customPromiseDate: "",

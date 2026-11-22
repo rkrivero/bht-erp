@@ -51,4 +51,4 @@ if (vercelEnv === "preview" || vercelEnv === "production") {
   }
 }
 
-console.log("Configuración del proyecto verificada (schema mínimo 028).\n");
+console.log("Configuración del proyecto verificada (schema mínimo 029).\n");

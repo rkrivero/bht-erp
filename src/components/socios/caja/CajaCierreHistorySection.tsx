@@ -38,10 +38,22 @@ export default function CajaCierreHistorySection({
                 </p>
                 <p className="mt-1 text-bht-ink-soft">{item.reason}</p>
                 <p className="mt-1 tabular-nums text-bht-ink-strong">
-                  Contado: {formatPen(item.beforeData.closure.countedCashTotalPen)} →{" "}
-                  {formatPen(item.afterData.closure.countedCashTotalPen)} · Diferencia:{" "}
-                  {formatPen(item.beforeData.closure.varianceTotalPen)} →{" "}
-                  {formatPen(item.afterData.closure.varianceTotalPen)}
+                  Contado:{" "}
+                  {item.beforeData.closure.countedCashTotalPen === null
+                    ? "Sin conteo"
+                    : formatPen(item.beforeData.closure.countedCashTotalPen)}{" "}
+                  →{" "}
+                  {item.afterData.closure.countedCashTotalPen === null
+                    ? "Sin conteo"
+                    : formatPen(item.afterData.closure.countedCashTotalPen)}{" "}
+                  · Diferencia:{" "}
+                  {item.beforeData.closure.varianceTotalPen === null
+                    ? "—"
+                    : formatPen(item.beforeData.closure.varianceTotalPen)}{" "}
+                  →{" "}
+                  {item.afterData.closure.varianceTotalPen === null
+                    ? "—"
+                    : formatPen(item.afterData.closure.varianceTotalPen)}
                 </p>
                 <details className="mt-2 text-xs text-bht-ink-soft">
                   <summary className="cursor-pointer">Ver saldos por cuenta</summary>
@@ -98,13 +110,22 @@ export default function CajaCierreHistorySection({
                   </span>
                 </div>
                 <div className="flex flex-wrap items-center gap-3 text-xs tabular-nums">
-                  <span>Contado: {formatPen(c.countedCashTotalPen)}</span>
-                  <Badge
-                    tone={Math.abs(c.varianceTotalPen) < 0.01 ? "success" : "warning"}
-                  >
-                    Dif.: {c.varianceTotalPen >= 0 ? "+" : ""}
-                    {formatPen(c.varianceTotalPen)}
-                  </Badge>
+                  <span>
+                    Contado:{" "}
+                    {c.countedCashTotalPen === null
+                      ? "Sin conteo"
+                      : formatPen(c.countedCashTotalPen)}
+                  </span>
+                  {c.varianceTotalPen === null ? (
+                    <Badge tone="neutral">Sin conteo</Badge>
+                  ) : (
+                    <Badge
+                      tone={Math.abs(c.varianceTotalPen) < 0.01 ? "success" : "warning"}
+                    >
+                      Dif.: {c.varianceTotalPen >= 0 ? "+" : ""}
+                      {formatPen(c.varianceTotalPen)}
+                    </Badge>
+                  )}
                 </div>
               </button>
             ))}

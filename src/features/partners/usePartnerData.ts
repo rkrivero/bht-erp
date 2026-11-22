@@ -449,11 +449,13 @@ export function usePartnerData(externalActiveTab?: PartnerTab) {
   const biSummary = partnerData?.biSummary ?? null;
   const dataCut = partnerData?.dataCut ?? null;
   const operationalQuality = partnerData?.operationalQuality ?? null;
+  const cashFlowSummary =
+    treasuryData?.cashFlowSummary ?? partnerData?.cashFlowSummary ?? null;
   const appUsers = partnerData?.users ?? [];
   const userAccessHistory = partnerData?.userAccessHistory ?? [];
 
   const accounts: CashAccountItem[] =
-    purchasesData?.accounts || treasuryData?.accounts || orderAccounts;
+    treasuryData?.accounts || purchasesData?.accounts || orderAccounts;
   const ledger: CashLedgerEntry[] = treasuryData?.ledger ?? [];
   const apObligations = useMemo<ApObligationItem[]>(
     () => purchasesData?.apObligations || treasuryData?.apObligations || [],
@@ -509,6 +511,7 @@ export function usePartnerData(externalActiveTab?: PartnerTab) {
     biSummary,
     dataCut,
     operationalQuality,
+    cashFlowSummary,
     appUsers,
     userAccessHistory,
     accounts,

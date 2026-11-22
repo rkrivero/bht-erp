@@ -15,6 +15,7 @@ import {
   resetHistoricalNegativeStock,
   updateProductStockAndPricing,
 } from "@/lib/services/collections-and-treasury";
+import { getCashFlowSummary } from "@/lib/services/cash-flow-summary";
 import {
   DATA_CUT_SELECT,
   OPERATIONAL_QUALITY_SELECT,
@@ -550,6 +551,7 @@ export async function GET(req: NextRequest) {
                 created_at: String(entry.created_at),
               }))
             : [],
+          cashFlowSummary: await getCashFlowSummary(client),
           biSummary,
           dataCut: mapDataCutSummary(bundle?.data_cut),
           operationalQuality: mapOperationalQualitySummary(bundle?.operational_quality),

@@ -7,6 +7,7 @@ import type {
   CashAccountItem,
   CashLedgerEntry,
   CurrentUserInfo,
+  DailyCashFlowSummary,
   DataCutSummary,
   KpiQ1Summary,
   OperationalQualitySummary,
@@ -231,9 +232,11 @@ export interface PartnerDashboardResponseDto {
   userAccessHistory: UserAccessAuditItem[];
   dataCut?: DataCutSummary;
   operationalQuality?: OperationalQualitySummary;
+  cashFlowSummary?: DailyCashFlowSummary;
 }
 
 export interface TreasuryResponseDto {
+  cashFlowSummary?: DailyCashFlowSummary;
   accounts: CashAccountItem[];
   ledger: CashLedgerEntry[];
   apObligations: ApObligationItem[];

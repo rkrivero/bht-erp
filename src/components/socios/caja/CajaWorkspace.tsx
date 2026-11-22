@@ -5,11 +5,11 @@ import dynamic from "next/dynamic";
 import { Card, SegmentedControl } from "@/components/ui/Primitives";
 import type { RouteTripDto } from "@/lib/contracts";
 import {
-  formatDatePe,
   formatPen,
   type ApObligationItem,
   type CashAccountItem,
   type CashLedgerEntry,
+  type DailyCashFlowSummary,
   type DataCutSummary,
   type PartnerCatalogItem,
   type PendingOnDemandItem,
@@ -24,7 +24,7 @@ import { isExpenseLedgerEntry, type CajaSubTab } from "./caja-utils";
 const CajaCierreTab = dynamic(() => import("./CajaCierreTab"), {
   loading: () => (
     <Card className="p-6 text-center text-sm text-bht-ink-soft" role="status">
-      Preparando cierre diario…
+      Preparando cierre del día…
     </Card>
   ),
 });
@@ -40,6 +40,7 @@ interface CajaWorkspaceProps {
   unpurchasedRegularizationCount?: number;
   routeTrips?: RouteTripDto[];
   dataCut?: DataCutSummary | null;
+  cashFlowSummary?: DailyCashFlowSummary | null;
   preselectedTarget: {
     productId: number;
     quantity?: number;
@@ -65,7 +66,7 @@ export default function CajaWorkspace({
   pendingOnDemand,
   unpurchasedRegularizationCount = 0,
   routeTrips = [],
-  dataCut = null,
+  cashFlowSummary = null,
   preselectedTarget,
   onClearPreselectedTarget,
   initialSubTab = null,
@@ -97,11 +98,6 @@ export default function CajaWorkspace({
     return String(def.account_id);
   }, [accounts]);
 
-  const totalCashPen = useMemo(
-    () => accounts.reduce((s, acc) => s + Number(acc.current_balance_pen ?? 0), 0),
-    [accounts]
-  );
-
   const openDocs = useMemo(
     () => apObligations.filter((ap) => ap.status === "OPEN" || ap.status === "PARTIAL"),
     [apObligations]
@@ -124,19 +120,20 @@ export default function CajaWorkspace({
           <div className="grid flex-1 grid-cols-2 gap-4 sm:flex sm:flex-wrap sm:items-center sm:gap-6">
             <div>
               <span className="text-xs font-bold uppercase tracking-[0.06em] text-bht-steel">
-                Saldo registrado en cuentas
+                Flujo de hoy
               </span>
               <p className="mt-1 text-xl font-extrabold tracking-[-0.03em] text-bht-navy-deep tabular-nums sm:text-2xl">
-                {formatPen(totalCashPen)}
+                {(cashFlowSummary?.netTodayPen ?? 0) >= 0 ? "+" : ""}
+                {formatPen(cashFlowSummary?.netTodayPen ?? 0)}
               </p>
-              {dataCut?.bankReconciled !== true && (
-                <span className="mt-0.5 block text-xs font-medium text-bht-ink-soft">
-                  Pendiente de conciliación bancaria
-                  {dataCut?.lastCashLedgerDate
-                    ? ` · Últ. mov.: ${formatDatePe(dataCut.lastCashLedgerDate)}`
-                    : ""}
-                </span>
-              )}
+              <span className="mt-0.5 block text-xs font-medium text-bht-ink-soft tabular-nums">
+                Cobros: +{formatPen(cashFlowSummary?.inflowsTodayPen ?? 0)} · Salidas: -
+                {formatPen(cashFlowSummary?.outflowsTodayPen ?? 0)}
+              </span>
+              <span className="mt-0.5 block text-xs font-medium text-bht-ink-soft tabular-nums">
+                Flujo del mes: {(cashFlowSummary?.netMonthPen ?? 0) >= 0 ? "+" : ""}
+                {formatPen(cashFlowSummary?.netMonthPen ?? 0)}
+              </span>
             </div>
             <div>
               <span className="text-xs font-bold uppercase tracking-[0.06em] text-bht-steel">
@@ -157,7 +154,7 @@ export default function CajaWorkspace({
             onChange={setSubTab}
             options={[
               { id: "cuentas", label: "Cuentas", count: accounts.length },
-              { id: "cierre", label: "Cierre diario" },
+              { id: "cierre", label: "Cierre del día" },
               { id: "compras", label: "Compras", count: openDocs.length },
               { id: "gastos", label: "Gastos", count: expenseCount },
             ]}

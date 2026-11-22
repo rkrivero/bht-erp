@@ -16,7 +16,12 @@ interface CajaCierreAccountsTableProps {
   accounts: DailyClosureDraftResponse["accounts"];
   countedByAccount: Record<number, string>;
   notesByAccount: Record<number, string>;
-  accountTotals: { expected: number; counted: number; variance: number };
+  accountTotals: {
+    expected: number;
+    counted: number | null;
+    variance: number | null;
+    countedCount: number;
+  };
   applyAdjustments: boolean;
   onMatchAllSystemBalances: () => void;
   onChangeCounted: (accountId: number, value: string) => void;
@@ -64,14 +69,18 @@ export default function CajaCierreAccountsTable({
           {/* Mobile account cards */}
           <div className="space-y-2.5 md:hidden">
             {accounts.map((acc) => {
-              const countedVal = Number(
-                countedByAccount[acc.accountId] ?? acc.systemBalancePen
-              );
-              const diff = Number.isFinite(countedVal)
-                ? Number((countedVal - acc.systemBalancePen).toFixed(2))
-                : 0;
+              const rawCountStr = (countedByAccount[acc.accountId] ?? "").trim();
+              const parsedCount = rawCountStr === "" ? null : Number(rawCountStr);
+              const diff =
+                parsedCount !== null && Number.isFinite(parsedCount)
+                  ? Number((parsedCount - acc.systemBalancePen).toFixed(2))
+                  : null;
               const diffClass =
-                Math.abs(diff) < 0.01 ? "text-bht-success" : "text-bht-danger";
+                diff === null
+                  ? "text-bht-ink-muted"
+                  : Math.abs(diff) < 0.01
+                    ? "text-bht-success"
+                    : "text-bht-danger";
               return (
                 <div
                   key={acc.accountId}
@@ -84,10 +93,18 @@ export default function CajaCierreAccountsTable({
                         {acc.code} · {formatAccountTypeEs(acc.accountType)}
                       </span>
                     </div>
-                    <span className={`font-bold tabular-nums ${diffClass}`}>
-                      {diff >= 0 ? "+" : ""}
-                      {formatPen(diff)}
-                    </span>
+                    <div className="text-right">
+                      <span className={`font-bold tabular-nums ${diffClass}`}>
+                        {diff === null
+                          ? "—"
+                          : `${diff >= 0 ? "+" : ""}${formatPen(diff)}`}
+                      </span>
+                      {diff !== null && acc.accountType === "BANK" && (
+                        <span className="block text-[10px] text-bht-ink-muted">
+                          vs. acumulado sin saldo inicial
+                        </span>
+                      )}
+                    </div>
                   </div>
                   <div className="grid grid-cols-2 gap-2 text-xs tabular-nums">
                     <div>
@@ -112,6 +129,7 @@ export default function CajaCierreAccountsTable({
                         id={`m-cnt-${acc.accountId}`}
                         type="number"
                         step="0.01"
+                        placeholder="Opcional"
                         value={countedByAccount[acc.accountId] ?? ""}
                         onChange={(e) => onChangeCounted(acc.accountId, e.target.value)}
                         className={`${INPUT_CLASS} flex-1 font-semibold tabular-nums`}
@@ -163,12 +181,12 @@ export default function CajaCierreAccountsTable({
               </thead>
               <tbody className="divide-y divide-bht-line">
                 {accounts.map((acc) => {
-                  const countedVal = Number(
-                    countedByAccount[acc.accountId] ?? acc.systemBalancePen
-                  );
-                  const diff = Number.isFinite(countedVal)
-                    ? Number((countedVal - acc.systemBalancePen).toFixed(2))
-                    : 0;
+                  const rawCountStr = (countedByAccount[acc.accountId] ?? "").trim();
+                  const parsedCount = rawCountStr === "" ? null : Number(rawCountStr);
+                  const diff =
+                    parsedCount !== null && Number.isFinite(parsedCount)
+                      ? Number((parsedCount - acc.systemBalancePen).toFixed(2))
+                      : null;
                   return (
                     <tr key={acc.accountId} className="hover:bg-bht-paper/60">
                       <td className="p-2.5">
@@ -195,6 +213,7 @@ export default function CajaCierreAccountsTable({
                             aria-label={`Saldo contado para ${acc.name}`}
                             type="number"
                             step="0.01"
+                            placeholder="Opcional"
                             value={countedByAccount[acc.accountId] ?? ""}
                             onChange={(e) =>
                               onChangeCounted(acc.accountId, e.target.value)
@@ -219,11 +238,21 @@ export default function CajaCierreAccountsTable({
                       </td>
                       <td
                         className={`whitespace-nowrap p-2.5 text-right font-bold tabular-nums ${
-                          Math.abs(diff) < 0.01 ? "text-bht-success" : "text-bht-danger"
+                          diff === null
+                            ? "text-bht-ink-muted"
+                            : Math.abs(diff) < 0.01
+                              ? "text-bht-success"
+                              : "text-bht-danger"
                         }`}
                       >
-                        {diff >= 0 ? "+" : ""}
-                        {formatPen(diff)}
+                        {diff === null
+                          ? "—"
+                          : `${diff >= 0 ? "+" : ""}${formatPen(diff)}`}
+                        {diff !== null && acc.accountType === "BANK" && (
+                          <span className="block text-[10px] font-normal text-bht-ink-muted">
+                            vs. acumulado sin saldo inicial
+                          </span>
+                        )}
                       </td>
                       <td className="p-2.5">
                         <input
@@ -254,20 +283,25 @@ export default function CajaCierreAccountsTable({
         <div>
           <span className="text-xs text-bht-ink-soft">Contado confirmado</span>
           <p className="font-bold text-bht-ink-strong">
-            {formatPen(accountTotals.counted)}
+            {accountTotals.counted === null
+              ? "Sin conteo completo"
+              : formatPen(accountTotals.counted)}
           </p>
         </div>
         <div>
           <span className="text-xs text-bht-ink-soft">Diferencia total</span>
           <p
             className={`font-bold ${
-              Math.abs(accountTotals.variance) < 0.01
-                ? "text-bht-success"
-                : "text-bht-danger"
+              accountTotals.variance === null
+                ? "text-bht-ink-muted"
+                : Math.abs(accountTotals.variance) < 0.01
+                  ? "text-bht-success"
+                  : "text-bht-danger"
             }`}
           >
-            {accountTotals.variance >= 0 ? "+" : ""}
-            {formatPen(accountTotals.variance)}
+            {accountTotals.variance === null
+              ? "—"
+              : `${accountTotals.variance >= 0 ? "+" : ""}${formatPen(accountTotals.variance)}`}
           </p>
         </div>
       </div>

@@ -61,6 +61,7 @@ export function Hoy({
     biSummary,
     dataCut,
     operationalQuality,
+    cashFlowSummary,
     accounts,
     apObligations,
     openApCount,
@@ -308,7 +309,7 @@ export function Hoy({
               </div>
             </Card>
 
-            {/* Data Freshness & Reconciliation Hub (Bento Card — col-span-1) */}
+            {/* Daily Cash Flow Hub (Bento Card — col-span-1) */}
             <Card
               padding="md"
               className="lg:col-span-1 flex flex-col justify-between bg-white border border-bht-line"
@@ -316,49 +317,41 @@ export function Hoy({
               <div className="space-y-3">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <h3 className="text-base font-bold tracking-tight text-bht-ink-strong sm:text-lg">
-                    Vigencia y Conciliación
+                    Flujo de hoy
                   </h3>
-                  <Badge
-                    tone={
-                      dataCut?.isStale || dataCut?.bankReconciled === false
-                        ? "warning"
-                        : "success"
-                    }
-                  >
-                    {dataCut?.bankReconciled === false
-                      ? "No conciliado"
-                      : dataCut?.isStale
-                        ? "Revisar corte"
-                        : "Al día"}
+                  <Badge tone="neutral" className="tabular-nums">
+                    {cashFlowSummary?.asOfLimaDate
+                      ? formatDatePe(cashFlowSummary.asOfLimaDate)
+                      : "Hoy"}
                   </Badge>
                 </div>
-                <dl className="space-y-2 rounded-xl border border-bht-line bg-bht-paper/70 p-3.5 text-sm">
+                <dl className="space-y-2 rounded-xl border border-bht-line bg-bht-paper/70 p-3.5 text-sm tabular-nums">
                   <div className="flex items-center justify-between gap-2">
-                    <dt className="text-bht-ink-soft">Último pedido</dt>
-                    <dd className="font-semibold text-bht-ink-strong tabular-nums">
-                      {dataCut?.lastOrderDate || kpiQ1?.period_end
-                        ? formatDatePe(dataCut?.lastOrderDate ?? kpiQ1?.period_end)
-                        : "Sin registros"}
+                    <dt className="text-bht-ink-soft">Cobros recibidos hoy</dt>
+                    <dd className="font-semibold text-bht-success-strong">
+                      +{formatPen(cashFlowSummary?.inflowsTodayPen ?? 0)}
                     </dd>
                   </div>
                   <div className="flex items-center justify-between gap-2">
-                    <dt className="text-bht-ink-soft">Saldo bancario</dt>
-                    <dd
-                      className={`font-semibold ${dataCut?.bankReconciled === false ? "text-bht-warning-strong" : "text-bht-success-strong"}`}
-                    >
-                      {dataCut?.bankReconciled === false
-                        ? "Pendiente de conciliar"
-                        : "Conciliado"}
+                    <dt className="text-bht-ink-soft">Salidas pagadas hoy</dt>
+                    <dd className="font-semibold text-bht-ink-strong">
+                      -{formatPen(cashFlowSummary?.outflowsTodayPen ?? 0)}
                     </dd>
                   </div>
-                  {dataCut && (
-                    <div className="flex items-center justify-between gap-2">
-                      <dt className="text-bht-ink-soft">Caja actualizada</dt>
-                      <dd className="font-semibold text-bht-ink-strong tabular-nums">
-                        {formatDatePe(dataCut.lastCashLedgerDate)}
-                      </dd>
-                    </div>
-                  )}
+                  <div className="flex items-center justify-between gap-2 border-t border-bht-line pt-2">
+                    <dt className="font-semibold text-bht-ink-strong">Neto de hoy</dt>
+                    <dd className="text-base font-bold text-bht-navy-deep">
+                      {(cashFlowSummary?.netTodayPen ?? 0) >= 0 ? "+" : ""}
+                      {formatPen(cashFlowSummary?.netTodayPen ?? 0)}
+                    </dd>
+                  </div>
+                  <div className="flex items-center justify-between gap-2 text-xs text-bht-ink-soft">
+                    <dt>Flujo del mes</dt>
+                    <dd className="font-semibold text-bht-ink-strong">
+                      {(cashFlowSummary?.netMonthPen ?? 0) >= 0 ? "+" : ""}
+                      {formatPen(cashFlowSummary?.netMonthPen ?? 0)}
+                    </dd>
+                  </div>
                 </dl>
               </div>
               <div className="mt-5 flex flex-wrap gap-2">
@@ -370,7 +363,7 @@ export function Hoy({
                     onClick={onOpenDailyClose}
                     className="flex-1"
                   >
-                    Cierre diario
+                    Cierre del día
                   </Button>
                 )}
                 <Button
@@ -588,10 +581,9 @@ export function Hoy({
                 {formatPen(totalCashPen)}
               </p>
               <p className="mt-2 text-xs font-medium leading-relaxed text-bht-ink-soft tabular-nums">
-                {dataCut?.bankReconciled === false
-                  ? "Saldo registrado (no conciliado)"
-                  : "Saldo registrado"}{" "}
-                · Por pagar: {formatPen(totalApPen)} ({openApCount} obl.)
+                Flujo de hoy: {(cashFlowSummary?.netTodayPen ?? 0) >= 0 ? "+" : ""}
+                {formatPen(cashFlowSummary?.netTodayPen ?? 0)} · Por pagar:{" "}
+                {formatPen(totalApPen)} ({openApCount} obl.)
               </p>
             </button>
 

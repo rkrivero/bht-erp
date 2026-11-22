@@ -4,6 +4,7 @@ import type {
   SellerCatalogItemDto,
   SellerCustomerDto,
   SellerOrderDto,
+  SellerOrderPayload,
   SellerPaymentMode,
   SellerQuoteCreatePayload,
   SellerQuoteDto,
@@ -169,4 +170,69 @@ export function buildCartLinesFromQuote(
     });
   }
   return { lines: nextCart, error: null };
+}
+
+export function buildSellerOrderPayload(params: {
+  editingOrderId: number | null;
+  editReasonCode: string;
+  editReasonNote: string;
+  editReasonLabel?: string;
+  selectedCustomer: SellerCustomerDto | null;
+  customerNameRaw: string;
+  paymentMode: SellerPaymentMode;
+  paymentAccountId: number | null;
+  requiresPartnerApproval: boolean;
+  collectOnDelivery: boolean;
+  creditDays: number;
+  customPromiseDate: string;
+  parsedInitialPaid: number;
+  parsedGlobalDiscountPen: number;
+  notes: string;
+  cart: SellerCartLine[];
+}): SellerOrderPayload {
+  return {
+    action: params.editingOrderId === null ? "create" : "update",
+    orderId: params.editingOrderId ?? undefined,
+    reason:
+      params.editingOrderId === null
+        ? undefined
+        : params.editReasonCode === "OTHER"
+          ? `Otro: ${params.editReasonNote.trim()}`
+          : params.editReasonLabel || "Ajuste operativo",
+    customerPartyId: params.selectedCustomer ? params.selectedCustomer.party_id : null,
+    customerNameRaw: params.customerNameRaw,
+    paymentMode: params.paymentMode,
+    paymentAccountId:
+      params.paymentMode !== "CREDIT" && params.paymentAccountId !== null
+        ? params.paymentAccountId
+        : undefined,
+    collectOnDelivery:
+      params.paymentMode !== "CREDIT"
+        ? params.requiresPartnerApproval
+          ? true
+          : params.collectOnDelivery
+        : undefined,
+    creditDays: params.paymentMode === "CREDIT" ? params.creditDays : undefined,
+    promisedPaymentDate:
+      params.paymentMode === "CREDIT" && params.customPromiseDate
+        ? params.customPromiseDate
+        : null,
+    initialPaidPen:
+      !params.requiresPartnerApproval &&
+      params.paymentMode === "CREDIT" &&
+      params.parsedInitialPaid > 0
+        ? params.parsedInitialPaid
+        : undefined,
+    globalDiscountPen:
+      params.parsedGlobalDiscountPen > 0 ? params.parsedGlobalDiscountPen : undefined,
+    notes: params.notes,
+    lines: params.cart.map((c) => {
+      const fractional = isFractionalUom(c.product.unit_of_measure);
+      return {
+        productId: c.product.product_id,
+        quantity: normalizeOrderQuantity(c.quantity, fractional),
+        unitPricePen: Number(c.unitPricePen.toFixed(4)),
+      };
+    }),
+  };
 }

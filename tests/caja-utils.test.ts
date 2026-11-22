@@ -3,7 +3,9 @@ import {
   calculatePurchaseTotals,
   formatAccountTypeEs,
   formatExpenseBucketEs,
+  formatNullablePen,
   isExpenseLedgerEntry,
+  resolveYapePlinAccountId,
   type PurchaseLineDraft,
 } from "../src/components/socios/caja/caja-utils";
 import type { CashLedgerEntry } from "../src/components/socios/types";
@@ -88,5 +90,25 @@ describe("caja utilities & purchase totals", () => {
     expect(formatAccountTypeEs("PARTNER_CUSTODY")).toBe("Custodia");
     expect(formatAccountTypeEs("BANK")).toBe("Banco");
     expect(formatAccountTypeEs("CASH")).toBe("Caja");
+  });
+
+  it("formats nullable PEN values and resolves Yape/Plin default bank accounts", () => {
+    expect(formatNullablePen(null)).toBe("Sin conteo");
+    expect(formatNullablePen(undefined, "—")).toBe("—");
+    expect(formatNullablePen(0)).toBe("S/ 0.00");
+    expect(formatNullablePen(1234.5)).toBe("S/ 1,234.50");
+
+    const accounts = [
+      { account_id: 1, code: "CAJA_RUTA", name: "Caja General", account_type: "CASH" },
+      {
+        account_id: 3,
+        code: "INTERBANK_BHT",
+        name: "Cuenta Interbank BHT",
+        account_type: "BANK",
+      },
+      { account_id: 4, code: "BCP_BHT", name: "Cuenta BCP BHT", account_type: "BANK" },
+    ];
+    expect(resolveYapePlinAccountId(accounts, "YAPE")).toBe(4);
+    expect(resolveYapePlinAccountId(accounts, "PLIN")).toBe(3);
   });
 });

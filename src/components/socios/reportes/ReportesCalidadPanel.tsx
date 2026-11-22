@@ -114,10 +114,13 @@ export function ReportesCalidadPanel({
         ? formatDatePe(quality.latestDailyClosure.closureDate)
         : "Sin cierre registrado",
       detail: quality.latestDailyClosure
-        ? `Por ${quality.latestDailyClosure.closedByName} · Diferencia: ${formatPen(quality.latestDailyClosure.varianceTotalPen)}`
-        : "Usa Caja → Cierre diario para conciliar saldos al fin del día.",
+        ? quality.latestDailyClosure.varianceTotalPen === null
+          ? `Por ${quality.latestDailyClosure.closedByName} · Sin conteo físico`
+          : `Por ${quality.latestDailyClosure.closedByName} · Diferencia: ${formatPen(quality.latestDailyClosure.varianceTotalPen)}`
+        : "Usa Caja → Cierre del día para registrar el cierre al fin del día.",
       tone: quality.latestDailyClosure
-        ? Math.abs(quality.latestDailyClosure.varianceTotalPen) < 0.01
+        ? quality.latestDailyClosure.varianceTotalPen === null ||
+          Math.abs(quality.latestDailyClosure.varianceTotalPen) < 0.01
           ? ("success" as const)
           : ("warning" as const)
         : ("warning" as const),

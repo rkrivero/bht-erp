@@ -67,6 +67,7 @@ export function Finanzas({
     unpurchasedRegularizationCount,
     routeTrips,
     dataCut,
+    cashFlowSummary,
     loadDashboard,
     dataRefreshSeq,
   } = data;
@@ -85,6 +86,7 @@ export function Finanzas({
           unpurchasedRegularizationCount={unpurchasedRegularizationCount}
           routeTrips={routeTrips}
           dataCut={dataCut}
+          cashFlowSummary={cashFlowSummary}
           preselectedTarget={preselectedPurchaseTarget}
           onClearPreselectedTarget={() => setPreselectedPurchaseTarget(null)}
           initialSubTab={initialCajaSubTab}

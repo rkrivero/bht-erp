@@ -48,6 +48,7 @@ export interface SellerOrderDraft {
   customerNameRaw: string;
   selectedCustomer: SellerCustomerDto | null;
   paymentMode: SellerPaymentMode;
+  paymentAccountId: number | null;
   collectOnDelivery: boolean;
   creditDays: number;
   customPromiseDate: string;
@@ -194,6 +195,7 @@ export type SellerOrderPayload = {
   customerPartyId: number | null;
   customerNameRaw: string;
   paymentMode: SellerPaymentMode;
+  paymentAccountId?: number;
   collectOnDelivery: boolean | undefined;
   creditDays: number | undefined;
   promisedPaymentDate: string | null;

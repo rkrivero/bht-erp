@@ -48,6 +48,12 @@ function asNum(value: unknown): number {
   return Number.isFinite(n) ? Number(n.toFixed(2)) : 0;
 }
 
+function asNullableNum(value: unknown): number | null {
+  if (value === null || value === undefined || value === "") return null;
+  const n = Number(value);
+  return Number.isFinite(n) ? Number(n.toFixed(2)) : null;
+}
+
 export function mapDataCutSummary(raw: unknown): DataCutSummary {
   const obj = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
   const asOfLimaDate = asIsoString(obj.as_of_lima_date) ?? "";
@@ -90,7 +96,7 @@ interface QualityQueryRow {
   }>;
   latest_daily_closure: {
     closure_date: string;
-    variance_total_pen: number | string;
+    variance_total_pen: number | string | null;
     closed_by_name: string;
     updated_at: string;
   } | null;
@@ -325,7 +331,7 @@ export function mapOperationalQualitySummary(raw: unknown): OperationalQualitySu
   const latestDailyClosure: LatestDailyClosureSummary | null = row?.latest_daily_closure
     ? {
         closureDate: String(row.latest_daily_closure.closure_date),
-        varianceTotalPen: asNum(row.latest_daily_closure.variance_total_pen),
+        varianceTotalPen: asNullableNum(row.latest_daily_closure.variance_total_pen),
         closedByName: String(row.latest_daily_closure.closed_by_name),
         updatedAt: String(row.latest_daily_closure.updated_at),
       }

@@ -1,6 +1,30 @@
-import type { CashLedgerEntry } from "../types";
+import type { CashAccountItem, CashLedgerEntry } from "../types";
 
 export type CajaSubTab = "cuentas" | "cierre" | "compras" | "gastos";
+
+export function formatNullablePen(
+  value: number | null | undefined,
+  emptyLabel = "Sin conteo"
+): string {
+  if (value === null || value === undefined || !Number.isFinite(value)) {
+    return emptyLabel;
+  }
+  return `S/ ${value.toLocaleString("en-US", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`;
+}
+
+export function resolveYapePlinAccountId(
+  accounts: CashAccountItem[],
+  channel: "YAPE" | "PLIN"
+): number | null {
+  const targetCode = channel === "YAPE" ? "BCP_BHT" : "INTERBANK_BHT";
+  const match = accounts.find(
+    (acc) => acc.code === targetCode && acc.is_active !== false
+  );
+  return match ? Number(match.account_id) : null;
+}
 
 export interface PurchaseLineDraft {
   key: string;

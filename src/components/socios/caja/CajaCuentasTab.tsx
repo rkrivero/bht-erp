@@ -166,7 +166,7 @@ export function CajaCuentasTab({
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
             <h3 className="text-base font-bold text-bht-ink-strong sm:text-lg">
-              Saldos registrados por caja, banco y custodia
+              Cuentas activas ({accounts.length})
             </h3>
             <p className="text-xs sm:text-sm text-bht-ink-soft">
               Toca una cuenta para filtrar sus movimientos en el libro inferior.
@@ -198,37 +198,87 @@ export function CajaCuentasTab({
         <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
           {accounts.map((acc) => {
             const active = selectedAccountId === acc.account_id;
+            const dayNet = Number(acc.dayNetPen ?? 0);
+            const dayIn = Number(acc.dayInPen ?? 0);
+            const dayOut = Number(acc.dayOutPen ?? 0);
+            const dayTransfers = Number(acc.dayTransfersNetPen ?? 0);
+            const monthNet = Number(acc.monthNetPen ?? 0);
             return (
-              <button
+              <div
                 key={acc.account_id}
-                type="button"
+                role="button"
+                tabIndex={0}
                 aria-pressed={active}
                 onClick={() =>
                   setSelectedAccountId((prev) =>
                     prev === acc.account_id ? null : acc.account_id
                   )
                 }
-                className={`flex items-center justify-between gap-2 rounded-xl border p-3 text-left transition cursor-pointer ${
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    setSelectedAccountId((prev) =>
+                      prev === acc.account_id ? null : acc.account_id
+                    );
+                  }
+                }}
+                className={`rounded-xl border p-3.5 text-left transition cursor-pointer space-y-2 ${
                   active
                     ? "border-bht-navy-deep bg-bht-mist ring-1 ring-bht-navy-deep"
                     : "border-bht-line bg-white hover:bg-bht-paper"
                 }`}
               >
-                <div className="min-w-0">
-                  <div className="flex flex-wrap items-center gap-1.5">
-                    <p className="truncate text-sm font-semibold text-bht-ink-strong">
-                      {acc.name}
-                    </p>
-                    <Badge tone="neutral">
-                      {formatAccountTypeEs(acc.account_type)}
-                    </Badge>
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <p className="truncate text-sm font-semibold text-bht-ink-strong">
+                        {acc.name}
+                      </p>
+                      <Badge tone="neutral">
+                        {formatAccountTypeEs(acc.account_type)}
+                      </Badge>
+                    </div>
+                    <p className="mt-0.5 text-xs text-bht-ink-muted">{acc.code}</p>
                   </div>
-                  <p className="mt-0.5 text-xs text-bht-ink-muted">{acc.code}</p>
+                  <div className="text-right tabular-nums flex-shrink-0">
+                    <span className="block text-[11px] font-medium text-bht-ink-soft">
+                      Flujo de hoy
+                    </span>
+                    <strong className="text-sm font-bold text-bht-navy-deep">
+                      {dayNet >= 0 ? "+" : ""}
+                      {formatPen(dayNet)}
+                    </strong>
+                  </div>
                 </div>
-                <strong className="flex-shrink-0 text-sm font-bold text-bht-navy-deep tabular-nums">
-                  {formatPen(Number(acc.current_balance_pen ?? 0))}
-                </strong>
-              </button>
+
+                <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-bht-ink-soft tabular-nums">
+                  <span>
+                    +{formatPen(dayIn)} / -{formatPen(dayOut)}
+                    {dayTransfers !== 0
+                      ? ` · Traslados: ${dayTransfers >= 0 ? "+" : ""}${formatPen(dayTransfers)}`
+                      : ""}
+                  </span>
+                  <span>
+                    Mes:{" "}
+                    <strong className="text-bht-ink-strong">
+                      {monthNet >= 0 ? "+" : ""}
+                      {formatPen(monthNet)}
+                    </strong>
+                  </span>
+                </div>
+
+                <details
+                  className="border-t border-bht-line/70 pt-1.5 text-xs text-bht-ink-soft"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <summary className="cursor-pointer select-none hover:text-bht-ink-strong">
+                    Acumulado registrado (sin saldo inicial)
+                  </summary>
+                  <p className="mt-1 font-semibold text-bht-ink-strong tabular-nums">
+                    {formatPen(Number(acc.current_balance_pen ?? 0))}
+                  </p>
+                </details>
+              </div>
             );
           })}
         </div>

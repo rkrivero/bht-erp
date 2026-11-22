@@ -21,6 +21,11 @@ export default function SellerOrderCheckout({ flow }: { flow: SellerOrderFlow })
     cartTotalPen,
     customerNameRaw,
     paymentMode,
+    paymentAccountId,
+    setPaymentAccountId,
+    yapePlinChannel,
+    sellerAccounts,
+    handleSelectYapePlin,
     collectOnDelivery,
     setCollectOnDelivery,
     creditDays,
@@ -196,30 +201,77 @@ export default function SellerOrderCheckout({ flow }: { flow: SellerOrderFlow })
                 >
                   {(
                     [
-                      ["CASH", "Efectivo"],
-                      ["YAPE_PLIN", "Yape / Plin"],
-                      ["TRANSFER", "Transferencia"],
-                      ["CREDIT", "A Crédito"],
+                      { id: "CASH", label: "Efectivo", mode: "CASH", channel: null },
+                      { id: "YAPE", label: "Yape", mode: "YAPE_PLIN", channel: "YAPE" },
+                      { id: "PLIN", label: "Plin", mode: "YAPE_PLIN", channel: "PLIN" },
+                      {
+                        id: "TRANSFER",
+                        label: "Transferencia",
+                        mode: "TRANSFER",
+                        channel: null,
+                      },
+                      {
+                        id: "CREDIT",
+                        label: "A Crédito",
+                        mode: "CREDIT",
+                        channel: null,
+                      },
                     ] as const
-                  ).map(([mode, label]) => {
-                    const active = paymentMode === mode;
+                  ).map((opt) => {
+                    const active =
+                      opt.mode === "YAPE_PLIN"
+                        ? paymentMode === "YAPE_PLIN" && yapePlinChannel === opt.channel
+                        : paymentMode === opt.mode;
                     return (
                       <button
-                        key={mode}
+                        key={opt.id}
                         type="button"
                         aria-pressed={active}
-                        onClick={() => handleSelectPaymentMode(mode)}
+                        onClick={() =>
+                          opt.channel
+                            ? handleSelectYapePlin(opt.channel)
+                            : handleSelectPaymentMode(opt.mode)
+                        }
                         className={`min-h-[40px] rounded-xl border px-3 py-2 text-xs font-semibold transition cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bht-navy-deep/45 ${
                           active
                             ? "border-bht-navy-deep bg-bht-navy-deep text-white shadow-xs"
                             : "border-bht-line bg-white text-bht-ink-soft hover:border-bht-line-blue hover:bg-bht-mist hover:text-bht-navy-deep"
                         }`}
                       >
-                        {label}
+                        {opt.label}
                       </button>
                     );
                   })}
                 </div>
+                {(paymentMode === "YAPE_PLIN" || paymentMode === "TRANSFER") &&
+                  sellerAccounts.filter((a) => a.is_active !== false).length > 0 && (
+                    <div className="mt-2">
+                      <FieldLabel htmlFor="seller-payment-account">
+                        Cuenta bancaria destino
+                      </FieldLabel>
+                      <select
+                        id="seller-payment-account"
+                        value={paymentAccountId ?? ""}
+                        onChange={(e) =>
+                          setPaymentAccountId(
+                            e.target.value ? Number(e.target.value) : null
+                          )
+                        }
+                        className={`${INPUT_CLASS} mt-1 min-h-[40px]`}
+                      >
+                        <option value="">Por defecto del sistema</option>
+                        {sellerAccounts
+                          .filter(
+                            (a) => a.is_active !== false && a.code !== "CAJA_RUTA"
+                          )
+                          .map((acc) => (
+                            <option key={acc.account_id} value={acc.account_id}>
+                              {acc.name}
+                            </option>
+                          ))}
+                      </select>
+                    </div>
+                  )}
               </div>
 
               {paymentMode !== "CREDIT" && (
