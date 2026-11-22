@@ -25,3 +25,5 @@ jobs:
           tests/test_migration_017_018_contract.py::test_migrations_017_018_declare_bloque_b_contract
           tests/test_migration_017_018_contract.py::test_migration_019_preserves_daily_closure_correction_history
           tests/test_migration_020_022_contract.py::test_migrations_020_022_declare_sql_contracts
+          tests/test_027_sequences_and_locks.py::test_migration_027_declares_sql_contracts
+          tests/test_028_stock_quants_and_settings.py::test_migration_028_declares_sql_contracts
