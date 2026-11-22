@@ -971,20 +971,25 @@ def _load_audit_flags(cur: Any, ds: NormalizedDataset) -> None:
             ],
         )
 
-    # Record historical missing bank-statement gap explicitly
+    # Record historical missing bank-statement gap only if not already recorded (including RESOLVED)
     cur.execute(
         """
         INSERT INTO erp.audit_flags
             (flag_code, severity, entity_table, entity_id, message, details, source_origin)
-        VALUES (
+        SELECT
             'MISSING_BANK_STATEMENT_LEDGER',
-            'WARNING',
+            'WARNING'::erp.audit_severity,
             'erp.cash_ledger',
             '2026-06-26..2026-09-29',
             'Historical BCP/Interbank statements were not in 00_raw; Qingdao AP settlements outside route cash remain unverified until bank extract is provided.',
             '{"impacted_supplier":"20610518398"}'::jsonb,
-            'HISTORICAL_BACKFILL'
-        )
-        ON CONFLICT (flag_code, entity_table, entity_id) WHERE status = 'OPEN' DO NOTHING;
+            'HISTORICAL_BACKFILL'::erp.data_origin
+        WHERE NOT EXISTS (
+            SELECT 1
+            FROM erp.audit_flags af
+            WHERE af.flag_code = 'MISSING_BANK_STATEMENT_LEDGER'
+              AND af.entity_table = 'erp.cash_ledger'
+              AND af.entity_id = '2026-06-26..2026-09-29'
+        );
         """
     )
