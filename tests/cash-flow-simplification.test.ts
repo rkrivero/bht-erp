@@ -4,6 +4,7 @@ import {
   reopenDailyClosureSchema,
   saveDailyClosureSchema,
 } from "../src/lib/validation/daily-closures.schema";
+import { parseTreasuryLedgerQuery } from "../src/lib/validation/treasury.schema";
 import { resolveActiveCashAccount } from "../src/lib/services/cash-account-resolver";
 import {
   getCashAccountFlowBreakdown,
@@ -192,5 +193,47 @@ describe("cash flow simplification contracts", () => {
     expect(() =>
       reopenDailyClosureSchema.parse({ closureDate: "2026-11-22", reason: "" })
     ).toThrow();
+  });
+
+  it("parses treasury ledger query params with safe defaults, clamping, and validation", () => {
+    expect(parseTreasuryLedgerQuery(new URLSearchParams())).toEqual({
+      ok: true,
+      accountId: null,
+      ledgerOnly: false,
+      limit: 150,
+      offset: 0,
+    });
+
+    expect(
+      parseTreasuryLedgerQuery(new URLSearchParams("accountId=2&ledgerOnly=1"))
+    ).toEqual({
+      ok: true,
+      accountId: 2,
+      ledgerOnly: true,
+      limit: 200,
+      offset: 0,
+    });
+
+    expect(parseTreasuryLedgerQuery(new URLSearchParams("limit=0&offset=-5"))).toEqual({
+      ok: true,
+      accountId: null,
+      ledgerOnly: false,
+      limit: 1,
+      offset: 0,
+    });
+
+    expect(parseTreasuryLedgerQuery(new URLSearchParams("limit=9999"))).toEqual({
+      ok: true,
+      accountId: null,
+      ledgerOnly: false,
+      limit: 500,
+      offset: 0,
+    });
+
+    for (const bad of ["abc", "0", "-3", "1.5"]) {
+      expect(parseTreasuryLedgerQuery(new URLSearchParams(`accountId=${bad}`))).toEqual(
+        { ok: false, error: "accountId inválido" }
+      );
+    }
   });
 });

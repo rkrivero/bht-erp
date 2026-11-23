@@ -13,7 +13,10 @@ import {
   mapApObligationRow,
 } from "@/lib/services/purchases-and-suppliers";
 import { parseBody, readRawJsonBody } from "@/lib/validation/parse";
-import { treasuryCashOutflowSchema } from "@/lib/validation/treasury.schema";
+import {
+  parseTreasuryLedgerQuery,
+  treasuryCashOutflowSchema,
+} from "@/lib/validation/treasury.schema";
 
 export const dynamic = "force-dynamic";
 
@@ -21,16 +24,102 @@ const NO_STORE_HEADERS = { "Cache-Control": "no-store" };
 
 const TREASURY_ROLES = ["PARTNER_ADMIN", "PARTNER_MANAGER", "EXTERNAL_SELLER"] as const;
 
+const LEDGER_SELECT_COLUMNS = `
+  cl.ledger_id,
+  cl.tx_date::text AS tx_date,
+  cl.account_id,
+  ca.code AS account_code,
+  ca.name AS account_name,
+  cl.trip_id,
+  rt.trip_code,
+  rt.zone_name AS trip_zone,
+  CASE
+    WHEN $1::boolean THEN COALESCE(pa.trade_name, pa.legal_name)
+    ELSE NULL
+  END AS party_name,
+  cl.direction::text AS direction,
+  cl.amount_pen,
+  cl.expense_bucket::text AS expense_bucket,
+  cl.expense_category,
+  cl.is_internal_transfer,
+  cl.reference_table,
+  cl.reference_id,
+  cl.source_origin::text AS source_origin,
+  cl.created_at::text AS created_at,
+  cl.description
+`;
+
+function mapLedgerRow(r: Record<string, unknown>) {
+  return {
+    ...r,
+    ledger_id: Number(r.ledger_id),
+    account_id: Number(r.account_id),
+    trip_id: r.trip_id !== null && r.trip_id !== undefined ? Number(r.trip_id) : null,
+    amount_pen: Number(r.amount_pen),
+  };
+}
+
+function buildLedgerWhere(partnerAccess: boolean, accountId: number | null) {
+  const conditions: string[] = [];
+  const params: unknown[] = [partnerAccess];
+  if (!partnerAccess) {
+    conditions.push(
+      "cl.expense_bucket = 'ROUTE_OPEX' AND cl.source_origin = 'ERP_APP'"
+    );
+  }
+  if (accountId !== null) {
+    params.push(accountId);
+    conditions.push(`cl.account_id = $${params.length}`);
+  }
+  const whereSql = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
+  return { whereSql, params };
+}
+
 export async function GET(req: NextRequest) {
   try {
+    const query = parseTreasuryLedgerQuery(req.nextUrl.searchParams);
+    if (!query.ok) {
+      return NextResponse.json(
+        { error: query.error },
+        { status: 400, headers: NO_STORE_HEADERS }
+      );
+    }
+
     const data = await withAuthenticatedClient(
       req,
       [...TREASURY_ROLES],
       async (client, actor) => {
         const partnerAccess = isPartnerRole(actor.role);
-        const whereClause = partnerAccess
-          ? ""
-          : "WHERE cl.expense_bucket = 'ROUTE_OPEX' AND cl.source_origin = 'ERP_APP'";
+        const { whereSql, params } = buildLedgerWhere(partnerAccess, query.accountId);
+        const limitParam = `$${params.length + 1}`;
+        const offsetParam = `$${params.length + 2}`;
+
+        if (query.ledgerOnly) {
+          const rowsRes = await client.query<Record<string, unknown>>(
+            `SELECT ${LEDGER_SELECT_COLUMNS}
+             FROM erp.cash_ledger cl
+             JOIN erp.cash_accounts ca ON ca.account_id = cl.account_id
+             LEFT JOIN erp.route_trips rt ON rt.trip_id = cl.trip_id
+             LEFT JOIN erp.parties pa ON pa.party_id = cl.party_id
+             ${whereSql}
+             ORDER BY cl.tx_date DESC, cl.ledger_id DESC
+             LIMIT ${limitParam} OFFSET ${offsetParam}`,
+            [...params, query.limit, query.offset]
+          );
+          const countRes = await client.query<{ total_count: number }>(
+            `SELECT COUNT(*)::int AS total_count
+             FROM erp.cash_ledger cl
+             ${whereSql}`,
+            params
+          );
+          const totalCount = Number(countRes.rows[0]?.total_count ?? 0);
+          const ledger = rowsRes.rows.map(mapLedgerRow);
+          return {
+            ledger,
+            totalCount,
+            hasMore: query.offset + ledger.length < totalCount,
+          };
+        }
 
         const res = await client.query<{
           ledger: Array<Record<string, unknown>>;
@@ -49,36 +138,14 @@ export async function GET(req: NextRequest) {
              COALESCE((
                SELECT json_agg(t)
                FROM (
-                 SELECT
-                   cl.ledger_id,
-                   cl.tx_date::text AS tx_date,
-                   cl.account_id,
-                   ca.code AS account_code,
-                   ca.name AS account_name,
-                   cl.trip_id,
-                   rt.trip_code,
-                   rt.zone_name AS trip_zone,
-                   CASE
-                     WHEN $1::boolean THEN COALESCE(pa.trade_name, pa.legal_name)
-                     ELSE NULL
-                   END AS party_name,
-                   cl.direction::text AS direction,
-                   cl.amount_pen,
-                   cl.expense_bucket::text AS expense_bucket,
-                   cl.expense_category,
-                   cl.is_internal_transfer,
-                   cl.reference_table,
-                   cl.reference_id,
-                   cl.source_origin::text AS source_origin,
-                   cl.created_at::text AS created_at,
-                   cl.description
+                 SELECT ${LEDGER_SELECT_COLUMNS}
                  FROM erp.cash_ledger cl
                  JOIN erp.cash_accounts ca ON ca.account_id = cl.account_id
                  LEFT JOIN erp.route_trips rt ON rt.trip_id = cl.trip_id
                  LEFT JOIN erp.parties pa ON pa.party_id = cl.party_id
-                 ${whereClause}
+                 ${whereSql}
                  ORDER BY cl.tx_date DESC, cl.ledger_id DESC
-                 LIMIT 150
+                 LIMIT ${limitParam} OFFSET ${offsetParam}
                ) t
              ), '[]'::json) AS ledger,
              COALESCE((
@@ -115,7 +182,7 @@ export async function GET(req: NextRequest) {
                  ORDER BY COALESCE(trade_name, legal_name) ASC
                ) t
              ), '[]'::json) ELSE '[]'::json END AS suppliers`,
-          [partnerAccess]
+          [...params, query.limit, query.offset]
         );
 
         const bundle = res.rows[0] ?? {
@@ -130,14 +197,7 @@ export async function GET(req: NextRequest) {
 
         return {
           cashFlowSummary,
-          ledger: (bundle.ledger ?? []).map((r) => ({
-            ...r,
-            ledger_id: Number(r.ledger_id),
-            account_id: Number(r.account_id),
-            trip_id:
-              r.trip_id !== null && r.trip_id !== undefined ? Number(r.trip_id) : null,
-            amount_pen: Number(r.amount_pen),
-          })),
+          ledger: (bundle.ledger ?? []).map(mapLedgerRow),
           apObligations: (bundle.ap_obligations ?? []).map(mapApObligationRow),
           suppliers: (bundle.suppliers ?? []).map((r) => ({
             party_id: Number(r.party_id),

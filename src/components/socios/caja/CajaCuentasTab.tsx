@@ -17,6 +17,7 @@ import { notifyLocalSync } from "@/lib/realtime/useLiveSync";
 import { formatPen, type CashAccountItem, type CashLedgerEntry } from "../types";
 import { LedgerMovementDetailModal } from "./CajaDetailModals";
 import { formatAccountTypeEs } from "./caja-utils";
+import { useAccountLedger } from "./useAccountLedger";
 
 type DirectionFilter = "ALL" | "IN" | "OUT" | "TRANSFER";
 
@@ -36,6 +37,14 @@ export function CajaCuentasTab({
   onEditingChange?: (editing: boolean) => void;
 }) {
   const [selectedAccountId, setSelectedAccountId] = useState<number | null>(null);
+  const {
+    accountLedger,
+    accountTotalCount,
+    accountHasMore,
+    loadingAccountLedger,
+    loadingMoreLedger,
+    handleLoadMoreAccountLedger,
+  } = useAccountLedger(selectedAccountId, ledger, onFeedback);
   const [directionFilter, setDirectionFilter] = useState<DirectionFilter>("ALL");
   const [search, setSearch] = useState("");
   const deferredSearch = useDeferredValue(search);
@@ -74,14 +83,23 @@ export function CajaCuentasTab({
     defaultAccountId ||
     (accounts[0] ? String(accounts[0].account_id) : "");
 
+  const selectedAccount = useMemo(
+    () => accounts.find((a) => a.account_id === selectedAccountId) ?? null,
+    [accounts, selectedAccountId]
+  );
+
+  const baseLedger =
+    selectedAccountId !== null && accountLedger !== null ? accountLedger : ledger;
+
   const filteredLedger = useMemo(() => {
     const q = deferredSearch.trim().toLowerCase();
-    return ledger.filter((mov) => {
+    return baseLedger.filter((mov) => {
       if (selectedAccountId !== null) {
-        const chosenAcc = accounts.find((a) => a.account_id === selectedAccountId);
         const matchesId =
           mov.account_id !== undefined && Number(mov.account_id) === selectedAccountId;
-        const matchesName = chosenAcc ? mov.account_name === chosenAcc.name : false;
+        const matchesName = selectedAccount
+          ? mov.account_name === selectedAccount.name
+          : false;
         if (!matchesId && !matchesName) return false;
       }
       if (directionFilter === "TRANSFER") {
@@ -101,7 +119,12 @@ export function CajaCuentasTab({
         (mov.trip_code ? mov.trip_code.toLowerCase().includes(q) : false)
       );
     });
-  }, [ledger, accounts, selectedAccountId, directionFilter, deferredSearch]);
+  }, [baseLedger, selectedAccount, selectedAccountId, directionFilter, deferredSearch]);
+
+  const totalLedgerDisplay =
+    selectedAccountId !== null && accountTotalCount !== null
+      ? accountTotalCount
+      : baseLedger.length;
 
   async function handleSaveTransfer(e: FormEvent) {
     e.preventDefault();
@@ -288,8 +311,12 @@ export function CajaCuentasTab({
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
             <h3 className="text-base font-bold text-bht-ink-strong sm:text-lg">
-              Movimientos de Caja ({filteredLedger.length}
-              {filteredLedger.length !== ledger.length ? ` / ${ledger.length}` : ""})
+              Movimientos de Caja{selectedAccount ? ` — ${selectedAccount.name}` : ""} (
+              {filteredLedger.length}
+              {totalLedgerDisplay > filteredLedger.length
+                ? ` / ${totalLedgerDisplay}`
+                : ""}
+              )
             </h3>
             <p className="text-xs sm:text-sm text-bht-ink-soft">
               Toca cualquier movimiento para abrir su ventana de detalle.
@@ -353,58 +380,84 @@ export function CajaCuentasTab({
         </div>
 
         <div className="space-y-2 md:max-h-[34rem] md:overflow-y-auto md:pr-1">
-          {filteredLedger.length === 0 ? (
+          {loadingAccountLedger ? (
+            <EmptyState
+              title="Cargando movimientos de la cuenta..."
+              description="Consultando el libro completo de la cuenta seleccionada."
+            />
+          ) : filteredLedger.length === 0 ? (
             <EmptyState
               title="No hay movimientos con este filtro"
               description="Prueba limpiando el filtro de cuenta o el buscador."
             />
           ) : (
-            filteredLedger.map((mov) => {
-              const isIn = mov.direction === "IN";
-              const badgeTone = mov.is_internal_transfer
-                ? "brand"
-                : isIn
-                  ? "success"
-                  : "danger";
-              return (
-                <button
-                  key={mov.ledger_id}
-                  type="button"
-                  onClick={() => setDetailMovement(mov)}
-                  className="flex w-full items-start justify-between gap-2.5 rounded-xl border border-bht-line bg-bht-paper/60 p-3 text-left text-xs transition hover:border-bht-line-blue hover:bg-bht-mist/70 cursor-pointer"
-                >
-                  <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-1.5">
-                      <Badge tone={badgeTone}>
-                        {formatCashDirectionEs(mov.direction, mov.is_internal_transfer)}
-                      </Badge>
-                      <span className="font-semibold text-bht-ink-strong">
-                        {formatExpenseCategoryEs(mov.expense_category)}
-                      </span>
-                      <span className="text-xs text-bht-ink-muted">
-                        · {mov.account_name} · {mov.tx_date}
-                      </span>
-                      {mov.trip_code && <Badge tone="horizon">{mov.trip_code}</Badge>}
-                    </div>
-                    <p className="mt-1 truncate text-xs text-bht-ink-soft">
-                      {mov.description}
-                    </p>
-                  </div>
-                  <span
-                    className={`flex-shrink-0 font-semibold tabular-nums ${
-                      mov.is_internal_transfer
-                        ? "text-bht-navy-mid"
-                        : isIn
-                          ? "text-bht-success"
-                          : "text-bht-danger"
-                    }`}
+            <>
+              {filteredLedger.map((mov) => {
+                const isIn = mov.direction === "IN";
+                const badgeTone = mov.is_internal_transfer
+                  ? "brand"
+                  : isIn
+                    ? "success"
+                    : "danger";
+                return (
+                  <button
+                    key={mov.ledger_id}
+                    type="button"
+                    onClick={() => setDetailMovement(mov)}
+                    className="flex w-full items-start justify-between gap-2.5 rounded-xl border border-bht-line bg-bht-paper/60 p-3 text-left text-xs transition hover:border-bht-line-blue hover:bg-bht-mist/70 cursor-pointer"
                   >
-                    {isIn ? "+" : "-"}
-                    {formatPen(mov.amount_pen)}
-                  </span>
-                </button>
-              );
-            })
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <Badge tone={badgeTone}>
+                          {formatCashDirectionEs(
+                            mov.direction,
+                            mov.is_internal_transfer
+                          )}
+                        </Badge>
+                        <span className="font-semibold text-bht-ink-strong">
+                          {formatExpenseCategoryEs(mov.expense_category)}
+                        </span>
+                        <span className="text-xs text-bht-ink-muted">
+                          · {mov.account_name} · {mov.tx_date}
+                        </span>
+                        {mov.trip_code && <Badge tone="horizon">{mov.trip_code}</Badge>}
+                      </div>
+                      <p className="mt-1 truncate text-xs text-bht-ink-soft">
+                        {mov.description}
+                      </p>
+                    </div>
+                    <span
+                      className={`flex-shrink-0 font-semibold tabular-nums ${
+                        mov.is_internal_transfer
+                          ? "text-bht-navy-mid"
+                          : isIn
+                            ? "text-bht-success"
+                            : "text-bht-danger"
+                      }`}
+                    >
+                      {isIn ? "+" : "-"}
+                      {formatPen(mov.amount_pen)}
+                    </span>
+                  </button>
+                );
+              })}
+              {selectedAccountId !== null &&
+                accountHasMore &&
+                accountLedger !== null && (
+                  <div className="pt-2 text-center">
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      disabled={loadingMoreLedger}
+                      onClick={handleLoadMoreAccountLedger}
+                    >
+                      {loadingMoreLedger
+                        ? "Cargando..."
+                        : `Cargar más movimientos (mostrando ${accountLedger.length} de ${accountTotalCount ?? accountLedger.length})`}
+                    </Button>
+                  </div>
+                )}
+            </>
           )}
         </div>
       </Card>
