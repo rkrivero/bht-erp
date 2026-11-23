@@ -10,10 +10,31 @@ from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
+from psycopg import sql
+
+from bht_etl.config import get_project_paths, load_expense_config
 from bht_etl.db import get_connection, run_migrations
 from bht_etl.loader import load_to_neon
 
-SENSITIVE_PATTERNS = ("%CHARO%", "%SORAYDA%", "%PRIMER JEFE%", "%PREGUNTAS SEGURIDAD%")
+FALLBACK_SENSITIVE_REGEXES = (
+    r"PREGUNTAS?\s+SEGURIDAD",
+    r"CLAVE",
+    r"PRIMER\s+JEFE",
+    r"PROFESOR.*FAVORITO",
+    r"PRIMO.*MAYOR",
+    r"\bCHARO\b",
+    r"\bSORAYDA\b",
+)
+
+
+def _load_sensitive_regexes(root: Path | None) -> list[str]:
+    try:
+        paths = get_project_paths(root)
+        cfg = load_expense_config(paths.config_dir)
+        patterns = [p.pattern for p in cfg.sensitive_row_block_patterns]
+        return patterns or list(FALLBACK_SENSITIVE_REGEXES)
+    except Exception:
+        return list(FALLBACK_SENSITIVE_REGEXES)
 
 
 def _fmt_val(val: Any) -> str:
@@ -97,25 +118,33 @@ def _cmd_check_quality(branch: str, root: Path | None) -> int:
             _print_table(f"ERP Table Counts ({branch})", ["table_name", "row_count"], counts)
 
             leak_checks = [
-                ("raw_staging.raw_excel_daily_rows", "raw_payload::TEXT"),
-                ("raw_staging.raw_compras_invoices", "raw_payload::TEXT"),
-                ("raw_staging.raw_purchase_items", "raw_payload::TEXT"),
-                ("raw_staging.raw_quotes_excel", "raw_payload::TEXT"),
-                ("raw_staging.raw_json_doc_pages", "raw_payload::TEXT"),
-                ("erp.cash_ledger", "COALESCE(description, '') || ' ' || COALESCE(expense_category, '')"),
-                ("erp.sales_orders", "COALESCE(customer_name_raw, '') || ' ' || COALESCE(notes, '')"),
-                ("erp.audit_flags", "COALESCE(message, '')"),
+                (("raw_staging", "raw_excel_daily_rows"), sql.SQL("raw_payload::TEXT")),
+                (("raw_staging", "raw_compras_invoices"), sql.SQL("raw_payload::TEXT")),
+                (("raw_staging", "raw_purchase_items"), sql.SQL("raw_payload::TEXT")),
+                (("raw_staging", "raw_quotes_excel"), sql.SQL("raw_payload::TEXT")),
+                (("raw_staging", "raw_json_doc_pages"), sql.SQL("raw_payload::TEXT")),
+                (
+                    ("erp", "cash_ledger"),
+                    sql.SQL("COALESCE(description, '') || ' ' || COALESCE(expense_category, '')"),
+                ),
+                (
+                    ("erp", "sales_orders"),
+                    sql.SQL("COALESCE(customer_name_raw, '') || ' ' || COALESCE(notes, '')"),
+                ),
+                (("erp", "audit_flags"), sql.SQL("COALESCE(message, '')")),
             ]
+            sensitive_regexes = _load_sensitive_regexes(root)
             total_leaks = 0
             leak_rows: list[tuple[Any, ...]] = []
-            for table_name, expr in leak_checks:
-                cur.execute(
-                    f"SELECT COUNT(*) FROM {table_name} WHERE {expr} ILIKE ANY(%s);",
-                    (list(SENSITIVE_PATTERNS),),
+            for (schema_name, table_name), expr_sql in leak_checks:
+                query = sql.SQL("SELECT COUNT(*) FROM {} WHERE {} ~* ANY(%s);").format(
+                    sql.Identifier(schema_name, table_name),
+                    expr_sql,
                 )
+                cur.execute(query, (sensitive_regexes,))
                 cnt = int(cur.fetchone()[0])
                 total_leaks += cnt
-                leak_rows.append((table_name, cnt))
+                leak_rows.append((f"{schema_name}.{table_name}", cnt))
             _print_table("Sensitive Content Guard Check", ["table_name", "sensitive_hits"], leak_rows)
 
             cur.execute(

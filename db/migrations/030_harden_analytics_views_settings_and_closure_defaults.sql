@@ -2,8 +2,6 @@
 -- CONCILIACION_SALDO exclusion, overdue > 30d + dust threshold) and drop default
 -- 0.00 on nullable daily_closures count/variance columns.
 
-BEGIN;
-
 -- 1. Drop legacy DEFAULT 0 on nullable daily_closures count/variance columns
 ALTER TABLE erp.daily_closures
     ALTER COLUMN counted_cash_total_pen DROP DEFAULT,
@@ -549,5 +547,3 @@ FROM all_months m
 LEFT JOIN monthly_orders mo ON mo.period_month = m.period_month
 LEFT JOIN monthly_quotes mq ON mq.period_month = m.period_month
 ORDER BY m.period_month;
-
-COMMIT;

@@ -82,7 +82,6 @@ def load_to_neon(
 
     with get_connection(branch=branch, root=root) as conn:
         with conn.cursor() as cur:
-            before_counts = _snapshot_table_counts(cur)
             cur.execute(
                 """
                 INSERT INTO raw_staging.etl_batches (target_branch, status, notes)
@@ -92,92 +91,112 @@ def load_to_neon(
                 (branch,),
             )
             batch_id = cur.fetchone()[0]
-
-            # 1. Stage raw tables idempotently
-            _stage_raw_tables(cur, batch_id, ds)
-
-            # 2. Load master tables: products, product_aliases, parties, party_aliases
-            sku_to_id = _upsert_products_and_aliases(cur, ds)
-            party_key_to_id = _upsert_parties_and_aliases(cur, ds)
-
-            cur.execute("SELECT code, warehouse_id FROM erp.warehouses;")
-            wh_map = dict(cur.fetchall())
-            main_wh_id = wh_map["MAIN"]
-            camioneta_wh_id = wh_map["CAMIONETA_01"]
-
-            cur.execute("SELECT code, account_id FROM erp.cash_accounts WHERE is_active = TRUE;")
-            acct_map = dict(cur.fetchall())
-            caja_ruta_id = acct_map["CAJA_RUTA"]
-            interbank_id = acct_map["INTERBANK_BHT"]
-            bcp_id = acct_map["BCP_BHT"]
-
-            # 3. Route Trips
-            trip_map = _upsert_route_trips(cur, ds, camioneta_wh_id, caja_ruta_id)
-
-            # 3b. Opening Stocks (verified as of cutoff_date, idempotent by source_row_hash)
-            _load_opening_stocks(cur, ds, sku_to_id=sku_to_id, main_wh_id=main_wh_id)
-
-            # 4. Purchase Invoices, Lines, Inventory PURCHASE_IN, & AP/Direct Bank Cash
-            purchase_map = _load_purchases_and_stock_in(
-                cur,
-                ds,
-                sku_to_id=sku_to_id,
-                party_key_to_id=party_key_to_id,
-                main_wh_id=main_wh_id,
-                interbank_id=interbank_id,
-                bcp_id=bcp_id,
-            )
-
-            # 5. Quotes & Quote Lines
-            _load_quotes(cur, ds, sku_to_id=sku_to_id)
-
-            # 6. Sales Orders, Sales Lines, AR Payments, Cash IN, & Inventory SALE_OUT
-            so_count = _load_sales_and_stock_out(
-                cur,
-                ds,
-                sku_to_id=sku_to_id,
-                party_key_to_id=party_key_to_id,
-                trip_map=trip_map,
-                main_wh_id=main_wh_id,
-                caja_ruta_id=caja_ruta_id,
-            )
-
-            # 7. Daily cash outflows & internal bank deposits
-            _load_daily_cash_events(cur, ds, trip_map=trip_map, acct_map=acct_map)
-
-            # 8. Audit flags (ETL anomalies + missing bank transfer visibility note)
-            _load_audit_flags(cur, ds)
-
-            after_counts = _snapshot_table_counts(cur)
-            inserted_deltas = {k: after_counts[k] - before_counts[k] for k in after_counts}
-
-            summary_stats = {
-                "products": after_counts["erp_products"],
-                "parties": after_counts["erp_parties"],
-                "purchase_invoices": after_counts["erp_purchase_invoices"],
-                "purchase_lines": after_counts["erp_purchase_invoice_lines"],
-                "quotes": after_counts["erp_quotes"],
-                "sales_orders": after_counts["erp_sales_orders"],
-                "sales_lines": after_counts["erp_sales_order_lines"],
-                "inventory_movements": after_counts["erp_inventory_movements"],
-                "cash_ledger_rows": after_counts["erp_cash_ledger"],
-                "ar_payments": after_counts["erp_ar_payments"],
-                "ap_obligations": after_counts["erp_ap_obligations"],
-                "audit_flags": after_counts["erp_audit_flags"],
-                "blocked_sensitive_rows": ds.daily_extraction.blocked_sensitive_count,
-                "inserted_deltas": inserted_deltas,
-            }
-            cur.execute(
-                """
-                UPDATE raw_staging.etl_batches
-                   SET finished_at = NOW(),
-                       status = 'SUCCEEDED',
-                       summary_stats = %s
-                 WHERE batch_id = %s;
-                """,
-                (Jsonb(summary_stats), batch_id),
-            )
         conn.commit()
+
+        try:
+            with conn.cursor() as cur:
+                before_counts = _snapshot_table_counts(cur)
+
+                # 1. Stage raw tables idempotently
+                _stage_raw_tables(cur, batch_id, ds)
+
+                # 2. Load master tables: products, product_aliases, parties, party_aliases
+                sku_to_id = _upsert_products_and_aliases(cur, ds)
+                party_key_to_id = _upsert_parties_and_aliases(cur, ds)
+
+                cur.execute("SELECT code, warehouse_id FROM erp.warehouses;")
+                wh_map = dict(cur.fetchall())
+                main_wh_id = wh_map["MAIN"]
+                camioneta_wh_id = wh_map["CAMIONETA_01"]
+
+                cur.execute("SELECT code, account_id FROM erp.cash_accounts WHERE is_active = TRUE;")
+                acct_map = dict(cur.fetchall())
+                caja_ruta_id = acct_map["CAJA_RUTA"]
+                interbank_id = acct_map["INTERBANK_BHT"]
+                bcp_id = acct_map["BCP_BHT"]
+
+                # 3. Route Trips
+                trip_map = _upsert_route_trips(cur, ds, camioneta_wh_id, caja_ruta_id)
+
+                # 3b. Opening Stocks (verified as of cutoff_date, idempotent by source_row_hash)
+                _load_opening_stocks(cur, ds, sku_to_id=sku_to_id, main_wh_id=main_wh_id)
+
+                # 4. Purchase Invoices, Lines, Inventory PURCHASE_IN, & AP/Direct Bank Cash
+                purchase_map = _load_purchases_and_stock_in(
+                    cur,
+                    ds,
+                    sku_to_id=sku_to_id,
+                    party_key_to_id=party_key_to_id,
+                    main_wh_id=main_wh_id,
+                    interbank_id=interbank_id,
+                    bcp_id=bcp_id,
+                )
+
+                # 5. Quotes & Quote Lines
+                _load_quotes(cur, ds, sku_to_id=sku_to_id)
+
+                # 6. Sales Orders, Sales Lines, AR Payments, Cash IN, & Inventory SALE_OUT
+                so_count = _load_sales_and_stock_out(
+                    cur,
+                    ds,
+                    sku_to_id=sku_to_id,
+                    party_key_to_id=party_key_to_id,
+                    trip_map=trip_map,
+                    main_wh_id=main_wh_id,
+                    caja_ruta_id=caja_ruta_id,
+                )
+
+                # 7. Daily cash outflows & internal bank deposits
+                _load_daily_cash_events(cur, ds, trip_map=trip_map, acct_map=acct_map)
+
+                # 8. Audit flags (ETL anomalies + missing bank transfer visibility note)
+                _load_audit_flags(cur, ds)
+
+                after_counts = _snapshot_table_counts(cur)
+                inserted_deltas = {k: after_counts[k] - before_counts[k] for k in after_counts}
+
+                summary_stats = {
+                    "products": after_counts["erp_products"],
+                    "parties": after_counts["erp_parties"],
+                    "purchase_invoices": after_counts["erp_purchase_invoices"],
+                    "purchase_lines": after_counts["erp_purchase_invoice_lines"],
+                    "quotes": after_counts["erp_quotes"],
+                    "sales_orders": after_counts["erp_sales_orders"],
+                    "sales_lines": after_counts["erp_sales_order_lines"],
+                    "inventory_movements": after_counts["erp_inventory_movements"],
+                    "cash_ledger_rows": after_counts["erp_cash_ledger"],
+                    "ar_payments": after_counts["erp_ar_payments"],
+                    "ap_obligations": after_counts["erp_ap_obligations"],
+                    "audit_flags": after_counts["erp_audit_flags"],
+                    "blocked_sensitive_rows": ds.daily_extraction.blocked_sensitive_count,
+                    "inserted_deltas": inserted_deltas,
+                }
+                cur.execute(
+                    """
+                    UPDATE raw_staging.etl_batches
+                       SET finished_at = NOW(),
+                           status = 'SUCCEEDED',
+                           summary_stats = %s
+                     WHERE batch_id = %s;
+                    """,
+                    (Jsonb(summary_stats), batch_id),
+                )
+            conn.commit()
+        except Exception as exc:
+            conn.rollback()
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    UPDATE raw_staging.etl_batches
+                       SET finished_at = NOW(),
+                           status = 'FAILED',
+                           summary_stats = %s
+                     WHERE batch_id = %s;
+                    """,
+                    (Jsonb({"error": str(exc)[:500]}), batch_id),
+                )
+            conn.commit()
+            raise
 
     return LoadSummary(
         batch_id=batch_id,
@@ -300,7 +319,10 @@ def _upsert_products_and_aliases(cur: Any, ds: NormalizedDataset) -> dict[str, i
         VALUES (%s, %s, %s, %s, %s::erp.fulfillment_mode, %s, %s, %s, 'HISTORICAL_BACKFILL')
         ON CONFLICT (sku) DO UPDATE SET
             ref_cost_pen = COALESCE(erp.products.ref_cost_pen, EXCLUDED.ref_cost_pen),
-            cost_source = COALESCE(erp.products.cost_source, EXCLUDED.cost_source),
+            cost_source = CASE
+                WHEN erp.products.cost_source = 'MISSING' THEN EXCLUDED.cost_source
+                ELSE erp.products.cost_source
+            END,
             updated_at = NOW();
         """,
         [

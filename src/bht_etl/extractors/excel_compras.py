@@ -143,7 +143,11 @@ def extract_compras_files(
                 str(row[cmap["serie"]] or ""), row[cmap["numero"]]
             )
             supplier_name = str(row[cmap["razon"]] or ruc_raw).strip()
-            currency_raw = str(row[cmap.get("moneda", -1)] or "PEN").strip().upper()
+            currency_raw = (
+                str(row[cmap["moneda"]] or "PEN").strip().upper()
+                if "moneda" in cmap
+                else "PEN"
+            )
             orig_currency = "USD" if "USD" in currency_raw or "DOL" in currency_raw else "PEN"
             tc = parse_float(row[cmap["tc"]]) if "tc" in cmap else None
             exchange_rate = tc if (tc and tc > 0) else 1.0

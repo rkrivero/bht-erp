@@ -22,11 +22,16 @@ class MigrationResult:
 # corrected view definitions to branches with this known historical checksum.
 LEGACY_MIGRATION_CHECKSUMS = {
     "005_analytics_kpi_views": {
-        "b3fb96944dd33227c3ba00f067ea7dc799862ff476178a66d97c9d55159b3bb6"
-    }
+        "b3fb96944dd33227c3ba00f067ea7dc799862ff476178a66d97c9d55159b3bb6",
+        "bcd00563f8990ea3beaddc5c93eab237678e6ca7bd5cbc6efb837600fa0bbddb",
+    },
+    "030_harden_analytics_views_settings_and_closure_defaults": {
+        "beab47ca1053676ff50023d6cf965c04bbff894fbb7c228338542c1e660616fc",
+    },
 }
 LEGACY_RECONCILIATION_MIGRATIONS = {
-    "005_analytics_kpi_views": "012_analytics_view_refresh"
+    "005_analytics_kpi_views": "012_analytics_view_refresh",
+    "030_harden_analytics_views_settings_and_closure_defaults": "031_security_locks_and_analytics_hardening",
 }
 LEGACY_IDEMPOTENT_REAPPLY_CHECKSUMS = {
     "012_analytics_view_refresh": {

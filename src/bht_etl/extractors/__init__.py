@@ -49,7 +49,10 @@ def parse_float(val: Any) -> float | None:
     if not s or s in {"-", ".", ","}:
         return None
     if "," in s and "." in s:
-        s = s.replace(",", "")
+        if s.rfind(",") > s.rfind("."):
+            s = s.replace(".", "").replace(",", ".")
+        else:
+            s = s.replace(",", "")
     elif "," in s and "." not in s:
         # Handle either thousands separator (e.g. '1,000') or decimal comma
         parts = s.split(",")

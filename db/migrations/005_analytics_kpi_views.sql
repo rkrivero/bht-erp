@@ -15,7 +15,6 @@ WITH monthly_sales AS (
         COALESCE(SUM(balance_due_pen), 0)::NUMERIC(14,2) AS ar_pending_pen
     FROM erp.sales_orders
     WHERE order_date >= DATE '2026-06-26'
-      AND operational_status NOT IN ('CANCELLED', 'PENDING_PARTNER_APPROVAL')
     GROUP BY DATE_TRUNC('month', order_date)::DATE
 ),
 monthly_cash AS (
@@ -40,7 +39,6 @@ monthly_trips AS (
                 SELECT SUM(so.paid_pen)
                 FROM erp.sales_orders so
                 WHERE so.trip_id = rt.trip_id
-                  AND so.operational_status NOT IN ('CANCELLED', 'PENDING_PARTNER_APPROVAL')
             ), 0)
             - COALESCE((SELECT SUM(cl.amount_pen) FROM erp.cash_ledger cl WHERE cl.trip_id = rt.trip_id AND cl.direction = 'OUT' AND NOT cl.is_internal_transfer AND cl.expense_bucket = 'ROUTE_OPEX'), 0)
         ) FILTER (WHERE rt.declared_net_cash_pen IS NOT NULL), 0)::NUMERIC(14,2) AS expected_net_cash_pen
@@ -129,7 +127,6 @@ WITH global_totals AS (
             SELECT SUM(total_pen)
             FROM erp.sales_orders
             WHERE order_date >= DATE '2026-06-26'
-              AND operational_status NOT IN ('CANCELLED', 'PENDING_PARTNER_APPROVAL')
         ), 0)::NUMERIC(14,2) AS total_sales_pen,
         COALESCE((
             SELECT SUM(amount_pen)
@@ -165,7 +162,6 @@ sku_sales AS (
     JOIN erp.sales_order_lines sol ON sol.product_id = p.product_id
     JOIN erp.sales_orders so ON so.order_id = sol.order_id
     WHERE so.order_date >= DATE '2026-06-26'
-      AND so.operational_status NOT IN ('CANCELLED', 'PENDING_PARTNER_APPROVAL')
     GROUP BY p.product_id, p.sku, p.name, p.category, p.fulfillment_mode, p.ref_cost_pen, p.cost_source
 )
 SELECT
@@ -226,7 +222,6 @@ WITH monthly_orders AS (
         COUNT(*) FILTER (WHERE customer_party_id IS NOT NULL) AS matched_customer_orders_count
     FROM erp.sales_orders
     WHERE order_date >= DATE '2026-06-26'
-      AND operational_status NOT IN ('CANCELLED', 'PENDING_PARTNER_APPROVAL')
     GROUP BY DATE_TRUNC('month', order_date)::DATE
 ),
 monthly_quotes AS (
@@ -314,7 +309,6 @@ LEFT JOIN erp.audit_flags af
       AND af.status = 'OPEN'
 WHERE sol.fulfillment_mode = 'ON_DEMAND'
   AND sol.fulfillment_status IN ('PENDING_SUPPLIER_PURCHASE', 'PARTIALLY_FULFILLED')
-  AND so.operational_status NOT IN ('CANCELLED', 'PENDING_PARTNER_APPROVAL')
 ORDER BY so.order_date ASC, sol.order_line_id ASC;
 
 -- ============================================================================
@@ -330,7 +324,6 @@ SELECT
     '2026 Excel sales rows with blank Col G loaded as CASH (historical_status_assumed=TRUE)'::TEXT AS description
 FROM erp.sales_orders
 WHERE historical_status_assumed = TRUE
-  AND operational_status NOT IN ('CANCELLED', 'PENDING_PARTNER_APPROVAL')
 
 UNION ALL
 
@@ -344,7 +337,6 @@ FROM erp.sales_order_lines sol
 JOIN erp.sales_orders so ON so.order_id = sol.order_id
 JOIN erp.products p ON p.product_id = sol.product_id
 WHERE COALESCE(sol.unit_cost_snapshot_pen, p.ref_cost_pen) IS NULL
-  AND so.operational_status NOT IN ('CANCELLED', 'PENDING_PARTNER_APPROVAL')
 
 UNION ALL
 
@@ -403,5 +395,4 @@ SELECT
 FROM erp.sales_order_lines sol
 JOIN erp.sales_orders so ON so.order_id = sol.order_id
 WHERE sol.fulfillment_mode = 'ON_DEMAND'
-  AND sol.fulfillment_status = 'PENDING_SUPPLIER_PURCHASE'
-  AND so.operational_status NOT IN ('CANCELLED', 'PENDING_PARTNER_APPROVAL');
+  AND sol.fulfillment_status = 'PENDING_SUPPLIER_PURCHASE';
