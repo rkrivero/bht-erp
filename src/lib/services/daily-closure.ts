@@ -482,13 +482,16 @@ export async function saveDailyClosure(
 ): Promise<DailyClosureDraftResponse> {
   assertRole(actor, ["PARTNER_ADMIN", "PARTNER_MANAGER"]);
   const closureDate = validateClosureDateIso(input.closureDate);
-  const existingRes = await client.query<{ closure_id: string }>(
-    `SELECT closure_id FROM erp.daily_closures WHERE closure_date = $1::date FOR UPDATE`,
+  const existingRes = await client.query<{ closure_id: string; status: string }>(
+    `SELECT closure_id, status FROM erp.daily_closures WHERE closure_date = $1::date FOR UPDATE`,
     [closureDate]
   );
   const existingId = existingRes.rows[0]?.closure_id ?? null;
-  const correctionReason = input.correctionReason?.trim() ?? "";
-  if (existingId && !correctionReason) {
+  const existingStatus = existingRes.rows[0]?.status ?? null;
+  const correctionReason =
+    input.correctionReason?.trim() ||
+    (existingId && existingStatus !== "CLOSED" ? "Cierre tras reapertura del día" : "");
+  if (existingId && existingStatus === "CLOSED" && !correctionReason) {
     throw new ValidationError("Indica el motivo de la corrección del cierre");
   }
 
@@ -819,4 +822,62 @@ export async function saveDailyClosure(
     return getDailyClosureDraft(client, actor, closureDate);
   }
   return saved;
+}
+
+export async function reopenDailyClosure(
+  client: PoolClient,
+  actor: SessionUser,
+  input: { closureDate: string; reason: string }
+): Promise<DailyClosureDraftResponse> {
+  assertRole(actor, ["PARTNER_ADMIN", "PARTNER_MANAGER"]);
+  const closureDate = validateClosureDateIso(input.closureDate);
+  const reason = input.reason.trim();
+  if (reason.length < 3) {
+    throw new ValidationError("Indica el motivo para reabrir el día");
+  }
+
+  const existingRes = await client.query<{ closure_id: string; status: string }>(
+    `SELECT closure_id, status
+     FROM erp.daily_closures
+     WHERE closure_date = $1::date
+     FOR UPDATE`,
+    [closureDate]
+  );
+  const row = existingRes.rows[0];
+  if (!row || row.status !== "CLOSED") {
+    throw new ValidationError("No existe un cierre cerrado para esta fecha");
+  }
+
+  const beforeDraft = await getDailyClosureDraft(client, actor, closureDate);
+  await client.query(
+    `UPDATE erp.daily_closures
+     SET status = 'OPEN', updated_at = NOW()
+     WHERE closure_id = $1`,
+    [Number(row.closure_id)]
+  );
+  const afterDraft = await getDailyClosureDraft(client, actor, closureDate);
+
+  if (beforeDraft.existingClosure && afterDraft.existingClosure) {
+    await client.query(
+      `INSERT INTO erp.daily_closure_audit_log
+         (closure_id, actor_user_id, actor_role, reason, before_data, after_data)
+       VALUES ($1, $2, $3, $4, $5::jsonb, $6::jsonb)`,
+      [
+        Number(row.closure_id),
+        actor.userId,
+        actor.role,
+        `Reapertura del día: ${reason}`,
+        JSON.stringify({
+          closure: beforeDraft.existingClosure,
+          accounts: beforeDraft.accounts,
+        }),
+        JSON.stringify({
+          closure: afterDraft.existingClosure,
+          accounts: afterDraft.accounts,
+        }),
+      ]
+    );
+    return getDailyClosureDraft(client, actor, closureDate);
+  }
+  return afterDraft;
 }

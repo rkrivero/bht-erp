@@ -39,6 +39,9 @@ export default function CajaCierreTab({
   const [notesByAccount, setNotesByAccount] = useState<Record<number, string>>({});
   const [applyAdjustments, setApplyAdjustments] = useState(false);
   const [showOptionalCount, setShowOptionalCount] = useState(false);
+  const [reopening, setReopening] = useState(false);
+  const [showReopenBox, setShowReopenBox] = useState(false);
+  const [reopenReason, setReopenReason] = useState("");
   const [nextDayNotes, setNextDayNotes] = useState("");
   const [notes, setNotes] = useState("");
   const [correctionReason, setCorrectionReason] = useState("");
@@ -69,6 +72,8 @@ export default function CajaCierreTab({
     setNextDayNotes(next.existingClosure?.nextDayNotes ?? "");
     setNotes(next.existingClosure?.notes ?? "");
     setCorrectionReason("");
+    setShowReopenBox(false);
+    setReopenReason("");
     setDirty(false);
   }, []);
 
@@ -140,6 +145,42 @@ export default function CajaCierreTab({
     }
     setCountedByAccount(synced);
     setDirty(true);
+  }
+
+  async function handleReopenDay() {
+    if (!draft?.isClosed || reopening) return;
+    const reason = reopenReason.trim();
+    if (reason.length < 3) {
+      onFeedback("Indica el motivo para reabrir el día.", true);
+      return;
+    }
+    setReopening(true);
+    try {
+      const reopened = await fetchJson<DailyClosureDraftResponse>(
+        "/api/daily-closures",
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ closureDate, reason }),
+        }
+      );
+      setDraft(reopened);
+      hydrateFormFromDraft(reopened);
+      notifyLocalSync(["treasury", "partners"]);
+      onFeedback(
+        `Día ${formatDatePe(closureDate)} reabierto. Ya puedes registrar movimientos en esta fecha.`
+      );
+      await onRefresh();
+    } catch (err) {
+      onFeedback(
+        err instanceof ApiClientError
+          ? err.message
+          : "No se pudo reabrir el cierre del día.",
+        true
+      );
+    } finally {
+      setReopening(false);
+    }
   }
 
   async function handleSaveClosure(e: FormEvent) {
@@ -248,6 +289,16 @@ export default function CajaCierreTab({
                 Hoy
               </Button>
             )}
+            {draft?.isClosed && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setShowReopenBox((prev) => !prev)}
+              >
+                Reabrir día
+              </Button>
+            )}
             <Button
               variant="outline"
               size="sm"
@@ -258,6 +309,33 @@ export default function CajaCierreTab({
             </Button>
           </div>
         </div>
+
+        {draft?.isClosed && showReopenBox && (
+          <div className="rounded-xl border border-bht-amber-line bg-bht-amber-bg p-3 space-y-2 text-sm">
+            <FieldLabel htmlFor="cierre-reopen-reason">
+              Motivo para reabrir {formatDatePe(closureDate)}
+            </FieldLabel>
+            <div className="flex flex-wrap items-center gap-2">
+              <input
+                id="cierre-reopen-reason"
+                type="text"
+                value={reopenReason}
+                onChange={(e) => setReopenReason(e.target.value)}
+                placeholder="Ej. Faltaba registrar abonos o gastos de hoy"
+                className={`${INPUT_CLASS} min-w-[220px] flex-1 bg-white`}
+              />
+              <Button
+                type="button"
+                variant="primary"
+                size="sm"
+                disabled={reopening}
+                onClick={handleReopenDay}
+              >
+                {reopening ? "Reabriendo…" : "Confirmar reapertura"}
+              </Button>
+            </div>
+          </div>
+        )}
 
         {loading && !draft ? (
           <div className="py-8 text-center text-sm text-bht-ink-soft">

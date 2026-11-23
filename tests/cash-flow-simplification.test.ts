@@ -1,6 +1,9 @@
 import type { PoolClient } from "pg";
 import { describe, expect, it, vi } from "vitest";
-import { saveDailyClosureSchema } from "../src/lib/validation/daily-closures.schema";
+import {
+  reopenDailyClosureSchema,
+  saveDailyClosureSchema,
+} from "../src/lib/validation/daily-closures.schema";
 import { resolveActiveCashAccount } from "../src/lib/services/cash-account-resolver";
 import {
   getCashAccountFlowBreakdown,
@@ -177,5 +180,17 @@ describe("cash flow simplification contracts", () => {
       sold_skus_missing_cost_pen: 0,
     });
     expect(quality.latestDailyClosure?.varianceTotalPen).toBeNull();
+  });
+
+  it("validates reopenDailyClosureSchema with required reason", () => {
+    expect(
+      reopenDailyClosureSchema.parse({
+        closureDate: "2026-11-22",
+        reason: "Faltan abonos",
+      })
+    ).toEqual({ closureDate: "2026-11-22", reason: "Faltan abonos" });
+    expect(() =>
+      reopenDailyClosureSchema.parse({ closureDate: "2026-11-22", reason: "" })
+    ).toThrow();
   });
 });

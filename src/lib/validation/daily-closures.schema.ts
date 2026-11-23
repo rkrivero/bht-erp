@@ -35,3 +35,8 @@ export const saveDailyClosureSchema = z.object({
   notes: z.string().nullable().optional(),
   correctionReason: z.string().nullable().optional(),
 });
+
+export const reopenDailyClosureSchema = z.object({
+  closureDate: z.string().trim().min(10, "Fecha de cierre inválida"),
+  reason: z.string().trim().min(3, "Indica el motivo para reabrir el día"),
+});

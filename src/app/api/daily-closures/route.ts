@@ -2,8 +2,15 @@ import { NextRequest, NextResponse } from "next/server";
 import { withAuthenticatedClient, withAuthenticatedTransaction } from "@/lib/auth";
 import { resolveHttpError } from "@/lib/http-errors";
 import { runIdempotentMutation } from "@/lib/idempotency";
-import { getDailyClosureDraft, saveDailyClosure } from "@/lib/services/daily-closure";
-import { saveDailyClosureSchema } from "@/lib/validation/daily-closures.schema";
+import {
+  getDailyClosureDraft,
+  reopenDailyClosure,
+  saveDailyClosure,
+} from "@/lib/services/daily-closure";
+import {
+  reopenDailyClosureSchema,
+  saveDailyClosureSchema,
+} from "@/lib/validation/daily-closures.schema";
 import { parseBody, readRawJsonBody } from "@/lib/validation/parse";
 
 export const dynamic = "force-dynamic";
@@ -71,6 +78,41 @@ export async function POST(req: NextRequest) {
       err,
       "Error guardando cierre diario",
       "POST /api/daily-closures"
+    );
+    return NextResponse.json(payload, { status, headers: NO_STORE_HEADERS });
+  }
+}
+
+export async function PATCH(req: NextRequest) {
+  try {
+    const rawBody = await readRawJsonBody(req);
+
+    const result = await withAuthenticatedTransaction(
+      req,
+      [...CLOSURE_ROLES],
+      async (client, actor) => {
+        const body = parseBody(reopenDailyClosureSchema, rawBody);
+        return runIdempotentMutation(
+          client,
+          req,
+          actor,
+          "treasury:daily_closure_reopen",
+          body,
+          () =>
+            reopenDailyClosure(client, actor, {
+              closureDate: body.closureDate,
+              reason: body.reason,
+            })
+        );
+      }
+    );
+
+    return NextResponse.json(result, { headers: NO_STORE_HEADERS });
+  } catch (err) {
+    const { status, ...payload } = resolveHttpError(
+      err,
+      "Error reabriendo cierre diario",
+      "PATCH /api/daily-closures"
     );
     return NextResponse.json(payload, { status, headers: NO_STORE_HEADERS });
   }
