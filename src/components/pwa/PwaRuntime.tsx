@@ -2,14 +2,28 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
 import {
   getOfflineCausalKey,
   listOutbox,
   OUTBOX_EVENT,
   putOutboxMutation,
 } from "@/lib/offline/outbox";
-import type { OfflineMutation } from "@/lib/offline/types";
+import type { OfflineMutation, OfflineMutationKind } from "@/lib/offline/types";
+import type { SyncScope } from "@/lib/realtime/types";
+import { notifyLocalSync } from "@/lib/realtime/useLiveSync";
+
+function scopesForOutboxKind(kind: OfflineMutationKind): SyncScope[] {
+  if (kind === "ORDER_CREATE") {
+    return ["orders", "inventory", "collections", "treasury", "partners"];
+  }
+  if (kind === "COLLECTION") {
+    return ["collections", "orders", "treasury", "partners"];
+  }
+  if (kind === "ROUTE_EXPENSE") {
+    return ["treasury", "partners"];
+  }
+  return ["orders", "inventory", "partners"];
+}
 
 interface RuntimeState {
   online: boolean;
@@ -28,7 +42,6 @@ const INITIAL_STATE: RuntimeState = {
 const OFFLINE_WARM_ROUTES = ["/vendedor", "/almacen"] as const;
 
 export default function PwaRuntime() {
-  const pathname = usePathname();
   const [state, setState] = useState<RuntimeState>(INITIAL_STATE);
   const processingRef = useRef(false);
 
@@ -95,13 +108,37 @@ export default function PwaRuntime() {
               errorCode: undefined,
               entityRef: undefined,
             });
+            notifyLocalSync(scopesForOutboxKind(item.kind));
             continue;
           }
-          if (response.status === 401 || response.status === 403) {
+          if (response.status === 401) {
             await putOutboxMutation({
               ...item,
               status: "pending",
               lastError: "Inicia sesión para sincronizar esta operación",
+            });
+            break;
+          }
+          if (response.status === 403) {
+            await putOutboxMutation({
+              ...item,
+              status: "conflict",
+              lastError:
+                payload.error ||
+                "Permiso denegado o sesión de otro usuario en este equipo",
+              conflictCode: payload.code || "FORBIDDEN",
+              errorCode: payload.code || "FORBIDDEN",
+              entityRef: payload.entityRef,
+              causalKey,
+            });
+            blockedChains.add(causalKey);
+            continue;
+          }
+          if (response.status >= 500 || response.status === 429) {
+            await putOutboxMutation({
+              ...item,
+              status: "pending",
+              lastError: "Error temporal del servidor; se reintentará automáticamente",
             });
             break;
           }
@@ -179,7 +216,7 @@ export default function PwaRuntime() {
       window.removeEventListener("focus", onResume);
       document.removeEventListener("visibilitychange", onResume);
     };
-  }, [pathname, processOutbox, refreshCounts]);
+  }, [processOutbox, refreshCounts]);
 
   const visible =
     !state.online || state.pending > 0 || state.conflicts > 0 || state.syncing;

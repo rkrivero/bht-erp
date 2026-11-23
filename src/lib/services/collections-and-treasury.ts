@@ -226,7 +226,7 @@ export async function registerOrderPayment(
       await client.query(
         `UPDATE erp.sales_orders
          SET promised_payment_date = $1,
-             due_date = $1
+             due_date = COALESCE(due_date, $1)
          WHERE order_id = $2`,
         [nextPromised, input.orderId]
       );
@@ -549,6 +549,7 @@ export async function getOrderPaymentTimeline(
      FROM erp.ar_payments p
      LEFT JOIN erp.app_users u ON u.user_id = p.collected_by_user_id
      WHERE p.order_id = $1
+       AND p.voided_at IS NULL
      ORDER BY p.payment_date ASC, p.ar_payment_id ASC`,
     [orderId]
   );
@@ -858,6 +859,10 @@ export async function updateProductStockAndPricing(
     if (input.physicalStock < 0) {
       throw new ValidationError("El stock físico no puede ser negativo");
     }
+    await client.query(
+      `SELECT product_id FROM erp.products WHERE product_id = $1 FOR UPDATE`,
+      [input.productId]
+    );
     const stockRes = await client.query(
       `SELECT COALESCE(stock_on_hand, 0) AS stock_on_hand
        FROM erp.v_current_stock

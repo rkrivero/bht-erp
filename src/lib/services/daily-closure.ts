@@ -490,6 +490,9 @@ export async function saveDailyClosure(
 ): Promise<DailyClosureDraftResponse> {
   assertRole(actor, ["PARTNER_ADMIN", "PARTNER_MANAGER"]);
   const closureDate = validateClosureDateIso(input.closureDate);
+  await client.query(`SELECT pg_advisory_xact_lock(hashtext('daily_closure:' || $1))`, [
+    closureDate,
+  ]);
   const existingRes = await client.query<{ closure_id: string; status: string }>(
     `SELECT closure_id, status FROM erp.daily_closures WHERE closure_date = $1::date FOR UPDATE`,
     [closureDate]

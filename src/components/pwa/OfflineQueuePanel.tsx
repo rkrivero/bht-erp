@@ -106,7 +106,9 @@ export default function OfflineQueuePanel() {
     }
     setBusyId(id);
     try {
-      await updateAndRetryOutboxMutation(id, parsed as Record<string, unknown>);
+      await updateAndRetryOutboxMutation(id, parsed as Record<string, unknown>, {
+        replaceBody: true,
+      });
       setEditingId(null);
       await refresh();
     } finally {

@@ -367,6 +367,10 @@ export async function createOrder(
   if (input.paymentMode === "CREDIT") {
     let agreedCreditDays: number | null = null;
     if (input.customerPartyId) {
+      await client.query(
+        `SELECT party_id FROM erp.parties WHERE party_id = $1 FOR UPDATE`,
+        [input.customerPartyId]
+      );
       const partyCreditRes = await client.query<{
         credit_days_agreed: number | null;
         credit_limit_pen: string | number | null;
@@ -1113,11 +1117,17 @@ export async function updateOrder(
   const productIds = Array.from(
     new Set(input.lines.map((line) => Number(line.productId)))
   ).sort((a, b) => a - b);
+  const lockProductIds = Array.from(
+    new Set([
+      ...productIds,
+      ...beforeLines.rows.map((r) => Number(r.product_id)).filter(Number.isFinite),
+    ])
+  ).sort((a, b) => a - b);
   await client.query(
     `SELECT product_id FROM erp.products
      WHERE product_id = ANY($1::bigint[])
      ORDER BY product_id FOR UPDATE`,
-    [productIds]
+    [lockProductIds]
   );
   const products = await client.query(
     `SELECT p.product_id, p.sku, p.name,
@@ -1217,6 +1227,57 @@ export async function updateOrder(
     );
   }
 
+  let creditLimitExceededFlag = false;
+  if (String(order.payment_mode) === "CREDIT" && order.customer_party_id !== null) {
+    const customerId = Number(order.customer_party_id);
+    await client.query(
+      `SELECT party_id FROM erp.parties WHERE party_id = $1 FOR UPDATE`,
+      [customerId]
+    );
+    const partyCreditRes = await client.query<{
+      credit_limit_pen: string | number | null;
+      open_ar_balance_pen: string | number;
+    }>(
+      `SELECT
+         pa.credit_limit_pen,
+         COALESCE((
+           SELECT SUM(so.balance_due_pen)
+           FROM erp.sales_orders so
+           WHERE so.customer_party_id = pa.party_id
+             AND so.order_id <> $2
+             AND so.is_settled = FALSE
+             AND so.balance_due_pen > 0.05
+             AND so.operational_status NOT IN ('CANCELLED', 'PENDING_PARTNER_APPROVAL')
+         ), 0)::NUMERIC(14,2) AS open_ar_balance_pen
+       FROM erp.parties pa
+       WHERE pa.party_id = $1
+       LIMIT 1`,
+      [customerId, orderId]
+    );
+    const partyRow = partyCreditRes.rows[0];
+    if (
+      partyRow?.credit_limit_pen !== null &&
+      partyRow?.credit_limit_pen !== undefined &&
+      Number(partyRow.credit_limit_pen) > 0
+    ) {
+      const creditLimitPen = Number(partyRow.credit_limit_pen);
+      const openArBalancePen = Number(partyRow.open_ar_balance_pen ?? 0);
+      const orderCreditExposure = Math.max(
+        0,
+        Number((totalPen - Number(order.paid_pen ?? 0)).toFixed(2))
+      );
+      const projectedBalancePen = Number(
+        (openArBalancePen + orderCreditExposure).toFixed(2)
+      );
+      if (projectedBalancePen > creditLimitPen + 0.005) {
+        creditLimitExceededFlag = true;
+        if (!isPartnerRole(actor.role)) {
+          requiresApproval = true;
+        }
+      }
+    }
+  }
+
   if (order.stock_deducted) {
     await client.query(
       `INSERT INTO erp.inventory_movements (
@@ -1250,9 +1311,21 @@ export async function updateOrder(
     orderId,
   ]);
 
+  const postReversalStockRes = await client.query<{
+    product_id: string | number;
+    stock_on_hand: string | number;
+  }>(
+    `SELECT product_id, COALESCE(stock_on_hand, 0) AS stock_on_hand
+     FROM erp.v_current_stock
+     WHERE warehouse_id = $1 AND product_id = ANY($2::bigint[])`,
+    [Number(order.warehouse_id), productIds]
+  );
   const available = new Map<number, number>();
+  for (const row of postReversalStockRes.rows) {
+    available.set(Number(row.product_id), Number(row.stock_on_hand ?? 0));
+  }
   for (const line of prepared) {
-    if (!available.has(line.productId)) available.set(line.productId, line.stockOnHand);
+    if (!available.has(line.productId)) available.set(line.productId, 0);
   }
   for (const line of prepared) {
     const stock = available.get(line.productId) ?? 0;
@@ -1290,6 +1363,7 @@ export async function updateOrder(
   await client.query(
     `UPDATE erp.sales_orders
      SET total_pen = $1, global_discount_pen = $7, operational_status = $2, stock_deducted = FALSE,
+         credit_limit_exceeded_flag = $8,
          trip_id = NULL, picked_by_user_id = NULL, picked_at = NULL,
          approved_by_user_id = $3, approved_at = $4,
          notes = COALESCE(notes || ' | ', '') || $5
@@ -1302,6 +1376,7 @@ export async function updateOrder(
       `MODIFICADO: ${reason}`,
       orderId,
       globalDiscountPen,
+      creditLimitExceededFlag,
     ]
   );
 

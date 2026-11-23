@@ -184,22 +184,22 @@ export async function retryOutboxMutation(id: string): Promise<OfflineMutation |
 
 export async function updateAndRetryOutboxMutation(
   id: string,
-  nextPayload: Record<string, unknown>
+  nextPayload: Record<string, unknown>,
+  options?: { replaceBody?: boolean }
 ): Promise<OfflineMutation | null> {
   const items = await listOutbox();
   const existing = items.find((item) => item.id === id);
   if (!existing) return null;
 
-  const regenerate = shouldRegenerateIdempotencyKey(existing);
-  const nextId = regenerate ? crypto.randomUUID() : existing.id;
-  if (regenerate) {
-    await deleteOutboxMutation(existing.id);
-  }
+  const nextId = crypto.randomUUID();
+  await deleteOutboxMutation(existing.id);
 
-  const nextBody: Record<string, unknown> = {
-    ...existing.body,
-    ...nextPayload,
-  };
+  const nextBody: Record<string, unknown> = options?.replaceBody
+    ? { ...nextPayload }
+    : {
+        ...existing.body,
+        ...nextPayload,
+      };
 
   const updated: OfflineMutation = {
     ...existing,

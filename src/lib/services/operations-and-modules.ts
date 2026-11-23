@@ -1525,7 +1525,7 @@ export async function convertQuoteToOrder(
       paymentAccountId: input.paymentAccountId,
       tripId: input.tripId ?? null,
       quoteId,
-      orderDate: quote.issue_date,
+      orderDate: getLimaDateString(0),
       initialOperationalStatus: "DELIVERED",
       globalDiscountPen: Number(quote.global_discount_pen ?? 0),
       notes:

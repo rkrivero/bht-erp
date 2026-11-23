@@ -12,6 +12,7 @@ import {
   parsePositiveInt,
   type SessionUser,
 } from "../types";
+import { resolveActiveCashAccount } from "./cash-account-resolver";
 import { getNumericSetting } from "./settings";
 
 export const NON_ADMIN_UNDO_WINDOW_SECONDS = 900; // 15 minutes
@@ -778,7 +779,14 @@ export async function executeUndoAction(
         const amt = Number(vp.amountPen ?? 0);
         if (!Number.isFinite(amt) || amt <= 0) continue;
         let refDoc: string | null = null;
+        let resolvedAccountId: number | null = null;
         if (vp.accountId !== null && vp.accountId !== undefined) {
+          const resolvedAccount = await resolveActiveCashAccount(
+            client,
+            actor,
+            Number(vp.accountId)
+          );
+          resolvedAccountId = resolvedAccount.accountId;
           const led = await client.query<{ ledger_id: string }>(
             `INSERT INTO erp.cash_ledger (
                tx_date, account_id, party_id, direction, amount_pen,
@@ -790,7 +798,7 @@ export async function executeUndoAction(
                $5, 'ERP_APP', $6
              ) RETURNING ledger_id::text AS ledger_id`,
             [
-              Number(vp.accountId),
+              resolvedAccountId,
               order.customer_party_id !== null ? Number(order.customer_party_id) : null,
               amt,
               String(orderId),
@@ -807,21 +815,20 @@ export async function executeUndoAction(
              source_origin, notes
            ) VALUES (
              $1,
-             COALESCE($2::date, (NOW() AT TIME ZONE 'America/Lima')::date),
-             $3,
-             $4::erp.payment_mode,
+             (NOW() AT TIME ZONE 'America/Lima')::date,
+             $2,
+             $3::erp.payment_mode,
+             $4,
              $5,
              $6,
-             $7,
              'ERP_APP',
-             $8
+             $7
            )`,
           [
             orderId,
-            vp.paymentDate || null,
             amt,
             vp.paymentMode || "CASH",
-            vp.accountId ?? null,
+            resolvedAccountId,
             refDoc,
             vp.collectedByUserId ?? actor.userId,
             vp.notes
