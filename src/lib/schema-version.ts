@@ -1,7 +1,7 @@
 import type { PoolClient } from "pg";
 
 export const REQUIRED_SCHEMA_VERSION =
-  "029_simplify_cash_accounts_and_optional_closure_count";
+  "030_harden_analytics_views_settings_and_closure_defaults";
 
 const COMPATIBLE_SCHEMA_VERSIONS = [REQUIRED_SCHEMA_VERSION] as const;
 

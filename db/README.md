@@ -7,7 +7,7 @@ esquema, los procesos ETL y su historial de checksums es el repositorio hermano
 Versión mínima requerida por esta aplicación:
 
 ```text
-029_simplify_cash_accounts_and_optional_closure_count
+030_harden_analytics_views_settings_and_closure_defaults
 ```
 
 Flujo de despliegue:
