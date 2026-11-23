@@ -287,6 +287,10 @@ export async function getDailyClosureDraft(
              AND NOT cl.is_reversal
              AND cl.expense_category <> 'CONCILIACION_SALDO'
              AND cl.expense_bucket IN ('ROUTE_OPEX', 'ADMIN_OPEX', 'NON_OPEX_OR_CAPEX')
+             AND NOT EXISTS (
+               SELECT 1 FROM erp.cash_ledger rev
+               WHERE rev.reversal_of_ledger_id = cl.ledger_id
+             )
          ), 0),
          'deposits_total_pen', COALESCE((
            SELECT SUM(cl.amount_pen)::numeric(14,2)
@@ -295,6 +299,10 @@ export async function getDailyClosureDraft(
              AND cl.direction = 'OUT'
              AND cl.is_internal_transfer
              AND NOT cl.is_reversal
+             AND NOT EXISTS (
+               SELECT 1 FROM erp.cash_ledger rev
+               WHERE rev.reversal_of_ledger_id = cl.ledger_id
+             )
          ), 0)
        ) AS day_summary,
        (SELECT row_to_json(existing) FROM existing) AS existing_closure,
@@ -543,9 +551,9 @@ export async function saveDailyClosure(
          FROM erp.cash_ledger cl
          WHERE cl.account_id = ca.account_id
            AND cl.tx_date <= $1::date
-           AND NOT (cl.reference_table = 'erp.daily_closures'
+           AND ($3::text IS NULL OR NOT (cl.reference_table = 'erp.daily_closures'
                     AND cl.reference_id = $3::text
-                    AND cl.expense_category = 'CONCILIACION_SALDO')
+                    AND cl.expense_category = 'CONCILIACION_SALDO'))
        ), 0)::numeric(14,2) AS system_balance_pen
      FROM erp.cash_accounts ca
      WHERE ca.is_active = TRUE

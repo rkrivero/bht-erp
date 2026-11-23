@@ -703,8 +703,19 @@ async function queryResumen(
       collectionClauses.push(`so.created_by_user_id = ${pb.add(filters.sellerId)}`);
     }
 
-    const cashClauses: string[] = ["cl.tx_date >= DATE '2026-06-26'"];
-    const preRouteClauses: string[] = ["cl.tx_date < DATE '2026-06-26'"];
+    const activeCashGuards = [
+      "NOT cl.is_reversal",
+      "cl.expense_category <> 'CONCILIACION_SALDO'",
+      "NOT EXISTS (SELECT 1 FROM erp.cash_ledger rev WHERE rev.reversal_of_ledger_id = cl.ledger_id)",
+    ];
+    const cashClauses: string[] = [
+      "cl.tx_date >= DATE '2026-06-26'",
+      ...activeCashGuards,
+    ];
+    const preRouteClauses: string[] = [
+      "cl.tx_date < DATE '2026-06-26'",
+      ...activeCashGuards,
+    ];
     if (filters.from) {
       const pFrom = pb.add(filters.from);
       cashClauses.push(`cl.tx_date >= ${pFrom}::date`);
@@ -1204,6 +1215,12 @@ async function queryCajaCxp(
          )
          FROM erp.cash_ledger cl
          WHERE ${periodCond}
+           AND NOT cl.is_reversal
+           AND cl.expense_category <> 'CONCILIACION_SALDO'
+           AND NOT EXISTS (
+             SELECT 1 FROM erp.cash_ledger rev
+             WHERE rev.reversal_of_ledger_id = cl.ledger_id
+           )
        ) AS period_cash_mix`,
     pb.params
   );
@@ -1402,14 +1419,16 @@ async function queryCartera(
      ),
      dso_sales AS (
        SELECT
-         COALESCE(SUM(so.total_pen), 0)::numeric(14,2) AS ref_sales_pen,
+         COALESCE(SUM(s.total_pen), 0)::numeric(14,2) AS ref_sales_pen,
          GREATEST(1, (dw.win_end - dw.win_start + 1))::int AS ref_days
        FROM dso_window dw
-       LEFT JOIN erp.sales_orders so
-         ON so.order_date BETWEEN dw.win_start AND dw.win_end
-        AND ${refClauses.join(" AND ")}
-       LEFT JOIN erp.parties pa ON pa.party_id = so.customer_party_id
-       LEFT JOIN erp.route_trips rt ON rt.trip_id = so.trip_id
+       LEFT JOIN (
+         SELECT so.order_date, so.total_pen
+         FROM erp.sales_orders so
+         LEFT JOIN erp.parties pa ON pa.party_id = so.customer_party_id
+         LEFT JOIN erp.route_trips rt ON rt.trip_id = so.trip_id
+         WHERE ${refClauses.join(" AND ")}
+       ) s ON s.order_date BETWEEN dw.win_start AND dw.win_end
        GROUP BY dw.win_end, dw.win_start
      )
      SELECT

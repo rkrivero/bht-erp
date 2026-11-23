@@ -745,12 +745,25 @@ export async function createCustomer(
  *   isActive or alter legal_name / genuine document once the customer has sales orders.
  * - PARTNER_ADMIN / PARTNER_MANAGER: full master-data control.
  */
+export interface WarehouseCustomerProjection {
+  party_id: number;
+  display_name: string;
+  address: string | null;
+  city_zone: string | null;
+  notes: string | null;
+  geo_lat: number | null;
+  geo_lng: number | null;
+  geo_accuracy_m: number | null;
+  geo_updated_at: string | null;
+  is_active: boolean;
+}
+
 export async function updateCustomer(
   client: PoolClient,
   actor: SessionUser,
   partyIdInput: unknown,
   input: UpdateCustomerInput
-): Promise<{ customer: CustomerDirectoryItem }> {
+): Promise<{ customer: CustomerDirectoryItem | WarehouseCustomerProjection }> {
   assertRole(actor, [
     "PARTNER_ADMIN",
     "PARTNER_MANAGER",
@@ -984,6 +997,22 @@ export async function updateCustomer(
     const updated = await fetchCustomerById(client, partyId);
     if (!updated) {
       throw new ValidationError("No se pudo recuperar el cliente actualizado");
+    }
+    if (actor.role === "WAREHOUSE_DELIVERY") {
+      return {
+        customer: {
+          party_id: updated.party_id,
+          display_name: updated.display_name,
+          address: updated.address,
+          city_zone: updated.city_zone,
+          notes: updated.notes,
+          geo_lat: updated.geo_lat,
+          geo_lng: updated.geo_lng,
+          geo_accuracy_m: updated.geo_accuracy_m,
+          geo_updated_at: updated.geo_updated_at,
+          is_active: updated.is_active,
+        },
+      };
     }
     return { customer: updated };
   } catch (err) {

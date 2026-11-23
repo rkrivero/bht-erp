@@ -3,7 +3,6 @@
 import React, { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { authClient } from "@/lib/auth/client";
 import AuthCardShell from "@/components/auth/AuthCardShell";
 import { EyeIcon, EyeOffIcon, LockIcon } from "@/components/ui/Icons";
 import {
@@ -40,6 +39,7 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
+      const { authClient } = await import("@/lib/auth/client");
       const result = await authClient.signIn.email({
         email: email.trim().toLowerCase(),
         password,

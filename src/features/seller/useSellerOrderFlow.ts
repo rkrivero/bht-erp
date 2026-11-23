@@ -259,16 +259,16 @@ export function useSellerOrderFlow({
   }
 
   function findActiveAccId(code: string): number | null {
-    const match = sellerAccounts.find(
-      (acc) => acc.code === code && acc.is_active !== false
-    );
-    return match ? Number(match.account_id) : null;
+    const m = sellerAccounts.find((a) => a.code === code && a.is_active !== false);
+    return m ? Number(m.account_id) : null;
   }
 
   function handleSelectPaymentMode(mode: SellerPaymentMode) {
     setPaymentMode(mode);
-    if (mode === "YAPE_PLIN" || mode === "TRANSFER") setCollectOnDelivery(false);
-    else if (mode === "CASH") {
+    if (mode === "YAPE_PLIN" || mode === "TRANSFER") {
+      setCollectOnDelivery(false);
+      if (mode === "TRANSFER") setPaymentAccountId(null);
+    } else if (mode === "CASH") {
       setCollectOnDelivery(true);
       setPaymentAccountId(findActiveAccId("CAJA_RUTA"));
     } else if (mode === "CREDIT") setPaymentAccountId(null);

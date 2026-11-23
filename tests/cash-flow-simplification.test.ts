@@ -236,4 +236,21 @@ describe("cash flow simplification contracts", () => {
       );
     }
   });
+
+  it("excludes reversed originals and CONCILIACION_SALDO in cash flow summary SQL", async () => {
+    const query = vi
+      .fn()
+      .mockResolvedValueOnce({ rowCount: 1, rows: [] })
+      .mockResolvedValueOnce({ rowCount: 0, rows: [] });
+    const client = { query } as unknown as PoolClient;
+    await getCashFlowSummary(client);
+    await getCashAccountFlowBreakdown(client);
+
+    const summarySql = String(query.mock.calls[0]?.[0] ?? "");
+    const breakdownSql = String(query.mock.calls[1]?.[0] ?? "");
+    for (const sql of [summarySql, breakdownSql]) {
+      expect(sql).toContain("CONCILIACION_SALDO");
+      expect(sql).toContain("reversal_of_ledger_id");
+    }
+  });
 });

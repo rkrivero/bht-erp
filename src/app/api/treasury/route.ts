@@ -64,7 +64,7 @@ function buildLedgerWhere(partnerAccess: boolean, accountId: number | null) {
   const params: unknown[] = [partnerAccess];
   if (!partnerAccess) {
     conditions.push(
-      "cl.expense_bucket = 'ROUTE_OPEX' AND cl.source_origin = 'ERP_APP'"
+      "cl.expense_bucket = 'ROUTE_OPEX' AND cl.source_origin = 'ERP_APP' AND ca.account_type <> 'PARTNER_CUSTODY'"
     );
   }
   if (accountId !== null) {
@@ -109,6 +109,7 @@ export async function GET(req: NextRequest) {
           const countRes = await client.query<{ total_count: number }>(
             `SELECT COUNT(*)::int AS total_count
              FROM erp.cash_ledger cl
+             JOIN erp.cash_accounts ca ON ca.account_id = cl.account_id
              ${whereSql}`,
             params
           );
@@ -192,8 +193,10 @@ export async function GET(req: NextRequest) {
           suppliers: [],
         };
 
-        const cashFlowSummary = await getCashFlowSummary(client);
-        const accountFlowMap = await getCashAccountFlowBreakdown(client);
+        const cashFlowSummary = partnerAccess ? await getCashFlowSummary(client) : null;
+        const accountFlowMap = partnerAccess
+          ? await getCashAccountFlowBreakdown(client)
+          : null;
 
         return {
           cashFlowSummary,
@@ -216,12 +219,18 @@ export async function GET(req: NextRequest) {
           })),
           accounts: (bundle.accounts ?? []).map((r) => {
             const accountId = Number(r.account_id);
-            const flow = accountFlowMap.get(accountId);
-            return {
+            const baseAccount = {
               account_id: accountId,
               code: String(r.code),
               name: String(r.name),
               account_type: String(r.account_type),
+            };
+            if (!partnerAccess || !accountFlowMap) {
+              return baseAccount;
+            }
+            const flow = accountFlowMap.get(accountId);
+            return {
+              ...baseAccount,
               current_balance_pen: Number(r.current_balance_pen ?? 0),
               dayInPen: flow?.dayInPen ?? 0,
               dayOutPen: flow?.dayOutPen ?? 0,

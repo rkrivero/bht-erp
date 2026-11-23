@@ -55,6 +55,11 @@ export async function getCashFlowSummary(
       AND cl.tx_date <= lb.today_date
       AND NOT cl.is_internal_transfer
       AND NOT cl.is_reversal
+      AND cl.expense_category <> 'CONCILIACION_SALDO'
+      AND NOT EXISTS (
+        SELECT 1 FROM erp.cash_ledger rev
+        WHERE rev.reversal_of_ledger_id = cl.ledger_id
+      )
      GROUP BY lb.today_date`
   );
 
@@ -119,6 +124,11 @@ export async function getCashAccountFlowBreakdown(
      WHERE cl.tx_date >= lb.month_start
        AND cl.tx_date <= lb.today_date
        AND NOT cl.is_reversal
+       AND cl.expense_category <> 'CONCILIACION_SALDO'
+       AND NOT EXISTS (
+         SELECT 1 FROM erp.cash_ledger rev
+         WHERE rev.reversal_of_ledger_id = cl.ledger_id
+       )
      GROUP BY cl.account_id`
   );
 

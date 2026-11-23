@@ -16,7 +16,7 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "test": "vitest run",
-    "test:ci": "vitest run tests/api-client.test.ts tests/caja-utils.test.ts tests/cash-flow-simplification.test.ts tests/geo-and-customers.test.ts tests/idempotency-unit.test.ts tests/inventory-summary.test.ts tests/navigation.test.ts tests/offline-causal.test.ts tests/product-matching.test.ts tests/pwa-build.test.ts tests/rbac-and-auth.test.ts tests/reportes-utils.test.ts tests/seller-order-draft-reducer.test.ts tests/xlsx-writer.test.ts",
+    "test:ci": "vitest run tests/api-client.test.ts tests/auth-and-sync-unit.test.ts tests/caja-utils.test.ts tests/cash-flow-simplification.test.ts tests/geo-and-customers.test.ts tests/idempotency-unit.test.ts tests/inventory-summary.test.ts tests/navigation.test.ts tests/offline-causal.test.ts tests/product-matching.test.ts tests/pwa-build.test.ts tests/rbac-and-auth.test.ts tests/reportes-utils.test.ts tests/seller-order-draft-reducer.test.ts tests/xlsx-writer.test.ts",
     "test:e2e": "playwright test",
     "test:a11y": "playwright test tests/e2e/accessibility.spec.ts",
     "audit:lighthouse": "lighthouse http://127.0.0.1:3000/login --only-categories=performance,accessibility,best-practices --output=html --output-path=.lighthouse/login.html"

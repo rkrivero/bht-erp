@@ -126,7 +126,10 @@ export async function GET(req: NextRequest) {
                    ca.code,
                    ca.name,
                    ca.account_type,
-                   COALESCE(ab.current_balance_pen, 0)::NUMERIC(14,2) AS current_balance_pen
+                   CASE
+                     WHEN $1::boolean THEN COALESCE(ab.current_balance_pen, 0)::NUMERIC(14,2)
+                     ELSE NULL
+                   END AS current_balance_pen
                  FROM erp.cash_accounts ca
                  LEFT JOIN account_balances ab ON ab.account_id = ca.account_id
                  WHERE ca.is_active = TRUE
