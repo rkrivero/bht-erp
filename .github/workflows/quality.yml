@@ -28,3 +28,4 @@ jobs:
           tests/test_027_sequences_and_locks.py::test_migration_027_declares_sql_contracts
           tests/test_028_stock_quants_and_settings.py::test_migration_028_declares_sql_contracts
           tests/test_029_cash_simplification.py::test_migration_029_declares_sql_contracts
+          tests/test_etl_safety.py

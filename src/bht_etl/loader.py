@@ -105,7 +105,7 @@ def load_to_neon(
             main_wh_id = wh_map["MAIN"]
             camioneta_wh_id = wh_map["CAMIONETA_01"]
 
-            cur.execute("SELECT code, account_id FROM erp.cash_accounts;")
+            cur.execute("SELECT code, account_id FROM erp.cash_accounts WHERE is_active = TRUE;")
             acct_map = dict(cur.fetchall())
             caja_ruta_id = acct_map["CAJA_RUTA"]
             interbank_id = acct_map["INTERBANK_BHT"]
@@ -299,13 +299,8 @@ def _upsert_products_and_aliases(cur: Any, ds: NormalizedDataset) -> dict[str, i
             (sku, name, category, unit_of_measure, fulfillment_mode, list_sale_price_pen, ref_cost_pen, cost_source, source_origin)
         VALUES (%s, %s, %s, %s, %s::erp.fulfillment_mode, %s, %s, %s, 'HISTORICAL_BACKFILL')
         ON CONFLICT (sku) DO UPDATE SET
-            name = EXCLUDED.name,
-            category = EXCLUDED.category,
-            unit_of_measure = EXCLUDED.unit_of_measure,
-            fulfillment_mode = EXCLUDED.fulfillment_mode,
-            list_sale_price_pen = EXCLUDED.list_sale_price_pen,
-            ref_cost_pen = COALESCE(EXCLUDED.ref_cost_pen, erp.products.ref_cost_pen),
-            cost_source = CASE WHEN EXCLUDED.ref_cost_pen IS NOT NULL THEN EXCLUDED.cost_source ELSE erp.products.cost_source END,
+            ref_cost_pen = COALESCE(erp.products.ref_cost_pen, EXCLUDED.ref_cost_pen),
+            cost_source = COALESCE(erp.products.cost_source, EXCLUDED.cost_source),
             updated_at = NOW();
         """,
         [
@@ -346,13 +341,12 @@ def _upsert_parties_and_aliases(cur: Any, ds: NormalizedDataset) -> dict[str, in
         ON CONFLICT (canonical_key) DO UPDATE SET
             party_type = CASE
                 WHEN erp.parties.party_type <> EXCLUDED.party_type THEN 'BOTH'::erp.party_type
-                ELSE EXCLUDED.party_type
+                ELSE erp.parties.party_type
             END,
-            legal_name = EXCLUDED.legal_name,
-            trade_name = COALESCE(EXCLUDED.trade_name, erp.parties.trade_name),
-            phone = COALESCE(EXCLUDED.phone, erp.parties.phone),
-            email = COALESCE(EXCLUDED.email, erp.parties.email),
-            address = COALESCE(EXCLUDED.address, erp.parties.address),
+            trade_name = COALESCE(erp.parties.trade_name, EXCLUDED.trade_name),
+            phone = COALESCE(erp.parties.phone, EXCLUDED.phone),
+            email = COALESCE(erp.parties.email, EXCLUDED.email),
+            address = COALESCE(erp.parties.address, EXCLUDED.address),
             updated_at = NOW();
         """,
         [
@@ -397,11 +391,7 @@ def _upsert_route_trips(
              source_origin, source_sheet, notes)
         VALUES (%s, %s, %s, 'MADRE DE DIOS / LABERINTO / PUERTO', 'SAMUEL / RENZO', %s, %s,
                 %s::erp.trip_status, %s, %s, %s, 'HISTORICAL_BACKFILL', %s, %s)
-        ON CONFLICT (trip_code) DO UPDATE SET
-            declared_gross_sales_pen = COALESCE(EXCLUDED.declared_gross_sales_pen, erp.route_trips.declared_gross_sales_pen),
-            declared_route_opex_pen = COALESCE(EXCLUDED.declared_route_opex_pen, erp.route_trips.declared_route_opex_pen),
-            declared_net_cash_pen = COALESCE(EXCLUDED.declared_net_cash_pen, erp.route_trips.declared_net_cash_pen),
-            status = EXCLUDED.status;
+        ON CONFLICT (trip_code) DO NOTHING;
         """,
         [
             (
@@ -472,11 +462,7 @@ def _load_purchases_and_stock_in(
                  source_origin, source_file, raw_notes)
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
                     %s::erp.expense_bucket, %s, %s, %s, 'HISTORICAL_BACKFILL', %s, %s)
-            ON CONFLICT (supplier_ruc, doc_type, doc_series, doc_number) DO UPDATE SET
-                total_pen = EXCLUDED.total_pen,
-                has_itemized_lines = erp.purchase_invoices.has_itemized_lines OR EXCLUDED.has_itemized_lines,
-                currency_anomaly_flag = erp.purchase_invoices.currency_anomaly_flag OR EXCLUDED.currency_anomaly_flag,
-                raw_notes = COALESCE(EXCLUDED.raw_notes, erp.purchase_invoices.raw_notes);
+            ON CONFLICT (supplier_ruc, doc_type, doc_series, doc_number) DO NOTHING;
             """,
             [
                 (
@@ -695,9 +681,7 @@ def _load_quotes(cur: Any, ds: NormalizedDataset, sku_to_id: dict[str, int]) -> 
             (quote_code, issue_date, customer_party_id, customer_name_raw, currency,
              tax_regime, total_pen, status, related_cpe, source_origin, notes)
         VALUES (%s, %s, %s, %s, %s, 'EXONERADA', %s, %s::erp.quote_status, %s, 'HISTORICAL_BACKFILL', %s)
-        ON CONFLICT (quote_code) DO UPDATE SET
-            status = EXCLUDED.status,
-            related_cpe = COALESCE(EXCLUDED.related_cpe, erp.quotes.related_cpe);
+        ON CONFLICT (quote_code) DO NOTHING;
         """,
         quote_params,
     )
@@ -773,10 +757,7 @@ def _load_sales_and_stock_out(
              source_row_num, source_row_hash, notes)
         VALUES (%s, %s, %s, %s, %s, %s, %s::erp.payment_mode, %s, %s, %s, %s, 0, %s,
                 'HISTORICAL_BACKFILL', %s, %s, %s, %s, %s)
-        ON CONFLICT (order_code) DO UPDATE SET
-            total_pen = EXCLUDED.total_pen,
-            payment_mode = EXCLUDED.payment_mode,
-            historical_status_assumed = EXCLUDED.historical_status_assumed;
+        ON CONFLICT (order_code) DO NOTHING;
         """,
         order_params,
     )
@@ -961,12 +942,28 @@ def _load_audit_flags(cur: Any, ds: NormalizedDataset) -> None:
             """
             INSERT INTO erp.audit_flags
                 (flag_code, severity, entity_table, entity_id, message, details, source_origin)
-            VALUES (%s, %s::erp.audit_severity, %s, %s, %s, %s, %s::erp.data_origin)
-            ON CONFLICT (flag_code, entity_table, entity_id) WHERE status = 'OPEN'
-            DO UPDATE SET message = EXCLUDED.message, details = EXCLUDED.details;
+            SELECT %s, %s::erp.audit_severity, %s, %s, %s, %s, %s::erp.data_origin
+            WHERE NOT EXISTS (
+                SELECT 1
+                FROM erp.audit_flags af
+                WHERE af.flag_code = %s
+                  AND af.entity_table = %s
+                  AND af.entity_id = %s
+            );
             """,
             [
-                (af.flag_code, af.severity, af.entity_table, af.entity_id, af.message, Jsonb(af.details), af.source_origin)
+                (
+                    af.flag_code,
+                    af.severity,
+                    af.entity_table,
+                    af.entity_id,
+                    af.message,
+                    Jsonb(af.details),
+                    af.source_origin,
+                    af.flag_code,
+                    af.entity_table,
+                    af.entity_id,
+                )
                 for af in ds.audit_flags
             ],
         )

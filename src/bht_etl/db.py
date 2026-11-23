@@ -56,64 +56,73 @@ def run_migrations(branch: str = "dev", root: Path | None = None) -> list[Migrat
     results: list[MigrationResult] = []
     with get_connection(branch=branch, root=root) as conn:
         with conn.cursor() as cur:
-            cur.execute(
-                """
-                CREATE TABLE IF NOT EXISTS public.schema_migrations (
-                    version    TEXT PRIMARY KEY,
-                    checksum   TEXT NOT NULL,
-                    applied_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-                );
-                """
-            )
+            cur.execute("SELECT pg_advisory_lock(hashtext('bht_schema_migrations'));")
             conn.commit()
-
-            cur.execute("SELECT version, checksum FROM public.schema_migrations;")
-            existing = dict(cur.fetchall())
-
-        for sql_path in migration_files:
-            version = sql_path.stem
-            sql_text = sql_path.read_text(encoding="utf-8")
-            checksum = _sha256_text(sql_text)
-
-            if version in existing:
-                if existing[version] != checksum:
-                    reconciliation = LEGACY_RECONCILIATION_MIGRATIONS.get(version)
-                    if (
-                        existing[version]
-                        in LEGACY_MIGRATION_CHECKSUMS.get(version, set())
-                        and reconciliation
-                        and (paths.migrations_dir / f"{reconciliation}.sql").is_file()
-                    ):
-                        results.append(
-                            MigrationResult(version=version, status="SKIPPED_HISTORICAL")
-                        )
-                        continue
-                    if existing[version] in LEGACY_IDEMPOTENT_REAPPLY_CHECKSUMS.get(
-                        version, set()
-                    ):
-                        with conn.cursor() as cur:
-                            cur.execute(sql_text)
-                            cur.execute(
-                                "UPDATE public.schema_migrations SET checksum = %s, applied_at = NOW() WHERE version = %s;",
-                                (checksum, version),
-                            )
-                        conn.commit()
-                        results.append(MigrationResult(version=version, status="REAPPLIED"))
-                        continue
-                    raise RuntimeError(
-                        f"Checksum mismatch for already-applied migration {version}: "
-                        f"db={existing[version][:12]}... file={checksum[:12]}..."
-                    )
-                results.append(MigrationResult(version=version, status="SKIPPED"))
-                continue
-
+        try:
             with conn.cursor() as cur:
-                cur.execute(sql_text)
                 cur.execute(
-                    "INSERT INTO public.schema_migrations (version, checksum) VALUES (%s, %s);",
-                    (version, checksum),
+                    """
+                    CREATE TABLE IF NOT EXISTS public.schema_migrations (
+                        version    TEXT PRIMARY KEY,
+                        checksum   TEXT NOT NULL,
+                        applied_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                    );
+                    """
                 )
+                conn.commit()
+
+                cur.execute("SELECT version, checksum FROM public.schema_migrations;")
+                existing = dict(cur.fetchall())
+
+            for sql_path in migration_files:
+                version = sql_path.stem
+                sql_text = sql_path.read_text(encoding="utf-8")
+                checksum = _sha256_text(sql_text)
+
+                if version in existing:
+                    if existing[version] != checksum:
+                        reconciliation = LEGACY_RECONCILIATION_MIGRATIONS.get(version)
+                        if (
+                            existing[version]
+                            in LEGACY_MIGRATION_CHECKSUMS.get(version, set())
+                            and reconciliation
+                            and (paths.migrations_dir / f"{reconciliation}.sql").is_file()
+                        ):
+                            results.append(
+                                MigrationResult(version=version, status="SKIPPED_HISTORICAL")
+                            )
+                            continue
+                        if existing[version] in LEGACY_IDEMPOTENT_REAPPLY_CHECKSUMS.get(
+                            version, set()
+                        ):
+                            with conn.cursor() as cur:
+                                cur.execute(sql_text)
+                                cur.execute(
+                                    "UPDATE public.schema_migrations SET checksum = %s, applied_at = NOW() WHERE version = %s;",
+                                    (checksum, version),
+                                )
+                            conn.commit()
+                            results.append(MigrationResult(version=version, status="REAPPLIED"))
+                            continue
+                        raise RuntimeError(
+                            f"Checksum mismatch for already-applied migration {version}: "
+                            f"db={existing[version][:12]}... file={checksum[:12]}..."
+                        )
+                    results.append(MigrationResult(version=version, status="SKIPPED"))
+                    continue
+
+                with conn.cursor() as cur:
+                    cur.execute(sql_text)
+                    cur.execute(
+                        "INSERT INTO public.schema_migrations (version, checksum) VALUES (%s, %s);",
+                        (version, checksum),
+                    )
+                conn.commit()
+                results.append(MigrationResult(version=version, status="APPLIED"))
+        finally:
+            conn.rollback()
+            with conn.cursor() as cur:
+                cur.execute("SELECT pg_advisory_unlock(hashtext('bht_schema_migrations'));")
             conn.commit()
-            results.append(MigrationResult(version=version, status="APPLIED"))
 
     return results

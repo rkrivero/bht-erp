@@ -360,7 +360,7 @@ def _extract_left_cash_note(
                     expense_category="PRIOR_DEBT",
                     is_internal_transfer=False,
                     reference_doc="DEUDA_SAMUEL",
-                    account_code="CUSTODIA_SAMUEL",
+                    account_code="CAJA_RUTA",
                     row_hash=stable_hash(rh, "DEUDA_SAMUEL"),
                 )
             )

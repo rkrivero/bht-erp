@@ -258,12 +258,25 @@ def build_parser() -> argparse.ArgumentParser:
         sp = sub.add_parser(cmd)
         sp.add_argument("--branch", choices=("dev", "main"), default="dev", help="Target Neon branch")
         sp.add_argument("--root", type=Path, default=None, help="Optional workspace root")
+        if cmd in ("migrate", "load"):
+            sp.add_argument(
+                "--confirm-main",
+                action="store_true",
+                default=False,
+                help="Required explicit confirmation to mutate Neon main",
+            )
     return parser
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
+    if args.command in ("migrate", "load") and args.branch == "main" and not args.confirm_main:
+        print(
+            f"Refusing to run '{args.command}' against Neon 'main' without --confirm-main.",
+            file=sys.stderr,
+        )
+        return 2
     if args.command == "migrate":
         return _cmd_migrate(args.branch, args.root)
     if args.command == "load":
