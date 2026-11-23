@@ -108,7 +108,7 @@ export function escapeCsvCell(value: unknown): string {
   const isPureNumericString =
     !isNumericPrimitive && /^-?\d+(?:\.\d+)?$/.test(str.trim());
   const safeStr =
-    !isNumericPrimitive && !isPureNumericString && /^[\t\r ]*[=+\-@\t\r]/.test(str)
+    !isNumericPrimitive && !isPureNumericString && /^[\t\r\n ]*[=+\-@\t\r\n]/.test(str)
       ? `'${str}`
       : str;
   if (/[",\r\n]/.test(safeStr)) {
@@ -634,6 +634,12 @@ export async function getReportDatasetRows(
            cl.expense_bucket::text AS expense_bucket,
            cl.expense_category,
            cl.is_internal_transfer,
+           cl.is_reversal,
+           cl.reversal_of_ledger_id,
+           EXISTS (
+             SELECT 1 FROM erp.cash_ledger rev
+             WHERE rev.reversal_of_ledger_id = cl.ledger_id
+           ) AS is_reversed,
            COALESCE(pa.trade_name, pa.legal_name) AS party_name,
            cl.reference_table,
            cl.reference_id,
@@ -657,6 +663,9 @@ export async function getReportDatasetRows(
           "expense_bucket",
           "expense_category",
           "is_internal_transfer",
+          "is_reversal",
+          "reversal_of_ledger_id",
+          "is_reversed",
           "party_name",
           "reference_table",
           "reference_id",

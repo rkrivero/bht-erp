@@ -54,7 +54,7 @@ function escapeXml(raw: string): string {
 export function sanitizeXlsxText(value: unknown): string {
   if (value === null || value === undefined) return "";
   const str = String(value).replace(CONTROL_CHAR_RE, "");
-  if (/^[\t\r ]*[=+\-@\t\r]/.test(str)) {
+  if (/^[\t\r\n ]*[=+\-@\t\r\n]/.test(str)) {
     return `'${str}`;
   }
   return str;

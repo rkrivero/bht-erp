@@ -7,14 +7,14 @@ esquema, los procesos ETL y su historial de checksums es el repositorio hermano
 Versión mínima requerida por esta aplicación:
 
 ```text
-022_operational_undo_audit
+029_simplify_cash_accounts_and_optional_closure_count
 ```
 
 Flujo de despliegue:
 
 1. En `dev`, ejecutar `bht-etl migrate --branch dev` desde `bht_data`.
 2. Validar aplicación, pruebas y aceptación por rol en preview.
-3. En producción, aplicar la migración en `main` solo con aprobación explícita.
+3. En producción, aplicar la migración en `main` (`--branch main --confirm-main`) solo con aprobación explícita.
 
 Las migraciones deben ser compatibles hacia atrás durante cada entrega para
 permitir rollback de la aplicación.
@@ -25,7 +25,7 @@ permitir rollback de la aplicación.
   (o `NEON_DATABASE_URL_DEV`).
 - Vercel Production usa `BHT_DB_BRANCH=main` y `DATABASE_URL`
   (o `NEON_DATABASE_URL_MAIN`).
-- `BHT_SESSION_SECRET` debe ser aleatorio, tener al menos 32 caracteres y usar
-  valores distintos para Preview y Production.
+- `NEON_AUTH_BASE_URL` y `NEON_AUTH_COOKIE_SECRET` (mínimo 32 caracteres aleatorios,
+  distintos entre Preview y Production) son obligatorios para autenticación.
 - El build de Vercel se detiene si falta la rama, la URL correspondiente o el
   secreto requerido. No expongas URLs ni secretos con prefijo `NEXT_PUBLIC_`.

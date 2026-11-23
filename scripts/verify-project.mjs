@@ -1,4 +1,4 @@
-import { readdir } from "node:fs/promises";
+import { readdir, readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
 const migrationsDir = resolve(process.cwd(), "db", "migrations");
@@ -51,4 +51,15 @@ if (vercelEnv === "preview" || vercelEnv === "production") {
   }
 }
 
-console.log("Configuración del proyecto verificada (schema mínimo 029).\n");
+const schemaSrc = await readFile(
+  resolve(process.cwd(), "src", "lib", "schema-version.ts"),
+  "utf8"
+).catch(() => "");
+const requiredSchemaMatch = schemaSrc.match(
+  /REQUIRED_SCHEMA_VERSION\s*=\s*["']([^"']+)["']/
+);
+const requiredSchemaLabel = requiredSchemaMatch?.[1] ?? "desconocido";
+
+console.log(
+  `Configuración del proyecto verificada (schema mínimo ${requiredSchemaLabel}).\n`
+);

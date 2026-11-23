@@ -49,6 +49,7 @@ describe("OOXML Excel (.xlsx) Writer", () => {
     expect(sanitizeXlsxText("+1234")).toBe("'+1234");
     expect(sanitizeXlsxText("-999")).toBe("'-999");
     expect(sanitizeXlsxText("@cmd")).toBe("'@cmd");
+    expect(sanitizeXlsxText("\n=CMD('calc')")).toBe("'\n=CMD('calc')");
     expect(sanitizeXlsxText("000100340200")).toBe("000100340200");
     expect(sanitizeXlsxText("ABC\u0000\u0007DEF")).toBe("ABCDEF");
   });
