@@ -822,7 +822,8 @@ export async function executeUndoAction(
         const amt = Number(vp.amountPen ?? 0);
         if (!Number.isFinite(amt) || amt <= 0) continue;
         const originalPaymentDate =
-          typeof vp.paymentDate === "string" && /^\d{4}-\d{2}-\d{2}$/.test(vp.paymentDate)
+          typeof vp.paymentDate === "string" &&
+          /^\d{4}-\d{2}-\d{2}$/.test(vp.paymentDate)
             ? vp.paymentDate
             : null;
         let refDoc: string | null = null;

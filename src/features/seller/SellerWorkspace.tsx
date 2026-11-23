@@ -323,7 +323,7 @@ export default function SellerWorkspace() {
   );
 
   return (
-    <div className="min-h-screen bg-bht-surface-cool pb-40 md:pb-12">
+    <div className="min-h-[100dvh] bg-bht-surface-cool pb-40 md:pb-12">
       <CommandPalette items={commandPaletteItems} />
 
       <AppHeader
@@ -337,22 +337,14 @@ export default function SellerWorkspace() {
         withSidebar
         actions={
           isPartnerControlUser ? (
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 md:hidden">
               <Button
                 variant="outline"
-                size="md"
+                size="sm"
                 onClick={() => router.push("/socios")}
-                className="min-h-[38px] sm:min-h-[40px] px-3.5 text-xs sm:text-sm"
+                className="h-8 px-2.5 text-xs"
               >
-                Control Operativo
-              </Button>
-              <Button
-                variant="outline"
-                size="md"
-                onClick={() => router.push("/almacen")}
-                className="hidden sm:inline-flex min-h-[38px] sm:min-h-[40px] px-3.5 text-xs sm:text-sm"
-              >
-                Almacén
+                Control
               </Button>
             </div>
           ) : undefined
@@ -365,37 +357,31 @@ export default function SellerWorkspace() {
         activeId={navActiveTab}
         onChange={handleTabChange}
         areaLabel="Vendedor · Campo"
-        footer={
-          isPartnerControlUser ? (
-            <div className="space-y-1.5">
-              <p className="px-2 text-xs font-semibold uppercase tracking-[0.12em] text-[var(--bht-sky)]">
-                Cambiar espacio
-              </p>
-              <button
-                type="button"
-                onClick={() => router.push("/socios")}
-                className="flex min-h-9 w-full items-center gap-2 rounded-lg px-2 text-left text-sm font-semibold text-[var(--bht-sky)] transition-colors hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white cursor-pointer"
-              >
-                <ActivityIcon className="h-3.5 w-3.5" aria-hidden="true" />
-                <span>Control Operativo</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => router.push("/almacen")}
-                className="flex min-h-9 w-full items-center gap-2 rounded-lg px-2 text-left text-sm font-semibold text-[var(--bht-sky)] transition-colors hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white cursor-pointer"
-              >
-                <PackageIcon className="h-3.5 w-3.5" aria-hidden="true" />
-                <span>Almacén y reparto</span>
-              </button>
-            </div>
-          ) : undefined
+        footerLabel="Cambiar espacio"
+        footerActions={
+          isPartnerControlUser
+            ? [
+                {
+                  id: "sidebar-go-partners",
+                  label: "Control Operativo",
+                  icon: <ActivityIcon className="h-4 w-4" />,
+                  onClick: () => router.push("/socios"),
+                },
+                {
+                  id: "sidebar-go-warehouse",
+                  label: "Almacén y reparto",
+                  icon: <PackageIcon className="h-4 w-4" />,
+                  onClick: () => router.push("/almacen"),
+                },
+              ]
+            : undefined
         }
       />
 
       <main
         id="main-content"
         tabIndex={-1}
-        className="mx-auto max-w-6xl space-y-4 px-3.5 pt-4 sm:px-5 outline-none md:ml-[232px] md:max-w-none md:px-6 lg:px-8"
+        className="bht-sidebar-offset mx-auto max-w-6xl space-y-4 px-3.5 pt-4 sm:px-6 lg:px-8 outline-none md:max-w-none"
       >
         {feedback && (
           <ToastBanner

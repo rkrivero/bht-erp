@@ -171,7 +171,7 @@ export default function ReportesCajaCxpTab({
               b.bucket === "OVERDUE"
                 ? "bg-bht-danger-vivid"
                 : b.bucket === "DUE_0_7"
-                  ? "bg-bht-tone-d97706"
+                  ? "bg-bht-warning"
                   : "bg-bht-navy-mid";
             return (
               <div

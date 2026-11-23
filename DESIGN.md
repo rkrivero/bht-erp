@@ -88,7 +88,7 @@ La composición sigue “primero decidir, después ejecutar y finalmente analiza
 - **Trade Cobalt** (`#1D5FA8`): exactamente UN color de acento para acciones primarias, selecciones activas y foco.
 - **Mist Blue** (`#C7D8EA`): bordes sutiles, hairlines y micro-divisores.
 - **Glacial Tint** (`#EDF4FC`): selección suave, chips activos y fondos de píldoras.
-- **Paper & Canvas** (`#F6F8FB` y `#FFFFFF`): lienzos y tarjetas con alta respiración visual.
+- **Paper, Canvas & Rail** (`#FAFBFD`, `#F4F6F9`, `#FFFFFF`): lienzos claros, riel lateral neutro y tarjetas planas con alta respiración visual.
 
 ## Taste Rules (learn-taste / frontend-design)
 
@@ -124,7 +124,7 @@ Los títulos describen situaciones o acciones; la UI no expone nombres técnicos
 
 Ritmo base de 4 px con separaciones de 8, 12, 16, 24 y 32 px. En móvil hay una tarea dominante, máximo cuatro destinos visibles y objetivos táctiles de 44 px. Las etapas completadas pueden colapsarse en resúmenes editables.
 
-En escritorio, la sidebar persistente mide 232 px; el encabezado reúne búsqueda, sincronización y acciones. Validar 360, 390, 412, 768, 1280 y 1440 px.
+En escritorio, la sidebar colapsable mide `224 px` expandida (`64 px` colapsada); el encabezado discreto (`56 px`) reúne búsqueda, sincronización y acciones. Validar 360, 390, 412, 768, 1280 y 1440 px.
 
 ## Elevation & Depth
 
@@ -136,7 +136,7 @@ Plano por defecto: bordes tonales separan superficies. Las sombras ambientales s
 
 ## Shapes
 
-Superficies principales con radios de 12–16 px; inputs y botones, 8–12 px. Las píldoras se limitan a badges, filtros breves y estados. Las tarjetas agrupan una decisión o entidad; no se anidan como decoración.
+Superficies principales con radios moderados de `12 px` (`rounded-xl`); inputs, botones y controles, `8 px` (`rounded-lg`); badges sobrios de `6 px` (`rounded-md`, reservando `999px` solo para estados en vivo con indicador circular). Las métricas clave se agrupan en tiras divididas por hairlines en lugar de tarjetas redundantes.
 
 ## Components
 
@@ -154,7 +154,7 @@ Fondo blanco, borde fuerte, radio de 12 px y texto mínimo de 14 px. El error se
 
 ### Navigation
 
-Socios: Hoy, Ventas, Cobranza, Inventario, Finanzas y análisis. Vendedor: Vender, Ventas, Cobrar, Más. Almacén: Por alistar, Listos / En ruta, Entregados. Sidebar en escritorio (`232 px`) y barra inferior en móvil con menú "Más" sobre `popover="auto"` nativo.
+Socios: Hoy, Ventas, Cobranza, Inventario, Finanzas y análisis. Vendedor: Vender, Ventas, Cobrar, Más. Almacén: Por alistar, Listos / En ruta, Entregados. Sidebar colapsable en escritorio (`224 px` / `64 px`, riel `#F4F6F9`) y barra inferior en móvil con menú "Más" sobre `popover="auto"` nativo.
 
 ### Primitivas Enterprise Nativas (0 Librerías UI Externas)
 

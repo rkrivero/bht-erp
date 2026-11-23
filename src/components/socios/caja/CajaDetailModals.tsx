@@ -106,7 +106,7 @@ export function ApObligationDetailModal({
                 {formatPen(obligation.paid_amount_pen)}
               </strong>
             </div>
-            <div className="rounded-xl border border-bht-tone-fee2e2 bg-bht-danger-bg/60 p-3">
+            <div className="rounded-xl border border-bht-danger-line bg-bht-danger-bg/60 p-3">
               <span className="block text-xs text-bht-danger-strong">
                 Saldo que se debe
               </span>

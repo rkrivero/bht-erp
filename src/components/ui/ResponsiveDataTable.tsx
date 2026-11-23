@@ -177,10 +177,10 @@ export function ResponsiveDataTable<T>({
         role="region"
         aria-label={ariaLabel}
         aria-labelledby={ariaLabelledBy}
-        className="table-wrapper rounded-2xl border border-bht-line bg-white shadow-bht-elev-2"
+        className="table-wrapper rounded-xl border border-bht-line bg-white"
       >
         <table className="bht-responsive-table w-full text-left text-sm">
-          <thead className="border-b border-bht-line bg-bht-paper text-xs font-semibold uppercase tracking-wide text-bht-ink-soft">
+          <thead className="border-b border-bht-line bg-[var(--bg-rail)] text-[11px] font-semibold uppercase tracking-[0.06em] text-bht-ink-muted">
             <tr>
               {visibleColumns.map((col) => {
                 const isSortable = Boolean(col.sortable || col.sortValue);
@@ -275,7 +275,9 @@ export function ResponsiveDataTable<T>({
                       >
                         <div
                           className={
-                            col.align === "right" ? "min-w-0 sm:ml-auto" : "min-w-0"
+                            col.align === "right"
+                              ? "min-w-0 max-w-full sm:ml-auto"
+                              : "min-w-0 max-w-full"
                           }
                         >
                           {col.cell(row, rowIndex)}

@@ -153,7 +153,7 @@ export default function ReportesCarteraTab({
               b.bucket === "GT_60"
                 ? "bg-bht-danger-vivid"
                 : b.bucket === "31_60"
-                  ? "bg-bht-tone-d97706"
+                  ? "bg-bht-warning"
                   : b.bucket === "16_30"
                     ? "bg-bht-navy-mid"
                     : "bg-bht-success";

@@ -14,7 +14,10 @@ import {
 import type { CommandPaletteItem } from "@/components/ui/CommandPalette";
 
 const CommandPalette = dynamic(
-  () => import("@/components/ui/CommandPalette").then((m) => ({ default: m.CommandPalette })),
+  () =>
+    import("@/components/ui/CommandPalette").then((m) => ({
+      default: m.CommandPalette,
+    })),
   { ssr: false }
 );
 import {
@@ -478,7 +481,7 @@ export default function PartnerWorkspace() {
   }
 
   return (
-    <div className="min-h-screen bg-bht-surface-cool pb-24 md:pb-12">
+    <div className="min-h-[100dvh] bg-bht-surface-cool pb-24 md:pb-12">
       <CommandPalette items={commandPaletteItems} />
 
       <AppHeader
@@ -512,35 +515,27 @@ export default function PartnerWorkspace() {
         activeId={navActiveTab}
         onChange={handleTabChange}
         areaLabel="Socios · Control"
-        footer={
-          <div className="space-y-1.5">
-            <p className="px-2 text-xs font-semibold uppercase tracking-[0.12em] text-[var(--bht-sky)]">
-              Espacios de campo
-            </p>
-            <button
-              type="button"
-              onClick={() => router.push("/vendedor")}
-              className="flex min-h-9 w-full items-center gap-2 rounded-lg px-2 text-left text-sm font-semibold text-[var(--bht-sky)] transition-colors hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white cursor-pointer"
-            >
-              <PlusIcon className="h-3.5 w-3.5" aria-hidden="true" />
-              <span>Tomar pedido</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => router.push("/almacen")}
-              className="flex min-h-9 w-full items-center gap-2 rounded-lg px-2 text-left text-sm font-semibold text-[var(--bht-sky)] transition-colors hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white cursor-pointer"
-            >
-              <PackageIcon className="h-3.5 w-3.5" aria-hidden="true" />
-              <span>Almacén y reparto</span>
-            </button>
-          </div>
-        }
+        footerLabel="Espacios de campo"
+        footerActions={[
+          {
+            id: "sidebar-go-seller",
+            label: "Tomar pedido",
+            icon: <PlusIcon className="h-4 w-4" />,
+            onClick: () => router.push("/vendedor"),
+          },
+          {
+            id: "sidebar-go-warehouse",
+            label: "Almacén y reparto",
+            icon: <PackageIcon className="h-4 w-4" />,
+            onClick: () => router.push("/almacen"),
+          },
+        ]}
       />
 
       <main
         id="main-content"
         tabIndex={-1}
-        className="mx-auto max-w-7xl px-4 pt-6 sm:px-6 sm:pt-8 space-y-6 sm:space-y-8 focus:outline-none md:ml-[232px] md:max-w-none md:px-8 lg:px-12 pb-12"
+        className="bht-sidebar-offset mx-auto max-w-[1440px] px-4 pt-5 sm:px-6 sm:pt-6 lg:px-8 space-y-6 focus:outline-none pb-12"
       >
         {tab !== "control" && (
           <div className="grid grid-cols-[2fr_1fr] gap-2 sm:hidden">

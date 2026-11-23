@@ -315,7 +315,7 @@ export default function SellerOrderCheckout({ flow }: { flow: SellerOrderFlow })
                             className={`min-h-[34px] rounded-full border px-2.5 py-1 text-xs font-medium transition cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bht-navy-deep/45 ${
                               active
                                 ? "border-bht-navy-deep bg-bht-navy-deep text-white"
-                                : "border-bht-tone-e7d3b1 bg-white text-bht-warning-text hover:bg-bht-paper"
+                                : "border-bht-warning-line bg-white text-bht-warning-text hover:bg-bht-paper"
                             }`}
                           >
                             {chip.label}
@@ -329,7 +329,7 @@ export default function SellerOrderCheckout({ flow }: { flow: SellerOrderFlow })
                         className={`min-h-[34px] rounded-full border px-2.5 py-1 text-xs font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bht-navy-deep/45 ${
                           showCustomPromiseDate
                             ? "border-bht-navy-deep bg-bht-navy-deep text-white"
-                            : "border-bht-tone-e7d3b1 bg-white text-bht-warning-text"
+                            : "border-bht-warning-line bg-white text-bht-warning-text"
                         }`}
                       >
                         Otra fecha
@@ -348,7 +348,7 @@ export default function SellerOrderCheckout({ flow }: { flow: SellerOrderFlow })
                           type="date"
                           value={customPromiseDate}
                           onChange={(e) => setCustomPromiseDate(e.target.value)}
-                          className="min-h-[36px] rounded-lg border border-bht-tone-e7d3b1 bg-white px-2.5 py-1 text-xs font-medium text-bht-ink-strong focus:border-bht-navy-deep focus:outline-none focus:ring-2 focus:ring-bht-navy-deep/15"
+                          className="min-h-[36px] rounded-lg border border-bht-warning-line bg-white px-2.5 py-1 text-xs font-medium text-bht-ink-strong focus:border-bht-navy-deep focus:outline-none focus:ring-2 focus:ring-bht-navy-deep/15"
                         />
                       </div>
                     )}
@@ -462,7 +462,7 @@ export default function SellerOrderCheckout({ flow }: { flow: SellerOrderFlow })
                   onClick={() =>
                     isEditingOrder ? resetOrderDraft() : setCancelDraftOpen(true)
                   }
-                  className="border-bht-line bg-bht-paper text-bht-ink-soft hover:border-bht-tone-e8c5c5 hover:bg-bht-danger-bg/65 hover:text-bht-danger-strong sm:w-auto"
+                  className="border-bht-line bg-bht-paper text-bht-ink-soft hover:border-bht-danger-line hover:bg-bht-danger-bg/65 hover:text-bht-danger-strong sm:w-auto"
                 >
                   {isEditingOrder ? "Cancelar" : "Descartar"}
                 </Button>
@@ -481,7 +481,7 @@ export default function SellerOrderCheckout({ flow }: { flow: SellerOrderFlow })
               size="sm"
               disabled={busyCancelDraft}
               onClick={() => setCancelDraftOpen(true)}
-              className="border-bht-line bg-bht-paper text-bht-ink-soft hover:border-bht-tone-e8c5c5 hover:bg-bht-danger-bg/65 hover:text-bht-danger-strong"
+              className="border-bht-line bg-bht-paper text-bht-ink-soft hover:border-bht-danger-line hover:bg-bht-danger-bg/65 hover:text-bht-danger-strong"
             >
               Descartar borrador
             </Button>

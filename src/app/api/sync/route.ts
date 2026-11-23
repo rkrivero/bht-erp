@@ -1,10 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireActiveSession, withAuthenticatedClient } from "@/lib/auth";
 import { withClient } from "@/lib/db";
-import {
-  computeSyncSnapshot,
-  parseRequestedScopes,
-} from "@/lib/realtime/sync-engine";
+import { computeSyncSnapshot, parseRequestedScopes } from "@/lib/realtime/sync-engine";
 import { resolveHttpError } from "@/lib/http-errors";
 import type { UserRole } from "@/lib/types";
 

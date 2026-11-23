@@ -110,7 +110,8 @@ export function useSellerOrderFlow({
   const [editingQuoteId, setEditingQuoteId] = useState<number | null>(null);
   const [editingQuoteCode, setEditingQuoteCode] = useState("");
 
-  useSellerDraftPersistence(draftApi, currentUser?.username, editingOrderId !== null || editingQuoteId !== null);
+  const isEditing = editingOrderId !== null || editingQuoteId !== null;
+  useSellerDraftPersistence(draftApi, currentUser?.username, isEditing);
 
   const [busyCreateQuote, setBusyCreateQuote] = useState(false);
   const [busyOrder, setBusyOrder] = useState(false);
@@ -175,8 +176,8 @@ export function useSellerOrderFlow({
   const cartSubtotalPen = useMemo(
     () =>
       cart.reduce((sum, item) => {
-        const qty = Number.isFinite(item.quantity) ? Math.max(0, item.quantity) : 0;
-        const unit = Number.isFinite(item.unitPricePen) ? Math.max(0, item.unitPricePen) : 0;
+        const qty = Math.max(0, Number(item.quantity) || 0);
+        const unit = Math.max(0, Number(item.unitPricePen) || 0);
         return Number((sum + Number((qty * unit).toFixed(2))).toFixed(2));
       }, 0),
     [cart]

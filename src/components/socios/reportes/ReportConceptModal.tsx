@@ -421,32 +421,37 @@ const BUTTON_TONE_CLASSES: Record<Tone, string> = {
   success: "border-bht-success-line bg-bht-success-bg",
   warning: "border-bht-warning-line bg-bht-warning-bg",
   danger: "border-bht-danger-line bg-bht-danger-bg",
-  indigo: "border-bht-info-line bg-bht-paper",
 };
 
 export function ConceptCardButton({
   tone = "default",
   padding = "md",
+  variant = "card",
   onClick,
   children,
   className = "",
 }: {
   tone?: Tone;
   padding?: "sm" | "md";
+  variant?: "card" | "cell";
   onClick: () => void;
   children: React.ReactNode;
   className?: string;
 }) {
-  const padClass = padding === "sm" ? "p-3.5" : "p-4";
+  const padClass = padding === "sm" ? "p-3.5" : "p-4 sm:p-5";
+  const surfaceClass =
+    variant === "cell"
+      ? "rounded-none border-0 bg-white hover:bg-bht-paper/80 focus-visible:ring-inset"
+      : `rounded-xl border shadow-bht-elev-2 hover:border-bht-cobalt/50 ${BUTTON_TONE_CLASSES[tone]}`;
   return (
     <button
       type="button"
       onClick={onClick}
-      className={`group relative flex min-w-0 flex-col justify-between rounded-2xl border ${padClass} text-left shadow-bht-elev-4 transition-colors duration-150 hover:border-bht-cobalt/50 hover:shadow-bht-elev-14 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bht-cobalt cursor-pointer ${BUTTON_TONE_CLASSES[tone]} ${className}`}
+      className={`group relative flex min-w-0 flex-col justify-between ${padClass} text-left transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bht-cobalt cursor-pointer ${surfaceClass} ${className}`}
     >
       <span
         aria-hidden="true"
-        className="absolute right-3 top-3 inline-flex h-5 w-5 items-center justify-center rounded-full border border-bht-line bg-bht-paper text-[11px] font-semibold text-bht-ink-muted transition-colors group-hover:border-bht-cobalt/40 group-hover:bg-bht-cobalt-bg group-hover:text-bht-cobalt-strong"
+        className="absolute right-3 top-3 inline-flex h-5 w-5 items-center justify-center rounded-md border border-bht-line bg-bht-paper text-[11px] font-semibold text-bht-ink-muted transition-colors group-hover:border-bht-cobalt/40 group-hover:bg-bht-cobalt-bg group-hover:text-bht-cobalt-strong"
       >
         ?
       </span>

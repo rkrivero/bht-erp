@@ -136,8 +136,7 @@ export function useWarehouseActions({
     try {
       const candidateTripId = selectedTripByOrder[order.order_id];
       const validSelected =
-        candidateTripId &&
-        openTrips.some((t) => String(t.trip_id) === candidateTripId);
+        candidateTripId && openTrips.some((t) => String(t.trip_id) === candidateTripId);
       const chosenTripId = validSelected
         ? candidateTripId
         : openTrips[0]

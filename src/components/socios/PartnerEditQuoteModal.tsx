@@ -169,7 +169,7 @@ export function PartnerEditQuoteModal({
     >
       <form onSubmit={handleSubmit} className="space-y-4 text-sm">
         {error && (
-          <div className="flex items-start gap-2 rounded-xl border border-bht-tone-e8c5c5 bg-bht-danger-bg p-3 text-xs font-medium text-bht-danger">
+          <div className="flex items-start gap-2 rounded-xl border border-bht-danger-line bg-bht-danger-bg p-3 text-xs font-medium text-bht-danger">
             <AlertTriangleIcon className="mt-0.5 h-4 w-4 flex-shrink-0" />
             <span>{error}</span>
           </div>

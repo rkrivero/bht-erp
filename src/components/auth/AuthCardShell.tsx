@@ -12,10 +12,6 @@ export default function AuthCardShell({
 }) {
   return (
     <div className="relative min-h-[100dvh] overflow-x-clip bg-[var(--bht-paper)]">
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute -top-24 left-1/2 hidden h-[340px] w-[620px] -translate-x-1/2 rounded-full bg-[radial-gradient(closest-side,var(--glow-cobalt),transparent)] sm:block"
-      />
       <main
         id="main-content"
         tabIndex={-1}

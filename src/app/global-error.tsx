@@ -20,7 +20,8 @@ export default function GlobalError({
             Interrupción crítica de aplicación
           </h1>
           <p className="text-xs leading-relaxed text-bht-ink-soft">
-            Se produjo un fallo al inicializar el sistema. Recarga la ventana para continuar.
+            Se produjo un fallo al inicializar el sistema. Recarga la ventana para
+            continuar.
             {error.digest ? ` (Ref: ${error.digest})` : ""}
           </p>
           <button

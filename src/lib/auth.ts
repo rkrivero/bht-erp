@@ -85,7 +85,8 @@ export async function getAuthenticatedERPActor(
     process.env.VERCEL_ENV !== "production" &&
     request?.cookies
   ) {
-    const { isTestAuthRuntime, verifyTestSessionToken } = await import("./auth/test-session");
+    const { isTestAuthRuntime, verifyTestSessionToken } =
+      await import("./auth/test-session");
     if (isTestAuthRuntime()) {
       const fixtureUser = verifyTestSessionToken(
         request.cookies.get(SESSION_COOKIE_NAME)?.value
@@ -161,7 +162,8 @@ async function resolveRequestAuthContext(
   ) {
     const rawCookie = request.cookies.get(SESSION_COOKIE_NAME)?.value;
     if (rawCookie) {
-      const { isTestAuthRuntime, verifyTestSessionToken } = await import("./auth/test-session");
+      const { isTestAuthRuntime, verifyTestSessionToken } =
+        await import("./auth/test-session");
       if (isTestAuthRuntime()) {
         const fixtureUser = verifyTestSessionToken(rawCookie);
         if (!fixtureUser) {

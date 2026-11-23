@@ -70,7 +70,7 @@ export function HoyMonitor({
             · Toca una fila para ver detalle, abonar o anular.
           </p>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center">
           {recentMonitorOrders.length > 8 && (
             <Button
               variant="outline"
@@ -90,7 +90,7 @@ export function HoyMonitor({
         </div>
       </div>
 
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center">
         <div className="relative min-w-[200px] flex-1">
           <span className="pointer-events-none absolute inset-y-0 left-3.5 flex items-center text-bht-ink-muted">
             <SearchIcon className="h-4 w-4" />

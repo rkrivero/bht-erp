@@ -181,10 +181,10 @@ export function Hoy({
     <div className="flex flex-col gap-6 sm:gap-8">
       <div className="flex flex-col gap-4 px-1 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <h2 className="text-2xl font-bold tracking-tight text-bht-ink-strong sm:text-3xl">
+          <h2 className="text-lg font-bold tracking-tight text-bht-ink-strong sm:text-xl">
             Primero, resuelve lo que bloquea la operación
           </h2>
-          <p className="mt-1.5 text-sm leading-relaxed text-bht-ink-soft">
+          <p className="mt-1 text-sm leading-relaxed text-bht-ink-soft">
             Cola operativa del día, aprobaciones pendientes y monitor en vivo.
           </p>
         </div>
@@ -226,9 +226,9 @@ export function Hoy({
               className="scroll-mt-24 overflow-hidden lg:col-span-2 flex flex-col justify-between"
             >
               <div>
-                <div className="flex items-center justify-between gap-3 border-b border-[var(--border-hairline)] bg-bht-paper px-6 py-4 sm:px-8 sm:py-5">
+                <div className="flex items-center justify-between gap-3 border-b border-[var(--border-hairline)] bg-bht-rail px-5 py-3.5 sm:px-6">
                   <div>
-                    <h3 className="text-lg font-bold tracking-tight text-bht-ink-strong">
+                    <h3 className="text-base font-semibold tracking-tight text-bht-ink-strong">
                       Cola priorizada
                     </h3>
                     <p className="mt-0.5 text-xs leading-relaxed text-bht-ink-soft">
@@ -325,27 +325,27 @@ export function Hoy({
                       : "Hoy"}
                   </Badge>
                 </div>
-                <dl className="space-y-2 rounded-xl border border-bht-line bg-bht-paper/70 p-3.5 text-sm tabular-nums">
-                  <div className="flex items-center justify-between gap-2">
+                <dl className="divide-y divide-bht-line text-sm tabular-nums">
+                  <div className="flex items-center justify-between gap-2 py-2.5 first:pt-0">
                     <dt className="text-bht-ink-soft">Cobros recibidos hoy</dt>
                     <dd className="font-semibold text-bht-success-strong">
                       +{formatPen(cashFlowSummary?.inflowsTodayPen ?? 0)}
                     </dd>
                   </div>
-                  <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center justify-between gap-2 py-2.5">
                     <dt className="text-bht-ink-soft">Salidas pagadas hoy</dt>
                     <dd className="font-semibold text-bht-ink-strong">
                       -{formatPen(cashFlowSummary?.outflowsTodayPen ?? 0)}
                     </dd>
                   </div>
-                  <div className="flex items-center justify-between gap-2 border-t border-bht-line pt-2">
+                  <div className="flex items-center justify-between gap-2 py-2.5">
                     <dt className="font-semibold text-bht-ink-strong">Neto de hoy</dt>
                     <dd className="text-base font-bold text-bht-navy-deep">
                       {(cashFlowSummary?.netTodayPen ?? 0) >= 0 ? "+" : ""}
                       {formatPen(cashFlowSummary?.netTodayPen ?? 0)}
                     </dd>
                   </div>
-                  <div className="flex items-center justify-between gap-2 text-xs text-bht-ink-soft">
+                  <div className="flex items-center justify-between gap-2 pt-2.5 text-xs text-bht-ink-soft">
                     <dt>Flujo del mes</dt>
                     <dd className="font-semibold text-bht-ink-strong">
                       {(cashFlowSummary?.netMonthPen ?? 0) >= 0 ? "+" : ""}
@@ -368,7 +368,7 @@ export function Hoy({
                 )}
                 <Button
                   type="button"
-                  variant="secondary"
+                  variant="outline"
                   size="sm"
                   onClick={() => router.push("/almacen")}
                   className="flex-1"

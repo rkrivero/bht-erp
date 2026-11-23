@@ -95,7 +95,7 @@ export function SellerMobileCartBar({ flow }: { flow: SellerOrderFlow }) {
   return (
     <div
       aria-label="Resumen móvil del pedido"
-      className="fixed inset-x-0 bottom-[calc(4rem+env(safe-area-inset-bottom,0px))] z-30 border-t border-bht-line-blue bg-white/95 px-3.5 py-2 backdrop-blur-md md:hidden"
+      className="fixed inset-x-0 bottom-[calc(4rem+env(safe-area-inset-bottom,0px))] z-30 border-t border-bht-line-blue bg-white px-3.5 py-2 shadow-bht-elev-3 md:hidden"
     >
       <div className="mx-auto flex max-w-2xl items-center justify-between gap-3">
         <div className="min-w-0">

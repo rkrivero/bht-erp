@@ -13,18 +13,19 @@ export default function RouteError({
   return (
     <main
       id="main-content"
-      className="flex min-h-screen items-center justify-center bg-bht-paper px-4 py-12"
+      className="flex min-h-[100dvh] items-center justify-center bg-bht-paper px-4 py-12"
     >
       <Card padding="lg" className="w-full max-w-md space-y-4 text-center">
         <div className="space-y-1.5">
           <p className="text-xs font-semibold uppercase tracking-wider text-bht-danger-strong">
             Error operativo
           </p>
-          <h1 className="text-lg font-bold text-bht-navy-deep">
+          <h1 className="text-lg font-bold tracking-tight text-bht-navy-deep">
             No se pudo cargar esta vista
           </h1>
-          <p className="text-xs leading-relaxed text-bht-ink-soft">
-            Ocurrió un problema inesperado al procesar la pantalla. Puedes reintentar o volver al inicio.
+          <p className="text-sm leading-relaxed text-bht-ink-soft">
+            Ocurrió un problema inesperado al procesar la pantalla. Puedes reintentar o
+            volver al inicio.
             {error.digest ? ` (Ref: ${error.digest})` : ""}
           </p>
         </div>
@@ -34,7 +35,7 @@ export default function RouteError({
           </Button>
           <Link
             href="/"
-            className="inline-flex min-h-10 items-center justify-center rounded-xl border border-bht-line bg-white px-4 py-2 text-xs font-semibold text-bht-ink-strong hover:bg-bht-paper"
+            className="inline-flex min-h-11 items-center justify-center rounded-xl border border-bht-line-strong bg-white px-4 py-2.5 text-sm font-semibold text-bht-ink-strong shadow-bht-elev-2 transition-colors hover:border-bht-cobalt/60 hover:bg-bht-cobalt-bg/40 hover:text-bht-cobalt-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bht-cobalt focus-visible:ring-offset-2"
           >
             Ir al inicio
           </Link>

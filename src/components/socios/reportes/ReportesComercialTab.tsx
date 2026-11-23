@@ -207,7 +207,7 @@ export default function ReportesComercialTab({ data }: ReportesComercialTabProps
                             style={{ width: `${collectedRate}%` }}
                           />
                           <div
-                            className="h-full bg-bht-tone-d97706"
+                            className="h-full bg-bht-warning"
                             style={{ width: `${100 - collectedRate}%` }}
                           />
                         </div>

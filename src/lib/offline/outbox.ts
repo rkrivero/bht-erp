@@ -153,7 +153,9 @@ function shouldRegenerateIdempotencyKey(mutation: OfflineMutation): boolean {
 
 export async function clearSyncedOutbox(): Promise<void> {
   const items = await listOutbox();
-  const syncedIds = items.filter((item) => item.status === "synced").map((item) => item.id);
+  const syncedIds = items
+    .filter((item) => item.status === "synced")
+    .map((item) => item.id);
   if (syncedIds.length === 0) return;
   if (!hasIndexedDb()) {
     syncedIds.forEach((id) => memoryOutbox.delete(id));

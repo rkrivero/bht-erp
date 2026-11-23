@@ -3,7 +3,8 @@
 /** Load the Neon Auth client only when the user explicitly closes the session. */
 export async function signOutFromERP(): Promise<void> {
   try {
-    const { getBrowserQueryClient } = await import("@/components/providers/QueryProvider");
+    const { getBrowserQueryClient } =
+      await import("@/components/providers/QueryProvider");
     getBrowserQueryClient().clear();
   } catch {
     // ignore query cleanup errors

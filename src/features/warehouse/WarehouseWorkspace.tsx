@@ -233,7 +233,7 @@ export default function WarehouseWorkspace() {
   );
 
   return (
-    <div className="min-h-screen bg-bht-paper pb-24 md:pb-12">
+    <div className="min-h-[100dvh] bg-bht-paper pb-24 md:pb-12">
       <AppHeader
         title="Cola de Pedidos y Despacho"
         roleLabel={formatWarehouseRoleBadge(currentUser)}

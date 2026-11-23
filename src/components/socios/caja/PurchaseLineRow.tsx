@@ -240,8 +240,8 @@ export function PurchaseOnDemandSection({
                   key={od.order_line_id}
                   className={`flex cursor-pointer items-start gap-2.5 rounded-xl border p-2.5 text-xs transition ${
                     checked
-                      ? "border-bht-tone-1d4ed8 bg-white ring-1 ring-bht-tone-1d4ed8"
-                      : "border-bht-tone-dbeafe bg-white/80"
+                      ? "border-bht-cobalt bg-white ring-1 ring-bht-cobalt"
+                      : "border-bht-info-line bg-white/80"
                   }`}
                 >
                   <input

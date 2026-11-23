@@ -21,7 +21,7 @@ export default function SellerOrderEditCard({ flow }: { flow: SellerOrderFlow })
 
   if (editingQuoteId !== null) {
     return (
-      <Card className="space-y-3 border-bht-tone-a9c7e3 bg-bht-mist lg:col-span-12">
+      <Card className="space-y-3 border-bht-info-line bg-bht-mist lg:col-span-12">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
             <p className="font-semibold text-bht-navy-deep">
@@ -56,7 +56,7 @@ export default function SellerOrderEditCard({ flow }: { flow: SellerOrderFlow })
   if (editingOrderId === null) return null;
 
   return (
-    <Card className="space-y-3 border-bht-tone-a9c7e3 bg-bht-mist lg:col-span-12">
+    <Card className="space-y-3 border-bht-info-line bg-bht-mist lg:col-span-12">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <p className="font-semibold text-bht-navy-deep">

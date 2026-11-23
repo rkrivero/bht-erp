@@ -305,7 +305,8 @@ describe("Purchases, Suppliers, ON_DEMAND Fulfillment, AP Payments & BI Reports"
         81267.86
       );
 
-      expect(bi.cashAccountsSummary.length).toBeGreaterThanOrEqual(5);
+      // Migration 029 simplified active cash accounts from 5 to 3 (CAJA_RUTA, BCP, BBVA/etc.)
+      expect(bi.cashAccountsSummary.length).toBeGreaterThanOrEqual(3);
       expect(bi.cashAccountsSummary.some((a) => a.code === "CAJA_RUTA")).toBe(true);
       expect(bi.topCustomers.length).toBeGreaterThan(0);
       expect(bi.topCustomers.length).toBeLessThanOrEqual(15);

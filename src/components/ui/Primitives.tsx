@@ -5,31 +5,21 @@ import { parseIsoTimestampMs } from "@/lib/undo-client";
 import { AlertTriangleIcon, CheckIcon, CloseIcon } from "./Icons";
 
 export type Tone =
-  | "default"
-  | "subtle"
-  | "horizon"
-  | "brand"
-  | "success"
-  | "warning"
-  | "danger"
-  | "indigo";
+  "default" | "subtle" | "horizon" | "brand" | "success" | "warning" | "danger";
 
 const CARD_TONE_CLASSES: Record<Tone, string> = {
-  default: "border-bht-line bg-white shadow-bht-elev-1 transition-colors duration-150",
-  subtle:
-    "border-bht-line bg-bht-paper shadow-bht-elev-4 transition-colors duration-150",
+  default: "border-bht-line bg-white shadow-bht-elev-2 transition-colors duration-150",
+  subtle: "border-bht-line bg-bht-paper shadow-none transition-colors duration-150",
   horizon:
-    "border-bht-cobalt/25 bg-bht-cobalt-bg/65 shadow-bht-elev-3 transition-colors duration-150",
+    "border-bht-cobalt/25 bg-bht-cobalt-bg/55 shadow-none transition-colors duration-150",
   brand:
-    "border-bht-navy-deep/15 bg-bht-mist shadow-bht-elev-3 transition-colors duration-150",
+    "border-bht-navy-deep/15 bg-bht-mist shadow-none transition-colors duration-150",
   success:
-    "border-bht-success-line bg-bht-success-bg/75 shadow-bht-elev-4 transition-colors duration-150",
+    "border-bht-success-line bg-bht-success-bg/75 shadow-none transition-colors duration-150",
   warning:
-    "border-bht-warning-line bg-bht-warning-bg/75 shadow-bht-elev-4 transition-colors duration-150",
+    "border-bht-warning-line bg-bht-warning-bg/75 shadow-none transition-colors duration-150",
   danger:
-    "border-bht-danger-line bg-bht-danger-bg/75 shadow-bht-elev-4 transition-colors duration-150",
-  indigo:
-    "border-bht-navy-deep/15 bg-bht-mist shadow-bht-elev-4 transition-colors duration-150",
+    "border-bht-danger-line bg-bht-danger-bg/75 shadow-none transition-colors duration-150",
 };
 
 export function Card({
@@ -52,15 +42,15 @@ export function Card({
       : padding === "sm"
         ? "p-3.5 sm:p-4"
         : padding === "lg"
-          ? "p-7 sm:p-10"
-          : "p-[var(--card-pad,1.5rem)]";
+          ? "p-6 sm:p-8"
+          : "p-[var(--card-pad,1.25rem)]";
   const accentClass =
     accent === "horizon"
-      ? "border-bht-cobalt/30 shadow-bht-elev-16 ring-1 ring-bht-cobalt/12"
+      ? "border-bht-cobalt/30 shadow-bht-elev-3 ring-1 ring-bht-cobalt/10"
       : "";
   return (
     <section
-      className={`bht-card-surface min-w-0 rounded-2xl border ${CARD_TONE_CLASSES[tone]} ${accentClass} ${padClass} ${className}`}
+      className={`bht-card-surface min-w-0 rounded-xl border ${CARD_TONE_CLASSES[tone]} ${accentClass} ${padClass} ${className}`}
       {...props}
     >
       {children}
@@ -69,14 +59,7 @@ export function Card({
 }
 
 export type BadgeTone =
-  | "neutral"
-  | "obsidian"
-  | "horizon"
-  | "brand"
-  | "success"
-  | "warning"
-  | "danger"
-  | "indigo";
+  "neutral" | "obsidian" | "horizon" | "brand" | "success" | "warning" | "danger";
 
 const BADGE_CLASSES: Record<BadgeTone, string> = {
   neutral: "border-bht-line bg-bht-mist text-bht-ink-strong",
@@ -86,7 +69,6 @@ const BADGE_CLASSES: Record<BadgeTone, string> = {
   success: "border-bht-success-line bg-bht-success-bg text-bht-success-strong",
   warning: "border-bht-warning-line bg-bht-warning-bg text-bht-warning-strong",
   danger: "border-bht-danger-line bg-bht-danger-bg text-bht-danger-strong",
-  indigo: "border-bht-navy-deep/20 bg-bht-mist text-bht-ink-strong",
 };
 
 export function Badge({
@@ -105,7 +87,9 @@ export function Badge({
   );
   return (
     <span
-      className={`inline-flex flex-shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[11px] font-semibold tracking-[0.01em] leading-4 transition-colors duration-150 ${
+      className={`inline-flex flex-shrink-0 items-center gap-1.5 ${
+        dotColor ? "rounded-full" : "rounded-md"
+      } border px-2 py-0.5 text-[11px] font-medium tracking-[0.01em] leading-4 transition-colors duration-150 ${
         hasCustomWrap ? "" : "whitespace-nowrap"
       } ${BADGE_CLASSES[tone]} ${className}`}
     >
@@ -121,21 +105,21 @@ export type ButtonVariant =
   "primary" | "brand" | "secondary" | "outline" | "ghost" | "success" | "danger";
 
 const BUTTON_VARIANTS: Record<ButtonVariant, string> = {
-  primary: "bg-bht-cobalt text-white hover:bg-bht-cobalt-strong shadow-bht-elev-5",
-  brand: "bg-bht-navy-deep text-white hover:bg-bht-navy-mid shadow-bht-elev-6",
+  primary: "bg-bht-cobalt text-white hover:bg-bht-cobalt-strong shadow-xs",
+  brand: "bg-bht-navy-deep text-white hover:bg-bht-navy-mid shadow-xs",
   secondary:
-    "bg-white text-bht-ink-strong border border-bht-line hover:bg-bht-paper hover:border-bht-line-strong shadow-bht-elev-2",
+    "bg-white text-bht-ink-strong border border-bht-line hover:bg-bht-paper hover:border-bht-line-strong",
   outline:
-    "bg-white text-bht-ink-strong border border-bht-line-strong hover:border-bht-cobalt/60 hover:text-bht-cobalt-strong hover:bg-bht-cobalt-bg/40 shadow-bht-elev-2",
+    "bg-white text-bht-ink-strong border border-bht-line-strong/80 hover:border-bht-cobalt/50 hover:text-bht-cobalt-strong hover:bg-bht-cobalt-bg/35",
   ghost: "bg-transparent text-bht-ink-soft hover:bg-bht-mist hover:text-bht-ink-strong",
-  success: "bg-bht-success text-white hover:bg-bht-success-strong shadow-bht-elev-8",
-  danger: "bg-bht-danger text-white hover:bg-bht-danger-strong shadow-bht-elev-9",
+  success: "bg-bht-success text-white hover:bg-bht-success-strong shadow-xs",
+  danger: "bg-bht-danger text-white hover:bg-bht-danger-strong shadow-xs",
 };
 
 const BUTTON_SIZES: Record<"sm" | "md" | "lg", string> = {
-  sm: "px-3 py-1.5 text-xs rounded-[10px]",
-  md: "px-4 py-2.5 text-sm rounded-xl",
-  lg: "px-5 py-3 text-sm rounded-xl",
+  sm: "px-2.5 py-1.5 text-xs rounded-lg",
+  md: "px-3.5 py-2 text-sm rounded-lg",
+  lg: "px-4 py-2.5 text-sm rounded-lg",
 };
 
 export function Button({
@@ -166,7 +150,7 @@ export function Button({
     <button
       type={type}
       data-compact={isCompact ? "true" : undefined}
-      className={`${displayClass} items-center justify-center gap-2 font-semibold transition-all duration-150 active:scale-[0.985] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--bht-cobalt)] focus-visible:ring-offset-2 focus-visible:ring-offset-white disabled:pointer-events-none disabled:opacity-50 cursor-pointer ${BUTTON_VARIANTS[variant]} ${BUTTON_SIZES[size]} ${mobileTouchClass} ${className}`}
+      className={`${displayClass} items-center justify-center gap-2 font-semibold transition-colors duration-150 active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--bht-cobalt)] focus-visible:ring-offset-2 focus-visible:ring-offset-white disabled:pointer-events-none disabled:opacity-50 cursor-pointer ${BUTTON_VARIANTS[variant]} ${BUTTON_SIZES[size]} ${mobileTouchClass} ${className}`}
       {...props}
     >
       {children}
@@ -201,7 +185,7 @@ export function FieldLabel({
 }
 
 export const INPUT_CLASS =
-  "min-h-11 w-full rounded-xl border border-bht-line-strong bg-white px-3.5 py-2.5 text-sm text-bht-ink-strong placeholder:text-bht-ink-muted shadow-bht-elev-2 transition-colors duration-150 hover:border-bht-line-stronger focus:border-bht-cobalt focus:outline-none focus:ring-3 focus:ring-bht-cobalt/15 disabled:bg-bht-mist disabled:text-bht-ink-muted disabled:border-bht-line";
+  "min-h-10 w-full rounded-lg border border-bht-line-strong/80 bg-white px-3 py-2 text-sm text-bht-ink-strong placeholder:text-bht-ink-muted shadow-none transition-colors duration-150 hover:border-bht-line-stronger focus:border-bht-cobalt focus:outline-none focus:ring-2 focus:ring-bht-cobalt/15 disabled:bg-bht-mist disabled:text-bht-ink-muted disabled:border-bht-line";
 
 export function SegmentedControl<T extends string>({
   options,
@@ -240,7 +224,7 @@ export function SegmentedControl<T extends string>({
 
   return (
     <div
-      className={`no-scrollbar flex min-w-0 max-w-full gap-1 overflow-x-auto rounded-xl border border-bht-line bg-bht-mist/85 p-1 transition-colors duration-150 ${className}`}
+      className={`no-scrollbar flex min-w-0 max-w-full gap-1 overflow-x-auto rounded-lg border border-bht-line bg-bht-rail p-0.5 transition-colors duration-150 ${className}`}
       role="radiogroup"
       aria-label={ariaLabel}
     >
@@ -258,9 +242,9 @@ export function SegmentedControl<T extends string>({
             tabIndex={active || (!hasMatch && idx === 0) ? 0 : -1}
             onClick={() => onChange(opt.id)}
             onKeyDown={(e) => handleKeyDown(e, idx)}
-            className={`min-h-10 min-w-max flex-1 shrink-0 rounded-lg px-3.5 py-1.5 text-xs font-semibold leading-tight transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bht-cobalt focus-visible:ring-offset-1 sm:text-sm cursor-pointer ${
+            className={`min-h-9 min-w-max flex-1 shrink-0 rounded-md px-3 py-1.5 text-xs font-medium leading-tight transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bht-cobalt focus-visible:ring-offset-1 sm:text-sm cursor-pointer ${
               active
-                ? "border border-bht-cobalt/20 bg-white text-bht-navy-deep font-semibold shadow-bht-elev-2"
+                ? "border border-bht-line bg-white text-bht-ink-deep font-semibold shadow-xs"
                 : "border border-transparent bg-transparent text-bht-ink-soft hover:text-bht-ink-strong hover:bg-white/60"
             }`}
           >

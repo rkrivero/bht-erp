@@ -27,10 +27,7 @@ export function useSellerDraftPersistence(
   actorUsername: string | undefined,
   isEditing = false
 ) {
-  const {
-    state,
-    dispatch,
-  } = draftApi;
+  const { state, dispatch } = draftApi;
   const {
     orderStep,
     showCustomPromiseDate,
@@ -52,7 +49,10 @@ export function useSellerDraftPersistence(
   useEffect(() => {
     if (
       !draftHydratedRef.current &&
-      (isEditing || cart.length > 0 || customerNameRaw.trim() !== "" || notes.trim() !== "")
+      (isEditing ||
+        cart.length > 0 ||
+        customerNameRaw.trim() !== "" ||
+        notes.trim() !== "")
     ) {
       dirtyBeforeHydrationRef.current = true;
     }
@@ -150,9 +150,7 @@ export function useSellerDraftPersistence(
                 ? legacy.unitPricePen
                 : Math.max(
                     0,
-                    Number(
-                      (listPrice - Number(legacy.unitDiscountPen ?? 0)).toFixed(2)
-                    )
+                    Number((listPrice - Number(legacy.unitDiscountPen ?? 0)).toFixed(2))
                   );
             return {
               ...rawLine,

@@ -75,8 +75,9 @@ export default function ReportesResumenTab({
           )}
         </div>
 
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid grid-cols-1 gap-px overflow-hidden rounded-xl border border-bht-line bg-bht-line sm:grid-cols-2 lg:grid-cols-3">
           <ConceptCardButton
+            variant="cell"
             onClick={() =>
               setActiveConcept({
                 id: "ventas_totales",
@@ -91,12 +92,13 @@ export default function ReportesResumenTab({
             <p className="text-2xl font-bold tracking-[-0.03em] text-bht-navy-deep tabular-nums">
               {formatPen(totals.salesTotalPen)}
             </p>
-            <span className="inline-flex items-center rounded-lg border border-bht-line-blue bg-bht-mist px-2 py-0.5 text-xs font-semibold text-bht-navy-deep tabular-nums">
+            <span className="inline-flex items-center rounded-md border border-bht-line-blue bg-bht-mist px-2 py-0.5 text-xs font-semibold text-bht-navy-deep tabular-nums">
               Cobertura de costo: {formatPct(totals.costCoveragePct)}
             </span>
           </ConceptCardButton>
 
           <ConceptCardButton
+            variant="cell"
             onClick={() =>
               setActiveConcept({
                 id: "margen_bruto_con_costo",
@@ -118,6 +120,7 @@ export default function ReportesResumenTab({
           </ConceptCardButton>
 
           <ConceptCardButton
+            variant="cell"
             onClick={() =>
               setActiveConcept({
                 id: "gastos_operativos_ruta",
@@ -144,6 +147,7 @@ export default function ReportesResumenTab({
           </ConceptCardButton>
 
           <ConceptCardButton
+            variant="cell"
             onClick={() =>
               setActiveConcept({
                 id: "contribucion_ruta",
@@ -179,6 +183,7 @@ export default function ReportesResumenTab({
           </ConceptCardButton>
 
           <ConceptCardButton
+            variant="cell"
             onClick={() =>
               setActiveConcept({
                 id: "gastos_fijos_admin",
@@ -199,6 +204,7 @@ export default function ReportesResumenTab({
           </ConceptCardButton>
 
           <ConceptCardButton
+            variant="cell"
             onClick={() =>
               setActiveConcept({
                 id: "resultado_operativo_registrado",

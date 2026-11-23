@@ -71,7 +71,7 @@ export function PromiseFilterBar({
             onClick={() => onChange(f.id)}
             className={`inline-flex min-h-[40px] w-full sm:w-auto items-center justify-center gap-1.5 rounded-xl sm:rounded-full border px-3 py-1.5 text-xs text-center transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bht-navy-deep focus-visible:ring-offset-1 cursor-pointer ${
               active
-                ? "border-bht-navy-deep/45 bg-bht-tone-edf3f8 font-semibold text-bht-navy-deep shadow-bht-elev-2"
+                ? "border-bht-navy-deep/45 bg-bht-paper font-semibold text-bht-navy-deep shadow-bht-elev-2"
                 : "border-bht-line bg-white font-medium text-bht-ink-soft hover:border-bht-line-blue hover:bg-bht-mist/70 hover:text-bht-navy-deep"
             }`}
           >
@@ -200,7 +200,7 @@ export function AbonoModal({
               size="sm"
               aria-label={`Completar monto total pendiente: S/ ${balanceDuePen.toFixed(2)}`}
               onClick={() => onAmountChange(balanceDuePen.toFixed(2))}
-              className="border-bht-line-blue bg-bht-mist text-bht-navy-deep hover:border-bht-tone-5b89b5/60 hover:bg-bht-tone-e7eff7"
+              className="border-bht-line-blue bg-bht-mist text-bht-navy-deep hover:border-bht-steel/60 hover:bg-bht-mist"
             >
               Todo (S/ {balanceDuePen.toFixed(2)})
             </Button>
@@ -209,7 +209,7 @@ export function AbonoModal({
               size="sm"
               aria-label={`Completar mitad del saldo: S/ ${(balanceDuePen / 2).toFixed(2)}`}
               onClick={() => onAmountChange((balanceDuePen / 2).toFixed(2))}
-              className="border-bht-line-blue bg-bht-mist text-bht-navy-deep hover:border-bht-tone-5b89b5/60 hover:bg-bht-tone-e7eff7"
+              className="border-bht-line-blue bg-bht-mist text-bht-navy-deep hover:border-bht-steel/60 hover:bg-bht-mist"
             >
               Mitad
             </Button>
@@ -274,7 +274,7 @@ export function AbonoModal({
                   }}
                   className={`rounded-xl border px-3 py-2.5 text-xs font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bht-navy-deep focus-visible:ring-offset-1 cursor-pointer ${
                     active
-                      ? "border-bht-navy-deep bg-bht-tone-edf3f8 text-bht-navy-deep ring-1 ring-bht-navy-deep/15"
+                      ? "border-bht-navy-deep bg-bht-paper text-bht-navy-deep ring-1 ring-bht-navy-deep/15"
                       : "border-bht-line bg-white text-bht-ink-soft hover:border-bht-line-blue hover:bg-bht-mist/60 hover:text-bht-navy-deep"
                   }`}
                 >
@@ -316,7 +316,7 @@ export function AbonoModal({
         )}
 
         {isFullPayoff ? (
-          <div className="rounded-xl border border-bht-tone-a7f3d0 bg-bht-tone-ecfdf5 px-3 py-2.5 text-xs font-medium text-bht-tone-047857">
+          <div className="rounded-xl border border-bht-success-line bg-bht-success-bg px-3 py-2.5 text-xs font-medium text-bht-success-strong">
             Este abono liquida el 100% del saldo pendiente; no se programará prórroga de
             cobranza.
           </div>
@@ -685,7 +685,7 @@ export function DebtorDetailModal({
                 variant="outline"
                 size="sm"
                 onClick={onSelectCustomerAbono}
-                className="w-full border-bht-line-blue bg-bht-mist/70 text-bht-navy-deep hover:bg-bht-tone-edf3f8"
+                className="w-full border-bht-line-blue bg-bht-mist/70 text-bht-navy-deep hover:bg-bht-paper"
               >
                 <PlusIcon className="h-3.5 w-3.5" />
                 Abonar a cuenta general (desde la deuda más antigua)

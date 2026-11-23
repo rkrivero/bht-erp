@@ -162,7 +162,7 @@ export function WarehouseOrderCard({
                   aria-hidden="true"
                   className={`mt-0.5 flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-md border transition ${
                     isDelivered
-                      ? "border-bht-success/30 bg-bht-tone-eef9f1 text-bht-success"
+                      ? "border-bht-success/30 bg-bht-success-bg text-bht-success"
                       : checked
                         ? "border-bht-navy-deep bg-bht-navy-deep text-white"
                         : "border-bht-line-stronger bg-white"

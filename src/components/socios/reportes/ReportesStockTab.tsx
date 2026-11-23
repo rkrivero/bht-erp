@@ -168,7 +168,7 @@ export default function ReportesStockTab({
                 className="rounded-xl border border-bht-line bg-bht-paper/60 p-3 text-xs space-y-1.5"
               >
                 <div className="flex items-center justify-between gap-2">
-                  <Badge tone={fm.fulfillment_mode === "STOCKED" ? "brand" : "indigo"}>
+                  <Badge tone={fm.fulfillment_mode === "STOCKED" ? "brand" : "horizon"}>
                     {formatFulfillmentModeEs(fm.fulfillment_mode)}
                   </Badge>
                   <span className="text-bht-ink-soft tabular-nums">

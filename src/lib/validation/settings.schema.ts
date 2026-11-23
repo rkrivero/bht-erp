@@ -4,7 +4,10 @@ const settingValueSchema = z.union([
   z.number().finite(),
   z.boolean(),
   z.string().max(500),
-  z.record(z.string().max(100), z.union([z.string().max(500), z.number().finite(), z.boolean(), z.null()])),
+  z.record(
+    z.string().max(100),
+    z.union([z.string().max(500), z.number().finite(), z.boolean(), z.null()])
+  ),
 ]);
 
 export const patchSystemSettingsSchema = z

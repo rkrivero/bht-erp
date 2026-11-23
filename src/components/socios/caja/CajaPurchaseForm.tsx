@@ -138,10 +138,10 @@ export function CajaPurchaseForm({
                 ...row,
                 productId: pid,
                 unitCostPen:
-                  prod && prod.ref_cost_pen !== null
+                  prod?.ref_cost_pen != null
                     ? currency === "USD" && effectiveExchangeRate > 0
-                      ? String(Number((prod.ref_cost_pen / effectiveExchangeRate).toFixed(4)))
-                      : String(prod.ref_cost_pen)
+                      ? `${Number((prod.ref_cost_pen / effectiveExchangeRate).toFixed(4))}`
+                      : `${prod.ref_cost_pen}`
                     : row.unitCostPen,
               }
             : row
@@ -227,8 +227,10 @@ export function CajaPurchaseForm({
 
     if (paymentCond === "PARTIAL") {
       const paidVal = Number(paidNow || 0);
+      const msg =
+        "En pago parcial, el adelanto debe ser mayor a S/ 0.00 y menor al total.";
       if (!Number.isFinite(paidVal) || paidVal <= 0 || paidVal >= totals.totalPen) {
-        onFeedback("En pago parcial, el adelanto debe ser mayor a S/ 0.00 y menor al total.", true);
+        onFeedback(msg, true);
         return;
       }
     }
@@ -639,13 +641,13 @@ export function CajaPurchaseForm({
               </div>
               <div>
                 <span className="text-white/60">Pago Hoy:</span>{" "}
-                <strong className="text-bht-tone-4ade80">
+                <strong className="text-emerald-400">
                   {formatPen(paidNowComputed)}
                 </strong>
               </div>
               <div>
                 <span className="text-white/60">A Cuentas por Pagar:</span>{" "}
-                <strong className="text-bht-tone-fbbf24">
+                <strong className="text-amber-400">
                   {formatPen(creditBalancePen)}
                 </strong>
               </div>

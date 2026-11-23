@@ -288,7 +288,7 @@ export default function AdminUndoPanel({
                         {formatLimaDateTime(item.created_at)}
                       </p>
                       {isUndone && (
-                        <p className="rounded-lg border border-bht-success-line bg-bht-success-bg px-2.5 py-1.5 text-xs text-bht-tone-14532d">
+                        <p className="rounded-lg border border-bht-success-line bg-bht-success-bg px-2.5 py-1.5 text-xs text-bht-success-strong">
                           Deshecha por{" "}
                           <strong>{item.undone_by_name || "Administrador"}</strong> el{" "}
                           {formatLimaDateTime(item.undone_at!)}
