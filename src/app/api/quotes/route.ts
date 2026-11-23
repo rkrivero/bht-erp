@@ -21,7 +21,11 @@ const QUOTE_ROLES = ["PARTNER_ADMIN", "PARTNER_MANAGER", "EXTERNAL_SELLER"] as c
 export async function GET(req: NextRequest) {
   try {
     const limitParam = req.nextUrl.searchParams.get("limit");
-    const limit = limitParam ? Number(limitParam) : 250;
+    const parsedLimit = limitParam ? Number(limitParam) : 250;
+    const limit =
+      Number.isInteger(parsedLimit) && parsedLimit >= 1 && parsedLimit <= 500
+        ? parsedLimit
+        : 250;
 
     const data = await withAuthenticatedClient(
       req,

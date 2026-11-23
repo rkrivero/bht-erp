@@ -64,7 +64,7 @@ function buildValuesMap(items: SystemSettingItem[]): SystemSettingsMap {
 
 export async function getSystemSettings(
   client: PoolClient,
-  options: { forceRefresh?: boolean } = {}
+  options: { forceRefresh?: boolean; writeCache?: boolean } = {}
 ): Promise<{ settings: SystemSettingItem[]; values: SystemSettingsMap }> {
   const now = Date.now();
   if (!options.forceRefresh && cachedSettings && cachedSettings.expiresAt > now) {
@@ -116,11 +116,13 @@ export async function getSystemSettings(
     }));
 
     const values = buildValuesMap(settings);
-    cachedSettings = {
-      expiresAt: now + SETTINGS_CACHE_TTL_MS,
-      settings,
-      values,
-    };
+    if (options.writeCache !== false) {
+      cachedSettings = {
+        expiresAt: now + SETTINGS_CACHE_TTL_MS,
+        settings,
+        values,
+      };
+    }
     return { settings, values: { ...values } };
   } catch {
     return {
@@ -295,5 +297,5 @@ export async function updateSystemSettings(
   }
 
   invalidateSystemSettingsCache();
-  return getSystemSettings(client, { forceRefresh: true });
+  return getSystemSettings(client, { forceRefresh: true, writeCache: false });
 }

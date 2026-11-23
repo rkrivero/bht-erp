@@ -157,6 +157,18 @@ export function useSellerData(setFeedback: SellerFeedbackSetter) {
         );
         setDebtorsByOrder(colData.byOrder || []);
         setDebtorsByCustomer(colData.byCustomer || []);
+        let actorForSnapshot: string | null = null;
+        try {
+          actorForSnapshot = sessionStorage.getItem(SELLER_LAST_ACTOR_STORAGE_KEY);
+        } catch {
+          actorForSnapshot = null;
+        }
+        if (actorForSnapshot) {
+          void saveOfflineSnapshot(actorForSnapshot, "collections", {
+            byOrder: colData.byOrder || [],
+            byCustomer: colData.byCustomer || [],
+          }).catch(() => undefined);
+        }
         return true;
       } catch (error) {
         if (
@@ -166,7 +178,24 @@ export function useSellerData(setFeedback: SellerFeedbackSetter) {
           router.push("/login");
           return false;
         }
-        if (!silent) {
+        let lastActor: string | null = null;
+        try {
+          lastActor = sessionStorage.getItem(SELLER_LAST_ACTOR_STORAGE_KEY);
+        } catch {
+          lastActor = null;
+        }
+        if (navigator.onLine === false && lastActor) {
+          const snapshot = await readOfflineSnapshot<CollectionsDto>(
+            lastActor,
+            "collections"
+          ).catch(() => null);
+          if (snapshot) {
+            setDebtorsByOrder(snapshot.byOrder || []);
+            setDebtorsByCustomer(snapshot.byCustomer || []);
+            return true;
+          }
+        }
+        if (!silent && navigator.onLine !== false) {
           setFeedback({
             type: "err",
             msg: "Error de red cargando cartera de cobros.",

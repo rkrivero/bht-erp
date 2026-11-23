@@ -451,18 +451,27 @@ export function ModalSheet({
   const titleId = useId();
   const subtitleId = useId();
   const dialogRef = useRef<HTMLDialogElement | null>(null);
+  const previousFocusRef = useRef<HTMLElement | null>(null);
   const pressedOutsideRef = useRef(false);
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
 
   useEffect(() => {
     const dialog = dialogRef.current;
-    if (!open || !dialog || dialog.open) return;
-    try {
-      if (typeof dialog.showModal === "function") dialog.showModal();
-      else dialog.setAttribute("open", "");
-    } catch {
-      dialog.setAttribute("open", "");
+    if (open) {
+      if (document.activeElement instanceof HTMLElement) {
+        previousFocusRef.current = document.activeElement;
+      }
+      if (!dialog || dialog.open) return;
+      try {
+        if (typeof dialog.showModal === "function") dialog.showModal();
+        else dialog.setAttribute("open", "");
+      } catch {
+        dialog.setAttribute("open", "");
+      }
+    } else {
+      previousFocusRef.current?.focus?.();
+      previousFocusRef.current = null;
     }
   }, [open]);
 

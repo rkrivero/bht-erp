@@ -1042,6 +1042,18 @@ export async function registerSupplierPurchase(
     igvPen = Number((subtotalPen * 0.18).toFixed(2));
     totalPen = Number((subtotalPen + igvPen).toFixed(2));
     origTotal = Number((origBaseSum * 1.18).toFixed(2));
+    const roundingDiff = Number((totalPen - lineTotalPenSum).toFixed(2));
+    if (roundingDiff !== 0 && preparedLines.length > 0) {
+      let maxIdx = 0;
+      for (let i = 1; i < preparedLines.length; i += 1) {
+        if (preparedLines[i].lineTotalPen > preparedLines[maxIdx].lineTotalPen) {
+          maxIdx = i;
+        }
+      }
+      preparedLines[maxIdx].lineTotalPen = Number(
+        (preparedLines[maxIdx].lineTotalPen + roundingDiff).toFixed(2)
+      );
+    }
   }
 
   const paymentCondition = String(input.paymentCondition || "")
@@ -1628,8 +1640,9 @@ export async function payApObligation(
   );
   const ledgerId = Number(ledgerRes.rows[0].ledger_id);
 
+  const roundedPaidPen = Number(amountPen.toFixed(2));
   const originalAmount = Number(ap.original_amount_pen);
-  const updatedPaid = Number((Number(ap.paid_amount_pen) + amountPen).toFixed(2));
+  const updatedPaid = Number((Number(ap.paid_amount_pen) + roundedPaidPen).toFixed(2));
   const remaining = Math.max(0, Number((originalAmount - updatedPaid).toFixed(2)));
   const newStatus = remaining <= 0.05 ? "PAID" : "PARTIAL";
 

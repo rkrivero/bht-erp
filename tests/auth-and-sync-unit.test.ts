@@ -116,7 +116,7 @@ describe("Server Error, Transport & Test-session Hardening", () => {
     expect(resolveHttpError(closedPeriodPgErr, "fallback")).toEqual({
       status: 409,
       error:
-        "Periodo cerrado (2026-11-18): no se permiten modificaciones sin corrección auditada de cierre diario",
+        "Periodo cerrado: no se permiten movimientos en una fecha con cierre diario cerrado",
       code: "CLOSED_PERIOD",
     });
   });

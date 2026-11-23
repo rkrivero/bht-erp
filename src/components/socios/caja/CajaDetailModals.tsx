@@ -235,15 +235,20 @@ export function ApPaymentModal({
   const [confirmStep, setConfirmStep] = useState(false);
   const [busy, setBusy] = useState(false);
 
+  const payingApId = payingAp?.ap_id ?? null;
+  const payingApBalance = payingAp ? Number(payingAp.balance_due_pen) : 0;
+  const fallbackAccountId =
+    defaultAccountId || (accounts[0] ? String(accounts[0].account_id) : "");
+
   useEffect(() => {
-    if (!payingAp) return;
-    setAmountInput(String(Number(payingAp.balance_due_pen)));
-    setAccountId(
-      defaultAccountId || (accounts[0] ? String(accounts[0].account_id) : "")
-    );
+    if (payingApId === null) return;
+    setAmountInput(String(payingApBalance));
+    setAccountId(fallbackAccountId);
     setNotes("");
     setConfirmStep(false);
-  }, [payingAp, defaultAccountId, accounts]);
+    // Only reset draft when switching the target AP obligation
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [payingApId]);
 
   const chosenAccount = accounts.find(
     (account) => String(account.account_id) === (accountId || defaultAccountId)

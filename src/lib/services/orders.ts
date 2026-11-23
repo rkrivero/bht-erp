@@ -18,7 +18,7 @@ import {
   type SessionUser,
 } from "../types";
 import { recordPriceOverrides } from "./price-audit";
-import { getNumericSetting } from "./settings";
+import { getNumericSetting, getStringSetting } from "./settings";
 import { recordUndoableAction, type UndoActionReceipt } from "./undo";
 
 const SALES_ORDER_COLUMNS = `
@@ -304,6 +304,7 @@ export async function createOrder(
     });
   }
 
+  const subtotalPen = totalPen;
   const globalDiscountPen = Number((input.globalDiscountPen ?? 0).toFixed(2));
   if (!Number.isFinite(globalDiscountPen) || globalDiscountPen < 0) {
     throw new ValidationError("El descuento global no puede ser negativo");
@@ -314,6 +315,27 @@ export async function createOrder(
     );
   }
   totalPen = Number((totalPen - globalDiscountPen).toFixed(2));
+
+  if (globalDiscountPen > 0 && !isPartnerRole(actor.role)) {
+    let hasKnownCost = false;
+    let totalKnownCostPen = 0;
+    let knownCostLinesRevenue = 0;
+    for (const line of preparedLines) {
+      if (line.unitCostSnapshotPen !== null) {
+        hasKnownCost = true;
+        totalKnownCostPen += line.quantity * line.unitCostSnapshotPen;
+        knownCostLinesRevenue += line.lineTotalPen;
+      }
+    }
+    if (hasKnownCost) {
+      const proratedGlobalDiscount =
+        subtotalPen > 0 ? globalDiscountPen * (knownCostLinesRevenue / subtotalPen) : 0;
+      const netKnownCostRevenue = knownCostLinesRevenue - proratedGlobalDiscount;
+      if (netKnownCostRevenue < totalKnownCostPen - 0.01) {
+        requiresApproval = true;
+      }
+    }
+  }
 
   let validatedTripId: number | null = null;
   if (input.tripId !== undefined && input.tripId !== null) {
@@ -422,7 +444,17 @@ export async function createOrder(
             openArBalancePen,
             projectedBalancePen,
           };
-          if (!isPartnerRole(actor.role)) {
+          const creditLimitMode = await getStringSetting(
+            client,
+            "credit_limit_mode",
+            "APPROVAL_GATE"
+          );
+          if (creditLimitMode === "STRICT_BLOCK" && !isPartnerRole(actor.role)) {
+            throw new ValidationError(
+              `El cliente excede su límite de crédito (S/ ${creditLimitPen.toFixed(2)})`
+            );
+          }
+          if (creditLimitMode === "APPROVAL_GATE" && !isPartnerRole(actor.role)) {
             requiresApproval = true;
           }
         }
@@ -1206,6 +1238,7 @@ export async function updateOrder(
       belowMinimum: unitPrice < minimum - 0.0001,
     };
   });
+  const subtotalPen = totalPen;
   const globalDiscountPen = Number(
     (input.globalDiscountPen !== undefined
       ? input.globalDiscountPen
@@ -1221,6 +1254,27 @@ export async function updateOrder(
     );
   }
   totalPen = Number((totalPen - globalDiscountPen).toFixed(2));
+
+  if (globalDiscountPen > 0 && !isPartnerRole(actor.role)) {
+    let hasKnownCost = false;
+    let totalKnownCostPen = 0;
+    let knownCostLinesRevenue = 0;
+    for (const line of prepared) {
+      if (line.cost !== null) {
+        hasKnownCost = true;
+        totalKnownCostPen += line.quantity * line.cost;
+        knownCostLinesRevenue += line.lineTotal;
+      }
+    }
+    if (hasKnownCost) {
+      const proratedGlobalDiscount =
+        subtotalPen > 0 ? globalDiscountPen * (knownCostLinesRevenue / subtotalPen) : 0;
+      const netKnownCostRevenue = knownCostLinesRevenue - proratedGlobalDiscount;
+      if (netKnownCostRevenue < totalKnownCostPen - 0.01) {
+        requiresApproval = true;
+      }
+    }
+  }
   if (totalPen < Number(order.paid_pen) - 0.05) {
     throw new ValidationError(
       "El nuevo total no puede ser menor a lo ya cobrado; registra primero la devolución"
@@ -1497,6 +1551,19 @@ export async function cancelOrder(
   // Only restore stock if stock was actually deducted
   if (order.stock_deducted) {
     await client.query(
+      `SELECT product_id
+       FROM erp.products
+       WHERE product_id IN (
+         SELECT DISTINCT product_id
+         FROM erp.inventory_movements
+         WHERE reference_table = 'erp.sales_orders'
+           AND reference_id = $1
+       )
+       ORDER BY product_id ASC
+       FOR UPDATE`,
+      [String(orderId)]
+    );
+    await client.query(
       `INSERT INTO erp.inventory_movements (
          warehouse_id, product_id, movement_date, movement_type,
          quantity_delta, unit_cost_pen, reference_table, reference_id,
@@ -1517,7 +1584,8 @@ export async function cancelOrder(
        WHERE reference_table = 'erp.sales_orders'
          AND reference_id = $2
        GROUP BY product_id
-       HAVING SUM(quantity_delta) < 0`,
+       HAVING SUM(quantity_delta) < 0
+       ORDER BY product_id ASC`,
       [
         Number(order.warehouse_id),
         String(orderId),

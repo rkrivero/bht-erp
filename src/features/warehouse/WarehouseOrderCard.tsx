@@ -283,7 +283,12 @@ export function WarehouseOrderCard({
             <div className="flex flex-wrap items-center gap-2">
               <select
                 aria-label={`Ruta para pedido ${order.order_code}`}
-                value={selectedTripId ?? String(openTrips[0].trip_id)}
+                value={
+                  selectedTripId &&
+                  openTrips.some((t) => String(t.trip_id) === selectedTripId)
+                    ? selectedTripId
+                    : String(openTrips[0].trip_id)
+                }
                 onChange={(e) => onSelectTrip(order.order_id, e.target.value)}
                 className={`${INPUT_CLASS} min-w-[140px] flex-1 py-2 text-xs`}
               >

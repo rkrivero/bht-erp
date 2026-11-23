@@ -677,13 +677,13 @@ async function queryResumen(
     `;
   } else {
     const salesClauses = [
-      "so.order_date >= DATE '2026-06-26'",
+      "so.order_date >= erp.fn_get_setting_date('kpi_cutoff_date', DATE '2026-06-26')",
       "so.operational_status NOT IN ('CANCELLED', 'PENDING_PARTNER_APPROVAL')",
       ...pb.appendSalesFilters(filters, "so"),
     ];
     const collectionClauses = [
       "ap.voided_at IS NULL",
-      "ap.payment_date >= DATE '2026-06-26'",
+      "ap.payment_date >= erp.fn_get_setting_date('kpi_cutoff_date', DATE '2026-06-26')",
       "so.operational_status NOT IN ('CANCELLED', 'PENDING_PARTNER_APPROVAL')",
     ];
     if (filters.from) {
@@ -705,15 +705,15 @@ async function queryResumen(
 
     const activeCashGuards = [
       "NOT cl.is_reversal",
-      "cl.expense_category <> 'CONCILIACION_SALDO'",
+      "cl.expense_category IS DISTINCT FROM 'CONCILIACION_SALDO'",
       "NOT EXISTS (SELECT 1 FROM erp.cash_ledger rev WHERE rev.reversal_of_ledger_id = cl.ledger_id)",
     ];
     const cashClauses: string[] = [
-      "cl.tx_date >= DATE '2026-06-26'",
+      "cl.tx_date >= erp.fn_get_setting_date('kpi_cutoff_date', DATE '2026-06-26')",
       ...activeCashGuards,
     ];
     const preRouteClauses: string[] = [
-      "cl.tx_date < DATE '2026-06-26'",
+      "cl.tx_date < erp.fn_get_setting_date('kpi_cutoff_date', DATE '2026-06-26')",
       ...activeCashGuards,
     ];
     if (filters.from) {
@@ -757,7 +757,7 @@ async function queryResumen(
 
     pnlSelectSql = `
       WITH filtered_orders AS (
-        SELECT so.order_id, so.order_date, so.total_pen, so.paid_pen, so.balance_due_pen
+        SELECT so.order_id, so.order_date, so.total_pen, so.global_discount_pen, so.paid_pen, so.balance_due_pen
         FROM erp.sales_orders so
         LEFT JOIN erp.parties pa ON pa.party_id = so.customer_party_id
         LEFT JOIN erp.route_trips rt ON rt.trip_id = so.trip_id
@@ -785,13 +785,26 @@ async function queryResumen(
       ),
       monthly_cogs AS (
         SELECT
-          DATE_TRUNC('month', fo.order_date)::DATE AS period_month,
-          COALESCE(SUM(sol.line_total_pen) FILTER (WHERE COALESCE(sol.unit_cost_snapshot_pen, p.ref_cost_pen) IS NOT NULL), 0)::NUMERIC(14,2) AS cost_covered_sales_pen,
-          COALESCE(SUM((sol.quantity * sol.pack_factor_applied) * COALESCE(sol.unit_cost_snapshot_pen, p.ref_cost_pen)) FILTER (WHERE COALESCE(sol.unit_cost_snapshot_pen, p.ref_cost_pen) IS NOT NULL), 0)::NUMERIC(14,2) AS cogs_pen
-        FROM erp.sales_order_lines sol
-        JOIN filtered_orders fo ON fo.order_id = sol.order_id
-        JOIN erp.products p ON p.product_id = sol.product_id
-        GROUP BY DATE_TRUNC('month', fo.order_date)::DATE
+          period_month,
+          ROUND(COALESCE(SUM(net_line_total_pen) FILTER (WHERE has_cost), 0), 2)::NUMERIC(14,2) AS cost_covered_sales_pen,
+          ROUND(COALESCE(SUM(line_cogs_pen) FILTER (WHERE has_cost), 0), 2)::NUMERIC(14,2) AS cogs_pen
+        FROM (
+          SELECT
+            DATE_TRUNC('month', fo.order_date)::DATE AS period_month,
+            (
+              sol.line_total_pen * GREATEST(
+                0::NUMERIC,
+                1.0 - COALESCE(fo.global_discount_pen, 0)
+                  / NULLIF(SUM(sol.line_total_pen) OVER (PARTITION BY sol.order_id), 0)
+              )
+            ) AS net_line_total_pen,
+            (sol.quantity * sol.pack_factor_applied) * COALESCE(sol.unit_cost_snapshot_pen, p.ref_cost_pen) AS line_cogs_pen,
+            (COALESCE(sol.unit_cost_snapshot_pen, p.ref_cost_pen) IS NOT NULL) AS has_cost
+          FROM erp.sales_order_lines sol
+          JOIN filtered_orders fo ON fo.order_id = sol.order_id
+          JOIN erp.products p ON p.product_id = sol.product_id
+        ) ln
+        GROUP BY period_month
       ),
       monthly_cash AS (
         ${
@@ -803,7 +816,7 @@ async function queryResumen(
             ${
               filters.sellerId !== undefined
                 ? "0::NUMERIC(14,2)"
-                : `COALESCE(SUM(cl.amount_pen) FILTER (WHERE cl.direction = 'OUT' AND NOT cl.is_internal_transfer AND NOT cl.is_reversal AND cl.expense_category <> 'CONCILIACION_SALDO' AND cl.expense_bucket = 'ROUTE_OPEX'${routeOpexZoneOnlyWhere}), 0)::NUMERIC(14,2)`
+                : `COALESCE(SUM(cl.amount_pen) FILTER (WHERE cl.direction = 'OUT' AND NOT cl.is_internal_transfer AND NOT cl.is_reversal AND cl.expense_category IS DISTINCT FROM 'CONCILIACION_SALDO' AND cl.expense_bucket = 'ROUTE_OPEX'${routeOpexZoneOnlyWhere}), 0)::NUMERIC(14,2)`
             } AS route_opex_pen,
             0::NUMERIC(14,2) AS admin_opex_bucket_pen,
             0::NUMERIC(14,2) AS legacy_admin_in_non_opex_pen,
@@ -818,12 +831,12 @@ async function queryResumen(
             : `
           SELECT
             DATE_TRUNC('month', cl.tx_date)::DATE AS period_month,
-            COALESCE(SUM(cl.amount_pen) FILTER (WHERE cl.direction = 'OUT' AND NOT cl.is_internal_transfer AND NOT cl.is_reversal AND cl.expense_category <> 'CONCILIACION_SALDO' AND cl.expense_bucket = 'MERCHANDISE_PAYMENT'), 0)::NUMERIC(14,2) AS merchandise_outflow_pen,
-            COALESCE(SUM(cl.amount_pen) FILTER (WHERE cl.direction = 'OUT' AND NOT cl.is_internal_transfer AND NOT cl.is_reversal AND cl.expense_category <> 'CONCILIACION_SALDO' AND cl.expense_bucket = 'ROUTE_OPEX'), 0)::NUMERIC(14,2) AS route_opex_pen,
-            COALESCE(SUM(cl.amount_pen) FILTER (WHERE cl.direction = 'OUT' AND NOT cl.is_internal_transfer AND NOT cl.is_reversal AND cl.expense_category <> 'CONCILIACION_SALDO' AND cl.expense_bucket = 'ADMIN_OPEX'), 0)::NUMERIC(14,2) AS admin_opex_bucket_pen,
-            COALESCE(SUM(cl.amount_pen) FILTER (WHERE cl.direction = 'OUT' AND NOT cl.is_internal_transfer AND NOT cl.is_reversal AND cl.expense_category <> 'CONCILIACION_SALDO' AND cl.expense_bucket = 'NON_OPEX_OR_CAPEX' AND cl.expense_category IN (${legacyAdminCatsSql})), 0)::NUMERIC(14,2) AS legacy_admin_in_non_opex_pen,
+            COALESCE(SUM(cl.amount_pen) FILTER (WHERE cl.direction = 'OUT' AND NOT cl.is_internal_transfer AND NOT cl.is_reversal AND cl.expense_category IS DISTINCT FROM 'CONCILIACION_SALDO' AND cl.expense_bucket = 'MERCHANDISE_PAYMENT'), 0)::NUMERIC(14,2) AS merchandise_outflow_pen,
+            COALESCE(SUM(cl.amount_pen) FILTER (WHERE cl.direction = 'OUT' AND NOT cl.is_internal_transfer AND NOT cl.is_reversal AND cl.expense_category IS DISTINCT FROM 'CONCILIACION_SALDO' AND cl.expense_bucket = 'ROUTE_OPEX'), 0)::NUMERIC(14,2) AS route_opex_pen,
+            COALESCE(SUM(cl.amount_pen) FILTER (WHERE cl.direction = 'OUT' AND NOT cl.is_internal_transfer AND NOT cl.is_reversal AND cl.expense_category IS DISTINCT FROM 'CONCILIACION_SALDO' AND cl.expense_bucket = 'ADMIN_OPEX'), 0)::NUMERIC(14,2) AS admin_opex_bucket_pen,
+            COALESCE(SUM(cl.amount_pen) FILTER (WHERE cl.direction = 'OUT' AND NOT cl.is_internal_transfer AND NOT cl.is_reversal AND cl.expense_category IS DISTINCT FROM 'CONCILIACION_SALDO' AND cl.expense_bucket = 'NON_OPEX_OR_CAPEX' AND cl.expense_category IN (${legacyAdminCatsSql})), 0)::NUMERIC(14,2) AS legacy_admin_in_non_opex_pen,
             COALESCE(SUM(cl.amount_pen) FILTER (WHERE cl.direction = 'OUT' AND NOT cl.is_internal_transfer AND NOT cl.is_reversal AND cl.expense_category = 'SUELDO_SOCIO'), 0)::NUMERIC(14,2) AS owner_salary_recorded_pen,
-            COALESCE(SUM(cl.amount_pen) FILTER (WHERE cl.direction = 'OUT' AND NOT cl.is_internal_transfer AND NOT cl.is_reversal AND cl.expense_category <> 'CONCILIACION_SALDO' AND cl.expense_bucket = 'NON_OPEX_OR_CAPEX'), 0)::NUMERIC(14,2) AS non_opex_capex_drain_pen,
+            COALESCE(SUM(cl.amount_pen) FILTER (WHERE cl.direction = 'OUT' AND NOT cl.is_internal_transfer AND NOT cl.is_reversal AND cl.expense_category IS DISTINCT FROM 'CONCILIACION_SALDO' AND cl.expense_bucket = 'NON_OPEX_OR_CAPEX'), 0)::NUMERIC(14,2) AS non_opex_capex_drain_pen,
             COALESCE(SUM(cl.amount_pen) FILTER (WHERE cl.is_internal_transfer AND NOT cl.is_reversal AND cl.direction = 'OUT'), 0)::NUMERIC(14,2) AS internal_deposits_pen
           FROM erp.cash_ledger cl
           WHERE ${cashClauses.join(" AND ")}
@@ -1206,17 +1219,18 @@ async function queryCajaCxp(
        ), '[]'::json) AS ap_suppliers,
        (
          SELECT json_build_object(
-           'inflow_pen', COALESCE(SUM(cl.amount_pen) FILTER (WHERE cl.tx_date >= DATE '2026-06-26' AND cl.direction = 'IN' AND NOT cl.is_internal_transfer), 0)::numeric(14,2),
-           'merchandise_outflow_pen', COALESCE(SUM(cl.amount_pen) FILTER (WHERE cl.tx_date >= DATE '2026-06-26' AND cl.direction = 'OUT' AND NOT cl.is_internal_transfer AND cl.expense_bucket = 'MERCHANDISE_PAYMENT'), 0)::numeric(14,2),
-           'route_opex_pen', COALESCE(SUM(cl.amount_pen) FILTER (WHERE cl.tx_date >= DATE '2026-06-26' AND cl.direction = 'OUT' AND NOT cl.is_internal_transfer AND cl.expense_bucket = 'ROUTE_OPEX'), 0)::numeric(14,2),
-           'non_opex_drain_pen', COALESCE(SUM(cl.amount_pen) FILTER (WHERE cl.tx_date >= DATE '2026-06-26' AND cl.direction = 'OUT' AND NOT cl.is_internal_transfer AND cl.expense_bucket = 'NON_OPEX_OR_CAPEX'), 0)::numeric(14,2),
-           'internal_transfers_pen', COALESCE(SUM(cl.amount_pen) FILTER (WHERE cl.tx_date >= DATE '2026-06-26' AND cl.is_internal_transfer AND cl.direction = 'OUT'), 0)::numeric(14,2),
-           'pre_route_outflow_pen', COALESCE(SUM(cl.amount_pen) FILTER (WHERE cl.tx_date < DATE '2026-06-26' AND cl.direction = 'OUT' AND NOT cl.is_internal_transfer), 0)::numeric(14,2)
+           'inflow_pen', COALESCE(SUM(cl.amount_pen) FILTER (WHERE cl.tx_date >= erp.fn_get_setting_date('kpi_cutoff_date', DATE '2026-06-26') AND cl.direction = 'IN' AND NOT cl.is_internal_transfer), 0)::numeric(14,2),
+           'merchandise_outflow_pen', COALESCE(SUM(cl.amount_pen) FILTER (WHERE cl.tx_date >= erp.fn_get_setting_date('kpi_cutoff_date', DATE '2026-06-26') AND cl.direction = 'OUT' AND NOT cl.is_internal_transfer AND cl.expense_bucket = 'MERCHANDISE_PAYMENT'), 0)::numeric(14,2),
+           'route_opex_pen', COALESCE(SUM(cl.amount_pen) FILTER (WHERE cl.tx_date >= erp.fn_get_setting_date('kpi_cutoff_date', DATE '2026-06-26') AND cl.direction = 'OUT' AND NOT cl.is_internal_transfer AND cl.expense_bucket = 'ROUTE_OPEX'), 0)::numeric(14,2),
+           'admin_opex_pen', COALESCE(SUM(cl.amount_pen) FILTER (WHERE cl.tx_date >= erp.fn_get_setting_date('kpi_cutoff_date', DATE '2026-06-26') AND cl.direction = 'OUT' AND NOT cl.is_internal_transfer AND cl.expense_bucket = 'ADMIN_OPEX'), 0)::numeric(14,2),
+           'non_opex_drain_pen', COALESCE(SUM(cl.amount_pen) FILTER (WHERE cl.tx_date >= erp.fn_get_setting_date('kpi_cutoff_date', DATE '2026-06-26') AND cl.direction = 'OUT' AND NOT cl.is_internal_transfer AND cl.expense_bucket = 'NON_OPEX_OR_CAPEX'), 0)::numeric(14,2),
+           'internal_transfers_pen', COALESCE(SUM(cl.amount_pen) FILTER (WHERE cl.tx_date >= erp.fn_get_setting_date('kpi_cutoff_date', DATE '2026-06-26') AND cl.is_internal_transfer AND cl.direction = 'OUT'), 0)::numeric(14,2),
+           'pre_route_outflow_pen', COALESCE(SUM(cl.amount_pen) FILTER (WHERE cl.tx_date < erp.fn_get_setting_date('kpi_cutoff_date', DATE '2026-06-26') AND cl.direction = 'OUT' AND NOT cl.is_internal_transfer), 0)::numeric(14,2)
          )
          FROM erp.cash_ledger cl
          WHERE ${periodCond}
            AND NOT cl.is_reversal
-           AND cl.expense_category <> 'CONCILIACION_SALDO'
+           AND cl.expense_category IS DISTINCT FROM 'CONCILIACION_SALDO'
            AND NOT EXISTS (
              SELECT 1 FROM erp.cash_ledger rev
              WHERE rev.reversal_of_ledger_id = cl.ledger_id
@@ -1372,7 +1386,7 @@ async function queryCartera(
   const detailWhere = detailClauses.join(" AND ");
 
   const refClauses: string[] = [
-    "so.order_date >= DATE '2026-06-26'",
+    "so.order_date >= erp.fn_get_setting_date('kpi_cutoff_date', DATE '2026-06-26')",
     "so.operational_status NOT IN ('CANCELLED', 'PENDING_PARTNER_APPROVAL')",
   ];
   if (filters.zone) {
@@ -1635,7 +1649,7 @@ async function queryComercial(
 ): Promise<ReportComercialData> {
   const pb = new FilterParamBuilder();
   const orderClauses = [
-    "so.order_date >= DATE '2026-06-26'",
+    "so.order_date >= erp.fn_get_setting_date('kpi_cutoff_date', DATE '2026-06-26')",
     "so.operational_status NOT IN ('CANCELLED', 'PENDING_PARTNER_APPROVAL')",
     ...pb.appendSalesFilters(filters, "so"),
   ];
@@ -1669,6 +1683,7 @@ async function queryComercial(
          so.created_by_user_id AS seller_user_id,
          COALESCE(u.full_name, 'Sin vendedor asignado (Histórico)') AS seller_name,
          so.total_pen,
+         so.global_discount_pen,
          so.paid_pen,
          so.balance_due_pen
        FROM erp.sales_orders so
@@ -1679,14 +1694,29 @@ async function queryComercial(
      ),
      order_line_agg AS (
        SELECT
-         sol.order_id,
-         COALESCE(SUM(sol.line_total_pen) FILTER (WHERE COALESCE(sol.unit_cost_snapshot_pen, p.ref_cost_pen) IS NOT NULL), 0)::numeric(14,2) AS cost_covered_sales_pen,
-         COALESCE(SUM((sol.quantity * sol.pack_factor_applied) * COALESCE(sol.unit_cost_snapshot_pen, p.ref_cost_pen)) FILTER (WHERE COALESCE(sol.unit_cost_snapshot_pen, p.ref_cost_pen) IS NOT NULL), 0)::numeric(14,2) AS known_cogs_pen,
-         COALESCE(SUM(sol.quantity * COALESCE(sol.unit_discount_pen, 0)), 0)::numeric(14,2) AS discount_total_pen
-       FROM erp.sales_order_lines sol
-       JOIN scoped_orders sco ON sco.order_id = sol.order_id
-       JOIN erp.products p ON p.product_id = sol.product_id
-       GROUP BY sol.order_id
+         order_id,
+         ROUND(COALESCE(SUM(net_line_total_pen) FILTER (WHERE has_cost), 0), 2)::numeric(14,2) AS cost_covered_sales_pen,
+         ROUND(COALESCE(SUM(line_cogs_pen) FILTER (WHERE has_cost), 0), 2)::numeric(14,2) AS known_cogs_pen,
+         ROUND(COALESCE(SUM(line_unit_discount_pen), 0) + COALESCE(MAX(global_discount_pen), 0), 2)::numeric(14,2) AS discount_total_pen
+       FROM (
+         SELECT
+           sol.order_id,
+           sco.global_discount_pen,
+           (
+             sol.line_total_pen * GREATEST(
+               0::NUMERIC,
+               1.0 - COALESCE(sco.global_discount_pen, 0)
+                 / NULLIF(SUM(sol.line_total_pen) OVER (PARTITION BY sol.order_id), 0)
+             )
+           ) AS net_line_total_pen,
+           (sol.quantity * sol.pack_factor_applied) * COALESCE(sol.unit_cost_snapshot_pen, p.ref_cost_pen) AS line_cogs_pen,
+           (COALESCE(sol.unit_cost_snapshot_pen, p.ref_cost_pen) IS NOT NULL) AS has_cost,
+           sol.quantity * COALESCE(sol.unit_discount_pen, 0) AS line_unit_discount_pen
+         FROM erp.sales_order_lines sol
+         JOIN scoped_orders sco ON sco.order_id = sol.order_id
+         JOIN erp.products p ON p.product_id = sol.product_id
+       ) ln
+       GROUP BY order_id
      ),
      discounted_lines AS (
        SELECT

@@ -289,7 +289,8 @@ async function cancelOrderForUndo(
   client: PoolClient,
   actor: SessionUser,
   orderId: number,
-  reason: string
+  reason: string,
+  options: { allowDeliveredFromQuoteConversion?: boolean } = {}
 ): Promise<string> {
   const res = await client.query<{
     order_id: string;
@@ -317,7 +318,7 @@ async function cancelOrderForUndo(
     throw new ValidationError("Pedido asociado no encontrado");
   }
   const order = res.rows[0];
-  if (order.status === "DELIVERED") {
+  if (order.status === "DELIVERED" && !options.allowDeliveredFromQuoteConversion) {
     throw new ValidationError(
       `El pedido ${order.order_code} ya fue entregado y no puede deshacerse automáticamente`
     );
@@ -340,6 +341,19 @@ async function cancelOrderForUndo(
   const warehouseId = Number(order.warehouse_id);
   if (order.stock_deducted) {
     await client.query(
+      `SELECT product_id
+       FROM erp.products
+       WHERE product_id IN (
+         SELECT DISTINCT product_id
+         FROM erp.inventory_movements
+         WHERE reference_table = 'erp.sales_orders'
+           AND reference_id = $1
+       )
+       ORDER BY product_id ASC
+       FOR UPDATE`,
+      [String(orderId)]
+    );
+    await client.query(
       `INSERT INTO erp.inventory_movements (
          warehouse_id, product_id, movement_date, movement_type,
          quantity_delta, unit_cost_pen, reference_table, reference_id,
@@ -360,7 +374,8 @@ async function cancelOrderForUndo(
        WHERE reference_table = 'erp.sales_orders'
          AND reference_id = $2
        GROUP BY product_id
-       HAVING SUM(quantity_delta) < 0`,
+       HAVING SUM(quantity_delta) < 0
+       ORDER BY product_id ASC`,
       [
         warehouseId,
         String(orderId),
@@ -623,15 +638,29 @@ export async function executeUndoAction(
         );
       }
 
-      if (!isAdmin) {
-        const oCheck = await client.query<{ status: string }>(
-          `SELECT operational_status::text AS status FROM erp.sales_orders WHERE order_id = $1 FOR UPDATE`,
-          [orderId]
-        );
-        const st = oCheck.rows[0]?.status;
-        if (st && st !== "REGISTERED" && st !== "PENDING_PARTNER_APPROVAL") {
+      const oCheck = await client.query<{
+        status: string;
+        quote_id: string | null;
+        paid_pen: string | number;
+      }>(
+        `SELECT operational_status::text AS status, quote_id::text, paid_pen
+         FROM erp.sales_orders
+         WHERE order_id = $1
+         FOR UPDATE`,
+        [orderId]
+      );
+      const oRow = oCheck.rows[0];
+      if (!isAdmin && oRow) {
+        const st = oRow.status;
+        const isDirectQuoteOrder =
+          Number(oRow.quote_id) === quoteId && Number(oRow.paid_pen ?? 0) <= 0.05;
+        if (
+          st !== "REGISTERED" &&
+          st !== "PENDING_PARTNER_APPROVAL" &&
+          !(st === "DELIVERED" && isDirectQuoteOrder)
+        ) {
           throw new ValidationError(
-            "El pedido generado ya avanzó en almacén; solicita al Administrador revertir esta conversión"
+            "El pedido generado ya avanzó en almacén o tiene cobros; solicita al Administrador revertir esta conversión"
           );
         }
       }
@@ -640,7 +669,8 @@ export async function executeUndoAction(
         client,
         actor,
         orderId,
-        `Reversión de conversión ${qRes.rows[0].quote_code}: ${reason}`
+        `Reversión de conversión ${qRes.rows[0].quote_code}: ${reason}`,
+        { allowDeliveredFromQuoteConversion: Number(oRow?.quote_id) === quoteId }
       );
       await client.query(
         `UPDATE erp.quotes
@@ -742,6 +772,19 @@ export async function executeUndoAction(
 
       if (previousStockDeducted) {
         await client.query(
+          `SELECT product_id
+           FROM erp.products
+           WHERE product_id IN (
+             SELECT DISTINCT sol.product_id
+             FROM erp.sales_order_lines sol
+             WHERE sol.order_id = $1
+               AND sol.fulfillment_status = 'FULFILLED'
+           )
+           ORDER BY product_id ASC
+           FOR UPDATE`,
+          [orderId]
+        );
+        await client.query(
           `INSERT INTO erp.inventory_movements (
              warehouse_id, product_id, movement_date, movement_type,
              quantity_delta, unit_cost_pen, reference_table, reference_id,
@@ -761,7 +804,7 @@ export async function executeUndoAction(
            FROM erp.sales_order_lines sol
            WHERE sol.order_id = $2
              AND sol.fulfillment_status = 'FULFILLED'
-           ORDER BY sol.line_no ASC`,
+           ORDER BY sol.product_id ASC, sol.line_no ASC`,
           [
             Number(order.warehouse_id),
             orderId,
@@ -778,6 +821,10 @@ export async function executeUndoAction(
       for (const vp of voidedPayments) {
         const amt = Number(vp.amountPen ?? 0);
         if (!Number.isFinite(amt) || amt <= 0) continue;
+        const originalPaymentDate =
+          typeof vp.paymentDate === "string" && /^\d{4}-\d{2}-\d{2}$/.test(vp.paymentDate)
+            ? vp.paymentDate
+            : null;
         let refDoc: string | null = null;
         let resolvedAccountId: number | null = null;
         if (vp.accountId !== null && vp.accountId !== undefined) {
@@ -793,7 +840,7 @@ export async function executeUndoAction(
                expense_category, is_internal_transfer, reference_table, reference_id,
                description, source_origin, created_by_user_id
              ) VALUES (
-               (NOW() AT TIME ZONE 'America/Lima')::date, $1, $2, 'IN', $3,
+               COALESCE($7::date, (NOW() AT TIME ZONE 'America/Lima')::date), $1, $2, 'IN', $3,
                'COBRANZA_VENTA', FALSE, 'erp.sales_orders', $4,
                $5, 'ERP_APP', $6
              ) RETURNING ledger_id::text AS ledger_id`,
@@ -804,6 +851,7 @@ export async function executeUndoAction(
               String(orderId),
               `Restauración cobro ${order.order_code} (${order.customer_name_raw ?? "CLIENTE"}) al deshacer anulación`,
               actor.userId,
+              originalPaymentDate,
             ]
           );
           refDoc = `LEDGER-${led.rows[0].ledger_id}`;
@@ -815,7 +863,7 @@ export async function executeUndoAction(
              source_origin, notes
            ) VALUES (
              $1,
-             (NOW() AT TIME ZONE 'America/Lima')::date,
+             COALESCE($8::date, (NOW() AT TIME ZONE 'America/Lima')::date),
              $2,
              $3::erp.payment_mode,
              $4,
@@ -834,6 +882,7 @@ export async function executeUndoAction(
             vp.notes
               ? `${vp.notes} (restaurado)`
               : "Cobro restaurado al deshacer anulación",
+            originalPaymentDate,
           ]
         );
       }

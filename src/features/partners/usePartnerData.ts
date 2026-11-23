@@ -90,7 +90,7 @@ function getRequiredDatasetsForTab(tab: PartnerTab): Set<DatasetKey> {
 }
 
 export function usePartnerData(externalActiveTab?: PartnerTab) {
-  const dashboardAbortRef = useRef<AbortController | null>(null);
+  const datasetAbortMapRef = useRef<Map<string, AbortController>>(new Map());
   const loadedDatasetsRef = useRef<Set<DatasetKey>>(new Set());
   const activeTabRef = useRef<PartnerTab>(externalActiveTab ?? "control");
   const router = useRouter();
@@ -234,9 +234,20 @@ export function usePartnerData(externalActiveTab?: PartnerTab) {
         return;
       }
 
-      dashboardAbortRef.current?.abort();
+      const requestKey = [
+        needOrders ? "orders" : "",
+        needPartners ? "partners" : "",
+        needCollections ? "collections" : "",
+        needTreasury ? "treasury" : "",
+        needPurchases ? "purchases" : "",
+        needTrips ? "trips" : "",
+        needQuotes ? "quotes" : "",
+      ]
+        .filter(Boolean)
+        .join(",");
+      datasetAbortMapRef.current.get(requestKey)?.abort();
       const controller = new AbortController();
-      dashboardAbortRef.current = controller;
+      datasetAbortMapRef.current.set(requestKey, controller);
       try {
         const noStoreInit: RequestInit = {
           cache: "no-store",
@@ -409,8 +420,10 @@ export function usePartnerData(externalActiveTab?: PartnerTab) {
           showFeedback("Error de red cargando el panel operativo.", true);
         }
       } finally {
-        if (dashboardAbortRef.current === controller) {
-          dashboardAbortRef.current = null;
+        if (datasetAbortMapRef.current.get(requestKey) === controller) {
+          datasetAbortMapRef.current.delete(requestKey);
+        }
+        if (datasetAbortMapRef.current.size === 0) {
           setLoading(false);
         }
       }
@@ -418,7 +431,13 @@ export function usePartnerData(externalActiveTab?: PartnerTab) {
     [router, showFeedback]
   );
 
-  useEffect(() => () => dashboardAbortRef.current?.abort(), []);
+  useEffect(() => {
+    const map = datasetAbortMapRef.current;
+    return () => {
+      for (const ctrl of map.values()) ctrl.abort();
+      map.clear();
+    };
+  }, []);
 
   const loadDashboard = useCallback(async () => {
     await refreshDashboard();

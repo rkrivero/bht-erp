@@ -139,14 +139,16 @@ export function CajaPurchaseForm({
                 productId: pid,
                 unitCostPen:
                   prod && prod.ref_cost_pen !== null
-                    ? String(prod.ref_cost_pen)
+                    ? currency === "USD" && effectiveExchangeRate > 0
+                      ? String(Number((prod.ref_cost_pen / effectiveExchangeRate).toFixed(4)))
+                      : String(prod.ref_cost_pen)
                     : row.unitCostPen,
               }
             : row
         )
       );
     },
-    [catalog, setItems]
+    [catalog, currency, effectiveExchangeRate, setItems]
   );
 
   const handleLineSearchChange = useCallback(
@@ -221,6 +223,14 @@ export function CajaPurchaseForm({
     if (validItems.length === 0) {
       onFeedback("Agrega al menos un producto con cantidad mayor a 0.", true);
       return;
+    }
+
+    if (paymentCond === "PARTIAL") {
+      const paidVal = Number(paidNow || 0);
+      if (!Number.isFinite(paidVal) || paidVal <= 0 || paidVal >= totals.totalPen) {
+        onFeedback("En pago parcial, el adelanto debe ser mayor a S/ 0.00 y menor al total.", true);
+        return;
+      }
     }
 
     setBusyPurchase(true);

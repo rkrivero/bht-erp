@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getAuthenticatedERPActor, requireActiveSession } from "@/lib/auth";
-import { withClient } from "@/lib/db";
+import { withAuthenticatedClient } from "@/lib/auth";
 import { resolveHttpError } from "@/lib/http-errors";
-import { assertRole } from "@/lib/rbac";
 import { getLimaDateString } from "@/lib/services/orders";
 import {
   buildRegularizationWorkbookBuffer,
@@ -18,11 +16,6 @@ const NO_STORE_HEADERS = { "Cache-Control": "no-store" };
 
 export async function GET(req: NextRequest) {
   try {
-    const parsedActor = assertRole(await getAuthenticatedERPActor(req), [
-      "PARTNER_ADMIN",
-      "PARTNER_MANAGER",
-    ]);
-
     const mode = parseRegularizationMode(req.nextUrl.searchParams.get("mode"));
     const supplier = req.nextUrl.searchParams.get("supplier")?.trim() || null;
     const search = req.nextUrl.searchParams.get("search")?.trim() || null;
@@ -34,17 +27,16 @@ export async function GET(req: NextRequest) {
       throw new ValidationError("Formato inválido (use 'json' o 'xlsx')");
     }
 
-    const result = await withClient(async (client) => {
-      const actor = assertRole(await requireActiveSession(client, parsedActor), [
-        "PARTNER_ADMIN",
-        "PARTNER_MANAGER",
-      ]);
-      return await listUnpurchasedSalesRegularization(client, actor, {
-        mode,
-        supplier,
-        search,
-      });
-    });
+    const result = await withAuthenticatedClient(
+      req,
+      ["PARTNER_ADMIN", "PARTNER_MANAGER"],
+      async (client, actor) =>
+        listUnpurchasedSalesRegularization(client, actor, {
+          mode,
+          supplier,
+          search,
+        })
+    );
 
     if (format === "xlsx") {
       const todayLima = getLimaDateString(0);

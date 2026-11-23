@@ -79,12 +79,19 @@ export async function getAuthenticatedERPActor(
   request?: RequestWithCookies,
   existingClient?: PoolClient
 ): Promise<SessionUser | null> {
-  if (process.env.NODE_ENV === "test" && request?.cookies) {
-    const { verifyTestSessionToken } = await import("./auth/test-session");
-    const fixtureUser = verifyTestSessionToken(
-      request.cookies.get(SESSION_COOKIE_NAME)?.value
-    );
-    if (fixtureUser) return fixtureUser;
+  if (
+    process.env.NODE_ENV === "test" &&
+    process.env.VERCEL !== "1" &&
+    process.env.VERCEL_ENV !== "production" &&
+    request?.cookies
+  ) {
+    const { isTestAuthRuntime, verifyTestSessionToken } = await import("./auth/test-session");
+    if (isTestAuthRuntime()) {
+      const fixtureUser = verifyTestSessionToken(
+        request.cookies.get(SESSION_COOKIE_NAME)?.value
+      );
+      if (fixtureUser) return fixtureUser;
+    }
   }
 
   try {
@@ -146,15 +153,22 @@ type ResolvedAuthContext =
 async function resolveRequestAuthContext(
   request?: RequestWithCookies
 ): Promise<ResolvedAuthContext> {
-  if (process.env.NODE_ENV === "test" && request?.cookies) {
+  if (
+    process.env.NODE_ENV === "test" &&
+    process.env.VERCEL !== "1" &&
+    process.env.VERCEL_ENV !== "production" &&
+    request?.cookies
+  ) {
     const rawCookie = request.cookies.get(SESSION_COOKIE_NAME)?.value;
     if (rawCookie) {
-      const { verifyTestSessionToken } = await import("./auth/test-session");
-      const fixtureUser = verifyTestSessionToken(rawCookie);
-      if (!fixtureUser) {
-        throw new AuthenticationError("Sesión inválida o expirada");
+      const { isTestAuthRuntime, verifyTestSessionToken } = await import("./auth/test-session");
+      if (isTestAuthRuntime()) {
+        const fixtureUser = verifyTestSessionToken(rawCookie);
+        if (!fixtureUser) {
+          throw new AuthenticationError("Sesión inválida o expirada");
+        }
+        return { mode: "test", fixtureUser };
       }
-      return { mode: "test", fixtureUser };
     }
   }
 

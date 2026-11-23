@@ -49,10 +49,15 @@ export function CommandPalette({
     };
   }, []);
 
+  const previousFocusRef = useRef<HTMLElement | null>(null);
+
   useEffect(() => {
     const dialog = dialogRef.current;
     if (!dialog) return;
     if (open) {
+      if (document.activeElement instanceof HTMLElement) {
+        previousFocusRef.current = document.activeElement;
+      }
       setQuery("");
       setActiveIndex(0);
       if (typeof dialog.showModal === "function") {
@@ -69,16 +74,20 @@ export function CommandPalette({
       window.setTimeout(() => {
         inputRef.current?.focus();
       }, 20);
-    } else if (dialog.open) {
-      if (typeof dialog.close === "function") {
-        try {
-          dialog.close();
-        } catch {
+    } else {
+      if (dialog.open) {
+        if (typeof dialog.close === "function") {
+          try {
+            dialog.close();
+          } catch {
+            dialog.removeAttribute("open");
+          }
+        } else {
           dialog.removeAttribute("open");
         }
-      } else {
-        dialog.removeAttribute("open");
       }
+      previousFocusRef.current?.focus?.();
+      previousFocusRef.current = null;
     }
   }, [open]);
 
@@ -254,6 +263,7 @@ export function CommandPalette({
                   id={`${optionBaseId}-opt-${idx}`}
                   type="button"
                   role="option"
+                  tabIndex={-1}
                   aria-selected={active}
                   onMouseEnter={() => setActiveIndex(idx)}
                   onClick={() => executeItem(item)}

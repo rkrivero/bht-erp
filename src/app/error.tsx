@@ -24,8 +24,8 @@ export default function RouteError({
             No se pudo cargar esta vista
           </h1>
           <p className="text-xs leading-relaxed text-bht-ink-soft">
-            {error.message ||
-              "Ocurrió un problema inesperado al procesar la pantalla. Puedes reintentar o volver al inicio."}
+            Ocurrió un problema inesperado al procesar la pantalla. Puedes reintentar o volver al inicio.
+            {error.digest ? ` (Ref: ${error.digest})` : ""}
           </p>
         </div>
         <div className="flex flex-wrap items-center justify-center gap-2.5">

@@ -37,9 +37,11 @@ export default function SellerOrderClientStep({ flow }: { flow: SellerOrderFlow 
     filteredCustomerSuggestions,
     knownZones,
     actorRole,
+    editingOrderId,
     handleSelectCustomer,
     handleCustomerSaved,
   } = flow;
+  const isEditingOrder = editingOrderId !== null;
 
   const [modalMode, setModalMode] = useState<"create" | "edit" | null>(null);
   const [modalInitialAlias, setModalInitialAlias] = useState("");
@@ -89,13 +91,17 @@ export default function SellerOrderClientStep({ flow }: { flow: SellerOrderFlow 
               id="seller-customer-name"
               type="text"
               required
+              disabled={isEditingOrder}
               autoComplete="off"
               role="combobox"
-              aria-expanded={showDropdown}
+              aria-expanded={showDropdown && !isEditingOrder}
               aria-controls="seller-customer-listbox"
               value={customerNameRaw}
-              onFocus={() => setCustomerDropdownOpen(true)}
+              onFocus={() => {
+                if (!isEditingOrder) setCustomerDropdownOpen(true);
+              }}
               onChange={(e) => {
+                if (isEditingOrder) return;
                 const nextVal = e.target.value;
                 setCustomerNameRaw(nextVal);
                 if (
@@ -113,9 +119,9 @@ export default function SellerOrderClientStep({ flow }: { flow: SellerOrderFlow 
                 }
               }}
               placeholder="Buscar por alias, nombre, RUC/DNI o zona..."
-              className={`${INPUT_CLASS} pl-9 pr-9 font-medium`}
+              className={`${INPUT_CLASS} pl-9 pr-9 font-medium disabled:bg-bht-paper disabled:text-bht-ink-soft`}
             />
-            {customerNameRaw && (
+            {customerNameRaw && !isEditingOrder && (
               <button
                 type="button"
                 data-compact="true"

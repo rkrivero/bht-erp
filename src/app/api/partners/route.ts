@@ -612,6 +612,18 @@ export async function POST(req: NextRequest) {
               const fullName = normalizeFullName(body.fullName);
               const email = normalizeRequiredEmail(body.email);
               const role = parseUserRole(body.role);
+              const dupEmail = await client.query(
+                `SELECT 1 FROM erp.app_users
+                 WHERE LOWER(BTRIM(email)) = LOWER(BTRIM($1))
+                   AND username NOT LIKE '%\\_\\_deleted\\_%' ESCAPE '\\'
+                 LIMIT 1`,
+                [email]
+              );
+              if ((dupEmail.rowCount ?? 0) > 0) {
+                throw new ValidationError(
+                  "Ya existe otro usuario activo con ese correo electrónico"
+                );
+              }
               const createdRes = await client.query(
                 `WITH generated AS (
                    SELECT encode(sha256(gen_random_uuid()::text::bytea), 'hex') AS legacy_hash
@@ -640,7 +652,10 @@ export async function POST(req: NextRequest) {
               const fullName = normalizeFullName(body.fullName);
               const beforeRes = await client.query(
                 `SELECT user_id, username, full_name, email, role::text AS role, is_active
-                 FROM erp.app_users WHERE user_id = $1 FOR UPDATE`,
+                 FROM erp.app_users
+                 WHERE user_id = $1
+                   AND username NOT LIKE '%\\_\\_deleted\\_%' ESCAPE '\\'
+                 FOR UPDATE`,
                 [targetUserId]
               );
               if (beforeRes.rowCount === 0)
@@ -669,11 +684,27 @@ export async function POST(req: NextRequest) {
               const email = normalizeRequiredEmail(body.email);
               const beforeRes = await client.query(
                 `SELECT user_id, username, full_name, email, role::text AS role, is_active
-                 FROM erp.app_users WHERE user_id = $1 FOR UPDATE`,
+                 FROM erp.app_users
+                 WHERE user_id = $1
+                   AND username NOT LIKE '%\\_\\_deleted\\_%' ESCAPE '\\'
+                 FOR UPDATE`,
                 [targetUserId]
               );
               if (beforeRes.rowCount === 0)
                 throw new ValidationError("Usuario no encontrado");
+              const dupEmail = await client.query(
+                `SELECT 1 FROM erp.app_users
+                 WHERE LOWER(BTRIM(email)) = LOWER(BTRIM($1))
+                   AND user_id <> $2
+                   AND username NOT LIKE '%\\_\\_deleted\\_%' ESCAPE '\\'
+                 LIMIT 1`,
+                [email, targetUserId]
+              );
+              if ((dupEmail.rowCount ?? 0) > 0) {
+                throw new ValidationError(
+                  "Ya existe otro usuario activo con ese correo electrónico"
+                );
+              }
               const before = toUserSnapshot(beforeRes.rows[0]);
               const updRes = await client.query(
                 `UPDATE erp.app_users
@@ -708,7 +739,10 @@ export async function POST(req: NextRequest) {
               const role = parseUserRole(body.role);
               const beforeRes = await client.query(
                 `SELECT user_id, username, full_name, email, role::text AS role, is_active
-                 FROM erp.app_users WHERE user_id = $1 FOR UPDATE`,
+                 FROM erp.app_users
+                 WHERE user_id = $1
+                   AND username NOT LIKE '%\\_\\_deleted\\_%' ESCAPE '\\'
+                 FOR UPDATE`,
                 [targetUserId]
               );
               if (beforeRes.rowCount === 0)
@@ -757,7 +791,10 @@ export async function POST(req: NextRequest) {
               }
               const userRes = await client.query(
                 `SELECT user_id, username, full_name, email, role::text AS role, is_active
-                 FROM erp.app_users WHERE user_id = $1 FOR UPDATE`,
+                 FROM erp.app_users
+                 WHERE user_id = $1
+                   AND username NOT LIKE '%\\_\\_deleted\\_%' ESCAPE '\\'
+                 FOR UPDATE`,
                 [targetUserId]
               );
               if (userRes.rowCount === 0) {

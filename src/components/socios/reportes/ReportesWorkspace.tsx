@@ -564,7 +564,21 @@ export default function ReportesWorkspace({
         </Card>
       )}
 
-      {!displayPayload && isFetching && <DeferredReportPanel />}
+      {!(
+        (activeSection === "resumen" &&
+          cachedOrLatest<ReportResumenDto>(displayPayload, "pnlMonthly")) ||
+        (activeSection === "caja_cxp" &&
+          cachedOrLatest<ReportCajaCxpDto>(displayPayload, "liquiditySummary")) ||
+        (activeSection === "cartera" &&
+          cachedOrLatest<ReportCarteraDto>(displayPayload, "collectionSheet")) ||
+        (activeSection === "comercial" &&
+          cachedOrLatest<ReportComercialDto>(displayPayload, "routeProfitability")) ||
+        (activeSection === "stock" &&
+          cachedOrLatest<ReportStockDto>(displayPayload, "valuationSummary")) ||
+        (activeSection === "auditoria" &&
+          cachedOrLatest<ReportAuditoriaDto>(displayPayload, "closingReadiness"))
+      ) &&
+        isFetching && <DeferredReportPanel />}
 
       {activeSection === "resumen" &&
         cachedOrLatest<ReportResumenDto>(displayPayload, "pnlMonthly") && (

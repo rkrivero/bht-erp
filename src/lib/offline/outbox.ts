@@ -151,6 +151,60 @@ function shouldRegenerateIdempotencyKey(mutation: OfflineMutation): boolean {
   );
 }
 
+export async function clearSyncedOutbox(): Promise<void> {
+  const items = await listOutbox();
+  const syncedIds = items.filter((item) => item.status === "synced").map((item) => item.id);
+  if (syncedIds.length === 0) return;
+  if (!hasIndexedDb()) {
+    syncedIds.forEach((id) => memoryOutbox.delete(id));
+    announceOutboxChange();
+    return;
+  }
+  const db = await openDb();
+  try {
+    await new Promise<void>((resolve, reject) => {
+      const tx = db.transaction(OUTBOX_STORE, "readwrite");
+      const store = tx.objectStore(OUTBOX_STORE);
+      syncedIds.forEach((id) => store.delete(id));
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+      tx.onabort = () => reject(tx.error);
+    });
+  } finally {
+    db.close();
+  }
+  announceOutboxChange();
+}
+
+async function replaceOutboxRecordAtomic(
+  deleteId: string | null,
+  updated: OfflineMutation
+): Promise<void> {
+  if (!hasIndexedDb()) {
+    if (deleteId) memoryOutbox.delete(deleteId);
+    memoryOutbox.set(updated.id, updated);
+    announceOutboxChange();
+    return;
+  }
+  const db = await openDb();
+  try {
+    await new Promise<void>((resolve, reject) => {
+      const tx = db.transaction(OUTBOX_STORE, "readwrite");
+      const store = tx.objectStore(OUTBOX_STORE);
+      if (deleteId && deleteId !== updated.id) {
+        store.delete(deleteId);
+      }
+      store.put(updated);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+      tx.onabort = () => reject(tx.error);
+    });
+  } finally {
+    db.close();
+  }
+  announceOutboxChange();
+}
+
 export async function retryOutboxMutation(id: string): Promise<OfflineMutation | null> {
   const items = await listOutbox();
   const existing = items.find((item) => item.id === id);
@@ -158,9 +212,6 @@ export async function retryOutboxMutation(id: string): Promise<OfflineMutation |
 
   const regenerate = shouldRegenerateIdempotencyKey(existing);
   const nextId = regenerate ? crypto.randomUUID() : existing.id;
-  if (regenerate) {
-    await deleteOutboxMutation(existing.id);
-  }
 
   const updated: OfflineMutation = {
     ...existing,
@@ -178,7 +229,7 @@ export async function retryOutboxMutation(id: string): Promise<OfflineMutation |
     }),
   };
 
-  await putOutboxMutation(updated);
+  await replaceOutboxRecordAtomic(regenerate ? existing.id : null, updated);
   return updated;
 }
 
@@ -192,8 +243,6 @@ export async function updateAndRetryOutboxMutation(
   if (!existing) return null;
 
   const nextId = crypto.randomUUID();
-  await deleteOutboxMutation(existing.id);
-
   const nextBody: Record<string, unknown> = options?.replaceBody
     ? { ...nextPayload }
     : {
@@ -218,7 +267,7 @@ export async function updateAndRetryOutboxMutation(
     }),
   };
 
-  await putOutboxMutation(updated);
+  await replaceOutboxRecordAtomic(existing.id, updated);
   return updated;
 }
 

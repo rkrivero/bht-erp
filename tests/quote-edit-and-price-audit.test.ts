@@ -7,7 +7,9 @@ import {
   createQuote,
   listQuotes,
   updateQuote,
+  updateQuoteStatus,
 } from "../src/lib/services/operations-and-modules";
+import { AuthorizationError } from "../src/lib/types";
 import { listPriceOverrides } from "../src/lib/services/price-audit";
 
 const sellerActor: SessionUser = {
@@ -155,6 +157,33 @@ describe("Quote edits, direct negotiated unit prices, global discounts & price o
       );
       expect(Number(orderRow.rows[0].total_pen)).toBe(447);
       expect(Number(orderRow.rows[0].global_discount_pen)).toBe(15);
+
+      // Ownership IDOR check: another EXTERNAL_SELLER cannot edit/cancel/convert a partner or peer quote
+      const partnerQuote = await createQuote(client, partnerActor, {
+        customerNameRaw: "CLIENTE DEL SOCIO",
+        lines: [{ productId: prod1, quantity: 2, unitPricePen: 40 }],
+      });
+
+      await expect(
+        updateQuote(client, sellerActor, {
+          quoteId: partnerQuote.quoteId,
+          lines: [{ productId: prod1, quantity: 1, unitPricePen: 40 }],
+        })
+      ).rejects.toThrow(AuthorizationError);
+
+      await expect(
+        updateQuoteStatus(client, sellerActor, {
+          quoteId: partnerQuote.quoteId,
+          nextStatus: "CANCELLED",
+        })
+      ).rejects.toThrow(AuthorizationError);
+
+      await expect(
+        convertQuoteToOrder(client, sellerActor, {
+          quoteId: partnerQuote.quoteId,
+          paymentMode: "CASH",
+        })
+      ).rejects.toThrow(AuthorizationError);
     } finally {
       await client.query("ROLLBACK");
       client.release();

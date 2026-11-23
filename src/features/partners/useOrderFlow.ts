@@ -152,15 +152,18 @@ export function useOrderFlow({
 
   async function handleLoadMoreOrders() {
     if (loadingMoreOrders || !visibleOrdersPagination?.hasMore) return;
+    const reqId = customerOrdersRequestId.current;
+    const scopedCustomer = customerOrderScope;
     setLoadingMoreOrders(true);
     try {
-      const customerQuery = customerOrderScope
-        ? `&customer_party_id=${encodeURIComponent(String(customerOrderScope.partyId))}`
+      const customerQuery = scopedCustomer
+        ? `&customer_party_id=${encodeURIComponent(String(scopedCustomer.partyId))}`
         : "";
       const data = await fetchJson<PartnerOrdersResponseDto>(
         `/api/orders?limit=${visibleOrdersPagination.limit}&offset=${visibleOrders.length}&include_refs=false${customerQuery}`,
         { cache: "no-store" }
       );
+      if (customerOrdersRequestId.current !== reqId) return;
       const nextRows: SellerOrderDto[] = data.orders || [];
       const mergeOrders = (prev: SellerOrderDto[]) => {
         const seen = new Set(prev.map((o) => Number(o.order_id)));
@@ -170,7 +173,7 @@ export function useOrderFlow({
         }
         return merged;
       };
-      if (customerOrderScope) {
+      if (scopedCustomer) {
         setCustomerOrders(mergeOrders);
         setCustomerOrdersPagination(data.pagination || null);
       } else {

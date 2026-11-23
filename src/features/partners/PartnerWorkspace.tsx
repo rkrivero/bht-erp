@@ -14,10 +14,7 @@ import {
 import type { CommandPaletteItem } from "@/components/ui/CommandPalette";
 
 const CommandPalette = dynamic(
-  () =>
-    import("@/components/ui/CommandPalette").then((m) => ({
-      default: m.CommandPalette,
-    })),
+  () => import("@/components/ui/CommandPalette").then((m) => ({ default: m.CommandPalette })),
   { ssr: false }
 );
 import {
@@ -169,6 +166,7 @@ export default function PartnerWorkspace() {
     collectionsFlow.fifoCustomer ||
     inventoryFlow.confirmResetNegativeOpen ||
     orderFlow.confirmCancelOrder ||
+    orderFlow.editingPartnerQuote ||
     subTabEditing
   );
 

@@ -39,8 +39,6 @@ const INITIAL_STATE: RuntimeState = {
   syncing: false,
 };
 
-const OFFLINE_WARM_ROUTES = ["/vendedor", "/almacen"] as const;
-
 export default function PwaRuntime() {
   const [state, setState] = useState<RuntimeState>(INITIAL_STATE);
   const processingRef = useRef(false);
@@ -58,7 +56,7 @@ export default function PwaRuntime() {
     }));
   }, []);
 
-  const processOutbox = useCallback(async () => {
+  const runOutboxCycle = useCallback(async () => {
     if (
       processingRef.current ||
       typeof indexedDB === "undefined" ||
@@ -169,26 +167,30 @@ export default function PwaRuntime() {
     }
   }, [refreshCounts]);
 
+  const processOutbox = useCallback(async () => {
+    if (
+      typeof navigator !== "undefined" &&
+      navigator.locks &&
+      typeof navigator.locks.request === "function"
+    ) {
+      await navigator.locks.request(
+        "bht-outbox-sync",
+        { ifAvailable: true },
+        async (lock) => {
+          if (!lock) return;
+          await runOutboxCycle();
+        }
+      );
+      return;
+    }
+    await runOutboxCycle();
+  }, [runOutboxCycle]);
+
   useEffect(() => {
     if ("serviceWorker" in navigator) {
-      void navigator.serviceWorker
-        .register("/sw.js")
-        .then(async () => {
-          await navigator.serviceWorker.ready;
-          if (navigator.onLine) {
-            await Promise.all(
-              OFFLINE_WARM_ROUTES.map((route) =>
-                fetch(route, {
-                  cache: "no-store",
-                  headers: { Accept: "text/html" },
-                }).catch(() => undefined)
-              )
-            );
-          }
-        })
-        .catch(() => {
-          // The application remains usable online if service-worker setup fails.
-        });
+      void navigator.serviceWorker.register("/sw.js").catch(() => {
+        // The application remains usable online if service-worker setup fails.
+      });
     }
     const onOnline = () => void processOutbox();
     const onOffline = () =>

@@ -492,30 +492,6 @@ export function BottomNav<T extends string>({
     }
   }
 
-  function toggleMorePopover() {
-    const pop = popoverRef.current as
-      | (HTMLDivElement & {
-          showPopover?: () => void;
-          hidePopover?: () => void;
-        })
-      | null;
-    if (pop && typeof pop.showPopover === "function") {
-      try {
-        if (moreOpen) {
-          pop.hidePopover?.();
-          setMoreOpen(false);
-        } else {
-          pop.showPopover();
-          setMoreOpen(true);
-        }
-        return;
-      } catch {
-        // Fall through to React state toggle
-      }
-    }
-    setMoreOpen((prev) => !prev);
-  }
-
   return (
     <nav
       aria-label="Navegación inferior"
@@ -570,9 +546,7 @@ export function BottomNav<T extends string>({
                   setMoreOpen(evt.newState === "open");
                 }
               }}
-              className={`${
-                moreOpen ? "block" : "hidden"
-              } fixed inset-x-3 bottom-20 z-50 mx-auto w-auto max-w-sm rounded-xl border border-bht-slate-line bg-white p-1.5 shadow-bht-elev-17`}
+              className="fixed inset-x-3 bottom-20 z-50 mx-auto w-auto max-w-sm rounded-xl border border-bht-slate-line bg-white p-1.5 shadow-bht-elev-17"
             >
               {extraItems.map((item) => (
                 <button
@@ -634,8 +608,7 @@ export function BottomNav<T extends string>({
                   ? `Más secciones, actual: ${selectedExtra.label}`
                   : "Más secciones"
               }
-              onClick={toggleMorePopover}
-              className={`flex min-h-11 w-full flex-col items-center justify-center gap-1 rounded-xl px-1 py-1.5 text-xs font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bht-cobalt-vivid ${
+              className={`flex min-h-11 w-full flex-col items-center justify-center gap-1 rounded-xl px-1 py-1.5 text-xs font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bht-cobalt-vivid cursor-pointer ${
                 selectedExtra || moreOpen
                   ? "text-bht-cobalt-strong"
                   : "text-bht-slate-text"

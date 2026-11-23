@@ -64,10 +64,16 @@ export function useWarehouseData({ setFeedback, pruneChecklist }: Options) {
             // Online operation remains available if storage is restricted.
           }
         }
-        const loadedTrips =
-          tripsData && Array.isArray(tripsData.trips) ? tripsData.trips : [];
-        if (tripsData) {
-          setTrips(loadedTrips);
+        let snapshotTrips: WarehouseTripDto[] = [];
+        if (tripsData && Array.isArray(tripsData.trips)) {
+          snapshotTrips = tripsData.trips;
+          setTrips(snapshotTrips);
+        } else if (data.currentUser?.username) {
+          const prevSnap = await readOfflineSnapshot<WarehouseOfflineSnapshot>(
+            String(data.currentUser.username),
+            WAREHOUSE_SNAPSHOT_NAME
+          ).catch(() => null);
+          snapshotTrips = prevSnap?.trips || [];
         }
         const loadedOrders = data.orders || [];
         setOrders(loadedOrders);
@@ -78,7 +84,7 @@ export function useWarehouseData({ setFeedback, pruneChecklist }: Options) {
             {
               currentUser: data.currentUser,
               orders: loadedOrders,
-              trips: loadedTrips,
+              trips: snapshotTrips,
               savedAt: new Date().toISOString(),
             } satisfies WarehouseOfflineSnapshot
           ).catch(() => undefined);

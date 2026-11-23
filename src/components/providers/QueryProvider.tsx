@@ -2,7 +2,11 @@
 
 import React, { useEffect, useState } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BHT_SYNC_CHANNEL_NAME, type SyncScope } from "@/lib/realtime/useLiveSync";
+import {
+  BHT_SYNC_CHANNEL_NAME,
+  registerSyncScopeInvalidator,
+  type SyncScope,
+} from "@/lib/realtime/useLiveSync";
 
 export const BHT_QUERY_INVALIDATE_EVENT = "bht:sync-scopes";
 
@@ -60,9 +64,6 @@ export function invalidateQueryScopes(client: QueryClient, scopes?: SyncScope[])
 
 export function dispatchSyncScopeInvalidation(scopes: SyncScope[]): void {
   if (typeof window === "undefined") return;
-  if (browserQueryClient) {
-    invalidateQueryScopes(browserQueryClient, scopes);
-  }
   window.dispatchEvent(
     new CustomEvent<{ scopes: SyncScope[] }>(BHT_QUERY_INVALIDATE_EVENT, {
       detail: { scopes },
@@ -74,6 +75,9 @@ export default function QueryProvider({ children }: { children: React.ReactNode 
   const [queryClient] = useState<QueryClient>(() => getBrowserQueryClient());
 
   useEffect(() => {
+    const unregisterSyncInvalidator = registerSyncScopeInvalidator((scopes) => {
+      invalidateQueryScopes(queryClient, scopes);
+    });
     const onScopeEvent = (event: Event) => {
       const detail = (event as CustomEvent<{ scopes?: SyncScope[] }>).detail;
       invalidateQueryScopes(queryClient, detail?.scopes);
@@ -94,6 +98,7 @@ export default function QueryProvider({ children }: { children: React.ReactNode 
     }
 
     return () => {
+      unregisterSyncInvalidator();
       window.removeEventListener(BHT_QUERY_INVALIDATE_EVENT, onScopeEvent);
       try {
         channel?.close();

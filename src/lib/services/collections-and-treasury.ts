@@ -536,6 +536,23 @@ export async function getOrderPaymentTimeline(
 ): Promise<PaymentTimelineEntry[]> {
   assertRole(actor, ["PARTNER_ADMIN", "PARTNER_MANAGER", "EXTERNAL_SELLER"]);
 
+  const orderRes = await client.query<{ operational_status: string }>(
+    `SELECT operational_status::text AS operational_status
+     FROM erp.sales_orders
+     WHERE order_id = $1
+     LIMIT 1`,
+    [orderId]
+  );
+  if (orderRes.rowCount === 0) {
+    throw new ValidationError("Pedido no encontrado");
+  }
+  if (
+    actor.role === "EXTERNAL_SELLER" &&
+    orderRes.rows[0].operational_status === "CANCELLED"
+  ) {
+    throw new AuthorizationError("No puedes consultar pagos de un pedido anulado");
+  }
+
   const res = await client.query(
     `SELECT
        p.ar_payment_id,
@@ -733,6 +750,15 @@ export async function resetHistoricalNegativeStock(
       "Solo los Socios pueden poner en 0 los saldos negativos históricos"
     );
   }
+
+  await client.query(
+    `SELECT p.product_id
+     FROM erp.v_current_stock vcs
+     JOIN erp.products p ON p.product_id = vcs.product_id
+     WHERE vcs.stock_on_hand < -0.0001
+     ORDER BY p.product_id ASC
+     FOR UPDATE OF p`
+  );
 
   const insertRes = await client.query(
     `INSERT INTO erp.inventory_movements (

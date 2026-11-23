@@ -18,7 +18,11 @@ const NO_STORE_HEADERS = { "Cache-Control": "no-store" };
 export async function GET(req: NextRequest) {
   try {
     const limitParam = req.nextUrl.searchParams.get("limit");
-    const limit = limitParam ? Number(limitParam) : 40;
+    const parsedLimit = limitParam ? Number(limitParam) : 40;
+    const limit =
+      Number.isInteger(parsedLimit) && parsedLimit >= 1 && parsedLimit <= 200
+        ? parsedLimit
+        : 40;
 
     const data = await withAuthenticatedClient(
       req,

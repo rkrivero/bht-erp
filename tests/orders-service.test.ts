@@ -761,4 +761,64 @@ describe("Order Lifecycle Service (Soles Discount Floor, Approval, Stock & 4-Res
       }
     }
   });
+
+  it("forces PENDING_PARTNER_APPROVAL when globalDiscountPen pushes net total below cost on createOrder and updateOrder", async () => {
+    const pool = getPool("dev");
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      await client.query(`SET LOCAL bht.allow_closed_period_override = 'true'`);
+      const prodRes = await client.query<{ product_id: string }>(
+        `INSERT INTO erp.products (sku, name, unit_of_measure, fulfillment_mode, list_sale_price_pen, min_sale_price_pen, ref_cost_pen)
+         VALUES ('TEST-GDISC-BELOW', 'PRODUCTO DESC GLOBAL', 'NIU', 'STOCKED', 100.00, 90.00, 80.00)
+         RETURNING product_id::text`
+      );
+      const prodId = Number(prodRes.rows[0].product_id);
+      const whRes = await client.query<{ warehouse_id: string }>(
+        `SELECT warehouse_id::text FROM erp.warehouses WHERE code = 'MAIN' LIMIT 1`
+      );
+      const whId = Number(whRes.rows[0].warehouse_id);
+      await client.query(
+        `INSERT INTO erp.inventory_movements (warehouse_id, product_id, movement_date, movement_type, quantity_delta, unit_cost_pen, notes)
+         VALUES ($1, $2, NOW(), 'ADJUSTMENT', 20, 80, 'TEST_GDISC_STOCK')`,
+        [whId, prodId]
+      );
+
+      // 2 units @ S/ 100 (subtotal S/ 200, cost S/ 160). Global discount S/ 50 -> net S/ 150 < S/ 160
+      const blockedOnCreate = await createOrder(client, sellerActor, {
+        customerNameRaw: "CLIENTE DESC GLOBAL BAJO COSTO",
+        paymentMode: "CASH",
+        collectOnDelivery: true,
+        globalDiscountPen: 50,
+        lines: [{ productId: prodId, quantity: 2, unitPricePen: 100 }],
+      });
+      expect(blockedOnCreate.operationalStatus).toBe("PENDING_PARTNER_APPROVAL");
+
+      // Global discount S/ 20 -> net S/ 180 >= S/ 160 -> stays REGISTERED
+      const allowedOrder = await createOrder(client, sellerActor, {
+        customerNameRaw: "CLIENTE DESC GLOBAL VALIDO",
+        paymentMode: "CASH",
+        collectOnDelivery: true,
+        globalDiscountPen: 20,
+        lines: [{ productId: prodId, quantity: 2, unitPricePen: 100 }],
+      });
+      expect(allowedOrder.operationalStatus).toBe("REGISTERED");
+
+      // Updating global discount to S/ 50 -> net S/ 150 < S/ 160 -> transitions to PENDING_PARTNER_APPROVAL
+      const updatedToApproval = await updateOrder(
+        client,
+        sellerActor,
+        allowedOrder.orderId,
+        {
+          globalDiscountPen: 50,
+          reason: "Incremento de descuento global bajo costo",
+          lines: [{ productId: prodId, quantity: 2, unitPricePen: 100 }],
+        }
+      );
+      expect(updatedToApproval.operationalStatus).toBe("PENDING_PARTNER_APPROVAL");
+    } finally {
+      await client.query("ROLLBACK");
+      client.release();
+    }
+  });
 });

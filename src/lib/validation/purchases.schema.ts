@@ -74,14 +74,16 @@ export const registerPurchaseBodySchema = z.object({
     (v) => (v === "" || v === null || v === undefined ? undefined : Number(v)),
     z.number().int().positive().optional()
   ),
-  notes: z.string().optional(),
+  notes: z.string().max(2000).optional(),
   items: z
     .array(purchaseLineItemSchema, {
       message: "La compra debe incluir al menos un ítem",
     })
-    .min(1, "La compra debe incluir al menos un ítem"),
+    .min(1, "La compra debe incluir al menos un ítem")
+    .max(200, "La compra no puede superar 200 líneas"),
   fulfillOrderLineIds: z
     .array(z.preprocess((v) => Number(v), z.number().int().positive()))
+    .max(200)
     .optional(),
 });
 

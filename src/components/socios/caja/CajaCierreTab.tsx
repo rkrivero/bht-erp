@@ -299,14 +299,16 @@ export default function CajaCierreTab({
             <input
               id="cierre-date-input"
               type="date"
+              disabled={saving || reopening}
               value={closureDate}
               onChange={(e) => setClosureDate(e.target.value || todayIso)}
-              className={`${INPUT_CLASS} w-auto font-medium tabular-nums`}
+              className={`${INPUT_CLASS} w-auto font-medium tabular-nums disabled:opacity-60`}
             />
             {closureDate !== todayIso && (
               <Button
                 variant="outline"
                 size="sm"
+                disabled={saving || reopening}
                 onClick={() => setClosureDate(todayIso)}
               >
                 Hoy
@@ -603,7 +605,9 @@ export default function CajaCierreTab({
           closureDate={closureDate}
           corrections={draft.corrections}
           recentClosures={draft.recentClosures}
-          onSelectDate={setClosureDate}
+          onSelectDate={(d) => {
+            if (!saving && !reopening) setClosureDate(d);
+          }}
         />
       )}
     </div>

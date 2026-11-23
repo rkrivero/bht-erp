@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getAuthenticatedERPActor, requireActiveSession } from "@/lib/auth";
-import { withClient } from "@/lib/db";
+import { withAuthenticatedClient } from "@/lib/auth";
 import { resolveHttpError } from "@/lib/http-errors";
-import { assertRole } from "@/lib/rbac";
 import { listPriceOverrides } from "@/lib/services/price-audit";
 import { parsePositiveInt } from "@/lib/types";
 
@@ -12,11 +10,6 @@ const NO_STORE_HEADERS = { "Cache-Control": "no-store" };
 
 export async function GET(req: NextRequest) {
   try {
-    const parsedActor = assertRole(await getAuthenticatedERPActor(req), [
-      "PARTNER_ADMIN",
-      "PARTNER_MANAGER",
-    ]);
-
     const limitParam = req.nextUrl.searchParams.get("limit");
     const entityTypeParam = req.nextUrl.searchParams.get("entity_type")?.toUpperCase();
     const productIdParam = req.nextUrl.searchParams.get("product_id");
@@ -34,18 +27,17 @@ export async function GET(req: NextRequest) {
         ? entityTypeParam
         : "ALL";
 
-    const overrides = await withClient(async (client) => {
-      const actor = assertRole(await requireActiveSession(client, parsedActor), [
-        "PARTNER_ADMIN",
-        "PARTNER_MANAGER",
-      ]);
-      return await listPriceOverrides(client, actor, {
-        limit,
-        entityType,
-        productId,
-        customerPartyId,
-      });
-    });
+    const overrides = await withAuthenticatedClient(
+      req,
+      ["PARTNER_ADMIN", "PARTNER_MANAGER"],
+      async (client, actor) =>
+        listPriceOverrides(client, actor, {
+          limit,
+          entityType,
+          productId,
+          customerPartyId,
+        })
+    );
 
     return NextResponse.json({ overrides }, { headers: NO_STORE_HEADERS });
   } catch (err) {

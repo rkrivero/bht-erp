@@ -224,7 +224,11 @@ export function buildSellerOrderPayload(params: {
         ? params.parsedInitialPaid
         : undefined,
     globalDiscountPen:
-      params.parsedGlobalDiscountPen > 0 ? params.parsedGlobalDiscountPen : undefined,
+      params.editingOrderId !== null
+        ? params.parsedGlobalDiscountPen
+        : params.parsedGlobalDiscountPen > 0
+          ? params.parsedGlobalDiscountPen
+          : undefined,
     notes: params.notes,
     lines: params.cart.map((c) => {
       const fractional = isFractionalUom(c.product.unit_of_measure);

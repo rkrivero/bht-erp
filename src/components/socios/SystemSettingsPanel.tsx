@@ -162,6 +162,13 @@ export default function SystemSettingsPanel({
     setDirty(true);
   }
 
+  function parseNumericSettingInput(raw: string, fallback: number): number {
+    const trimmed = raw.trim();
+    if (trimmed === "") return fallback;
+    const parsed = Number(trimmed);
+    return Number.isFinite(parsed) ? parsed : fallback;
+  }
+
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     if (saving) return;
@@ -170,12 +177,12 @@ export default function SystemSettingsPanel({
       const settingsPayload = {
         company_name: form.company_name.trim() || "Blue Horizon Trade",
         company_ruc: form.company_ruc.trim(),
-        undo_window_minutes: Number(form.undo_window_minutes) || 15,
-        default_credit_days: Number(form.default_credit_days) || 7,
+        undo_window_minutes: parseNumericSettingInput(form.undo_window_minutes, 15),
+        default_credit_days: parseNumericSettingInput(form.default_credit_days, 7),
         credit_limit_mode: form.credit_limit_mode || "APPROVAL_GATE",
-        min_margin_pct: Number(form.min_margin_pct) || 20,
-        route_opex_alert_pct: Number(form.route_opex_alert_pct) || 8,
-        drain_alert_pct: Number(form.drain_alert_pct) || 30,
+        min_margin_pct: parseNumericSettingInput(form.min_margin_pct, 20),
+        route_opex_alert_pct: parseNumericSettingInput(form.route_opex_alert_pct, 8),
+        drain_alert_pct: parseNumericSettingInput(form.drain_alert_pct, 30),
         kpi_cutoff_date: form.kpi_cutoff_date || "2026-06-26",
       };
 

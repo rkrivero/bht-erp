@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useDeferredValue, useMemo, useState } from "react";
+import React, { useDeferredValue, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { fetchJson } from "@/lib/api-client";
 import type { CustomerDebtDto, DebtOrderDto } from "@/lib/contracts";
@@ -204,21 +204,28 @@ export function useSellerCollections(
     }
   }
 
+  const timelineAbortRef = useRef<AbortController | null>(null);
+
   async function handleOpenTimeline(orderId: number) {
     if (timelineOrderId === orderId) {
+      timelineAbortRef.current?.abort();
       setTimelineOrderId(null);
       return;
     }
-    if (timelineLoadingId === orderId) return;
+    timelineAbortRef.current?.abort();
+    const controller = new AbortController();
+    timelineAbortRef.current = controller;
     setTimelineLoadingId(orderId);
     try {
       const response = await fetchJson<SellerPaymentTimelineResponseDto>(
         `/api/collections?orderId=${orderId}`,
-        { cache: "no-store" }
+        { cache: "no-store", signal: controller.signal }
       );
+      if (controller.signal.aborted) return;
       setTimelineOrderId(orderId);
       setTimelineEntries(response.timeline || []);
     } catch (error) {
+      if (controller.signal.aborted) return;
       if (isAuthError(error)) {
         router.push("/login");
         return;
@@ -228,7 +235,9 @@ export function useSellerCollections(
         msg: apiErrorMessage(error, "Error de red al consultar el historial de pagos."),
       });
     } finally {
-      setTimelineLoadingId(null);
+      if (!controller.signal.aborted) {
+        setTimelineLoadingId(null);
+      }
     }
   }
 

@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getAuthenticatedERPActor, requireActiveSession } from "@/lib/auth";
-import { withClient } from "@/lib/db";
+import { withAuthenticatedClient } from "@/lib/auth";
 import { resolveHttpError } from "@/lib/http-errors";
-import { assertRole } from "@/lib/rbac";
 import {
   buildCsvWithBom,
   getBiSummary,
@@ -23,11 +21,6 @@ const NO_STORE_HEADERS = { "Cache-Control": "no-store" };
 
 export async function GET(req: NextRequest) {
   try {
-    const parsedActor = assertRole(await getAuthenticatedERPActor(req), [
-      "PARTNER_ADMIN",
-      "PARTNER_MANAGER",
-    ]);
-
     const section = (req.nextUrl.searchParams.get("section") || "").trim();
     const dataset = (req.nextUrl.searchParams.get("dataset") || "").trim();
     const format = (req.nextUrl.searchParams.get("format") || "json")
@@ -44,13 +37,11 @@ export async function GET(req: NextRequest) {
         );
       }
       const filters = parseReportFilters(req.nextUrl.searchParams);
-      const data = await withClient(async (client) => {
-        assertRole(await requireActiveSession(client, parsedActor), [
-          "PARTNER_ADMIN",
-          "PARTNER_MANAGER",
-        ]);
-        return await getReportSectionData(client, section, filters);
-      });
+      const data = await withAuthenticatedClient(
+        req,
+        ["PARTNER_ADMIN", "PARTNER_MANAGER"],
+        async (client) => getReportSectionData(client, section, filters)
+      );
       return NextResponse.json(
         { section, filters, data },
         { headers: NO_STORE_HEADERS }
@@ -68,13 +59,11 @@ export async function GET(req: NextRequest) {
       if (format !== "json") {
         throw new ValidationError(`Formato no soportado: ${format}`);
       }
-      const biSummary = await withClient(async (client) => {
-        assertRole(await requireActiveSession(client, parsedActor), [
-          "PARTNER_ADMIN",
-          "PARTNER_MANAGER",
-        ]);
-        return await getBiSummary(client);
-      });
+      const biSummary = await withAuthenticatedClient(
+        req,
+        ["PARTNER_ADMIN", "PARTNER_MANAGER"],
+        async (client) => getBiSummary(client)
+      );
       return NextResponse.json({ biSummary }, { headers: NO_STORE_HEADERS });
     }
 
@@ -87,17 +76,16 @@ export async function GET(req: NextRequest) {
     }
 
     const csvFilters = parseReportFilters(req.nextUrl.searchParams);
-    const { headers, rows } = await withClient(async (client) => {
-      assertRole(await requireActiveSession(client, parsedActor), [
-        "PARTNER_ADMIN",
-        "PARTNER_MANAGER",
-      ]);
-      return await getReportDatasetRows(client, dataset, {
-        from: csvFilters.from,
-        to: csvFilters.to,
-        zone: csvFilters.zone,
-      });
-    });
+    const { headers, rows } = await withAuthenticatedClient(
+      req,
+      ["PARTNER_ADMIN", "PARTNER_MANAGER"],
+      async (client) =>
+        getReportDatasetRows(client, dataset, {
+          from: csvFilters.from,
+          to: csvFilters.to,
+          zone: csvFilters.zone,
+        })
+    );
 
     if (format === "csv") {
       const csv = buildCsvWithBom(headers, rows);

@@ -105,7 +105,12 @@ export function useSellerOrderFlow({
     cart,
   } = orderDraft;
 
-  useSellerDraftPersistence(draftApi, currentUser?.username);
+  const [editingOrderId, setEditingOrderId] = useState<number | null>(null);
+  const [editingOrderCode, setEditingOrderCode] = useState("");
+  const [editingQuoteId, setEditingQuoteId] = useState<number | null>(null);
+  const [editingQuoteCode, setEditingQuoteCode] = useState("");
+
+  useSellerDraftPersistence(draftApi, currentUser?.username, editingOrderId !== null || editingQuoteId !== null);
 
   const [busyCreateQuote, setBusyCreateQuote] = useState(false);
   const [busyOrder, setBusyOrder] = useState(false);
@@ -115,10 +120,6 @@ export function useSellerOrderFlow({
   const deferredCustomerQuery = useDeferredValue(customerNameRaw);
   const [customerDropdownOpen, setCustomerDropdownOpen] = useState(false);
   const customerBoxRef = useRef<HTMLDivElement | null>(null);
-  const [editingOrderId, setEditingOrderId] = useState<number | null>(null);
-  const [editingOrderCode, setEditingOrderCode] = useState("");
-  const [editingQuoteId, setEditingQuoteId] = useState<number | null>(null);
-  const [editingQuoteCode, setEditingQuoteCode] = useState("");
   const [quoteEditReason, setQuoteEditReason] = useState("");
   const [editReasonCode, setEditReasonCode] = useState("CUSTOMER_INCREASED");
   const [editReasonNote, setEditReasonNote] = useState("");
@@ -175,10 +176,8 @@ export function useSellerOrderFlow({
     () =>
       cart.reduce((sum, item) => {
         const qty = Number.isFinite(item.quantity) ? Math.max(0, item.quantity) : 0;
-        const unit = Number.isFinite(item.unitPricePen)
-          ? Math.max(0, item.unitPricePen)
-          : 0;
-        return sum + qty * unit;
+        const unit = Number.isFinite(item.unitPricePen) ? Math.max(0, item.unitPricePen) : 0;
+        return Number((sum + Number((qty * unit).toFixed(2))).toFixed(2));
       }, 0),
     [cart]
   );
@@ -279,7 +278,7 @@ export function useSellerOrderFlow({
     setPaymentMode("YAPE_PLIN");
     setCollectOnDelivery(false);
     const id = findActiveAccId(channel === "YAPE" ? "BCP_BHT" : "INTERBANK_BHT");
-    if (id !== null) setPaymentAccountId(id);
+    setPaymentAccountId(id);
   }
 
   function resetOrderDraft() {

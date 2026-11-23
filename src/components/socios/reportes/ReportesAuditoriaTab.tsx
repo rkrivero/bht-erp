@@ -99,8 +99,10 @@ export default function ReportesAuditoriaTab({
       const blob = await res.blob();
       const cd = res.headers.get("content-disposition") || "";
       const match = cd.match(/filename="?([^"]+)"?/i);
-      const filename =
-        match?.[1] || `bht_${datasetId}_${new Date().toISOString().slice(0, 10)}.csv`;
+      const limaDateStr = new Intl.DateTimeFormat("en-CA", {
+        timeZone: "America/Lima",
+      }).format(new Date());
+      const filename = match?.[1] || `bht_${datasetId}_${limaDateStr}.csv`;
 
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");

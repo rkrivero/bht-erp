@@ -182,7 +182,7 @@ export default function SellerOrderCheckout({ flow }: { flow: SellerOrderFlow })
             </div>
           </div>
 
-          {!isEditingQuote && (
+          {!isEditingQuote && !isEditingOrder && (
             <div
               id="seller-step-payment"
               className="space-y-3 rounded-xl border border-bht-line bg-bht-paper/70 p-3"
@@ -386,14 +386,17 @@ export default function SellerOrderCheckout({ flow }: { flow: SellerOrderFlow })
             <input
               id="seller-order-notes"
               type="text"
+              disabled={isEditingOrder}
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               placeholder={
                 isEditingQuote
                   ? "Condiciones, vigencia o referencia..."
-                  : "Dirección de entrega o referencia..."
+                  : isEditingOrder
+                    ? "Las notas no se modifican al editar ítems"
+                    : "Dirección de entrega o referencia..."
               }
-              className={`${INPUT_CLASS} mt-1.5`}
+              className={`${INPUT_CLASS} mt-1.5 disabled:bg-bht-paper disabled:text-bht-ink-soft`}
             />
           </div>
 

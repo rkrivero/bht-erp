@@ -52,8 +52,8 @@ export function CloseTripModal({
               variant="primary"
               disabled={busyTripAction || trip.in_route_count > 0}
               onClick={async () => {
-                onDismiss();
                 await onConfirm(trip.trip_id);
+                onDismiss();
               }}
             >
               {busyTripAction ? "Cerrando..." : "Confirmar cierre de ruta"}
@@ -120,8 +120,8 @@ export function DeliverOrderModal({
               variant="success"
               disabled={isDeliverBusy}
               onClick={async () => {
-                onDismiss();
                 await onConfirm(order.order_id);
+                onDismiss();
               }}
             >
               {isDeliverBusy ? "Confirmando..." : "Sí, marcar entregado"}

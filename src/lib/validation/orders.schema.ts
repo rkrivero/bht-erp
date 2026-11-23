@@ -64,6 +64,7 @@ export const createOrderBodySchema = z.object({
   globalDiscountPen: optionalNum,
   notes: z
     .string()
+    .max(2000, "Las notas no pueden superar 2000 caracteres")
     .nullable()
     .optional()
     .transform((v) => v ?? undefined),
@@ -71,7 +72,8 @@ export const createOrderBodySchema = z.object({
     .array(orderLineInputSchema, {
       message: "El pedido debe incluir al menos un producto",
     })
-    .min(1, "El pedido debe incluir al menos un producto"),
+    .min(1, "El pedido debe incluir al menos un producto")
+    .max(200, "El pedido no puede superar 200 líneas"),
 });
 
 export const updateOrderBodySchema = z.object({
@@ -81,9 +83,10 @@ export const updateOrderBodySchema = z.object({
     .array(orderLineInputSchema, {
       message: "El pedido debe conservar al menos un producto",
     })
-    .min(1, "El pedido debe conservar al menos un producto"),
+    .min(1, "El pedido debe conservar al menos un producto")
+    .max(200, "El pedido no puede superar 200 líneas"),
   globalDiscountPen: optionalNum,
-  reason: z.string().optional(),
+  reason: z.string().max(500).optional(),
 });
 
 export const approveOrderBodySchema = z.object({
@@ -102,19 +105,24 @@ export const advanceOrderBodySchema = z.object({
 export const cancelOrderBodySchema = z.object({
   action: z.literal("cancel"),
   orderId: positiveInt,
-  reason: z.string().optional(),
+  reason: z.string().max(500).optional(),
 });
+
+const cancelledDraftItemSchema = z.record(
+  z.string().max(64),
+  z.union([z.string().max(200), z.number(), z.boolean(), z.null()])
+);
 
 export const logCancelledDraftBodySchema = z.object({
   action: z.literal("log_cancelled_draft"),
-  reasonCode: z.string().trim().min(1, "Selecciona un motivo de cancelación"),
-  reasonLabel: z.string().trim().min(1, "Selecciona un motivo de cancelación"),
-  customerName: z.string().nullable().optional(),
-  paymentMode: z.string().nullable().optional(),
+  reasonCode: z.string().trim().min(1, "Selecciona un motivo de cancelación").max(64),
+  reasonLabel: z.string().trim().min(1, "Selecciona un motivo de cancelación").max(200),
+  customerName: z.string().max(200).nullable().optional(),
+  paymentMode: z.string().max(32).nullable().optional(),
   estimatedTotalPen: optionalNum,
   itemCount: optionalNum,
-  items: z.array(z.unknown()).optional(),
-  notes: z.string().nullable().optional(),
+  items: z.array(cancelledDraftItemSchema).max(50).optional(),
+  notes: z.string().max(2000).nullable().optional(),
 });
 
 export const createOrderCustomerBodySchema = z.object({

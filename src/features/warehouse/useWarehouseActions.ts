@@ -130,13 +130,19 @@ export function useWarehouseActions({
   }
 
   async function handleDispatchToRoute(order: WarehouseOrderDto) {
-    if (busyOrderId === order.order_id) return;
+    if (busyOrderId !== null) return;
     setFeedback(null);
     setBusyOrderId(order.order_id);
     try {
-      const chosenTripId =
-        selectedTripByOrder[order.order_id] ||
-        (openTrips[0] ? String(openTrips[0].trip_id) : "");
+      const candidateTripId = selectedTripByOrder[order.order_id];
+      const validSelected =
+        candidateTripId &&
+        openTrips.some((t) => String(t.trip_id) === candidateTripId);
+      const chosenTripId = validSelected
+        ? candidateTripId
+        : openTrips[0]
+          ? String(openTrips[0].trip_id)
+          : "";
       if (!chosenTripId) {
         setShowNewTrip(true);
         setFeedback({
@@ -166,7 +172,7 @@ export function useWarehouseActions({
   }
 
   async function handleAdvance(orderId: number, nextStatus: NextOrderStatus) {
-    if (busyOrderId === orderId) return;
+    if (busyOrderId !== null) return;
     setFeedback(null);
     setBusyOrderId(orderId);
     try {

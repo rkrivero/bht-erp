@@ -15,6 +15,7 @@ const UNIQUE_CONSTRAINT_HINTS: Record<string, string> = {
   uq_purchase_invoice_doc: "Ese comprobante de compra ya existe para este proveedor",
   products_sku_key: "Ya existe un producto con ese SKU",
   app_users_username_key: "Ese nombre de usuario ya está en uso",
+  uq_app_users_email_active: "Ya existe otro usuario activo con ese correo electrónico",
   sales_orders_order_code_key: "El código de pedido ya existe; intente nuevamente",
   quotes_quote_code_key: "El código de cotización ya existe; intente nuevamente",
   route_trips_trip_code_key: "Ya existe una hoja de ruta con ese código",
@@ -65,7 +66,6 @@ export function resolveHttpError(
         return {
           status: 409,
           error:
-            message ||
             "Periodo cerrado: no se permiten movimientos en una fecha con cierre diario cerrado",
           code: "CLOSED_PERIOD",
         };

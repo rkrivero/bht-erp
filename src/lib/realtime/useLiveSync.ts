@@ -136,12 +136,9 @@ export function useLiveSync({
   );
   const scopesKey = scopes ? Array.from(new Set(scopes)).sort().join(",") : "";
 
-  const [liveStatus, setLiveStatus] = useState<LiveStatus>(() => {
-    if (!enabled) return "paused";
-    if (isNavigatorOffline()) return "offline";
-    if (isTabHidden()) return "paused";
-    return "syncing";
-  });
+  const [liveStatus, setLiveStatus] = useState<LiveStatus>(() =>
+    enabled ? "syncing" : "paused"
+  );
   const [lastSyncedAt, setLastSyncedAt] = useState<Date | null>(null);
 
   const versionRef = useRef<string | null>(null);
@@ -155,6 +152,7 @@ export function useLiveSync({
   const queuedScopesRef = useRef<Set<SyncScope>>(new Set());
   const backoffAttemptRef = useRef(0);
   const forceConnectRef = useRef<(() => void) | null>(null);
+  const snapshotAbortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     onRemoteChangeRef.current = onRemoteChange;
@@ -246,12 +244,17 @@ export function useLiveSync({
         return "network";
       }
 
+      snapshotAbortRef.current?.abort();
+      const controller = new AbortController();
+      snapshotAbortRef.current = controller;
+
       try {
         const url = buildSyncUrl(versionRef.current, scopesKey);
         const res = await fetch(url, {
           method: "GET",
           cache: "no-store",
           headers: { Accept: "application/json" },
+          signal: controller.signal,
         });
 
         if (res.status === 401 || res.status === 403) {

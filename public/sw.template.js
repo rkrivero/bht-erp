@@ -39,7 +39,11 @@ self.addEventListener("fetch", (event) => {
       (async () => {
         try {
           const response = await fetch(request);
-          if (response.ok && OFFLINE_WORKSPACES.has(url.pathname)) {
+          if (
+            response.ok &&
+            !response.redirected &&
+            OFFLINE_WORKSPACES.has(url.pathname)
+          ) {
             const cache = await caches.open(CACHE_NAME);
             await cache.put(`${url.origin}${url.pathname}`, response.clone());
           }

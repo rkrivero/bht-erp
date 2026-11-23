@@ -65,8 +65,9 @@ export async function runIdempotentMutation<T>(
       request_hash: string;
       status: string;
       result_json: T;
+      applied_at: string | Date | null;
     }>(
-      `SELECT actor_user_id, mutation_type, request_hash, status, result_json
+      `SELECT actor_user_id, mutation_type, request_hash, status, result_json, applied_at
        FROM erp.client_mutations
        WHERE mutation_id = $1::uuid
        FOR UPDATE`,
@@ -91,7 +92,7 @@ export async function runIdempotentMutation<T>(
         mutationId
       );
     }
-    if (row.status !== "APPLIED") {
+    if (row.status !== "APPLIED" || row.applied_at === null) {
       throw new ConflictError(
         "La operación requiere revisión antes de reintentarse",
         "MUTATION_REVIEW_REQUIRED",

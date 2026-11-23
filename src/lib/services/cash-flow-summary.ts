@@ -55,7 +55,7 @@ export async function getCashFlowSummary(
       AND cl.tx_date <= lb.today_date
       AND NOT cl.is_internal_transfer
       AND NOT cl.is_reversal
-      AND cl.expense_category <> 'CONCILIACION_SALDO'
+      AND cl.expense_category IS DISTINCT FROM 'CONCILIACION_SALDO'
       AND NOT EXISTS (
         SELECT 1 FROM erp.cash_ledger rev
         WHERE rev.reversal_of_ledger_id = cl.ledger_id
@@ -90,6 +90,7 @@ export async function getCashAccountFlowBreakdown(
     day_transfers_net_pen: string | number;
     month_in_pen: string | number;
     month_out_pen: string | number;
+    month_transfers_net_pen: string | number;
   }>(
     `WITH lima_bounds AS (
        SELECT
@@ -118,13 +119,18 @@ export async function getCashAccountFlowBreakdown(
        COALESCE(SUM(CASE
          WHEN cl.tx_date >= lb.month_start AND cl.tx_date <= lb.today_date AND NOT cl.is_internal_transfer AND cl.direction = 'OUT'
            THEN cl.amount_pen ELSE 0
-       END), 0)::NUMERIC(14,2) AS month_out_pen
+       END), 0)::NUMERIC(14,2) AS month_out_pen,
+       COALESCE(SUM(CASE
+         WHEN cl.tx_date >= lb.month_start AND cl.tx_date <= lb.today_date AND cl.is_internal_transfer
+           THEN CASE WHEN cl.direction = 'IN' THEN cl.amount_pen ELSE -cl.amount_pen END
+         ELSE 0
+       END), 0)::NUMERIC(14,2) AS month_transfers_net_pen
      FROM erp.cash_ledger cl
      CROSS JOIN lima_bounds lb
      WHERE cl.tx_date >= lb.month_start
        AND cl.tx_date <= lb.today_date
        AND NOT cl.is_reversal
-       AND cl.expense_category <> 'CONCILIACION_SALDO'
+       AND cl.expense_category IS DISTINCT FROM 'CONCILIACION_SALDO'
        AND NOT EXISTS (
          SELECT 1 FROM erp.cash_ledger rev
          WHERE rev.reversal_of_ledger_id = cl.ledger_id
@@ -139,6 +145,7 @@ export async function getCashAccountFlowBreakdown(
     const dayTransfersNetPen = round2(r.day_transfers_net_pen);
     const monthInPen = round2(r.month_in_pen);
     const monthOutPen = round2(r.month_out_pen);
+    const monthTransfersNetPen = round2(r.month_transfers_net_pen);
     map.set(Number(r.account_id), {
       dayInPen,
       dayOutPen,
@@ -146,7 +153,7 @@ export async function getCashAccountFlowBreakdown(
       dayNetPen: round2(dayInPen - dayOutPen + dayTransfersNetPen),
       monthInPen,
       monthOutPen,
-      monthNetPen: round2(monthInPen - monthOutPen),
+      monthNetPen: round2(monthInPen - monthOutPen + monthTransfersNetPen),
     });
   }
   return map;

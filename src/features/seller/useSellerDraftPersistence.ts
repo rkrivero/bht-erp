@@ -24,23 +24,12 @@ type DraftApi = ReturnType<typeof useSellerOrderDraftState>;
  */
 export function useSellerDraftPersistence(
   draftApi: DraftApi,
-  actorUsername: string | undefined
+  actorUsername: string | undefined,
+  isEditing = false
 ) {
   const {
     state,
-    setOrderStep,
-    setShowCustomPromiseDate,
-    setCustomerNameRaw,
-    setSelectedCustomer,
-    setPaymentMode,
-    setPaymentAccountId,
-    setCollectOnDelivery,
-    setCreditDays,
-    setCustomPromiseDate,
-    setInitialPaidPen,
-    setGlobalDiscountPen,
-    setNotes,
-    setCart,
+    dispatch,
   } = draftApi;
   const {
     orderStep,
@@ -58,6 +47,16 @@ export function useSellerDraftPersistence(
     cart,
   } = state;
   const draftHydratedRef = useRef(false);
+  const dirtyBeforeHydrationRef = useRef(false);
+
+  useEffect(() => {
+    if (
+      !draftHydratedRef.current &&
+      (isEditing || cart.length > 0 || customerNameRaw.trim() !== "" || notes.trim() !== "")
+    ) {
+      dirtyBeforeHydrationRef.current = true;
+    }
+  }, [isEditing, cart.length, customerNameRaw, notes]);
 
   useEffect(() => {
     let active = true;
@@ -102,64 +101,68 @@ export function useSellerDraftPersistence(
           }
         }
       }
-      if (active && savedDraft && typeof savedDraft === "object") {
+      if (
+        active &&
+        !dirtyBeforeHydrationRef.current &&
+        savedDraft &&
+        typeof savedDraft === "object"
+      ) {
+        const nextDraft: Partial<SellerOrderDraft> = {};
         if (typeof savedDraft.customerNameRaw === "string")
-          setCustomerNameRaw(savedDraft.customerNameRaw);
+          nextDraft.customerNameRaw = savedDraft.customerNameRaw;
         if (savedDraft.selectedCustomer)
-          setSelectedCustomer(savedDraft.selectedCustomer);
+          nextDraft.selectedCustomer = savedDraft.selectedCustomer;
         if (
           savedDraft.paymentMode === "CASH" ||
           savedDraft.paymentMode === "CREDIT" ||
           savedDraft.paymentMode === "YAPE_PLIN" ||
           savedDraft.paymentMode === "TRANSFER"
         ) {
-          setPaymentMode(savedDraft.paymentMode);
+          nextDraft.paymentMode = savedDraft.paymentMode;
         }
         if (
           savedDraft.paymentAccountId === null ||
           (typeof savedDraft.paymentAccountId === "number" &&
             Number.isFinite(savedDraft.paymentAccountId))
         ) {
-          setPaymentAccountId(savedDraft.paymentAccountId);
+          nextDraft.paymentAccountId = savedDraft.paymentAccountId;
         }
         if (typeof savedDraft.collectOnDelivery === "boolean")
-          setCollectOnDelivery(savedDraft.collectOnDelivery);
+          nextDraft.collectOnDelivery = savedDraft.collectOnDelivery;
         if (typeof savedDraft.creditDays === "number")
-          setCreditDays(savedDraft.creditDays);
+          nextDraft.creditDays = savedDraft.creditDays;
         if (typeof savedDraft.customPromiseDate === "string")
-          setCustomPromiseDate(savedDraft.customPromiseDate);
+          nextDraft.customPromiseDate = savedDraft.customPromiseDate;
         if (typeof savedDraft.initialPaidPen === "string")
-          setInitialPaidPen(savedDraft.initialPaidPen);
+          nextDraft.initialPaidPen = savedDraft.initialPaidPen;
         if (typeof savedDraft.globalDiscountPen === "string")
-          setGlobalDiscountPen(savedDraft.globalDiscountPen);
-        if (typeof savedDraft.notes === "string") setNotes(savedDraft.notes);
+          nextDraft.globalDiscountPen = savedDraft.globalDiscountPen;
+        if (typeof savedDraft.notes === "string") nextDraft.notes = savedDraft.notes;
         if (Array.isArray(savedDraft.cart)) {
-          setCart(
-            savedDraft.cart.map((rawLine) => {
-              const legacy = rawLine as Partial<SellerOrderDraft["cart"][number]> & {
-                unitDiscountPen?: number;
-              };
-              const listPrice = Number(rawLine.product?.list_sale_price_pen ?? 0);
-              const unitPricePen =
-                typeof legacy.unitPricePen === "number" &&
-                Number.isFinite(legacy.unitPricePen)
-                  ? legacy.unitPricePen
-                  : Math.max(
-                      0,
-                      Number(
-                        (listPrice - Number(legacy.unitDiscountPen ?? 0)).toFixed(2)
-                      )
-                    );
-              return {
-                ...rawLine,
-                unitPricePen,
-                unitPriceInput:
-                  typeof legacy.unitPriceInput === "string"
-                    ? legacy.unitPriceInput
-                    : unitPricePen.toFixed(2),
-              };
-            })
-          );
+          nextDraft.cart = savedDraft.cart.map((rawLine) => {
+            const legacy = rawLine as Partial<SellerOrderDraft["cart"][number]> & {
+              unitDiscountPen?: number;
+            };
+            const listPrice = Number(rawLine.product?.list_sale_price_pen ?? 0);
+            const unitPricePen =
+              typeof legacy.unitPricePen === "number" &&
+              Number.isFinite(legacy.unitPricePen)
+                ? legacy.unitPricePen
+                : Math.max(
+                    0,
+                    Number(
+                      (listPrice - Number(legacy.unitDiscountPen ?? 0)).toFixed(2)
+                    )
+                  );
+            return {
+              ...rawLine,
+              unitPricePen,
+              unitPriceInput:
+                typeof legacy.unitPriceInput === "string"
+                  ? legacy.unitPriceInput
+                  : unitPricePen.toFixed(2),
+            };
+          });
         }
         if (
           savedDraft.orderStep === "client" ||
@@ -167,11 +170,12 @@ export function useSellerDraftPersistence(
           savedDraft.orderStep === "payment" ||
           savedDraft.orderStep === "confirmation"
         ) {
-          setOrderStep(savedDraft.orderStep);
+          nextDraft.orderStep = savedDraft.orderStep;
         }
         if (typeof savedDraft.showCustomPromiseDate === "boolean") {
-          setShowCustomPromiseDate(savedDraft.showCustomPromiseDate);
+          nextDraft.showCustomPromiseDate = savedDraft.showCustomPromiseDate;
         }
+        dispatch({ type: "hydrate", draft: nextDraft });
       }
       if (active) draftHydratedRef.current = true;
     };
@@ -179,24 +183,10 @@ export function useSellerDraftPersistence(
     return () => {
       active = false;
     };
-  }, [
-    setCart,
-    setCollectOnDelivery,
-    setCreditDays,
-    setCustomPromiseDate,
-    setCustomerNameRaw,
-    setInitialPaidPen,
-    setGlobalDiscountPen,
-    setNotes,
-    setPaymentAccountId,
-    setPaymentMode,
-    setSelectedCustomer,
-    setOrderStep,
-    setShowCustomPromiseDate,
-  ]);
+  }, [dispatch]);
 
   useEffect(() => {
-    if (!draftHydratedRef.current) return;
+    if (!draftHydratedRef.current || isEditing) return;
     const draft: SellerOrderDraft = {
       customerNameRaw,
       selectedCustomer,
@@ -237,6 +227,7 @@ export function useSellerDraftPersistence(
     }
   }, [
     actorUsername,
+    isEditing,
     customerNameRaw,
     selectedCustomer,
     paymentMode,

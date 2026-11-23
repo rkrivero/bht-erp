@@ -1,15 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireActiveSession } from "@/lib/auth";
+import { requireActiveSession, withAuthenticatedClient } from "@/lib/auth";
 import { withClient } from "@/lib/db";
 import {
   computeSyncSnapshot,
-  getSessionUser,
   parseRequestedScopes,
 } from "@/lib/realtime/sync-engine";
 import { resolveHttpError } from "@/lib/http-errors";
+import type { UserRole } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
+
+const ALL_ERP_ROLES: UserRole[] = [
+  "PARTNER_ADMIN",
+  "PARTNER_MANAGER",
+  "WAREHOUSE_DELIVERY",
+  "EXTERNAL_SELLER",
+];
 
 const NO_STORE_HEADERS = {
   "Cache-Control": "no-store, no-cache, must-revalidate, private",
@@ -22,44 +29,39 @@ const SSE_MAX_LIFETIME_MS = 55000;
 
 export async function GET(req: NextRequest) {
   try {
-    const actor = await getSessionUser(req);
-    if (!actor) {
-      return NextResponse.json(
-        { error: "No autenticado" },
-        { status: 401, headers: NO_STORE_HEADERS }
-      );
-    }
-
     const sinceParam = req.nextUrl.searchParams.get("since");
-    const requestedScopes = parseRequestedScopes(
-      req.nextUrl.searchParams.get("scopes"),
-      actor.role
-    );
-
+    const rawScopes = req.nextUrl.searchParams.get("scopes");
     const acceptHeader = req.headers.get("accept") || "";
     const wantsStream =
       acceptHeader.includes("text/event-stream") ||
       req.nextUrl.searchParams.get("stream") === "1";
 
     if (!wantsStream) {
-      const snapshot = await withClient(async (client) => {
-        const verifiedActor = await requireActiveSession(client, actor);
-        return await computeSyncSnapshot(
-          client,
-          verifiedActor,
-          sinceParam,
-          requestedScopes
-        );
-      });
+      const snapshot = await withAuthenticatedClient(
+        req,
+        ALL_ERP_ROLES,
+        async (client, verifiedActor) => {
+          const requestedScopes = parseRequestedScopes(rawScopes, verifiedActor.role);
+          return await computeSyncSnapshot(
+            client,
+            verifiedActor,
+            sinceParam,
+            requestedScopes
+          );
+        }
+      );
       return NextResponse.json(snapshot, {
         status: 200,
         headers: NO_STORE_HEADERS,
       });
     }
 
-    const activeActor = await withClient((client) =>
-      requireActiveSession(client, actor)
+    const activeActor = await withAuthenticatedClient(
+      req,
+      ALL_ERP_ROLES,
+      async (_client, verifiedActor) => verifiedActor
     );
+    const requestedScopes = parseRequestedScopes(rawScopes, activeActor.role);
 
     const encoder = new TextEncoder();
     let cleanupStream = () => {};

@@ -799,6 +799,24 @@ export async function listQuotes(
   }));
 }
 
+function assertQuoteOwnership(
+  actor: SessionUser,
+  quote: { created_by_user_id?: unknown; seller_name?: unknown }
+): void {
+  if (actor.role !== "EXTERNAL_SELLER") return;
+  if (quote.created_by_user_id !== null && quote.created_by_user_id !== undefined) {
+    if (Number(quote.created_by_user_id) !== actor.userId) {
+      throw new AuthorizationError("Solo puedes gestionar cotizaciones creadas por ti");
+    }
+    return;
+  }
+  const sellerName =
+    typeof quote.seller_name === "string" ? quote.seller_name.trim().toLowerCase() : "";
+  if (!sellerName || sellerName !== actor.fullName.trim().toLowerCase()) {
+    throw new AuthorizationError("Solo puedes gestionar cotizaciones creadas por ti");
+  }
+}
+
 export async function createQuote(
   client: PoolClient,
   actor: SessionUser,
@@ -962,10 +980,10 @@ export async function createQuote(
   const qIns = await client.query<{ quote_id: string; quote_code: string }>(
     `INSERT INTO erp.quotes (
        quote_code, issue_date, customer_party_id, customer_name_raw,
-       currency, tax_regime, total_pen, global_discount_pen, status, seller_name, source_origin, notes
+       currency, tax_regime, total_pen, global_discount_pen, status, seller_name, created_by_user_id, source_origin, notes
      ) VALUES (
        $1, $2::date, $3, $4,
-       $5, $6, $7, $10, 'OPEN', $8, 'ERP_APP', $9
+       $5, $6, $7, $10, 'OPEN', $8, $11, 'ERP_APP', $9
      )
      RETURNING quote_id::text AS quote_id, quote_code`,
     [
@@ -979,6 +997,7 @@ export async function createQuote(
       actor.fullName,
       input.notes?.trim() || null,
       globalDiscountPen,
+      actor.userId,
     ]
   );
   const quoteId = Number(qIns.rows[0].quote_id);
@@ -1066,7 +1085,7 @@ export async function updateQuote(
     `SELECT quote_id, quote_code, issue_date::text AS issue_date,
             customer_party_id, customer_name_raw, currency, tax_regime,
             total_pen, COALESCE(global_discount_pen, 0) AS global_discount_pen,
-            status::text AS status, notes
+            status::text AS status, notes, created_by_user_id, seller_name
      FROM erp.quotes
      WHERE quote_id = $1
      FOR UPDATE`,
@@ -1076,6 +1095,7 @@ export async function updateQuote(
     throw new ValidationError("Cotización no encontrada");
   }
   const existingQuote = qRes.rows[0];
+  assertQuoteOwnership(actor, existingQuote);
   if (String(existingQuote.status) !== "OPEN") {
     throw new ValidationError(
       `Solo cotizaciones abiertas se pueden modificar (estado actual: ${existingQuote.status})`
@@ -1363,8 +1383,11 @@ export async function updateQuoteStatus(
     status: string;
     quote_code: string;
     customer_name_raw: string | null;
+    created_by_user_id: string | null;
+    seller_name: string | null;
   }>(
-    `SELECT status::text AS status, quote_code, customer_name_raw
+    `SELECT status::text AS status, quote_code, customer_name_raw,
+            created_by_user_id::text, seller_name
      FROM erp.quotes
      WHERE quote_id = $1
      FOR UPDATE`,
@@ -1374,6 +1397,7 @@ export async function updateQuoteStatus(
     throw new ValidationError("Cotización no encontrada");
   }
   const prev = res.rows[0];
+  assertQuoteOwnership(actor, prev);
   if (prev.status === "CONVERTED") {
     throw new ValidationError(
       "Una cotización ya convertida en pedido no puede cambiar a otro estado"
@@ -1427,6 +1451,7 @@ export async function convertQuoteToOrder(
     initialPaidPen?: number;
     paymentAccountId?: number;
     tripId?: number | null;
+    exchangeRate?: number | null;
     notes?: string;
   }
 ) {
@@ -1439,10 +1464,13 @@ export async function convertQuoteToOrder(
     issue_date: string;
     customer_party_id: string | null;
     customer_name_raw: string | null;
+    currency: string;
     global_discount_pen: string | number;
     status: string;
     related_cpe: string | null;
     notes: string | null;
+    created_by_user_id: string | null;
+    seller_name: string | null;
   }>(
     `SELECT
        quote_id::text,
@@ -1450,10 +1478,13 @@ export async function convertQuoteToOrder(
        issue_date::text AS issue_date,
        customer_party_id::text,
        customer_name_raw,
+       currency,
        COALESCE(global_discount_pen, 0) AS global_discount_pen,
        status::text AS status,
        related_cpe,
-       notes
+       notes,
+       created_by_user_id::text,
+       seller_name
      FROM erp.quotes
      WHERE quote_id = $1
      FOR UPDATE`,
@@ -1463,6 +1494,7 @@ export async function convertQuoteToOrder(
     throw new ValidationError("Cotización no encontrada");
   }
   const quote = qRes.rows[0];
+  assertQuoteOwnership(actor, quote);
   if (quote.status !== "OPEN") {
     throw new ValidationError(
       `Solo cotizaciones OPEN se pueden convertir en pedido (estado actual: ${quote.status})`
@@ -1498,6 +1530,21 @@ export async function convertQuoteToOrder(
     unitPricePen: number;
   }> = [];
 
+  const isUsdQuote = String(quote.currency || "PEN").toUpperCase() === "USD";
+  let fxRate = 1;
+  if (isUsdQuote) {
+    const providedRate =
+      input.exchangeRate !== undefined && input.exchangeRate !== null
+        ? Number(input.exchangeRate)
+        : NaN;
+    if (!Number.isFinite(providedRate) || providedRate <= 0) {
+      throw new ValidationError(
+        "La cotización está en USD; indica un tipo de cambio válido (> 0) para convertir a PEN"
+      );
+    }
+    fxRate = providedRate;
+  }
+
   for (const row of qlRes.rows) {
     if (!row.product_id) {
       throw new ValidationError(
@@ -1507,9 +1554,13 @@ export async function convertQuoteToOrder(
     orderLines.push({
       productId: Number(row.product_id),
       quantity: Number(row.quantity),
-      unitPricePen: Number(row.unit_price_pen),
+      unitPricePen: Number((Number(row.unit_price_pen) * fxRate).toFixed(4)),
     });
   }
+
+  const convertedGlobalDiscountPen = Number(
+    (Number(quote.global_discount_pen ?? 0) * fxRate).toFixed(2)
+  );
 
   const orderResult = await createOrder(
     client,
@@ -1527,7 +1578,7 @@ export async function convertQuoteToOrder(
       quoteId,
       orderDate: getLimaDateString(0),
       initialOperationalStatus: "DELIVERED",
-      globalDiscountPen: Number(quote.global_discount_pen ?? 0),
+      globalDiscountPen: convertedGlobalDiscountPen,
       notes:
         input.notes?.trim() ||
         [quote.notes, `Convertido de ${quote.quote_code}`].filter(Boolean).join(" | "),

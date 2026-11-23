@@ -285,7 +285,7 @@ export async function getDailyClosureDraft(
              AND cl.direction = 'OUT'
              AND NOT cl.is_internal_transfer
              AND NOT cl.is_reversal
-             AND cl.expense_category <> 'CONCILIACION_SALDO'
+             AND cl.expense_category IS DISTINCT FROM 'CONCILIACION_SALDO'
              AND cl.expense_bucket IN ('ROUTE_OPEX', 'ADMIN_OPEX', 'NON_OPEX_OR_CAPEX')
              AND NOT EXISTS (
                SELECT 1 FROM erp.cash_ledger rev

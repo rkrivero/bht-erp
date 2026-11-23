@@ -102,12 +102,37 @@ export default function LeafletCustomersMap({ customers, onEditCustomer }: Props
     }
   }, [layerMode]);
 
+  const markersByPartyRef = useRef<
+    Map<number, { marker: L.Marker; cust: CustomerDirectoryItem }>
+  >(new Map());
+
+  const buildPinIcon = (cust: CustomerDirectoryItem, isSelected: boolean) => {
+    const pinClasses = [
+      "bht-map-pin",
+      !cust.is_active
+        ? "bht-map-pin--inactive"
+        : cust.open_balance_pen > 0.05
+          ? "bht-map-pin--debt"
+          : "",
+      isSelected ? "bht-map-pin--selected" : "",
+    ]
+      .filter(Boolean)
+      .join(" ");
+    return L.divIcon({
+      className: "bht-map-pin-wrap",
+      html: `<span class="${pinClasses}"></span>`,
+      iconSize: [22, 22],
+      iconAnchor: [11, 11],
+    });
+  };
+
   useEffect(() => {
     const map = mapRef.current;
     const group = markersLayerRef.current;
     if (!map || !group) return;
 
     group.clearLayers();
+    markersByPartyRef.current.clear();
     if (locatedCustomers.length === 0) {
       map.setView([DEFAULT_MAP_CENTER.lat, DEFAULT_MAP_CENTER.lng], DEFAULT_MAP_ZOOM);
       return;
@@ -115,30 +140,13 @@ export default function LeafletCustomersMap({ customers, onEditCustomer }: Props
 
     const bounds: [number, number][] = [];
     for (const cust of locatedCustomers) {
-      const isSelected = selectedCustomer?.party_id === cust.party_id;
-      const pinClasses = [
-        "bht-map-pin",
-        !cust.is_active
-          ? "bht-map-pin--inactive"
-          : cust.open_balance_pen > 0.05
-            ? "bht-map-pin--debt"
-            : "",
-        isSelected ? "bht-map-pin--selected" : "",
-      ]
-        .filter(Boolean)
-        .join(" ");
-
       const marker = L.marker([cust.geo_lat, cust.geo_lng], {
-        icon: L.divIcon({
-          className: "bht-map-pin-wrap",
-          html: `<span class="${pinClasses}"></span>`,
-          iconSize: [22, 22],
-          iconAnchor: [11, 11],
-        }),
+        icon: buildPinIcon(cust, false),
         title: cust.display_name,
       });
       marker.on("click", () => setSelectedId(cust.party_id));
       marker.addTo(group);
+      markersByPartyRef.current.set(cust.party_id, { marker, cust });
       bounds.push([cust.geo_lat, cust.geo_lng]);
     }
 
@@ -147,7 +155,14 @@ export default function LeafletCustomersMap({ customers, onEditCustomer }: Props
     } else {
       map.fitBounds(bounds, { padding: [36, 36], maxZoom: 15 });
     }
-  }, [locatedCustomers, selectedCustomer?.party_id]);
+  }, [locatedCustomers]);
+
+  useEffect(() => {
+    const selectedPartyId = selectedCustomer?.party_id ?? null;
+    for (const [partyId, entry] of markersByPartyRef.current.entries()) {
+      entry.marker.setIcon(buildPinIcon(entry.cust, partyId === selectedPartyId));
+    }
+  }, [selectedCustomer?.party_id, locatedCustomers]);
 
   const secondaryName = selectedCustomer
     ? formatPartySecondaryName(selectedCustomer.trade_name, selectedCustomer.legal_name)

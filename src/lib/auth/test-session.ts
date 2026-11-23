@@ -2,10 +2,23 @@ import crypto from "crypto";
 import type { SessionUser } from "../types";
 
 const TEST_SESSION_TTL_SECONDS = 60 * 60;
-const TEST_SESSION_SECRET = "bht-test-fixture-session-key-not-for-production";
+const FALLBACK_TEST_SESSION_SECRET = "bht-test-fixture-session-key-not-for-production";
+
+export function isTestAuthRuntime(): boolean {
+  return (
+    process.env.NODE_ENV === "test" &&
+    process.env.VERCEL !== "1" &&
+    process.env.VERCEL_ENV !== "production"
+  );
+}
+
+function getTestSessionSecret(): string {
+  assertTestRuntime();
+  return process.env.BHT_TEST_SESSION_SECRET?.trim() || FALLBACK_TEST_SESSION_SECRET;
+}
 
 function assertTestRuntime(): void {
-  if (process.env.NODE_ENV !== "test") {
+  if (!isTestAuthRuntime()) {
     throw new Error("Test session helpers are unavailable outside the test runtime");
   }
 }
@@ -29,7 +42,7 @@ export function signTestSessionToken(
   };
   const payload = Buffer.from(JSON.stringify(payloadObj), "utf8").toString("base64url");
   const signature = crypto
-    .createHmac("sha256", TEST_SESSION_SECRET)
+    .createHmac("sha256", getTestSessionSecret())
     .update(payload)
     .digest("base64url");
   return `${payload}.${signature}`;
@@ -46,7 +59,7 @@ export function verifyTestSessionToken(
   if (!payload || !signature) return null;
 
   const expected = crypto
-    .createHmac("sha256", TEST_SESSION_SECRET)
+    .createHmac("sha256", getTestSessionSecret())
     .update(payload)
     .digest("base64url");
   const actualBuffer = Buffer.from(signature);

@@ -56,8 +56,11 @@ export async function GET(req: NextRequest) {
       return NextResponse.json(data, { headers: NO_STORE_HEADERS });
     }
 
-    const limitParam = Number(params.get("limit") || 100);
-    const offsetParam = Number(params.get("offset") || 0);
+    const limitRaw = Number(params.get("limit") ?? 100);
+    const offsetRaw = Number(params.get("offset") ?? 0);
+    const limit =
+      Number.isInteger(limitRaw) && limitRaw >= 1 && limitRaw <= 200 ? limitRaw : 100;
+    const offset = Number.isInteger(offsetRaw) && offsetRaw >= 0 ? offsetRaw : 0;
 
     const data = await withAuthenticatedClient(
       req,
@@ -69,8 +72,8 @@ export async function GET(req: NextRequest) {
           status: parseStatusFilter(params.get("status")),
           hasGeo: parseGeoFilter(params.get("hasGeo")),
           withDebt: params.get("withDebt") === "1" || params.get("withDebt") === "true",
-          limit: Number.isFinite(limitParam) ? limitParam : 100,
-          offset: Number.isFinite(offsetParam) ? offsetParam : 0,
+          limit,
+          offset,
         });
       }
     );
