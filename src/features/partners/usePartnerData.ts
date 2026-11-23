@@ -57,8 +57,14 @@ function getTabFromLocation(): PartnerTab {
 function getRequiredDatasetsForTab(tab: PartnerTab): Set<DatasetKey> {
   switch (tab) {
     case "control":
-      // Initial Hoy tab only fires the 2 essential requests: /api/orders and /api/partners
-      return new Set<DatasetKey>(["orders", "partners"]);
+      return new Set<DatasetKey>([
+        "orders",
+        "partners",
+        "collections",
+        "purchases",
+        "trips",
+        "quotes",
+      ]);
     case "pedidos":
       return new Set<DatasetKey>(["orders", "partners", "quotes", "trips"]);
     case "deudores":
@@ -72,6 +78,7 @@ function getRequiredDatasetsForTab(tab: PartnerTab): Set<DatasetKey> {
         "treasury",
         "purchases",
         "collections",
+        "trips",
       ]);
     case "kpis":
       return new Set<DatasetKey>(["orders", "partners"]);
@@ -417,14 +424,16 @@ export function usePartnerData(externalActiveTab?: PartnerTab) {
     await refreshDashboard();
   }, [refreshDashboard]);
 
-  // Initial load on mount
-  useEffect(() => {
-    void refreshDashboard(undefined, { targetTab: activeTabRef.current });
-  }, [refreshDashboard]);
+  const didMountRef = useRef(false);
 
-  // Lazy-load secondary datasets when switching tabs
+  // Initial load on mount + lazy-load secondary datasets when switching tabs
   useEffect(() => {
     activeTabRef.current = activeTab;
+    if (!didMountRef.current) {
+      didMountRef.current = true;
+      void refreshDashboard(undefined, { targetTab: activeTab });
+      return;
+    }
     void refreshDashboard(undefined, {
       targetTab: activeTab,
       onlyMissing: true,

@@ -276,7 +276,13 @@ export function useOrderFlow({
         data.undoAction
       );
       notifyLocalSync(["orders", "inventory", "collections", "treasury", "partners"]);
-      await refreshDashboard(["orders", "inventory", "collections", "partners"]);
+      await refreshDashboard([
+        "orders",
+        "inventory",
+        "collections",
+        "treasury",
+        "partners",
+      ]);
       return true;
     } catch (error) {
       showFeedback(

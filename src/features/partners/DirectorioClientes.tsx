@@ -14,6 +14,7 @@ import {
 import { SkeletonTable } from "@/components/ui/Skeleton";
 import { ApiClientError, fetchJson } from "@/lib/api-client";
 import { formatPartySecondaryName } from "@/lib/geo";
+import { notifyLocalSync } from "@/lib/realtime/useLiveSync";
 import type {
   CustomerDirectoryItem,
   CustomerDirectoryStats,
@@ -508,6 +509,7 @@ export function DirectorioClientes({
                 : `Cliente "${saved.display_name}" actualizado.`
             );
             void loadCustomers();
+            notifyLocalSync(["orders", "purchases", "partners"]);
             onDataChanged();
           }}
         />

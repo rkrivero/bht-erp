@@ -6,7 +6,7 @@ import {
   getSessionUser,
   parseRequestedScopes,
 } from "@/lib/realtime/sync-engine";
-import { AuthenticationError, AuthorizationError, ValidationError } from "@/lib/types";
+import { resolveHttpError } from "@/lib/http-errors";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -170,22 +170,11 @@ export async function GET(req: NextRequest) {
       },
     });
   } catch (err) {
-    const status =
-      err instanceof AuthenticationError
-        ? 401
-        : err instanceof AuthorizationError
-          ? 403
-          : err instanceof ValidationError
-            ? 400
-            : 500;
-    return NextResponse.json(
-      {
-        error:
-          err instanceof Error
-            ? err.message
-            : "Error verificando sincronización en vivo",
-      },
-      { status, headers: NO_STORE_HEADERS }
+    const { status, ...payload } = resolveHttpError(
+      err,
+      "Error verificando sincronización en vivo",
+      "GET /api/sync"
     );
+    return NextResponse.json(payload, { status, headers: NO_STORE_HEADERS });
   }
 }

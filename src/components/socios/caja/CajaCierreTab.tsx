@@ -1,6 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type FormEvent,
+} from "react";
 import { CheckIcon } from "@/components/ui/Icons";
 import {
   Badge,
@@ -77,16 +84,29 @@ export default function CajaCierreTab({
     setDirty(false);
   }, []);
 
+  const loadAbortRef = useRef<AbortController | null>(null);
+
   const loadDraft = useCallback(
     async (targetDate: string) => {
+      loadAbortRef.current?.abort();
+      const controller = new AbortController();
+      loadAbortRef.current = controller;
       setLoading(true);
       try {
         const res = await fetchJson<DailyClosureDraftResponse>(
-          `/api/daily-closures?date=${encodeURIComponent(targetDate)}`
+          `/api/daily-closures?date=${encodeURIComponent(targetDate)}`,
+          { signal: controller.signal }
         );
+        if (controller.signal.aborted) return;
         setDraft(res);
         hydrateFormFromDraft(res);
       } catch (err) {
+        if (
+          controller.signal.aborted ||
+          (err instanceof Error && err.name === "AbortError")
+        ) {
+          return;
+        }
         onFeedback(
           err instanceof ApiClientError
             ? err.message
@@ -94,7 +114,9 @@ export default function CajaCierreTab({
           true
         );
       } finally {
-        setLoading(false);
+        if (!controller.signal.aborted) {
+          setLoading(false);
+        }
       }
     },
     [hydrateFormFromDraft, onFeedback]
@@ -102,6 +124,7 @@ export default function CajaCierreTab({
 
   useEffect(() => {
     void loadDraft(closureDate);
+    return () => loadAbortRef.current?.abort();
   }, [closureDate, loadDraft]);
 
   const accountTotals = useMemo(() => {

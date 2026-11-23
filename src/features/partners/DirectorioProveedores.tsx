@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/Primitives";
 import { ApiClientError, fetchJson } from "@/lib/api-client";
 import { formatPartySecondaryName } from "@/lib/geo";
+import { notifyLocalSync } from "@/lib/realtime/useLiveSync";
 import type {
   CustomerStatusFilter,
   SupplierDirectoryItem,
@@ -354,6 +355,7 @@ export function DirectorioProveedores({
                 : `Proveedor "${saved.display_name}" actualizado.`
             );
             void loadSuppliers();
+            notifyLocalSync(["orders", "purchases", "partners"]);
             onDataChanged();
           }}
         />

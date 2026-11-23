@@ -139,6 +139,26 @@ export const AP_OBLIGATIONS_DETAIL_SUBQUERY = `
     WHERE cl.reference_table = 'erp.ap_obligations'
       AND cl.direction = 'OUT'
     GROUP BY cl.reference_id
+  ),
+  ap_pay_by_party AS (
+    SELECT
+      cl.reference_id,
+      cl.party_id,
+      json_agg(
+        json_build_object(
+          'ledger_id', cl.ledger_id,
+          'tx_date', cl.tx_date::text,
+          'account_name', COALESCE(ca.name, 'Caja / Banco'),
+          'amount_pen', cl.amount_pen,
+          'description', cl.description
+        )
+        ORDER BY cl.tx_date DESC, cl.ledger_id DESC
+      ) AS payments
+    FROM erp.cash_ledger cl
+    LEFT JOIN erp.cash_accounts ca ON ca.account_id = cl.account_id
+    WHERE cl.reference_table = 'erp.ap_obligations'
+      AND cl.direction = 'OUT'
+    GROUP BY cl.reference_id, cl.party_id
   )
   SELECT json_agg(t)
   FROM (
@@ -169,10 +189,11 @@ export const AP_OBLIGATIONS_DETAIL_SUBQUERY = `
     LEFT JOIN erp.purchase_invoices pi ON pi.purchase_id = ap.purchase_id
     LEFT JOIN ap_line_agg ala ON ala.purchase_id = ap.purchase_id
     LEFT JOIN ap_pay_agg pay_id ON pay_id.reference_id = ap.ap_id::text
-    LEFT JOIN ap_pay_agg pay_ref
+    LEFT JOIN ap_pay_by_party pay_ref
       ON ap.doc_ref IS NOT NULL
      AND ap.doc_ref <> ''
      AND pay_ref.reference_id = ap.doc_ref
+     AND (pay_ref.party_id IS NULL OR ap.supplier_party_id IS NULL OR pay_ref.party_id = ap.supplier_party_id)
      AND pay_id.reference_id IS NULL
     ORDER BY
       CASE WHEN ap.status IN ('OPEN', 'PARTIAL') AND ap.balance_due_pen > 0.05 THEN 0 ELSE 1 END ASC,

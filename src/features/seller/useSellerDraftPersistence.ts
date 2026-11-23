@@ -33,6 +33,7 @@ export function useSellerDraftPersistence(
     setCustomerNameRaw,
     setSelectedCustomer,
     setPaymentMode,
+    setPaymentAccountId,
     setCollectOnDelivery,
     setCreditDays,
     setCustomPromiseDate,
@@ -114,6 +115,13 @@ export function useSellerDraftPersistence(
         ) {
           setPaymentMode(savedDraft.paymentMode);
         }
+        if (
+          savedDraft.paymentAccountId === null ||
+          (typeof savedDraft.paymentAccountId === "number" &&
+            Number.isFinite(savedDraft.paymentAccountId))
+        ) {
+          setPaymentAccountId(savedDraft.paymentAccountId);
+        }
         if (typeof savedDraft.collectOnDelivery === "boolean")
           setCollectOnDelivery(savedDraft.collectOnDelivery);
         if (typeof savedDraft.creditDays === "number")
@@ -180,6 +188,7 @@ export function useSellerDraftPersistence(
     setInitialPaidPen,
     setGlobalDiscountPen,
     setNotes,
+    setPaymentAccountId,
     setPaymentMode,
     setSelectedCustomer,
     setOrderStep,

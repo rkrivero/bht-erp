@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ApiClientError, fetchJson } from "@/lib/api-client";
 import type { CashLedgerEntry } from "../types";
 
@@ -14,6 +14,8 @@ export function useAccountLedger(
   const [accountHasMore, setAccountHasMore] = useState(false);
   const [loadingAccountLedger, setLoadingAccountLedger] = useState(false);
   const [loadingMoreLedger, setLoadingMoreLedger] = useState(false);
+  const selectedAccountIdRef = useRef<number | null>(selectedAccountId);
+  selectedAccountIdRef.current = selectedAccountId;
 
   useEffect(() => {
     if (selectedAccountId === null) {
@@ -47,6 +49,10 @@ export function useAccountLedger(
         setAccountLedger(null);
         setAccountTotalCount(null);
         setAccountHasMore(false);
+        onFeedback(
+          "No se pudo cargar el historial completo de la cuenta; mostrando vista reciente.",
+          true
+        );
       })
       .finally(() => {
         if (!controller.signal.aborted) {
@@ -55,7 +61,7 @@ export function useAccountLedger(
       });
 
     return () => controller.abort();
-  }, [selectedAccountId, ledger]);
+  }, [selectedAccountId, ledger, onFeedback]);
 
   async function handleLoadMoreAccountLedger() {
     if (
@@ -66,6 +72,7 @@ export function useAccountLedger(
     ) {
       return;
     }
+    const targetAccountId = selectedAccountId;
     setLoadingMoreLedger(true);
     try {
       const res = await fetchJson<{
@@ -73,8 +80,9 @@ export function useAccountLedger(
         totalCount: number;
         hasMore: boolean;
       }>(
-        `/api/treasury?accountId=${selectedAccountId}&ledgerOnly=1&limit=200&offset=${accountLedger.length}`
+        `/api/treasury?accountId=${targetAccountId}&ledgerOnly=1&limit=200&offset=${accountLedger.length}`
       );
+      if (selectedAccountIdRef.current !== targetAccountId) return;
       setAccountLedger((prev) => {
         const existing = prev ?? [];
         const seen = new Set(existing.map((m) => m.ledger_id));
@@ -86,6 +94,7 @@ export function useAccountLedger(
       setAccountTotalCount(Number(res.totalCount ?? 0));
       setAccountHasMore(Boolean(res.hasMore));
     } catch (err) {
+      if (selectedAccountIdRef.current !== targetAccountId) return;
       onFeedback(
         err instanceof ApiClientError
           ? err.message

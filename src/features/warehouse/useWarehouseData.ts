@@ -104,7 +104,7 @@ export function useWarehouseData({ setFeedback, pruneChecklist }: Options) {
         } catch {
           // Storage blocked
         }
-        if (lastActor) {
+        if (lastActor && navigator.onLine === false) {
           const snapshot = await readOfflineSnapshot<WarehouseOfflineSnapshot>(
             lastActor,
             WAREHOUSE_SNAPSHOT_NAME

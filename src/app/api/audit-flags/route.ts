@@ -6,7 +6,7 @@ import {
   listAuditFlags,
   updateAuditFlagStatus,
 } from "@/lib/services/operations-and-modules";
-import { ValidationError } from "@/lib/types";
+import { ValidationError, parsePositiveInt } from "@/lib/types";
 import { auditFlagsMutationSchema } from "@/lib/validation/audit-flags.schema";
 import { parseBody, readRawJsonBody } from "@/lib/validation/parse";
 
@@ -20,7 +20,7 @@ export async function GET(req: NextRequest) {
   try {
     const statusParam = req.nextUrl.searchParams.get("status") || "ALL";
     const limitParam = req.nextUrl.searchParams.get("limit");
-    const limit = limitParam ? Number(limitParam) : 80;
+    const limit = limitParam ? parsePositiveInt(limitParam, "Límite") : 80;
 
     const data = await withAuthenticatedClient(
       req,
