@@ -998,7 +998,10 @@ export async function executeUndoAction(
       const orderId = parsePositiveInt(payload.orderId, "Pedido");
       const expectedStatus = String(payload.operationalStatus || "REGISTERED");
       if (!isAdmin) {
-        const oCheck = await client.query<{ status: string; paid_pen: string | number }>(
+        const oCheck = await client.query<{
+          status: string;
+          paid_pen: string | number;
+        }>(
           `SELECT operational_status::text AS status, paid_pen
            FROM erp.sales_orders
            WHERE order_id = $1

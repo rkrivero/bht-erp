@@ -113,7 +113,9 @@ async function assertEmailAvailable(
     [email, excludeUserId ?? null]
   );
   if ((dupEmail.rowCount ?? 0) > 0) {
-    throw new ValidationError("Ya existe otro usuario activo con ese correo electrónico");
+    throw new ValidationError(
+      "Ya existe otro usuario activo con ese correo electrónico"
+    );
   }
 }
 
@@ -215,7 +217,13 @@ export async function updateErpUserEmail(
     [email, targetUserId]
   );
   const after = toUserSnapshot(updRes.rows[0]);
-  await recordUserAccessAudit(client, actor.userId, "USER_EMAIL_CHANGED", before, after);
+  await recordUserAccessAudit(
+    client,
+    actor.userId,
+    "USER_EMAIL_CHANGED",
+    before,
+    after
+  );
   return { ok: true, user: after };
 }
 

@@ -29,7 +29,10 @@ const partnerActor: SessionUser = {
 };
 
 function makeMockClient(
-  handler: (sql: string, params?: unknown[]) => {
+  handler: (
+    sql: string,
+    params?: unknown[]
+  ) => {
     rows?: Record<string, unknown>[];
     rowCount?: number;
   }
@@ -335,7 +338,9 @@ describe("Audit Batch 1 fixes (#1-#9)", () => {
     });
 
     expect(created.requiresApproval).toBe(true);
-    const orderInsert = calls.find((c) => c.sql.includes("INSERT INTO erp.sales_orders"));
+    const orderInsert = calls.find((c) =>
+      c.sql.includes("INSERT INTO erp.sales_orders")
+    );
     expect(orderInsert?.params).toContain("PENDING_PARTNER_APPROVAL");
     expect(orderInsert?.params).toContain(true);
   });
@@ -414,7 +419,9 @@ describe("Audit Batch 1 fixes (#1-#9)", () => {
 
   it("#8 saveDailyClosure locks cash_accounts before reading balances and skips last_reconciled update when unreconciled", async () => {
     const { client, calls } = makeMockClient((sql) => {
-      if (sql.includes("FROM erp.daily_closures WHERE closure_date = $1::date FOR UPDATE")) {
+      if (
+        sql.includes("FROM erp.daily_closures WHERE closure_date = $1::date FOR UPDATE")
+      ) {
         return { rows: [] };
       }
       if (sql.includes("SELECT account_id") && sql.includes("FOR UPDATE")) {
@@ -460,7 +467,9 @@ describe("Audit Batch 1 fixes (#1-#9)", () => {
         };
       }
       if (sql.includes("AS system_balance_pen")) {
-        return { rows: [{ account_id: 1, code: "CAJA_RUTA", system_balance_pen: "100.00" }] };
+        return {
+          rows: [{ account_id: 1, code: "CAJA_RUTA", system_balance_pen: "100.00" }],
+        };
       }
       if (sql.includes("INSERT INTO erp.daily_closures")) {
         return { rows: [{ closure_id: "1" }] };

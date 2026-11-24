@@ -40,4 +40,8 @@ jobs:
           tests/test_028_stock_quants_and_settings.py::test_migration_028_declares_sql_contracts
           tests/test_029_cash_simplification.py::test_migration_029_declares_sql_contracts
           tests/test_030_analytics_views.py::test_migration_030_declares_sql_contracts
+          tests/test_031_security_and_analytics_hardening.py::test_parse_float_handles_us_and_eu_formats
+          tests/test_031_security_and_analytics_hardening.py::test_migration_005_and_030_clean_bootstrap_contracts
+          tests/test_031_security_and_analytics_hardening.py::test_migration_031_declares_sql_contracts
+          tests/test_032_period_locks_and_valuation.py::test_migration_032_declares_sql_contracts
           tests/test_etl_safety.py

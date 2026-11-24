@@ -1,4 +1,4 @@
-# Arquitectura Técnica del Sistema — Blue Horizon Trade ERP (`bht-sistema`)
+# Arquitectura Técnica del Sistema — Blue Horizon Trade ERP (`bht-erp`)
 
 **Estándar de Documentación:** Basado en **arc42** y el **Modelo C4** (Contexto, Contenedores, Componentes y Código/Datos), con especificación conforme a directrices de arquitectura de software empresarial (IEEE 42010).
 
@@ -17,7 +17,7 @@ El sistema implementa una política estricta de aislamiento de información (**S
 
 | Rol | Identificador | Contexto de Uso | Nivel de Acceso y Visibilidad |
 | :--- | :--- | :--- | :--- |
-| **Socio Operativo / Administrador** | `PARTNER_ADMIN` | Escritorio y Móvil | Control total del sistema: márgenes reales, costos de adquisición, gestión de usuarios/PINes, anulaciones/deshacer, cierres diarios de caja y parametrización. |
+| **Socio Operativo / Administrador** | `PARTNER_ADMIN` | Escritorio y Móvil | Control total del sistema: márgenes reales, costos de adquisición, gestión de usuarios/accesos, anulaciones/deshacer, cierres diarios de caja y parametrización. |
 | **Socio Gerente** | `PARTNER_MANAGER` | Móvil (Torre de control) / PC | Aprobación de descuentos en 1 toque, monitor de pedidos, compras a proveedores, analítica BI y exportación de reportes. |
 | **Vendedor Externo** | `EXTERNAL_SELLER` | Móvil en ruta (10h/día) | Catálogo con precios de lista y piso mínimo, toma de pedidos, cotizaciones, cobranzas (abonos) y gastos de ruta. **Nunca recibe costos de compra ni márgenes brutos.** |
 | **Almacén y Reparto** | `WAREHOUSE_DELIVERY` | Móvil en almacén y camión | Cola operativa de alistamiento (`PICKING`), despacho (`READY`), transporte (`IN_ROUTE`) y confirmación de entrega (`DELIVERED`). **Nunca recibe precios, descuentos, totales ni deudas.** |
@@ -42,7 +42,7 @@ El sistema implementa una política estricta de aislamiento de información (**S
 
 ## 3. Alcance y Contexto del Sistema (C4 — Nivel 1)
 
-El siguiente diagrama ilustra la interacción de los diferentes actores y sistemas externos con el ecosistema de **bht-sistema**:
+El siguiente diagrama ilustra la interacción de los diferentes actores y sistemas externos con el ecosistema de **bht-erp**:
 
 ```mermaid
 flowchart TD
@@ -52,7 +52,7 @@ flowchart TD
         A3["Personal Almacén / Chofer<br/>(Smartphone / PWA)"]
     end
 
-    subgraph BHT_Sistema["Sistema Blue Horizon Trade (bht-sistema)"]
+    subgraph BHT_Sistema["Sistema Blue Horizon Trade (bht-erp)"]
         App["BHT Web ERP / PWA<br/>(Next.js 16 + React 19)"]
         ETL["BHT Data Core & ETL<br/>(Python CLI + Migraciones)"]
     end
@@ -80,7 +80,7 @@ flowchart TD
 
 ## 4. Estructura de Contenedores (C4 — Nivel 2)
 
-El repositorio monorepo `bht-sistema` se divide en dos proyectos acoplados a través de la base de datos común de Neon:
+El repositorio monorepo `bht-erp` se divide en dos proyectos acoplados a través de la base de datos común de Neon:
 
 ```mermaid
 flowchart TB
@@ -91,7 +91,7 @@ flowchart TB
         LiveSyncHook["useLiveSync Hook<br/>(Suscripción SSE / Polling inteligente)"]
     end
 
-    subgraph BHT_Neon["Contenedor Aplicativo: bht_neon (Next.js 16 App Router)"]
+    subgraph BHT_Neon["Contenedor Aplicativo: apps/web (Next.js 16 App Router)"]
         Routes["Server Actions & Route Handlers<br/>(/api/*)"]
         RBAC["RBAC & Security Guard<br/>(lib/rbac.ts, lib/auth.ts)"]
         Idempotency["Motor de Idempotencia<br/>(lib/idempotency.ts)"]
@@ -100,7 +100,7 @@ flowchart TB
         PgPool["Pool PostgreSQL<br/>(pg.Pool con sslmode=verify-full)"]
     end
 
-    subgraph BHT_Data["Contenedor Núcleo de Datos: bht_data (Python CLI)"]
+    subgraph BHT_Data["Contenedor Núcleo de Datos: data (Python CLI)"]
         Migrator["CLI Migrator<br/>(bht-etl migrate)"]
         Loader["Pipeline de Carga & Calidad<br/>(bht-etl load, check-quality)"]
         Normalizer["Normalizadores & Aliases<br/>(aliases_parties, aliases_products)"]
@@ -138,19 +138,19 @@ flowchart TB
 
 ## 5. Arquitectura de Componentes y Modularización (C4 — Nivel 3)
 
-### 5.1. Módulo Web y Backend (`bht_neon`)
+### 5.1. Módulo Web y Backend (`apps/web`)
 
-El código fuente en `bht_neon/src` se organiza mediante una arquitectura modular orientada a dominios y capacidades:
+El código fuente en `apps/web/src` se organiza mediante una arquitectura modular orientada a dominios y capacidades:
 
 ```
-bht_neon/src/
+apps/web/src/
 ├── app/                           # Next.js App Router (Páginas y Endpoints API)
 │   ├── (vistas)/                  # Rutas principales según rol:
 │   │   ├── socios/                # Pestañas: Hoy, Ventas, Cobranzas, Inventario, Compras/CxP, Caja, Accesos
 │   │   ├── vendedor/              # Catálogo, Carrito progresivo, Deudores, Gastos de ruta
 │   │   └── almacen/               # Tableros Kanban de alistamiento y despacho
 │   ├── api/                       # API Route Handlers REST:
-│   │   ├── auth/                  # Inicio de sesión por PIN y Neon Auth
+│   │   ├── auth/                  # Endpoints de Neon Auth (@neon/auth) y sesión ERP
 │   │   ├── sync/                  # Long-polling y Server-Sent Events (SSE)
 │   │   ├── orders/                # Creación, aprobación, cambio de estado de pedidos
 │   │   ├── purchases/             # Registro de compras, alta de proveedores, amortizaciones CxP
@@ -160,25 +160,25 @@ bht_neon/src/
 │   │   ├── undo/                  # Reversión operativa segura (ventana de 24h)
 │   │   └── reports/               # Descargas de reportes en CSV (UTF-8 BOM) y Excel
 │   └── layout.tsx, manifest.ts   # Configuración PWA, Viewport y Theme Color
-├── features/                      # Lógica de presentación y hooks específicos por rol:
-│   ├── partners/                  # Hooks: usePartnerData, useOrderFlow, useInventoryFlow
+├── features/                      # Lógica de presentación, componentes y hooks por rol:
+│   ├── partners/                  # Vista Socios y sus componentes bajo features/partners/components/
 │   ├── seller/                    # Hooks: useSellerOrderFlow, order-draft-reducer (Offline draft)
 │   └── warehouse/                 # Hooks: useWarehouseData, useWarehouseActions
 ├── components/                    # Componentes UI reutilizables:
 │   ├── directory/                 # Gestión de Clientes, Proveedores y Mapas Leaflet
 │   ├── pwa/                       # PwaRuntime, OfflineQueuePanel
-│   ├── socios/                    # Componentes específicos de administración y reportes
+│   ├── shared/                    # Controles transversales (CollectionControls, RecentUndoStrip)
 │   └── ui/                        # Primitivas de diseño: AppShell, ResponsiveDataTable, etc.
 └── lib/                           # Infraestructura de dominio y utilitarios:
     ├── db.ts                      # Gestión de Pool PostgreSQL singleton y normalización de SSL
-    ├── auth.ts / rbac.ts          # Resolución de actores, verificación de PIN y proyecciones
+    ├── auth.ts / rbac.ts          # Resolución de actores vía Neon Auth y proyecciones RBAC
     ├── idempotency.ts             # Decorador runIdempotentMutation y hash SHA-256
     ├── realtime/sync-engine.ts    # Motor de sincronización incremental basado en marcas de tiempo
     ├── offline/outbox.ts          # Cola de operaciones en cliente con orden causal
     └── services/                  # Capa de lógica de negocio pura (Transacciones y SQL)
 ```
 
-### 5.2. Módulo de Datos y Migraciones (`bht_data`)
+### 5.2. Módulo de Datos y Migraciones (`data`)
 
 Diseñado con el principio de **Idempotencia y Preservación de Auditoría**:
 
@@ -407,11 +407,11 @@ Para evitar fugas de información, los métodos `projectProductForRole` y `proje
 | **Margen Bruto de Línea / Total** | Visible | Visible | **Oculto (`null`)** | **Oculto (`null`)** |
 | **Proveedor por Defecto** | Visible | Visible | **Oculto (`null`)** | **Oculto (`null`)** |
 | **Totales de Deuda y Estado de Pago** | Visible | Visible | Visible | **Oculto (`null`)** |
-| **Gestión de PINes y Contraseñas** | Visible | **Oculto** | **Oculto** | **Oculto** |
+| **Gestión de Accesos y Usuarios** | Visible | **Oculto** | **Oculto** | **Oculto** |
 
 ### 8.2. Esquema de Autenticación
-1. **Autenticación por PIN de Campo:** Los operarios en ruta acceden mediante su usuario y un PIN numérico de 4 a 6 dígitos (`sha256(pin)` verificado contra `erp.app_users.pin_hash`). La sesión se almacena en una cookie HTTP-only `bht_session` firmada.
-2. **Neon Auth SSO:** En entornos de escritorio o integración corporativa, el sistema valida la identidad de `@neon/auth` y asocia atómicamente el correo verificado con `erp.app_users.neon_auth_user_id`.
+1. **Neon Auth (`@neon/auth`):** Toda la autenticación de usuarios en producción y desarrollo se realiza mediante Neon Auth (protegido por `apps/web/proxy.ts` y resuelto en `apps/web/src/lib/auth.ts`).
+2. **Vinculación a Rol ERP:** El sistema exige correo verificado en la sesión de Neon Auth y lo asocia en `erp.app_users` (vinculando atómicamente `neon_auth_user_id` en el primer ingreso cuando es `NULL` y validando `is_active = TRUE`). La activación, alta y asignación de roles corresponde exclusivamente a `PARTNER_ADMIN`.
 
 ---
 
@@ -435,8 +435,8 @@ El sistema implementa una arquitectura híbrida de actualización en tiempo real
 ```mermaid
 flowchart LR
     subgraph Repositorio["Monorepo (GitHub)"]
-        SrcNeon["bht_neon/<br/>(Next.js App)"]
-        SrcData["bht_data/<br/>(Python & Migraciones)"]
+        SrcNeon["apps/web/<br/>(Next.js App)"]
+        SrcData["data/<br/>(Python & Migraciones)"]
     end
 
     subgraph CI_CD["Pipelines de Validación"]
@@ -446,7 +446,7 @@ flowchart LR
     end
 
     subgraph Hosting["Entornos de Ejecución"]
-        VercelProd["Vercel Production / Edge Network<br/>(bht_neon)"]
+        VercelProd["Vercel Production / Edge Network<br/>(apps/web)"]
         NeonDev[("Neon Postgres Branch: dev<br/>(Pruebas y QA)")]
         NeonMain[("Neon Postgres Branch: main<br/>(Base de Datos Producción)")]
     end

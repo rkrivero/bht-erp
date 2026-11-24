@@ -1315,7 +1315,11 @@ export async function registerSupplierPurchase(
 
   let ledgerId: number | null = null;
   if (paidNowPen > 0) {
-    const resolvedAccount = await resolveActiveCashAccount(client, actor, input.accountId);
+    const resolvedAccount = await resolveActiveCashAccount(
+      client,
+      actor,
+      input.accountId
+    );
     const accountId = resolvedAccount.accountId;
     const ledgerRes = await client.query(
       `INSERT INTO erp.cash_ledger (
@@ -1626,7 +1630,11 @@ export async function payApObligation(
     );
   }
 
-  const resolvedAccount = await resolveActiveCashAccount(client, actor, input.accountId);
+  const resolvedAccount = await resolveActiveCashAccount(
+    client,
+    actor,
+    input.accountId
+  );
   const accountId = resolvedAccount.accountId;
   const txDate = getLimaDateString(0);
   const cleanNote = input.notes?.trim();

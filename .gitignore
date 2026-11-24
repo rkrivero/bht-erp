@@ -39,7 +39,7 @@ htmlcov/
 
 # Raw business data (never commit)
 data/00_raw/
+data/config/aliases_parties.csv
 
 # Vercel
 .vercel
-.env*

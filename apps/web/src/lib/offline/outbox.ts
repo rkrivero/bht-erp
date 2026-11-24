@@ -70,7 +70,8 @@ async function withStore<T>(
         hasResult = true;
         resultValue = request.result;
       };
-      request.onerror = () => reject(request.error ?? new Error("IndexedDB request error"));
+      request.onerror = () =>
+        reject(request.error ?? new Error("IndexedDB request error"));
       tx.oncomplete = () => resolve(hasResult ? resultValue : request.result);
       tx.onerror = () => reject(tx.error ?? new Error("IndexedDB transaction error"));
       tx.onabort = () => reject(tx.error ?? new Error("IndexedDB transaction aborted"));

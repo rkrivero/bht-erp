@@ -1220,9 +1220,7 @@ export async function updateOrder(
     if (Number(order.created_by_user_id) !== actor.userId) {
       throw new AuthorizationError("Solo puedes modificar tus propios pedidos");
     }
-    if (
-      !["REGISTERED", "PENDING_PARTNER_APPROVAL"].includes(String(order.status))
-    ) {
+    if (!["REGISTERED", "PENDING_PARTNER_APPROVAL"].includes(String(order.status))) {
       throw new AuthorizationError(
         "Solo un socio puede modificar pedidos que ya pasaron a almacén o reparto"
       );

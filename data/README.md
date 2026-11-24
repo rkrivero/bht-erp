@@ -1,9 +1,9 @@
-# bht_data — Blue Horizon Trade S.A.C. (ERP Core DB & ETL)
+# `data/` (`bht_etl`) — Blue Horizon Trade S.A.C. (ERP Core DB & ETL)
 
 Núcleo de base de datos en **Neon (Lakebase Postgres)**, migraciones SQL versionadas, diccionarios de normalización y pipeline ETL idempotente desde `00_raw/` (corte oficial: `2026-06-26` en adelante).
 
-- **Fase 1 (`bht_data`):** Esquema `raw_staging` + `erp` + `analytics`, ingesta limpia de datos históricos, reglas anti-errores (`STOCKED` vs `ON_DEMAND`, `CHECK` matemático en líneas, `payment_mode NOT NULL`, deduplicación de compras) y vistas de KPIs.
-- **Fase 2 (`../bht_neon`):** Aplicación web/API del ERP ligero conectada al mismo proyecto Neon (`bht-erp`).
+- **Núcleo de datos (`data/`):** Esquema `raw_staging` + `erp` + `analytics`, ingesta limpia de datos históricos, reglas anti-errores (`STOCKED` vs `ON_DEMAND`, `CHECK` matemático en líneas, `payment_mode NOT NULL`, deduplicación de compras) y vistas de KPIs.
+- **Aplicación web (`../apps/web`):** Aplicación web/API/PWA del ERP conectada al mismo proyecto Neon (`bht-erp`).
 
 ## Comandos principales
 
