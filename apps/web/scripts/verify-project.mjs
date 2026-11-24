@@ -6,7 +6,7 @@ const entries = await readdir(migrationsDir).catch(() => []);
 const duplicatedMigrations = entries.filter((name) => name.endsWith(".sql"));
 if (duplicatedMigrations.length > 0) {
   throw new Error(
-    `bht_neon no debe contener migraciones SQL. Muévelas a bht_data: ${duplicatedMigrations.join(", ")}`
+    `apps/web no debe contener migraciones SQL. Muévelas a data/db/migrations: ${duplicatedMigrations.join(", ")}`
   );
 }
 
@@ -59,6 +59,34 @@ const requiredSchemaMatch = schemaSrc.match(
   /REQUIRED_SCHEMA_VERSION\s*=\s*["']([^"']+)["']/
 );
 const requiredSchemaLabel = requiredSchemaMatch?.[1] ?? "desconocido";
+
+const canonicalMigrationsDir = resolve(
+  process.cwd(),
+  "..",
+  "..",
+  "data",
+  "db",
+  "migrations"
+);
+const canonicalMigrations = await readdir(canonicalMigrationsDir).catch(
+  () => null
+);
+if (canonicalMigrations) {
+  const sqlVersions = canonicalMigrations
+    .filter((name) => name.endsWith(".sql"))
+    .sort()
+    .map((name) => name.replace(/\.sql$/, ""));
+  const latestMigration = sqlVersions.at(-1);
+  if (
+    latestMigration &&
+    (!sqlVersions.includes(requiredSchemaLabel) ||
+      requiredSchemaLabel !== latestMigration)
+  ) {
+    throw new Error(
+      `Desfase de esquema: REQUIRED_SCHEMA_VERSION=${requiredSchemaLabel}, pero la última migración en data/db/migrations es ${latestMigration}`
+    );
+  }
+}
 
 console.log(
   `Configuración del proyecto verificada (schema mínimo ${requiredSchemaLabel}).\n`

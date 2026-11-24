@@ -2,10 +2,18 @@ name: ERP quality
 
 on:
   pull_request:
+    paths:
+      - "apps/web/**"
+      - "data/db/migrations/**"
+      - ".github/workflows/web.yml"
   push:
     branches:
       - main
       - "feat/**"
+    paths:
+      - "apps/web/**"
+      - "data/db/migrations/**"
+      - ".github/workflows/web.yml"
 
 concurrency:
   group: quality-${{ github.workflow }}-${{ github.ref }}
@@ -21,12 +29,16 @@ jobs:
   quality:
     name: Format, lint, types and build
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/web
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
+          cache-dependency-path: apps/web/package-lock.json
       - run: npm ci
       - run: npm run format:check
       - run: npm run lint
@@ -37,24 +49,32 @@ jobs:
   vitest:
     name: Vitest without database credentials
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/web
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
+          cache-dependency-path: apps/web/package-lock.json
       - run: npm ci
       - run: npm run test:ci
 
   playwright:
     name: Playwright Chromium and PWA
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/web
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
+          cache-dependency-path: apps/web/package-lock.json
       - run: npm ci
       - run: npx playwright install --with-deps chromium
       - run: npm run test:e2e
@@ -62,5 +82,5 @@ jobs:
         if: failure()
         with:
           name: playwright-report
-          path: playwright-report/
+          path: apps/web/playwright-report/
           retention-days: 7

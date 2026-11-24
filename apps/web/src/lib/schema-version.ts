@@ -22,7 +22,7 @@ export async function assertRequiredSchema(
   );
   if (!result.rows[0]?.present) {
     throw new Error(
-      `Esquema Neon desactualizado: se requiere ${REQUIRED_SCHEMA_VERSION}. Ejecuta las migraciones desde bht_data.`
+      `Esquema Neon desactualizado: se requiere ${REQUIRED_SCHEMA_VERSION}. Ejecuta las migraciones desde data/ (uv run bht-etl migrate).`
     );
   }
   verifiedBranches.add(branch);

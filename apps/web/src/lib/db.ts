@@ -19,7 +19,7 @@ function loadFallbackEnv(): Record<string, string> {
   const candidates = [
     path.resolve(process.cwd(), ".env.local"),
     path.resolve(process.cwd(), ".env"),
-    path.resolve(process.cwd(), "../bht_data/.env"),
+    path.resolve(process.cwd(), "../../data/.env"),
   ];
   for (const file of candidates) {
     if (!fs.existsSync(file)) continue;
