@@ -68,9 +68,7 @@ const canonicalMigrationsDir = resolve(
   "db",
   "migrations"
 );
-const canonicalMigrations = await readdir(canonicalMigrationsDir).catch(
-  () => null
-);
+const canonicalMigrations = await readdir(canonicalMigrationsDir).catch(() => null);
 if (canonicalMigrations) {
   const sqlVersions = canonicalMigrations
     .filter((name) => name.endsWith(".sql"))

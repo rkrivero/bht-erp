@@ -14,9 +14,12 @@ const UserManagementPanel = dynamic(
   }
 );
 
-const AdminUndoPanel = dynamic(() => import("@/features/partners/components/AdminUndoPanel"), {
-  loading: () => <SkeletonCards count={2} />,
-});
+const AdminUndoPanel = dynamic(
+  () => import("@/features/partners/components/AdminUndoPanel"),
+  {
+    loading: () => <SkeletonCards count={2} />,
+  }
+);
 
 const SystemSettingsPanel = dynamic(
   () => import("@/features/partners/components/SystemSettingsPanel"),

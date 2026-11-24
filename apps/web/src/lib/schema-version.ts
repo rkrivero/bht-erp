@@ -1,7 +1,6 @@
 import type { PoolClient } from "pg";
 
-export const REQUIRED_SCHEMA_VERSION =
-  "032_ola1_period_locks_and_valuation_fix";
+export const REQUIRED_SCHEMA_VERSION = "032_ola1_period_locks_and_valuation_fix";
 
 const COMPATIBLE_SCHEMA_VERSIONS = [REQUIRED_SCHEMA_VERSION] as const;
 

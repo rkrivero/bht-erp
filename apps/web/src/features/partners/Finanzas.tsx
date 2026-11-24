@@ -16,9 +16,12 @@ const DeferredSection = () => (
   </Card>
 );
 
-const CajaWorkspace = dynamic(() => import("@/features/partners/components/caja/CajaWorkspace"), {
-  loading: DeferredSection,
-});
+const CajaWorkspace = dynamic(
+  () => import("@/features/partners/components/caja/CajaWorkspace"),
+  {
+    loading: DeferredSection,
+  }
+);
 const ReportesWorkspace = dynamic(
   () => import("@/features/partners/components/reportes/ReportesWorkspace"),
   {
