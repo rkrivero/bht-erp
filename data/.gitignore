@@ -1,0 +1,38 @@
+# Environment & secrets
+.env
+.env.*
+!.env.example
+.neon
+00_raw/
+config/aliases_parties.csv
+
+# Local exports and database dumps
+*.dump
+*.backup
+*.sql.gz
+
+# Python / uv
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# AI agents, skills & plugins
+.agents/
+.claude/
+.codex/
+.cursor/
+.gemini/
+.impeccable/
+.superpowers/
+
+# OS & editors
+.DS_Store
+*.swp
+.vscode/
+.idea/

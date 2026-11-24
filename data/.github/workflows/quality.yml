@@ -1,0 +1,32 @@
+name: Data quality
+
+on:
+  pull_request:
+  push:
+    branches: [main, "feat/**"]
+
+permissions:
+  contents: read
+
+jobs:
+  contract-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - run: uv sync --extra dev --locked
+      - name: Test SQL and schema contracts without business data
+        run: >-
+          uv run pytest -q
+          tests/test_migration_009_contract.py
+          tests/test_migration_013_contract.py
+          tests/test_migration_015_contract.py::test_migration_015_declares_indexes_and_tier1_report_views
+          tests/test_migration_016_contract.py
+          tests/test_migration_017_018_contract.py::test_migrations_017_018_declare_bloque_b_contract
+          tests/test_migration_017_018_contract.py::test_migration_019_preserves_daily_closure_correction_history
+          tests/test_migration_020_022_contract.py::test_migrations_020_022_declare_sql_contracts
+          tests/test_027_sequences_and_locks.py::test_migration_027_declares_sql_contracts
+          tests/test_028_stock_quants_and_settings.py::test_migration_028_declares_sql_contracts
+          tests/test_029_cash_simplification.py::test_migration_029_declares_sql_contracts
+          tests/test_030_analytics_views.py::test_migration_030_declares_sql_contracts
+          tests/test_etl_safety.py

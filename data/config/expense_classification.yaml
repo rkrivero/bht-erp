@@ -1,0 +1,206 @@
+cutoff_date: '2026-06-26'
+supporting_purchase_start_date: '2026-06-23'
+supplier_classification_by_ruc:
+  '20610518398':
+    bucket: MERCHANDISE_PAYMENT
+    category: MERCHANDISE
+    name: QINGDAO TUOYUAN RIGGING HARDWARE E.I.R.L.
+  '20605929541':
+    bucket: MERCHANDISE_PAYMENT
+    category: MERCHANDISE
+    name: YANSHIJIAZUYOUXIANGONGSI EIRL
+  '20612873454':
+    bucket: MERCHANDISE_PAYMENT
+    category: MERCHANDISE
+    name: INVERSIONES FALARI S.A.C.
+  '20612936618':
+    bucket: MERCHANDISE_PAYMENT
+    category: MERCHANDISE
+    name: FERRETERIA FERROSOL S.A.C.
+  '20490427105':
+    bucket: MERCHANDISE_PAYMENT
+    category: MERCHANDISE
+    name: FERREMAX EMPRESA INDIVIDUAL DE RESPONSABILIDAD LIMITADA
+  '20602755445':
+    bucket: MERCHANDISE_PAYMENT
+    category: MERCHANDISE
+    name: FERRETERIA MADRE DE DIOS F & R E.I.R.L.
+  '20610093605':
+    bucket: MERCHANDISE_PAYMENT
+    category: MERCHANDISE
+    name: CCORIMANYA VILCA S.C.R.L.
+  '20602040004':
+    bucket: ROUTE_OPEX
+    category: EMPAQUE_INSUMOS
+    name: GRUPO PLASTIC P & S E.I.R.L.
+  '20317082062':
+    bucket: ROUTE_OPEX
+    category: EMPAQUE_INSUMOS
+    name: PLASTICOS 2000 S.R.L.
+  '20216734808':
+    bucket: ROUTE_OPEX
+    category: COURIER_ENVIO
+    name: DESTINOS COURIER S.A.C.
+  '20603590962':
+    bucket: ROUTE_OPEX
+    category: MANTENIMIENTO_RUTA
+    name: HINO INVERSIONES PLUS S.A.C.
+  '20382748566':
+    bucket: ROUTE_OPEX
+    category: SEGURO_SOAT_RUTA
+    name: INTERSERGURO COMPAÑIA DE SEGUROS S.A.
+  '20450637476':
+    bucket: ROUTE_OPEX
+    category: COMBUSTIBLE
+    name: CORPORACION GRIFERA S.A.C.
+  '20450717747':
+    bucket: ROUTE_OPEX
+    category: COMBUSTIBLE
+    name: SERVICENTRO TRES DE MAYO E.I.R.L.
+  '20490288903':
+    bucket: ROUTE_OPEX
+    category: COMBUSTIBLE
+    name: SERVICENTRO ALDO E.I.R.L
+  '20527589801':
+    bucket: ROUTE_OPEX
+    category: COMBUSTIBLE
+    name: TRANSOCEANICA II E.I.R.L.
+  '20528011684':
+    bucket: ROUTE_OPEX
+    category: COMBUSTIBLE
+    name: SERVICENTRO LUCIA E.I.R.L.
+  '20542804671':
+    bucket: ROUTE_OPEX
+    category: COMBUSTIBLE
+    name: EESS DON MARIANITO S.A.C
+  '20542838494':
+    bucket: ROUTE_OPEX
+    category: COMBUSTIBLE
+    name: SERVICENTRO J. AMERICANO S.A.C.
+  '20511129975':
+    bucket: ROUTE_OPEX
+    category: PEAJE
+    name: CONCESIONARIA INTEROCEANICA SUR - TRAMO 3 S.A.
+  '20603583389':
+    bucket: ROUTE_OPEX
+    category: UTILES_ADMIN
+    name: PUNTO EDUCATIVO E.I.R.L.
+  '10180999901':
+    bucket: NON_OPEX_OR_CAPEX
+    category: LEGAL_NOTARIA
+    name: GARCIA MEDINA LOURDES MADELEINE
+  '20603143699':
+    bucket: NON_OPEX_OR_CAPEX
+    category: ACCOUNTING_SERVICE
+    name: JR CHAVEZ & ASOCIADOS S.C.R.L.
+  '20100047218':
+    bucket: NON_OPEX_OR_CAPEX
+    category: FINANCIAL_FEE
+    name: BANCO DE CREDITO DEL PERU
+  '20100053455':
+    bucket: NON_OPEX_OR_CAPEX
+    category: FINANCIAL_FEE
+    name: BANCO INTERNACIONAL DEL PERU - INTERBANK
+  '20503258901':
+    bucket: NON_OPEX_OR_CAPEX
+    category: CAPEX_ASSET
+    name: MAQUINARIA NACIONAL S.A.C. PERU
+  '20128967606':
+    bucket: NON_OPEX_OR_CAPEX
+    category: CAPEX_ASSET
+    name: SOCOPUR SAC
+  '10451052077':
+    bucket: ROUTE_OPEX
+    category: OTROS_RUTA
+    name: CAHUANA MAMANI DELIA
+daily_expense_keyword_rules:
+- pattern: \bCOMBUSTIBLE\b|\bGRIFO\b
+  bucket: ROUTE_OPEX
+  category: COMBUSTIBLE
+  is_transfer: false
+- pattern: \bVIATICOS\b|\bALIMENTOS\b|\bALIMENTACION\b|\bHOTEL\b|\bENERGIZANTE\b|\bCENA\b
+  bucket: ROUTE_OPEX
+  category: VIATICOS
+  is_transfer: false
+- pattern: \bPEAJE\b|\bPEAJES\b
+  bucket: ROUTE_OPEX
+  category: PEAJE
+  is_transfer: false
+- pattern: \bLAVADO\b|\bSTICKER\b
+  bucket: ROUTE_OPEX
+  category: MANTENIMIENTO_RUTA
+  is_transfer: false
+- pattern: \bBCP TOKEN\b|\bBITEL\b|\bLIBRERIA\b|\bMALLA\b
+  bucket: ROUTE_OPEX
+  category: OTROS_RUTA
+  is_transfer: false
+- pattern: \bCOMPRA MOTO\b
+  bucket: NON_OPEX_OR_CAPEX
+  category: CAPEX_ASSET
+  is_transfer: false
+- pattern: \bSUELDO\b|\bADELANTO\b|\bMEDICINAS RENZO\b
+  bucket: NON_OPEX_OR_CAPEX
+  category: PAYROLL_ADVANCE
+  is_transfer: false
+- pattern: \bNOTARIA\b|\bJORGE CHAVEZ\b
+  bucket: NON_OPEX_OR_CAPEX
+  category: ACCOUNTING_OR_LEGAL
+  is_transfer: false
+- pattern: \bDEUDA DE SAMUEL\b|\bARRASTRA\b
+  bucket: NON_OPEX_OR_CAPEX
+  category: PRIOR_DEBT
+  is_transfer: false
+- pattern: \bCANCELACION FACTURA\b|\bCOMPRA QINGDAO\b|\bQINGDAO\b
+  bucket: MERCHANDISE_PAYMENT
+  category: MERCHANDISE_PAYMENT
+  is_transfer: false
+- pattern: \bDEPOSITADO? INTERBANK\b|\bDEPOSITO\b
+  bucket: null
+  category: BANK_DEPOSIT_TRANSFER
+  is_transfer: true
+purchase_anomalies:
+  20503258901:F602:14172:
+    override_total_pen: 80542.86
+    orig_currency: USD
+    orig_total: 23780.0
+    exchange_rate: 3.387
+    reason: July/Aug COMPRAS recorded converted PEN 80542.86 in Total while tagging USD; June COMPRAS & Hoja20 confirm $23,780
+      x 3.387 = S/ 80,542.86.
+  20610518398:FQQ1:139:TENT8X10:
+    override_quantity: 3.0
+    override_unit_cost_pen: 270.0
+    override_line_total_pen: 810.0
+    reason: ITEMS-COMPRAS swapped qty (3) and unit price (S/ 270); regular sale price is S/ 290.
+on_demand_skus:
+- 0303110381000619
+- 6X19S+IWRC 7/16"
+- TENT6x10
+- TENT7X10
+- TENT8X12
+- '000401000500'
+sensitive_row_block_patterns:
+- PREGUNTAS?\s+SEGURIDAD
+- CLAVE
+- PRIMER\s+JEFE
+- PROFESOR.*FAVORITO
+- PRIMO.*MAYOR
+- \bCHARO\b
+- \bSORAYDA\b
+canonical_product_merges:
+  47750-26120: 47730-26120
+  47730-20480 L: 47730-20480
+  47750-20480 R: 47730-20480
+  31410-20150 LEFT-NEW: 31410-20150
+  31410-20150 RIGHT-NEW: 31410-20150
+canonical_product_names:
+  47730-26120: CALIPER PARA TOYOTA BUFALO
+  47730-20480: CALIPER PARA TOYOTA 57-25
+daily_sale_row_exclusions:
+- sheet_name: 23-07-2026
+  row_num: 13
+  customer_contains: RONY
+  product_contains: 57-25
+  reason: Error RONY 110 anotado en hoja 24-07-2026 (18 u. CALIPER 57-25 / -S/ 2,340.00 anuladas por confirmacion del usuario).
+opening_stock_target_overrides:
+  '47730-20480': 204.0
+
