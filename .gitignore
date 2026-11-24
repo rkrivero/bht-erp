@@ -1,0 +1,41 @@
+# OS & editors
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+.vscode/
+.idea/
+
+# Secrets & environment
+.env
+.env.*
+!.env.example
+
+# Agent & tooling state
+.gemini/
+.agent/
+.agents/
+.impeccable/
+.superpowers/
+skills-lock.json
+
+# Node / Next.js
+node_modules/
+.next/
+out/
+dist/
+playwright-report/
+test-results/
+.lighthouse/
+*.tsbuildinfo
+
+# Python / ETL
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+htmlcov/
+.coverage
+
+# Raw business data (never commit)
+data/00_raw/
