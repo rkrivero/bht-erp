@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import { signOutFromERP } from "@/lib/auth/logout-client";
 import {
@@ -45,7 +46,15 @@ import { useWarehouseData } from "./useWarehouseData";
 import { useWarehouseActions } from "./useWarehouseActions";
 import { WarehouseOrderCard } from "./WarehouseOrderCard";
 import { WarehouseRoutePanel } from "./WarehouseRoutePanel";
-import { CloseTripModal, DeliverOrderModal } from "./WarehouseModals";
+
+const CloseTripModal = dynamic(
+  () => import("./WarehouseModals").then((m) => ({ default: m.CloseTripModal })),
+  { ssr: false }
+);
+const DeliverOrderModal = dynamic(
+  () => import("./WarehouseModals").then((m) => ({ default: m.DeliverOrderModal })),
+  { ssr: false }
+);
 
 const WAREHOUSE_SYNC_SCOPES: SyncScope[] = ["orders", "inventory"];
 
@@ -448,19 +457,23 @@ export default function WarehouseWorkspace() {
         )}
       </main>
 
-      <CloseTripModal
-        trip={confirmCloseTrip}
-        busyTripAction={actions.busyTripAction}
-        onDismiss={() => setConfirmCloseTrip(null)}
-        onConfirm={actions.handleCloseTrip}
-      />
-      <DeliverOrderModal
-        order={confirmDeliverOrder}
-        checkedLines={checkedLines}
-        busyOrderId={actions.busyOrderId}
-        onDismiss={() => setConfirmDeliverOrder(null)}
-        onConfirm={(orderId) => actions.handleAdvance(orderId, "DELIVERED")}
-      />
+      {confirmCloseTrip && (
+        <CloseTripModal
+          trip={confirmCloseTrip}
+          busyTripAction={actions.busyTripAction}
+          onDismiss={() => setConfirmCloseTrip(null)}
+          onConfirm={actions.handleCloseTrip}
+        />
+      )}
+      {confirmDeliverOrder && (
+        <DeliverOrderModal
+          order={confirmDeliverOrder}
+          checkedLines={checkedLines}
+          busyOrderId={actions.busyOrderId}
+          onDismiss={() => setConfirmDeliverOrder(null)}
+          onConfirm={(orderId) => actions.handleAdvance(orderId, "DELIVERED")}
+        />
+      )}
 
       <BottomNav
         items={mobileNavItems}

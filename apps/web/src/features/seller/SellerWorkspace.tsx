@@ -11,10 +11,7 @@ import {
   type NavExtraAction,
   type NavTabItem,
 } from "@/components/ui/AppShell";
-import {
-  CommandPalette,
-  type CommandPaletteItem,
-} from "@/components/ui/CommandPalette";
+import type { CommandPaletteItem } from "@/components/ui/CommandPalette";
 import {
   ActivityIcon,
   ClockIcon,
@@ -40,8 +37,6 @@ import {
   sellerUrlForLegacyTab,
   type LegacySellerTab,
 } from "@/lib/navigation";
-import SellerCollectionModals from "@/features/seller/SellerCollectionModals";
-import SellerCollectionsTab from "@/features/seller/SellerCollectionsTab";
 import {
   SellerCancelDraftModal,
   SellerMobileCartBar,
@@ -55,6 +50,20 @@ import { useSellerExpense } from "@/features/seller/useSellerExpense";
 import { useSellerOrderFlow } from "@/features/seller/useSellerOrderFlow";
 import { useSellerQuotes } from "@/features/seller/useSellerQuotes";
 
+const CommandPalette = dynamic(
+  () =>
+    import("@/components/ui/CommandPalette").then((m) => ({
+      default: m.CommandPalette,
+    })),
+  { ssr: false }
+);
+const SellerCollectionsTab = dynamic(
+  () => import("@/features/seller/SellerCollectionsTab")
+);
+const SellerCollectionModals = dynamic(
+  () => import("@/features/seller/SellerCollectionModals"),
+  { ssr: false }
+);
 const SellerQuotesTab = dynamic(() => import("@/features/seller/SellerQuotesTab"));
 const SellerOrdersTab = dynamic(() => import("@/features/seller/SellerOrdersTab"));
 const SellerMoreTab = dynamic(() => import("@/features/seller/SellerMoreTab"));
