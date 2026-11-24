@@ -51,7 +51,7 @@
   --bht-floating-bottom: 1rem;
 }
 
-:where([data-sidebar="collapsed"]) {
+[data-sidebar="collapsed"] {
   --sidebar-width: 64px;
 }
 
@@ -258,13 +258,6 @@
   a[role="button"]:active {
     transform: scale(0.985);
     transition: transform 120ms ease-out;
-  }
-
-  @media (min-width: 768px) {
-    .bht-sidebar-offset {
-      margin-left: var(--sidebar-width, 224px);
-      transition: margin-left 160ms ease;
-    }
   }
 
   .bht-table-row {
@@ -589,6 +582,14 @@
 .bht-map-pin--selected {
   transform: scale(1.2);
   box-shadow: var(--shadow-bht-elev-12);
+}
+
+@media (min-width: 768px) {
+  .bht-sidebar-offset {
+    margin-left: var(--sidebar-width, 224px);
+    margin-right: 0;
+    transition: margin-left 160ms ease;
+  }
 }
 
 @media print {

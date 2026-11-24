@@ -1,5 +1,5 @@
 import type { PoolClient } from "pg";
-import { assertRole, isPartnerRole } from "../rbac";
+import { assertRole } from "../rbac";
 import { isCategoryAllowedForBucket, type OutflowBucket } from "../treasury-constants";
 import { getLimaDateString } from "./orders";
 import {
@@ -131,7 +131,8 @@ export async function registerOrderPayment(
 }> {
   assertRole(actor, ["PARTNER_ADMIN", "PARTNER_MANAGER", "EXTERNAL_SELLER"]);
 
-  const amountPen = Number(input.amountPen);
+  const rawAmountPen = Number(input.amountPen);
+  const amountPen = Number.isFinite(rawAmountPen) ? Number(rawAmountPen.toFixed(2)) : 0;
   if (!amountPen || amountPen <= 0) {
     throw new ValidationError("El monto del abono debe ser mayor a S/ 0.00");
   }
@@ -265,7 +266,10 @@ export async function registerCustomerFifoPayment(
 ): Promise<Array<{ orderId: number; orderCode: string; appliedPen: number }>> {
   assertRole(actor, ["PARTNER_ADMIN", "PARTNER_MANAGER", "EXTERNAL_SELLER"]);
 
-  const totalAmount = Number(input.totalAmountPen);
+  const rawTotalAmount = Number(input.totalAmountPen);
+  const totalAmount = Number.isFinite(rawTotalAmount)
+    ? Number(rawTotalAmount.toFixed(2))
+    : 0;
   if (!totalAmount || totalAmount <= 0) {
     throw new ValidationError("El monto total a abonar debe ser mayor a S/ 0.00");
   }
@@ -338,12 +342,14 @@ export async function registerCustomerFifoPayment(
 
 export async function listDebtors(
   client: PoolClient,
-  actor: SessionUser
+  actor: SessionUser,
+  limit = 500
 ): Promise<{
   byCustomer: CustomerDebtSummary[];
   byOrder: OrderDebtItem[];
 }> {
   assertRole(actor, ["PARTNER_ADMIN", "PARTNER_MANAGER", "EXTERNAL_SELLER"]);
+  const safeLimit = Math.max(1, Math.min(2000, Math.trunc(limit)));
 
   const res = await client.query(
     `SELECT
@@ -378,7 +384,9 @@ export async function listDebtors(
          ELSE 3
        END ASC,
        days_overdue DESC,
-       order_id ASC`
+       order_id ASC
+     LIMIT $1`,
+    [safeLimit]
   );
 
   const orderIds = res.rows.map((r) => Number(r.order_id));
@@ -614,7 +622,8 @@ export async function registerCashOutflow(
     }
   }
 
-  const amountPen = Number(input.amountPen);
+  const rawAmountPen = Number(input.amountPen);
+  const amountPen = Number.isFinite(rawAmountPen) ? Number(rawAmountPen.toFixed(2)) : 0;
   if (!Number.isFinite(amountPen) || amountPen <= 0) {
     throw new ValidationError("El monto del egreso debe ser mayor a S/ 0.00");
   }
@@ -739,181 +748,4 @@ export async function registerCashOutflow(
   );
 
   return { ledgerId: Number(res.rows[0].ledger_id) };
-}
-
-export async function resetHistoricalNegativeStock(
-  client: PoolClient,
-  actor: SessionUser
-): Promise<{ adjustedSkuCount: number }> {
-  if (!isPartnerRole(actor.role)) {
-    throw new AuthorizationError(
-      "Solo los Socios pueden poner en 0 los saldos negativos históricos"
-    );
-  }
-
-  await client.query(
-    `SELECT p.product_id
-     FROM erp.v_current_stock vcs
-     JOIN erp.products p ON p.product_id = vcs.product_id
-     WHERE vcs.stock_on_hand < -0.0001
-     ORDER BY p.product_id ASC
-     FOR UPDATE OF p`
-  );
-
-  const insertRes = await client.query(
-    `INSERT INTO erp.inventory_movements (
-       warehouse_id, product_id, movement_date, movement_type,
-       quantity_delta, source_origin, notes
-     )
-     SELECT
-       warehouse_id,
-       product_id,
-       NOW(),
-       'ADJUSTMENT',
-       ABS(stock_on_hand),
-       'ERP_APP',
-       'RESET_HISTORICAL_DEFICIT by ' || $1 || ' (' || sku || ')'
-     FROM erp.v_current_stock
-     WHERE warehouse_code = 'MAIN'
-       AND stock_on_hand < -0.0001
-     ORDER BY product_id ASC`,
-    [actor.username]
-  );
-
-  return { adjustedSkuCount: insertRes.rowCount ?? 0 };
-}
-
-export async function updateProductStockAndPricing(
-  client: PoolClient,
-  actor: SessionUser,
-  input: {
-    productId: number;
-    physicalStock?: number;
-    refCostPen?: number;
-    listSalePricePen?: number;
-    minSalePricePen?: number;
-    fulfillmentMode?: FulfillmentMode;
-    minStockQty?: number | null;
-    leadTimeDays?: number | null;
-    defaultSupplierPartyId?: number | null;
-  }
-): Promise<void> {
-  if (!isPartnerRole(actor.role)) {
-    throw new AuthorizationError(
-      "Solo los Socios pueden actualizar costos, precios mínimos y stock físico"
-    );
-  }
-
-  const whRes = await client.query(
-    `SELECT warehouse_id FROM erp.warehouses WHERE code = 'MAIN' LIMIT 1`
-  );
-  const warehouseId = Number(whRes.rows[0].warehouse_id);
-
-  const hasMinStockQty = input.minStockQty !== undefined;
-  let validatedMinStockQty: number | null = null;
-  if (hasMinStockQty && input.minStockQty !== null) {
-    const val = Number(input.minStockQty);
-    if (!Number.isFinite(val) || val < 0) {
-      throw new ValidationError("El stock mínimo no puede ser negativo");
-    }
-    validatedMinStockQty = Number(val.toFixed(4));
-  }
-
-  const hasLeadTimeDays = input.leadTimeDays !== undefined;
-  let validatedLeadTimeDays: number | null = null;
-  if (hasLeadTimeDays && input.leadTimeDays !== null) {
-    const val = Number(input.leadTimeDays);
-    if (!Number.isInteger(val) || val < 0 || val > 365) {
-      throw new ValidationError("El plazo de reposición debe estar entre 0 y 365 días");
-    }
-    validatedLeadTimeDays = val;
-  }
-
-  const hasDefaultSupplier = input.defaultSupplierPartyId !== undefined;
-  let validatedDefaultSupplierId: number | null = null;
-  if (hasDefaultSupplier && input.defaultSupplierPartyId !== null) {
-    const supId = parsePositiveInt(input.defaultSupplierPartyId, "Proveedor habitual");
-    const supCheck = await client.query(
-      `SELECT 1 FROM erp.parties WHERE party_id = $1 AND party_type IN ('SUPPLIER', 'BOTH') LIMIT 1`,
-      [supId]
-    );
-    if (supCheck.rowCount === 0) {
-      throw new ValidationError("El proveedor habitual seleccionado no existe");
-    }
-    validatedDefaultSupplierId = supId;
-  }
-
-  if (
-    input.refCostPen !== undefined ||
-    input.listSalePricePen !== undefined ||
-    input.minSalePricePen !== undefined ||
-    input.fulfillmentMode !== undefined ||
-    hasMinStockQty ||
-    hasLeadTimeDays ||
-    hasDefaultSupplier
-  ) {
-    await client.query(
-      `UPDATE erp.products
-       SET ref_cost_pen = COALESCE($1, ref_cost_pen),
-           cost_source = CASE WHEN $1 IS NOT NULL THEN 'MANUAL_PARTNER' ELSE cost_source END,
-           cost_updated_at = CASE WHEN $1 IS NOT NULL THEN NOW() ELSE cost_updated_at END,
-           list_sale_price_pen = COALESCE($2, list_sale_price_pen),
-           min_sale_price_pen = COALESCE($3, min_sale_price_pen),
-           fulfillment_mode = COALESCE($4::erp.fulfillment_mode, fulfillment_mode),
-           min_stock_qty = CASE WHEN $6::boolean THEN $7::numeric(14,4) ELSE min_stock_qty END,
-           lead_time_days = CASE WHEN $8::boolean THEN $9::int ELSE lead_time_days END,
-           default_supplier_party_id = CASE WHEN $10::boolean THEN $11::bigint ELSE default_supplier_party_id END,
-           updated_at = NOW()
-       WHERE product_id = $5`,
-      [
-        input.refCostPen ?? null,
-        input.listSalePricePen ?? null,
-        input.minSalePricePen ?? null,
-        input.fulfillmentMode ?? null,
-        input.productId,
-        hasMinStockQty,
-        validatedMinStockQty,
-        hasLeadTimeDays,
-        validatedLeadTimeDays,
-        hasDefaultSupplier,
-        validatedDefaultSupplierId,
-      ]
-    );
-  }
-
-  if (input.physicalStock !== undefined) {
-    if (input.physicalStock < 0) {
-      throw new ValidationError("El stock físico no puede ser negativo");
-    }
-    await client.query(
-      `SELECT product_id FROM erp.products WHERE product_id = $1 FOR UPDATE`,
-      [input.productId]
-    );
-    const stockRes = await client.query(
-      `SELECT COALESCE(stock_on_hand, 0) AS stock_on_hand
-       FROM erp.v_current_stock
-       WHERE warehouse_id = $1 AND product_id = $2`,
-      [warehouseId, input.productId]
-    );
-    const currentStock =
-      stockRes.rowCount && stockRes.rowCount > 0
-        ? Number(stockRes.rows[0].stock_on_hand)
-        : 0;
-    const delta = Number((input.physicalStock - currentStock).toFixed(4));
-    if (Math.abs(delta) > 0.0001) {
-      await client.query(
-        `INSERT INTO erp.inventory_movements (
-           warehouse_id, product_id, movement_date, movement_type,
-           quantity_delta, unit_cost_pen, source_origin, notes
-         ) VALUES ($1, $2, NOW(), 'ADJUSTMENT', $3, $4, 'ERP_APP', $5)`,
-        [
-          warehouseId,
-          input.productId,
-          delta,
-          input.refCostPen ?? null,
-          `CONTEO_FISICO_DIA_1 by ${actor.username} (target=${input.physicalStock})`,
-        ]
-      );
-    }
-  }
 }

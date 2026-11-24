@@ -238,7 +238,7 @@ export function useLiveSync({
   }, []);
 
   const fetchSnapshotOnce = useCallback(
-    async (forceNotify = false): Promise<"ok" | "auth" | "network"> => {
+    async (forceNotify = false): Promise<"ok" | "auth" | "network" | "aborted"> => {
       if (isNavigatorOffline()) {
         setLiveStatus("offline");
         return "network";
@@ -256,6 +256,7 @@ export function useLiveSync({
           headers: { Accept: "application/json" },
           signal: controller.signal,
         });
+        if (controller.signal.aborted) return "aborted";
 
         if (res.status === 401 || res.status === 403) {
           stoppedByAuthRef.current = true;
@@ -269,6 +270,7 @@ export function useLiveSync({
         }
 
         const data = (await res.json()) as SyncSnapshotResponse;
+        if (controller.signal.aborted) return "aborted";
         backoffAttemptRef.current = 0;
         setLastSyncedAt(new Date());
 
@@ -285,7 +287,9 @@ export function useLiveSync({
           await deliverScopes(
             toDeliver,
             () => {
-              setLiveStatus(computeIdleStatus());
+              if (!controller.signal.aborted) {
+                setLiveStatus(computeIdleStatus());
+              }
             },
             data.version
           );
@@ -295,7 +299,13 @@ export function useLiveSync({
         }
 
         return "ok";
-      } catch {
+      } catch (err) {
+        if (
+          controller.signal.aborted ||
+          (err instanceof Error && err.name === "AbortError")
+        ) {
+          return "aborted";
+        }
         return "network";
       }
     },
@@ -368,6 +378,8 @@ export function useLiveSync({
     const stopAll = (nextStatus?: LiveStatus) => {
       closeEventSource();
       clearTimers();
+      snapshotAbortRef.current?.abort();
+      snapshotAbortRef.current = null;
       if (!disposed && nextStatus) {
         setLiveStatus(nextStatus);
       }
@@ -392,6 +404,9 @@ export function useLiveSync({
 
         if (outcome === "auth") {
           stopAll("paused");
+          return;
+        }
+        if (outcome === "aborted") {
           return;
         }
         if (outcome === "network") {

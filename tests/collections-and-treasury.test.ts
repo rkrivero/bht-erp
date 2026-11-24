@@ -12,9 +12,11 @@ import {
   registerCashOutflow,
   registerCustomerFifoPayment,
   registerOrderPayment,
+} from "../src/lib/services/collections-and-treasury";
+import {
   resetHistoricalNegativeStock,
   updateProductStockAndPricing,
-} from "../src/lib/services/collections-and-treasury";
+} from "../src/lib/services/inventory-admin";
 
 const sellerActor: SessionUser = {
   userId: 3,

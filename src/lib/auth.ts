@@ -70,7 +70,6 @@ export async function resolveERPActor(
     role: row.role,
     defaultCashAccountId:
       row.default_cash_account_id === null ? null : Number(row.default_cash_account_id),
-    mustChangePassword: false,
   };
 }
 
@@ -143,7 +142,6 @@ export async function requireActiveSession(
     role: row.role,
     defaultCashAccountId:
       row.default_cash_account_id === null ? null : Number(row.default_cash_account_id),
-    mustChangePassword: false,
   };
 }
 

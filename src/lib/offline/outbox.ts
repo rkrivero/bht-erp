@@ -64,9 +64,16 @@ async function withStore<T>(
     return await new Promise<T>((resolve, reject) => {
       const tx = db.transaction(storeName, mode);
       const request = operation(tx.objectStore(storeName));
-      request.onsuccess = () => resolve(request.result);
-      request.onerror = () => reject(request.error);
-      tx.onerror = () => reject(tx.error);
+      let hasResult = false;
+      let resultValue!: T;
+      request.onsuccess = () => {
+        hasResult = true;
+        resultValue = request.result;
+      };
+      request.onerror = () => reject(request.error ?? new Error("IndexedDB request error"));
+      tx.oncomplete = () => resolve(hasResult ? resultValue : request.result);
+      tx.onerror = () => reject(tx.error ?? new Error("IndexedDB transaction error"));
+      tx.onabort = () => reject(tx.error ?? new Error("IndexedDB transaction aborted"));
     });
   } finally {
     db.close();
@@ -178,61 +185,76 @@ export async function clearSyncedOutbox(): Promise<void> {
   announceOutboxChange();
 }
 
-async function replaceOutboxRecordAtomic(
-  deleteId: string | null,
-  updated: OfflineMutation
-): Promise<void> {
+async function mutateOutboxRecordAtomic(
+  id: string,
+  buildNext: (existing: OfflineMutation) => OfflineMutation
+): Promise<OfflineMutation | null> {
   if (!hasIndexedDb()) {
-    if (deleteId) memoryOutbox.delete(deleteId);
+    const existing = memoryOutbox.get(id);
+    if (!existing || existing.status === "synced") return null;
+    const updated = buildNext(existing);
+    if (updated.id !== existing.id) {
+      memoryOutbox.delete(existing.id);
+    }
     memoryOutbox.set(updated.id, updated);
     announceOutboxChange();
-    return;
+    return updated;
   }
+
   const db = await openDb();
+  let updated: OfflineMutation | null = null;
   try {
     await new Promise<void>((resolve, reject) => {
       const tx = db.transaction(OUTBOX_STORE, "readwrite");
       const store = tx.objectStore(OUTBOX_STORE);
-      if (deleteId && deleteId !== updated.id) {
-        store.delete(deleteId);
-      }
-      store.put(updated);
+      const getReq = store.get(id);
+      getReq.onsuccess = () => {
+        const existing = getReq.result as OfflineMutation | undefined;
+        if (!existing || existing.status === "synced") {
+          updated = null;
+          return;
+        }
+        updated = buildNext(existing);
+        if (updated.id !== existing.id) {
+          store.delete(existing.id);
+        }
+        store.put(updated);
+      };
+      getReq.onerror = () => reject(getReq.error ?? new Error("IndexedDB get error"));
       tx.oncomplete = () => resolve();
-      tx.onerror = () => reject(tx.error);
-      tx.onabort = () => reject(tx.error);
+      tx.onerror = () => reject(tx.error ?? new Error("IndexedDB transaction error"));
+      tx.onabort = () => reject(tx.error ?? new Error("IndexedDB transaction aborted"));
     });
   } finally {
     db.close();
   }
-  announceOutboxChange();
+  if (updated) {
+    announceOutboxChange();
+  }
+  return updated;
 }
 
 export async function retryOutboxMutation(id: string): Promise<OfflineMutation | null> {
-  const items = await listOutbox();
-  const existing = items.find((item) => item.id === id);
-  if (!existing) return null;
+  return mutateOutboxRecordAtomic(id, (existing) => {
+    const regenerate = shouldRegenerateIdempotencyKey(existing);
+    const nextId = regenerate ? crypto.randomUUID() : existing.id;
 
-  const regenerate = shouldRegenerateIdempotencyKey(existing);
-  const nextId = regenerate ? crypto.randomUUID() : existing.id;
-
-  const updated: OfflineMutation = {
-    ...existing,
-    id: nextId,
-    status: "pending",
-    lastError: undefined,
-    conflictCode: undefined,
-    errorCode: undefined,
-    causalKey: getOfflineCausalKey({
+    return {
+      ...existing,
       id: nextId,
-      kind: existing.kind,
-      actorUsername: existing.actorUsername,
-      body: existing.body,
-      causalKey: undefined,
-    }),
-  };
-
-  await replaceOutboxRecordAtomic(regenerate ? existing.id : null, updated);
-  return updated;
+      status: "pending",
+      lastError: undefined,
+      conflictCode: undefined,
+      errorCode: undefined,
+      causalKey: getOfflineCausalKey({
+        id: nextId,
+        kind: existing.kind,
+        actorUsername: existing.actorUsername,
+        body: existing.body,
+        causalKey: undefined,
+      }),
+    };
+  });
 }
 
 export async function updateAndRetryOutboxMutation(
@@ -240,37 +262,32 @@ export async function updateAndRetryOutboxMutation(
   nextPayload: Record<string, unknown>,
   options?: { replaceBody?: boolean }
 ): Promise<OfflineMutation | null> {
-  const items = await listOutbox();
-  const existing = items.find((item) => item.id === id);
-  if (!existing) return null;
+  return mutateOutboxRecordAtomic(id, (existing) => {
+    const nextId = crypto.randomUUID();
+    const nextBody: Record<string, unknown> = options?.replaceBody
+      ? { ...nextPayload }
+      : {
+          ...existing.body,
+          ...nextPayload,
+        };
 
-  const nextId = crypto.randomUUID();
-  const nextBody: Record<string, unknown> = options?.replaceBody
-    ? { ...nextPayload }
-    : {
-        ...existing.body,
-        ...nextPayload,
-      };
-
-  const updated: OfflineMutation = {
-    ...existing,
-    id: nextId,
-    body: nextBody,
-    status: "pending",
-    lastError: undefined,
-    conflictCode: undefined,
-    errorCode: undefined,
-    causalKey: getOfflineCausalKey({
+    return {
+      ...existing,
       id: nextId,
-      kind: existing.kind,
-      actorUsername: existing.actorUsername,
       body: nextBody,
-      causalKey: undefined,
-    }),
-  };
-
-  await replaceOutboxRecordAtomic(existing.id, updated);
-  return updated;
+      status: "pending",
+      lastError: undefined,
+      conflictCode: undefined,
+      errorCode: undefined,
+      causalKey: getOfflineCausalKey({
+        id: nextId,
+        kind: existing.kind,
+        actorUsername: existing.actorUsername,
+        body: nextBody,
+        causalKey: undefined,
+      }),
+    };
+  });
 }
 
 export async function saveOfflineSnapshot(
@@ -423,16 +440,20 @@ export async function submitOfflineCapable<T>({
       },
       body: JSON.stringify(body),
     });
-    const data = (await response.json()) as T & { error?: string };
+    const data = (await response.json().catch(() => ({}))) as T & { error?: string };
     if (!response.ok) {
-      const error = new Error(data.error || "La operación no pudo completarse");
+      const error = new Error(
+        data.error || `La operación no pudo completarse (HTTP ${response.status})`
+      );
       Object.assign(error, { status: response.status });
       throw error;
     }
     return { queued: false, mutationId: id, data };
   } catch (error) {
     const status = Number((error as { status?: unknown })?.status ?? 0);
-    if (status > 0) throw error;
+    if (status > 0 && status < 500 && status !== 429) {
+      throw error;
+    }
     await putOutboxMutation(mutation);
     return { queued: true, mutationId: id };
   }

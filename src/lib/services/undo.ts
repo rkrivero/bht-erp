@@ -584,8 +584,6 @@ export async function executeUndoAction(
         "El tiempo límite de 15 minutos para deshacer esta acción ya venció. Solicita al Administrador revertirla desde su panel."
       );
     }
-  } else {
-    await client.query(`SET LOCAL bht.allow_closed_period_override = 'true'`);
   }
 
   const payload = row.undo_payload ?? {};
@@ -652,8 +650,12 @@ export async function executeUndoAction(
       const oRow = oCheck.rows[0];
       if (!isAdmin && oRow) {
         const st = oRow.status;
-        const isDirectQuoteOrder =
-          Number(oRow.quote_id) === quoteId && Number(oRow.paid_pen ?? 0) <= 0.05;
+        if (Number(oRow.paid_pen ?? 0) > 0.05) {
+          throw new ValidationError(
+            "El pedido generado ya tiene cobros registrados; solicita al Administrador revertir esta conversión"
+          );
+        }
+        const isDirectQuoteOrder = Number(oRow.quote_id) === quoteId;
         if (
           st !== "REGISTERED" &&
           st !== "PENDING_PARTNER_APPROVAL" &&
@@ -841,7 +843,7 @@ export async function executeUndoAction(
                expense_category, is_internal_transfer, reference_table, reference_id,
                description, source_origin, created_by_user_id
              ) VALUES (
-               COALESCE($7::date, (NOW() AT TIME ZONE 'America/Lima')::date), $1, $2, 'IN', $3,
+               (NOW() AT TIME ZONE 'America/Lima')::date, $1, $2, 'IN', $3,
                'COBRANZA_VENTA', FALSE, 'erp.sales_orders', $4,
                $5, 'ERP_APP', $6
              ) RETURNING ledger_id::text AS ledger_id`,
@@ -852,7 +854,6 @@ export async function executeUndoAction(
               String(orderId),
               `Restauración cobro ${order.order_code} (${order.customer_name_raw ?? "CLIENTE"}) al deshacer anulación`,
               actor.userId,
-              originalPaymentDate,
             ]
           );
           refDoc = `LEDGER-${led.rows[0].ledger_id}`;
@@ -997,12 +998,20 @@ export async function executeUndoAction(
       const orderId = parsePositiveInt(payload.orderId, "Pedido");
       const expectedStatus = String(payload.operationalStatus || "REGISTERED");
       if (!isAdmin) {
-        const oCheck = await client.query<{ status: string }>(
-          `SELECT operational_status::text AS status FROM erp.sales_orders WHERE order_id = $1 FOR UPDATE`,
+        const oCheck = await client.query<{ status: string; paid_pen: string | number }>(
+          `SELECT operational_status::text AS status, paid_pen
+           FROM erp.sales_orders
+           WHERE order_id = $1
+           FOR UPDATE`,
           [orderId]
         );
         if (oCheck.rowCount === 0) {
           throw new ValidationError("Pedido no encontrado");
+        }
+        if (Number(oCheck.rows[0].paid_pen ?? 0) > 0.05) {
+          throw new ValidationError(
+            "El pedido ya tiene cobros registrados; solicita al Administrador anularlo"
+          );
         }
         const st = oCheck.rows[0].status;
         if (st !== expectedStatus) {

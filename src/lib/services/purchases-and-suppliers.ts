@@ -1,8 +1,9 @@
 import type { PoolClient } from "pg";
 import { resolveCatalogProductMatch } from "../product-matching";
 import { assertRole } from "../rbac";
+import { resolveActiveCashAccount } from "./cash-account-resolver";
 import { getLimaDateString } from "./orders";
-import { ValidationError, type SessionUser } from "../types";
+import { ConflictError, ValidationError, type SessionUser } from "../types";
 
 export interface SupplierRow {
   party_id: number;
@@ -99,7 +100,29 @@ function mapPurchaseLineDetails(rawLines: unknown): PurchaseInvoiceLineDetail[] 
 
 /** Shared SQL subquery returning AP obligations with itemized invoice lines and ledger payment history. */
 export const AP_OBLIGATIONS_DETAIL_SUBQUERY = `
-  WITH ap_line_agg AS (
+  WITH ap_scope AS (
+    SELECT
+      ap.ap_id,
+      ap.purchase_id,
+      ap.supplier_party_id,
+      ap.doc_ref,
+      ap.obligation_type,
+      ap.issue_date,
+      ap.due_date,
+      ap.original_amount_pen,
+      ap.paid_amount_pen,
+      ap.balance_due_pen,
+      ap.status,
+      ap.notes
+    FROM erp.ap_obligations ap
+    ORDER BY
+      CASE WHEN ap.status IN ('OPEN', 'PARTIAL') AND ap.balance_due_pen > 0.05 THEN 0 ELSE 1 END ASC,
+      ap.balance_due_pen DESC,
+      ap.issue_date ASC,
+      ap.ap_id DESC
+    LIMIT 500
+  ),
+  ap_line_agg AS (
     SELECT
       pil.purchase_id,
       COUNT(*)::int AS line_count,
@@ -119,46 +142,55 @@ export const AP_OBLIGATIONS_DETAIL_SUBQUERY = `
       ) AS lines
     FROM erp.purchase_invoice_lines pil
     LEFT JOIN erp.products pr ON pr.product_id = pil.product_id
+    WHERE pil.purchase_id IN (SELECT purchase_id FROM ap_scope WHERE purchase_id IS NOT NULL)
     GROUP BY pil.purchase_id
   ),
-  ap_pay_agg AS (
-    SELECT
-      cl.reference_id,
-      json_agg(
-        json_build_object(
-          'ledger_id', cl.ledger_id,
-          'tx_date', cl.tx_date::text,
-          'account_name', COALESCE(ca.name, 'Caja / Banco'),
-          'amount_pen', cl.amount_pen,
-          'description', cl.description
-        )
-        ORDER BY cl.tx_date DESC, cl.ledger_id DESC
-      ) AS payments
-    FROM erp.cash_ledger cl
-    LEFT JOIN erp.cash_accounts ca ON ca.account_id = cl.account_id
-    WHERE cl.reference_table = 'erp.ap_obligations'
-      AND cl.direction = 'OUT'
-    GROUP BY cl.reference_id
-  ),
-  ap_pay_by_party AS (
+  ap_pay_raw AS (
     SELECT
       cl.reference_id,
       cl.party_id,
-      json_agg(
-        json_build_object(
-          'ledger_id', cl.ledger_id,
-          'tx_date', cl.tx_date::text,
-          'account_name', COALESCE(ca.name, 'Caja / Banco'),
-          'amount_pen', cl.amount_pen,
-          'description', cl.description
-        )
-        ORDER BY cl.tx_date DESC, cl.ledger_id DESC
-      ) AS payments
+      cl.ledger_id,
+      cl.tx_date,
+      COALESCE(ca.name, 'Caja / Banco') AS account_name,
+      cl.amount_pen,
+      cl.description
     FROM erp.cash_ledger cl
     LEFT JOIN erp.cash_accounts ca ON ca.account_id = cl.account_id
     WHERE cl.reference_table = 'erp.ap_obligations'
       AND cl.direction = 'OUT'
-    GROUP BY cl.reference_id, cl.party_id
+  ),
+  ap_pay_agg AS (
+    SELECT
+      reference_id,
+      json_agg(
+        json_build_object(
+          'ledger_id', ledger_id,
+          'tx_date', tx_date::text,
+          'account_name', account_name,
+          'amount_pen', amount_pen,
+          'description', description
+        )
+        ORDER BY tx_date DESC, ledger_id DESC
+      ) AS payments
+    FROM ap_pay_raw
+    GROUP BY reference_id
+  ),
+  ap_pay_by_party AS (
+    SELECT
+      reference_id,
+      party_id,
+      json_agg(
+        json_build_object(
+          'ledger_id', ledger_id,
+          'tx_date', tx_date::text,
+          'account_name', account_name,
+          'amount_pen', amount_pen,
+          'description', description
+        )
+        ORDER BY tx_date DESC, ledger_id DESC
+      ) AS payments
+    FROM ap_pay_raw
+    GROUP BY reference_id, party_id
   )
   SELECT json_agg(t)
   FROM (
@@ -184,7 +216,7 @@ export const AP_OBLIGATIONS_DETAIL_SUBQUERY = `
       COALESCE(ala.line_count, 0) AS line_count,
       COALESCE(ala.lines, '[]'::json) AS lines,
       COALESCE(pay_id.payments, pay_ref.payments, '[]'::json) AS payments
-    FROM erp.ap_obligations ap
+    FROM ap_scope ap
     LEFT JOIN erp.parties pa ON pa.party_id = ap.supplier_party_id
     LEFT JOIN erp.purchase_invoices pi ON pi.purchase_id = ap.purchase_id
     LEFT JOIN ap_line_agg ala ON ala.purchase_id = ap.purchase_id
@@ -306,51 +338,6 @@ function assertValidDateString(value: string, fieldLabel: string): string {
     throw new ValidationError(`${fieldLabel} debe tener formato YYYY-MM-DD`);
   }
   return trimmed;
-}
-
-async function resolvePurchaseAccountId(
-  client: PoolClient,
-  actor: SessionUser,
-  explicitAccountId?: number
-): Promise<number> {
-  if (explicitAccountId !== undefined && explicitAccountId !== null) {
-    const res = await client.query(
-      `SELECT account_id FROM erp.cash_accounts WHERE account_id = $1 AND is_active = TRUE LIMIT 1`,
-      [Number(explicitAccountId)]
-    );
-    if (res.rowCount === 0) {
-      throw new ValidationError("Cuenta de caja o banco no válida o inactiva");
-    }
-    return Number(res.rows[0].account_id);
-  }
-
-  if (actor.defaultCashAccountId) {
-    const res = await client.query(
-      `SELECT account_id FROM erp.cash_accounts WHERE account_id = $1 AND is_active = TRUE LIMIT 1`,
-      [actor.defaultCashAccountId]
-    );
-    if (res.rowCount && res.rowCount > 0) {
-      return Number(res.rows[0].account_id);
-    }
-  }
-
-  const fallbackRes = await client.query(
-    `SELECT account_id
-     FROM erp.cash_accounts
-     WHERE is_active = TRUE
-     ORDER BY
-       CASE
-         WHEN code = 'CAJA_RUTA' THEN 0
-         WHEN account_type IN ('CASH_BOX', 'BANK') THEN 1
-         ELSE 2
-       END ASC,
-       account_id ASC
-     LIMIT 1`
-  );
-  if (fallbackRes.rowCount === 0) {
-    throw new ValidationError("No hay cuentas de caja o banco activas");
-  }
-  return Number(fallbackRes.rows[0].account_id);
 }
 
 /** Load suppliers, recent purchases, pending ON_DEMAND lines, AP obligations, and active accounts. */
@@ -823,12 +810,6 @@ export async function registerSupplierPurchase(
       );
     }
     exchangeRate = Number(tc.toFixed(4));
-  } else if (input.exchangeRate !== undefined && input.exchangeRate !== null) {
-    const tc = Number(input.exchangeRate);
-    if (!Number.isFinite(tc) || tc <= 0) {
-      throw new ValidationError("Tipo de cambio inválido");
-    }
-    exchangeRate = Number(tc.toFixed(4));
   }
 
   const taxModeRaw = String(input.taxMode || "NONE")
@@ -945,6 +926,62 @@ export async function registerSupplierPurchase(
     }
     return { productId, quantity, enteredUnitCost };
   });
+
+  // Lock ON_DEMAND order headers and lines BEFORE locking erp.products to match
+  // approveDiscountedOrder/updateOrder lock ordering (sales_orders -> products) and
+  // prevent concurrent cancelOrder from leaving an unreversed SALE_OUT movement.
+  type LockedFulfillOrderLineRow = {
+    order_line_id: number;
+    order_id: number;
+    order_code: string;
+    warehouse_id: number;
+    stock_deducted: boolean;
+    product_id: number;
+    sku: string;
+    quantity: string | number;
+    pack_factor_applied: string | number;
+    unit_cost_snapshot_pen: string | number | null;
+    fulfillment_status: string;
+    operational_status: string;
+  };
+  let uniqueFulfillLineIds: number[] = [];
+  let lockedFulfillRows: LockedFulfillOrderLineRow[] = [];
+  if (
+    Array.isArray(input.fulfillOrderLineIds) &&
+    input.fulfillOrderLineIds.length > 0
+  ) {
+    uniqueFulfillLineIds = Array.from(
+      new Set(input.fulfillOrderLineIds.map((id) => Number(id)))
+    );
+    for (const orderLineId of uniqueFulfillLineIds) {
+      if (!Number.isInteger(orderLineId) || orderLineId <= 0) {
+        throw new ValidationError(`ID de línea ON_DEMAND inválido: ${orderLineId}`);
+      }
+    }
+    const olRes = await client.query<LockedFulfillOrderLineRow>(
+      `SELECT
+         sol.order_line_id,
+         sol.order_id,
+         so.order_code,
+         so.warehouse_id,
+         so.stock_deducted,
+         sol.product_id,
+         p.sku,
+         sol.quantity,
+         sol.pack_factor_applied,
+         sol.unit_cost_snapshot_pen,
+         sol.fulfillment_status::text AS fulfillment_status,
+         so.operational_status::text AS operational_status
+       FROM erp.sales_order_lines sol
+       JOIN erp.sales_orders so ON so.order_id = sol.order_id
+       JOIN erp.products p ON p.product_id = sol.product_id
+       WHERE sol.order_line_id = ANY($1::bigint[])
+       ORDER BY so.order_id ASC, sol.order_line_id ASC
+       FOR UPDATE OF so, sol`,
+      [uniqueFulfillLineIds]
+    );
+    lockedFulfillRows = olRes.rows;
+  }
 
   const uniqueProductIds = Array.from(
     new Set(parsedItems.map((it) => it.productId))
@@ -1071,18 +1108,23 @@ export async function registerSupplierPurchase(
   } else if (paymentCondition === "CREDIT") {
     paidNowPen = 0;
   } else {
-    paidNowPen = Number(input.paidNowPen ?? 0);
-    if (!Number.isFinite(paidNowPen) || paidNowPen <= 0) {
+    const rawPaid = Number(input.paidNowPen ?? 0);
+    if (!Number.isFinite(rawPaid)) {
       throw new ValidationError(
         "Para compra con pago PARCIAL, el pago inicial debe ser mayor a S/ 0.00"
       );
     }
-    if (paidNowPen >= totalPen - 0.05) {
+    paidNowPen = Number(rawPaid.toFixed(2));
+    if (paidNowPen <= 0) {
+      throw new ValidationError(
+        "Para compra con pago PARCIAL, el pago inicial debe ser mayor a S/ 0.00"
+      );
+    }
+    if (paidNowPen >= totalPen - 0.005) {
       throw new ValidationError(
         "El pago inicial parcial debe ser menor al total de la compra (use Contado si paga todo)"
       );
     }
-    paidNowPen = Number(paidNowPen.toFixed(2));
   }
 
   const issueDate = input.issueDate?.trim()
@@ -1091,6 +1133,22 @@ export async function registerSupplierPurchase(
   const dueDate = input.dueDate?.trim()
     ? assertValidDateString(input.dueDate, "Fecha de vencimiento")
     : null;
+
+  const closedPeriodRes = await client.query<{ closure_date: string }>(
+    `SELECT closure_date::text AS closure_date
+     FROM erp.daily_closures
+     WHERE closure_date = $1::date
+       AND status = 'CLOSED'
+     LIMIT 1`,
+    [issueDate]
+  );
+  if ((closedPeriodRes.rowCount ?? 0) > 0) {
+    throw new ConflictError(
+      `Periodo cerrado (${issueDate}): no se pueden registrar compras en una fecha con cierre diario cerrado`,
+      "CLOSED_PERIOD",
+      issueDate
+    );
+  }
 
   let purchaseId: number;
   try {
@@ -1257,7 +1315,8 @@ export async function registerSupplierPurchase(
 
   let ledgerId: number | null = null;
   if (paidNowPen > 0) {
-    const accountId = await resolvePurchaseAccountId(client, actor, input.accountId);
+    const resolvedAccount = await resolveActiveCashAccount(client, actor, input.accountId);
+    const accountId = resolvedAccount.accountId;
     const ledgerRes = await client.query(
       `INSERT INTO erp.cash_ledger (
          tx_date, account_id, party_id, direction, amount_pen,
@@ -1283,7 +1342,7 @@ export async function registerSupplierPurchase(
 
   const balance = Number((totalPen - paidNowPen).toFixed(2));
   let apId: number | null = null;
-  if (balance > 0.05) {
+  if (balance > 0.005) {
     const docRef = `${docSeries}-${docNumber}`;
     const apStatus = paidNowPen > 0 ? "PARTIAL" : "OPEN";
     const apRes = await client.query(
@@ -1313,57 +1372,9 @@ export async function registerSupplierPurchase(
   }
 
   const fulfilledOrderLineIds: number[] = [];
-  if (
-    Array.isArray(input.fulfillOrderLineIds) &&
-    input.fulfillOrderLineIds.length > 0
-  ) {
-    const uniqueLineIds = Array.from(
-      new Set(input.fulfillOrderLineIds.map((id) => Number(id)))
-    );
-    for (const orderLineId of uniqueLineIds) {
-      if (!Number.isInteger(orderLineId) || orderLineId <= 0) {
-        throw new ValidationError(`ID de línea ON_DEMAND inválido: ${orderLineId}`);
-      }
-    }
-
-    const olRes = await client.query<{
-      order_line_id: number;
-      order_id: number;
-      order_code: string;
-      warehouse_id: number;
-      stock_deducted: boolean;
-      product_id: number;
-      sku: string;
-      quantity: string | number;
-      pack_factor_applied: string | number;
-      unit_cost_snapshot_pen: string | number | null;
-      fulfillment_status: string;
-      operational_status: string;
-    }>(
-      `SELECT
-         sol.order_line_id,
-         sol.order_id,
-         so.order_code,
-         so.warehouse_id,
-         so.stock_deducted,
-         sol.product_id,
-         p.sku,
-         sol.quantity,
-         sol.pack_factor_applied,
-         sol.unit_cost_snapshot_pen,
-         sol.fulfillment_status::text AS fulfillment_status,
-         so.operational_status::text AS operational_status
-       FROM erp.sales_order_lines sol
-       JOIN erp.sales_orders so ON so.order_id = sol.order_id
-       JOIN erp.products p ON p.product_id = sol.product_id
-       WHERE sol.order_line_id = ANY($1::bigint[])
-       ORDER BY sol.order_line_id ASC
-       FOR UPDATE OF sol`,
-      [uniqueLineIds]
-    );
-
-    const olById = new Map<number, (typeof olRes.rows)[number]>();
-    for (const row of olRes.rows) {
+  if (uniqueFulfillLineIds.length > 0) {
+    const olById = new Map<number, LockedFulfillOrderLineRow>();
+    for (const row of lockedFulfillRows) {
       olById.set(Number(row.order_line_id), row);
     }
 
@@ -1381,7 +1392,7 @@ export async function registerSupplierPurchase(
     }> = [];
     const partialUpdates: Array<{ orderLineId: number; purchaseLineId: number }> = [];
 
-    for (const orderLineId of uniqueLineIds) {
+    for (const orderLineId of uniqueFulfillLineIds) {
       const ol = olById.get(orderLineId);
       if (!ol) {
         throw new ValidationError(`Línea de pedido #${orderLineId} no encontrada`);
@@ -1569,11 +1580,15 @@ export async function payApObligation(
   assertRole(actor, ["PARTNER_ADMIN", "PARTNER_MANAGER"]);
 
   const apId = Number(input.apId);
-  const amountPen = Number(input.amountPen);
+  const rawAmountPen = Number(input.amountPen);
   if (!Number.isInteger(apId) || apId <= 0) {
     throw new ValidationError("ID de obligación por pagar inválido");
   }
-  if (!Number.isFinite(amountPen) || amountPen <= 0) {
+  if (!Number.isFinite(rawAmountPen)) {
+    throw new ValidationError("El monto del pago debe ser mayor a S/ 0.00");
+  }
+  const roundedPaidPen = Number(rawAmountPen.toFixed(2));
+  if (roundedPaidPen <= 0) {
     throw new ValidationError("El monto del pago debe ser mayor a S/ 0.00");
   }
 
@@ -1605,13 +1620,14 @@ export async function payApObligation(
   }
 
   const currentBalance = Number(ap.balance_due_pen);
-  if (amountPen > currentBalance + 0.05) {
+  if (roundedPaidPen > currentBalance + 0.0001) {
     throw new ValidationError(
-      `El pago (S/ ${amountPen.toFixed(2)}) supera el saldo pendiente (S/ ${currentBalance.toFixed(2)})`
+      `El pago (S/ ${roundedPaidPen.toFixed(2)}) supera el saldo pendiente (S/ ${currentBalance.toFixed(2)})`
     );
   }
 
-  const accountId = await resolvePurchaseAccountId(client, actor, input.accountId);
+  const resolvedAccount = await resolveActiveCashAccount(client, actor, input.accountId);
+  const accountId = resolvedAccount.accountId;
   const txDate = getLimaDateString(0);
   const cleanNote = input.notes?.trim();
   const description = cleanNote
@@ -1633,18 +1649,17 @@ export async function payApObligation(
       txDate,
       accountId,
       ap.supplier_party_id !== null ? Number(ap.supplier_party_id) : null,
-      Number(amountPen.toFixed(2)),
+      roundedPaidPen,
       String(apId),
       description,
     ]
   );
   const ledgerId = Number(ledgerRes.rows[0].ledger_id);
 
-  const roundedPaidPen = Number(amountPen.toFixed(2));
   const originalAmount = Number(ap.original_amount_pen);
   const updatedPaid = Number((Number(ap.paid_amount_pen) + roundedPaidPen).toFixed(2));
   const remaining = Math.max(0, Number((originalAmount - updatedPaid).toFixed(2)));
-  const newStatus = remaining <= 0.05 ? "PAID" : "PARTIAL";
+  const newStatus = remaining <= 0.005 ? "PAID" : "PARTIAL";
 
   const updateRes = await client.query(
     `UPDATE erp.ap_obligations

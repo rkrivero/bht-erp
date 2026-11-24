@@ -1418,12 +1418,15 @@ async function queryCartera(
        WHERE ${detailWhere}
      ),
      dso_anchor AS (
-       SELECT
-         ${refToParam ? `${refToParam}::date` : "COALESCE(MAX(so.order_date), (NOW() AT TIME ZONE 'America/Lima')::date)"} AS win_end
+       ${
+         refToParam
+           ? `SELECT ${refToParam}::date AS win_end`
+           : `SELECT COALESCE(MAX(so.order_date), (NOW() AT TIME ZONE 'America/Lima')::date) AS win_end
        FROM erp.sales_orders so
        LEFT JOIN erp.parties pa ON pa.party_id = so.customer_party_id
        LEFT JOIN erp.route_trips rt ON rt.trip_id = so.trip_id
-       WHERE ${refClauses.join(" AND ")}
+       WHERE ${refClauses.join(" AND ")}`
+       }
      ),
      dso_window AS (
        SELECT

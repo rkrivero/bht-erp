@@ -23,20 +23,12 @@ export interface SessionUser {
   defaultCashAccountId: number | null;
   exp?: number;
   sessionVersion?: string;
-  mustChangePassword?: boolean;
 }
 
 export class AuthenticationError extends Error {
   constructor(message = "Sesión inválida o expirada") {
     super(message);
     this.name = "AuthenticationError";
-  }
-}
-
-export class PasswordChangeRequiredError extends Error {
-  constructor(message = "Debes cambiar tu contraseña temporal antes de continuar") {
-    super(message);
-    this.name = "PasswordChangeRequiredError";
   }
 }
 

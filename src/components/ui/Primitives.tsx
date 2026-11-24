@@ -242,7 +242,7 @@ export function SegmentedControl<T extends string>({
             tabIndex={active || (!hasMatch && idx === 0) ? 0 : -1}
             onClick={() => onChange(opt.id)}
             onKeyDown={(e) => handleKeyDown(e, idx)}
-            className={`min-h-9 min-w-max flex-1 shrink-0 rounded-md px-3 py-1.5 text-xs font-medium leading-tight transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bht-cobalt focus-visible:ring-offset-1 sm:text-sm cursor-pointer ${
+            className={`min-h-9 min-w-max flex-1 shrink-0 rounded-md px-2.5 sm:px-3 py-1.5 text-xs font-medium leading-tight transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bht-cobalt focus-visible:ring-offset-1 sm:text-sm cursor-pointer ${
               active
                 ? "border border-bht-line bg-white text-bht-ink-deep font-semibold shadow-xs"
                 : "border border-transparent bg-transparent text-bht-ink-soft hover:text-bht-ink-strong hover:bg-white/60"

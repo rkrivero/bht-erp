@@ -16,7 +16,7 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "test": "vitest run",
-    "test:ci": "vitest run tests/api-client.test.ts tests/auth-and-sync-unit.test.ts tests/caja-utils.test.ts tests/cash-flow-simplification.test.ts tests/geo-and-customers.test.ts tests/idempotency-unit.test.ts tests/inventory-summary.test.ts tests/navigation.test.ts tests/offline-causal.test.ts tests/product-matching.test.ts tests/pwa-build.test.ts tests/rbac-and-auth.test.ts tests/reportes-utils.test.ts tests/seller-order-draft-reducer.test.ts tests/xlsx-writer.test.ts",
+    "test:ci": "vitest run tests/api-client.test.ts tests/audit-batch1-fixes.test.ts tests/auth-and-sync-unit.test.ts tests/caja-utils.test.ts tests/cash-flow-simplification.test.ts tests/geo-and-customers.test.ts tests/idempotency-unit.test.ts tests/inventory-summary.test.ts tests/navigation.test.ts tests/offline-causal.test.ts tests/product-matching.test.ts tests/pwa-build.test.ts tests/rbac-and-auth.test.ts tests/reportes-utils.test.ts tests/seller-order-draft-reducer.test.ts tests/xlsx-writer.test.ts",
     "test:e2e": "playwright test",
     "test:a11y": "playwright test tests/e2e/accessibility.spec.ts",
     "audit:lighthouse": "lighthouse http://127.0.0.1:3000/login --only-categories=performance,accessibility,best-practices --output=html --output-path=.lighthouse/login.html"
@@ -24,7 +24,6 @@
   "dependencies": {
     "@neon/auth": "^0.8.2",
     "@neon/config": "^1.14.0",
-    "@neon/env": "^2.1.3",
     "@tanstack/react-query": "^5.108.2",
     "leaflet": "^1.9.4",
     "next": "^16.4.6",

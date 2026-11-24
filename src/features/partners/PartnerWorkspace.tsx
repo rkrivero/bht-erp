@@ -535,7 +535,7 @@ export default function PartnerWorkspace() {
       <main
         id="main-content"
         tabIndex={-1}
-        className="bht-sidebar-offset mx-auto max-w-[1440px] px-4 pt-5 sm:px-6 sm:pt-6 lg:px-8 space-y-6 focus:outline-none pb-12"
+        className="bht-sidebar-offset mx-auto max-w-[1440px] md:max-w-none px-4 pt-5 sm:px-6 sm:pt-6 lg:px-8 space-y-6 focus:outline-none pb-12"
       >
         {tab !== "control" && (
           <div className="grid grid-cols-[2fr_1fr] gap-2 sm:hidden">

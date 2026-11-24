@@ -31,7 +31,8 @@ export async function resolveActiveCashAccount(
       `SELECT account_id, code, name, account_type, is_active
        FROM erp.cash_accounts
        WHERE account_id = $1
-       LIMIT 1`,
+       LIMIT 1
+       FOR KEY SHARE`,
       [targetId]
     );
 
@@ -58,7 +59,8 @@ export async function resolveActiveCashAccount(
         `SELECT account_id, code, name, account_type, is_active
          FROM erp.cash_accounts
          WHERE code = $1 AND is_active = TRUE
-         LIMIT 1`,
+         LIMIT 1
+         FOR KEY SHARE`,
         [fallbackCode]
       );
       if (fallbackRes.rowCount === 0) {
@@ -90,7 +92,8 @@ export async function resolveActiveCashAccount(
     `SELECT account_id, code, name, account_type
      FROM erp.cash_accounts
      WHERE code = 'CAJA_RUTA' AND is_active = TRUE
-     LIMIT 1`
+     LIMIT 1
+     FOR KEY SHARE`
   );
   if (defaultRes.rowCount === 0) {
     throw new ValidationError("Cuenta de caja por defecto no encontrada");

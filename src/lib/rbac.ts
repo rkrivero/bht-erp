@@ -179,11 +179,14 @@ export function projectOrderForRole(
   let totalMarginPen = 0;
   const partnerLines = order.lines.map((line) => {
     const qty = Number(line.quantity);
+    const packFactor = Number(line.pack_factor_applied ?? 1);
     const unitPrice = Number(line.unit_price_pen);
     const unitCost =
       line.unit_cost_snapshot_pen !== null ? Number(line.unit_cost_snapshot_pen) : null;
     const lineMarginPen =
-      unitCost !== null ? Number(((unitPrice - unitCost) * qty).toFixed(2)) : null;
+      unitCost !== null
+        ? Number(((unitPrice - unitCost * packFactor) * qty).toFixed(2))
+        : null;
     if (lineMarginPen !== null) {
       totalMarginPen += lineMarginPen;
     }
@@ -194,7 +197,7 @@ export function projectOrderForRole(
       raw_description: line.raw_description,
       unit_of_measure: line.unit_of_measure || "NIU",
       quantity: qty,
-      pack_factor_applied: Number(line.pack_factor_applied ?? 1),
+      pack_factor_applied: packFactor,
       base_unit_price_pen: Number(line.base_unit_price_pen),
       unit_discount_pen: Number(line.unit_discount_pen),
       unit_price_pen: unitPrice,
@@ -206,6 +209,8 @@ export function projectOrderForRole(
       below_min_price_flag: Boolean(line.below_min_price_flag),
     };
   });
+
+  const globalDiscountPen = Number(order.global_discount_pen ?? 0);
 
   return {
     order_id: Number(order.order_id),
@@ -231,7 +236,7 @@ export function projectOrderForRole(
     balance_due_pen: Number(order.balance_due_pen),
     is_settled: Boolean(order.is_settled),
     credit_limit_exceeded_flag: Boolean(order.credit_limit_exceeded_flag),
-    order_margin_pen: Number(totalMarginPen.toFixed(2)),
+    order_margin_pen: Number((totalMarginPen - globalDiscountPen).toFixed(2)),
     notes: order.notes ?? null,
     created_by_user_id: order.created_by_user_id ?? null,
     created_by_name: order.created_by_name,

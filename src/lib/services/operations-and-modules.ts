@@ -675,6 +675,21 @@ export async function listQuotes(
   assertRole(actor, ["PARTNER_ADMIN", "PARTNER_MANAGER", "EXTERNAL_SELLER"]);
   const safeLimit = Math.max(1, Math.min(500, Math.floor(limit || 250)));
 
+  const isSeller = actor.role === "EXTERNAL_SELLER";
+  const sellerWhere = isSeller
+    ? `WHERE (
+         q.created_by_user_id = $2
+         OR (
+           q.created_by_user_id IS NULL
+           AND LOWER(BTRIM(COALESCE(q.seller_name, ''))) = LOWER(BTRIM($3))
+           AND BTRIM($3) <> ''
+         )
+       )`
+    : "";
+  const queryParams: unknown[] = isSeller
+    ? [safeLimit, actor.userId, actor.fullName]
+    : [safeLimit];
+
   const res = await client.query(
     `SELECT
        q.quote_id,
@@ -734,13 +749,14 @@ export async function listQuotes(
      FROM erp.quotes q
      LEFT JOIN erp.parties pa ON pa.party_id = q.customer_party_id
      LEFT JOIN erp.sales_orders so ON so.quote_id = q.quote_id AND so.operational_status <> 'CANCELLED'
+     ${sellerWhere}
      GROUP BY q.quote_id, pa.trade_name, pa.legal_name
      ORDER BY
        CASE q.status WHEN 'OPEN' THEN 0 WHEN 'CONVERTED' THEN 1 ELSE 2 END ASC,
        q.issue_date DESC,
        q.quote_id DESC
      LIMIT $1`,
-    [safeLimit]
+    queryParams
   );
 
   return res.rows.map((r) => ({

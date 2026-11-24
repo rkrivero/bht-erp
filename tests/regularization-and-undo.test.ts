@@ -487,7 +487,7 @@ describe("Operational Undo System — All Action Types, Safety Guards & Timed RB
       const createdOrder = await createOrder(client, sellerActor, {
         customerNameRaw: "CLIENTE UNDO CREATE",
         paymentMode: "CASH",
-        collectOnDelivery: false,
+        collectOnDelivery: true,
         lines: [{ productId, quantity: 2, unitDiscountPen: 0 }],
       });
       expect(createdOrder.undoAction?.actionType).toBe("ORDER_CREATE");

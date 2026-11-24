@@ -129,6 +129,58 @@ async function deductStockForOrderLines(
   );
 }
 
+async function upsertCreditLimitAuditFlag(
+  client: PoolClient,
+  actor: SessionUser,
+  params: {
+    orderId: number;
+    orderCode: string;
+    customerPartyId: number | null;
+    customerName: string;
+    creditLimitPen: number;
+    openArBalancePen: number;
+    orderTotalPen: number;
+    projectedBalancePen: number;
+  }
+): Promise<void> {
+  await client.query(
+    `INSERT INTO erp.audit_flags (
+       flag_code, severity, entity_table, entity_id,
+       message, details, status, source_origin
+     ) VALUES (
+       'CREDIT_LIMIT_EXCEEDED',
+       'WARNING',
+       'erp.sales_orders',
+       $1,
+       $2,
+       $3::jsonb,
+       'OPEN',
+       'ERP_APP'
+     )
+     ON CONFLICT (flag_code, entity_table, entity_id)
+     WHERE status = 'OPEN'
+     DO UPDATE SET
+       message = EXCLUDED.message,
+       details = EXCLUDED.details`,
+    [
+      String(params.orderId),
+      `Pedido ${params.orderCode} (${params.customerName}) excede límite de crédito: proyectado S/ ${params.projectedBalancePen.toFixed(2)} > límite S/ ${params.creditLimitPen.toFixed(2)}`,
+      JSON.stringify({
+        order_id: params.orderId,
+        order_code: params.orderCode,
+        customer_party_id: params.customerPartyId,
+        customer_name: params.customerName,
+        credit_limit_pen: params.creditLimitPen,
+        open_ar_balance_pen: params.openArBalancePen,
+        order_total_pen: params.orderTotalPen,
+        projected_balance_pen: params.projectedBalancePen,
+        actor_user_id: actor.userId,
+        actor_role: actor.role,
+      }),
+    ]
+  );
+}
+
 export async function createOrder(
   client: PoolClient,
   actor: SessionUser,
@@ -231,7 +283,18 @@ export async function createOrder(
     if (!prod) {
       throw new ValidationError(`Producto ID ${item.productId} no encontrado`);
     }
-    const catalogPricePen = Number(prod.list_sale_price_pen ?? 0);
+    const packFactorApplied = Number(
+      (item.packFactorApplied !== undefined
+        ? Number(item.packFactorApplied)
+        : 1
+      ).toFixed(4)
+    );
+    if (!Number.isFinite(packFactorApplied) || packFactorApplied <= 0) {
+      throw new ValidationError("Factor de empaque inválido");
+    }
+    const catalogPricePen = Number(
+      (Number(prod.list_sale_price_pen ?? 0) * packFactorApplied).toFixed(4)
+    );
     let baseUnitPricePen: number;
     let unitPricePen: number;
     let unitDiscountPen: number;
@@ -261,28 +324,23 @@ export async function createOrder(
 
     const minSalePricePen =
       prod.min_sale_price_pen !== null
-        ? Number(prod.min_sale_price_pen)
+        ? Number((Number(prod.min_sale_price_pen) * packFactorApplied).toFixed(4))
         : baseUnitPricePen;
     const belowMinPriceFlag = unitPricePen < minSalePricePen - 0.0001;
+    const requiredBaseQty = Number(
+      (Number(item.quantity) * packFactorApplied).toFixed(4)
+    );
     const referenceCostPen =
       prod.ref_cost_pen !== null ? Number(prod.ref_cost_pen) : null;
     const belowCostFlag =
-      referenceCostPen !== null && unitPricePen < referenceCostPen - 0.0001;
+      referenceCostPen !== null &&
+      unitPricePen < referenceCostPen * packFactorApplied - 0.0001;
     if (belowCostFlag && !isPartnerRole(actor.role)) {
       requiresApproval = true;
     }
 
     const lineTotalPen = Number((item.quantity * unitPricePen).toFixed(2));
     totalPen = Number((totalPen + lineTotalPen).toFixed(2));
-    const packFactorApplied = Number(
-      (item.packFactorApplied !== undefined
-        ? Number(item.packFactorApplied)
-        : 1
-      ).toFixed(4)
-    );
-    const requiredBaseQty = Number(
-      (Number(item.quantity) * packFactorApplied).toFixed(4)
-    );
 
     preparedLines.push({
       lineNo: idx + 1,
@@ -323,7 +381,7 @@ export async function createOrder(
     for (const line of preparedLines) {
       if (line.unitCostSnapshotPen !== null) {
         hasKnownCost = true;
-        totalKnownCostPen += line.quantity * line.unitCostSnapshotPen;
+        totalKnownCostPen += line.requiredBaseQty * line.unitCostSnapshotPen;
         knownCostLinesRevenue += line.lineTotalPen;
       }
     }
@@ -429,7 +487,9 @@ export async function createOrder(
       ) {
         const creditLimitPen = Number(partyRow.credit_limit_pen);
         const openArBalancePen = Number(partyRow.open_ar_balance_pen ?? 0);
-        const initialAdvance = Math.max(0, Number(input.initialPaidPen ?? 0));
+        const initialAdvance = requiresApproval
+          ? 0
+          : Math.max(0, Number(input.initialPaidPen ?? 0));
         const orderCreditExposure = Math.max(
           0,
           Number((totalPen - initialAdvance).toFixed(2))
@@ -533,42 +593,16 @@ export async function createOrder(
   const orderId = Number(orderInsert.rows[0].order_id);
 
   if (creditLimitExceededFlag && creditLimitDetails) {
-    await client.query(
-      `INSERT INTO erp.audit_flags (
-         flag_code, severity, entity_table, entity_id,
-         message, details, status, source_origin
-       ) VALUES (
-         'CREDIT_LIMIT_EXCEEDED',
-         'WARNING',
-         'erp.sales_orders',
-         $1,
-         $2,
-         $3::jsonb,
-         'OPEN',
-         'ERP_APP'
-       )
-       ON CONFLICT (flag_code, entity_table, entity_id)
-       WHERE status = 'OPEN'
-       DO UPDATE SET
-         message = EXCLUDED.message,
-         details = EXCLUDED.details`,
-      [
-        String(orderId),
-        `Pedido ${orderCode} (${input.customerNameRaw.trim()}) excede límite de crédito: proyectado S/ ${creditLimitDetails.projectedBalancePen.toFixed(2)} > límite S/ ${creditLimitDetails.creditLimitPen.toFixed(2)}`,
-        JSON.stringify({
-          order_id: orderId,
-          order_code: orderCode,
-          customer_party_id: input.customerPartyId ?? null,
-          customer_name: input.customerNameRaw.trim(),
-          credit_limit_pen: creditLimitDetails.creditLimitPen,
-          open_ar_balance_pen: creditLimitDetails.openArBalancePen,
-          order_total_pen: totalPen,
-          projected_balance_pen: creditLimitDetails.projectedBalancePen,
-          actor_user_id: actor.userId,
-          actor_role: actor.role,
-        }),
-      ]
-    );
+    await upsertCreditLimitAuditFlag(client, actor, {
+      orderId,
+      orderCode,
+      customerPartyId: input.customerPartyId ?? null,
+      customerName: input.customerNameRaw.trim(),
+      creditLimitPen: creditLimitDetails.creditLimitPen,
+      openArBalancePen: creditLimitDetails.openArBalancePen,
+      orderTotalPen: totalPen,
+      projectedBalancePen: creditLimitDetails.projectedBalancePen,
+    });
   }
 
   const remainingStockByProduct = new Map<number, number>();
@@ -614,15 +648,60 @@ export async function createOrder(
     );
   }
 
-  await client.query(
+  const insertedLinesRes = await client.query<{
+    order_line_id: number;
+    line_no: number;
+    product_id: number;
+    sku: string;
+    fulfillment_status: string;
+  }>(
     `INSERT INTO erp.sales_order_lines (
        order_id, line_no, product_id, raw_description, quantity, pack_factor_applied,
        base_unit_price_pen, unit_discount_pen, unit_price_pen,
        line_total_pen, unit_cost_snapshot_pen, fulfillment_status,
        below_min_price_flag
-     ) VALUES ${lineValuesClauses.join(", ")}`,
+     ) VALUES ${lineValuesClauses.join(", ")}
+     RETURNING order_line_id, line_no, product_id, fulfillment_status::text AS fulfillment_status`,
     lineParams
   );
+
+  for (const insertedLine of insertedLinesRes.rows ?? []) {
+    if (insertedLine.fulfillment_status !== "PENDING_SUPPLIER_PURCHASE") continue;
+    const matched = preparedLines.find(
+      (pl) => pl.lineNo === Number(insertedLine.line_no)
+    );
+    await client.query(
+      `INSERT INTO erp.audit_flags (
+         flag_code, severity, entity_table, entity_id,
+         message, details, source_origin
+       ) VALUES (
+         'ON_DEMAND_PENDING_PURCHASE',
+         'WARNING',
+         'erp.sales_order_lines',
+         $1,
+         $2,
+         $3::jsonb,
+         'ERP_APP'
+       )
+       ON CONFLICT (flag_code, entity_table, entity_id)
+       WHERE status = 'OPEN'
+       DO UPDATE SET
+         message = EXCLUDED.message,
+         details = EXCLUDED.details`,
+      [
+        String(insertedLine.order_line_id),
+        `ON_DEMAND sale line #${insertedLine.order_line_id} for SKU ${matched?.sku ?? insertedLine.product_id} awaiting supplier purchase`,
+        JSON.stringify({
+          order_id: orderId,
+          order_line_id: Number(insertedLine.order_line_id),
+          product_id: Number(insertedLine.product_id),
+          sku: matched?.sku ?? null,
+          warehouse_id: warehouseId,
+          required_base_qty: matched?.requiredBaseQty ?? null,
+        }),
+      ]
+    );
+  }
 
   await recordPriceOverrides(
     client,
@@ -652,15 +731,23 @@ export async function createOrder(
   // Never collect before approval. Cost data stays hidden from the seller, so
   // the backend makes this decision without blocking the order form.
 
-  const initialPaid = requiresApproval
+  if (input.initialPaidPen !== undefined && input.initialPaidPen !== null) {
+    const parsedInitialPaid = Number(input.initialPaidPen);
+    if (!Number.isFinite(parsedInitialPaid) || parsedInitialPaid < 0) {
+      throw new ValidationError("El pago inicial no puede ser negativo");
+    }
+  }
+
+  const rawInitialPaid = requiresApproval
     ? 0
     : input.paymentMode !== "CREDIT"
-      ? input.initialPaidPen !== undefined
+      ? input.initialPaidPen !== undefined && input.initialPaidPen !== null
         ? Number(input.initialPaidPen)
         : input.collectOnDelivery
           ? 0
           : totalPen
       : Number(input.initialPaidPen ?? 0);
+  const initialPaid = Number(rawInitialPaid.toFixed(2));
 
   if (initialPaid > 0) {
     if (initialPaid > totalPen + 0.05) {
@@ -1129,11 +1216,17 @@ export async function updateOrder(
       "Un pedido entregado o anulado requiere una corrección administrativa"
     );
   }
-  if (
-    actor.role === "EXTERNAL_SELLER" &&
-    Number(order.created_by_user_id) !== actor.userId
-  ) {
-    throw new AuthorizationError("Solo puedes modificar tus propios pedidos");
+  if (actor.role === "EXTERNAL_SELLER") {
+    if (Number(order.created_by_user_id) !== actor.userId) {
+      throw new AuthorizationError("Solo puedes modificar tus propios pedidos");
+    }
+    if (
+      !["REGISTERED", "PENDING_PARTNER_APPROVAL"].includes(String(order.status))
+    ) {
+      throw new AuthorizationError(
+        "Solo un socio puede modificar pedidos que ya pasaron a almacén o reparto"
+      );
+    }
   }
 
   const beforeLines = await client.query(
@@ -1189,7 +1282,9 @@ export async function updateOrder(
     if (!Number.isFinite(packFactor) || packFactor <= 0) {
       throw new ValidationError("Factor de empaque inválido");
     }
-    const catalogPrice = Number(product.list_sale_price_pen ?? 0);
+    const catalogPrice = Number(
+      (Number(product.list_sale_price_pen ?? 0) * packFactor).toFixed(4)
+    );
     let basePrice: number;
     let unitPrice: number;
     let discount: number;
@@ -1212,13 +1307,17 @@ export async function updateOrder(
     if (unitPrice <= 0)
       throw new ValidationError("El precio final debe ser mayor a cero");
     const cost = product.ref_cost_pen === null ? null : Number(product.ref_cost_pen);
-    if (cost !== null && unitPrice < cost - 0.0001 && !isPartnerRole(actor.role)) {
+    if (
+      cost !== null &&
+      unitPrice < cost * packFactor - 0.0001 &&
+      !isPartnerRole(actor.role)
+    ) {
       requiresApproval = true;
     }
     const minimum =
       product.min_sale_price_pen === null
         ? basePrice
-        : Number(product.min_sale_price_pen);
+        : Number((Number(product.min_sale_price_pen) * packFactor).toFixed(4));
     const lineTotal = Number((quantity * unitPrice).toFixed(2));
     totalPen = Number((totalPen + lineTotal).toFixed(2));
     return {
@@ -1262,7 +1361,7 @@ export async function updateOrder(
     for (const line of prepared) {
       if (line.cost !== null) {
         hasKnownCost = true;
-        totalKnownCostPen += line.quantity * line.cost;
+        totalKnownCostPen += line.quantity * line.packFactor * line.cost;
         knownCostLinesRevenue += line.lineTotal;
       }
     }
@@ -1275,6 +1374,11 @@ export async function updateOrder(
       }
     }
   }
+  if (requiresApproval && Number(order.paid_pen) > 0.005) {
+    throw new ValidationError(
+      "No puedes enviar a aprobación un pedido que ya tiene cobros registrados; ajusta el precio o anula el cobro primero"
+    );
+  }
   if (totalPen < Number(order.paid_pen) - 0.05) {
     throw new ValidationError(
       "El nuevo total no puede ser menor a lo ya cobrado; registra primero la devolución"
@@ -1282,6 +1386,11 @@ export async function updateOrder(
   }
 
   let creditLimitExceededFlag = false;
+  let creditLimitDetails: {
+    creditLimitPen: number;
+    openArBalancePen: number;
+    projectedBalancePen: number;
+  } | null = null;
   if (String(order.payment_mode) === "CREDIT" && order.customer_party_id !== null) {
     const customerId = Number(order.customer_party_id);
     await client.query(
@@ -1325,7 +1434,22 @@ export async function updateOrder(
       );
       if (projectedBalancePen > creditLimitPen + 0.005) {
         creditLimitExceededFlag = true;
-        if (!isPartnerRole(actor.role)) {
+        creditLimitDetails = {
+          creditLimitPen,
+          openArBalancePen,
+          projectedBalancePen,
+        };
+        const creditLimitMode = await getStringSetting(
+          client,
+          "credit_limit_mode",
+          "APPROVAL_GATE"
+        );
+        if (creditLimitMode === "STRICT_BLOCK" && !isPartnerRole(actor.role)) {
+          throw new ValidationError(
+            `El cliente excede su límite de crédito (S/ ${creditLimitPen.toFixed(2)})`
+          );
+        }
+        if (creditLimitMode === "APPROVAL_GATE" && !isPartnerRole(actor.role)) {
           requiresApproval = true;
         }
       }
@@ -1381,32 +1505,82 @@ export async function updateOrder(
   for (const line of prepared) {
     if (!available.has(line.productId)) available.set(line.productId, 0);
   }
+  const updateLineValuesClauses: string[] = [];
+  const updateLineParams: unknown[] = [];
   for (const line of prepared) {
     const stock = available.get(line.productId) ?? 0;
     const required = line.quantity * line.packFactor;
     const pendingPurchase = line.fulfillmentMode === "ON_DEMAND" && stock < required;
     if (!pendingPurchase) available.set(line.productId, stock - required);
+    const offset = updateLineParams.length;
+    updateLineValuesClauses.push(
+      `($${offset + 1},$${offset + 2},$${offset + 3},$${offset + 4},$${offset + 5},$${offset + 6},$${offset + 7},$${offset + 8},$${offset + 9},$${offset + 10},$${offset + 11},$${offset + 12},$${offset + 13})`
+    );
+    updateLineParams.push(
+      orderId,
+      line.lineNo,
+      line.productId,
+      line.name,
+      line.quantity,
+      line.packFactor,
+      line.basePrice,
+      line.discount,
+      line.unitPrice,
+      line.lineTotal,
+      line.cost,
+      pendingPurchase ? "PENDING_SUPPLIER_PURCHASE" : "FULFILLED",
+      line.belowMinimum
+    );
+  }
+
+  const updatedInsertedRes = await client.query<{
+    order_line_id: number;
+    line_no: number;
+    product_id: number;
+    fulfillment_status: string;
+  }>(
+    `INSERT INTO erp.sales_order_lines (
+       order_id, line_no, product_id, raw_description, quantity,
+       pack_factor_applied, base_unit_price_pen, unit_discount_pen,
+       unit_price_pen, line_total_pen, unit_cost_snapshot_pen,
+       fulfillment_status, below_min_price_flag
+     ) VALUES ${updateLineValuesClauses.join(", ")}
+     RETURNING order_line_id, line_no, product_id, fulfillment_status::text AS fulfillment_status`,
+    updateLineParams
+  );
+
+  for (const insertedLine of updatedInsertedRes.rows ?? []) {
+    if (insertedLine.fulfillment_status !== "PENDING_SUPPLIER_PURCHASE") continue;
+    const matched = prepared.find((pl) => pl.lineNo === Number(insertedLine.line_no));
     await client.query(
-      `INSERT INTO erp.sales_order_lines (
-         order_id, line_no, product_id, raw_description, quantity,
-         pack_factor_applied, base_unit_price_pen, unit_discount_pen,
-         unit_price_pen, line_total_pen, unit_cost_snapshot_pen,
-         fulfillment_status, below_min_price_flag
-       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
+      `INSERT INTO erp.audit_flags (
+         flag_code, severity, entity_table, entity_id,
+         message, details, source_origin
+       ) VALUES (
+         'ON_DEMAND_PENDING_PURCHASE',
+         'WARNING',
+         'erp.sales_order_lines',
+         $1,
+         $2,
+         $3::jsonb,
+         'ERP_APP'
+       )
+       ON CONFLICT (flag_code, entity_table, entity_id)
+       WHERE status = 'OPEN'
+       DO UPDATE SET
+         message = EXCLUDED.message,
+         details = EXCLUDED.details`,
       [
-        orderId,
-        line.lineNo,
-        line.productId,
-        line.name,
-        line.quantity,
-        line.packFactor,
-        line.basePrice,
-        line.discount,
-        line.unitPrice,
-        line.lineTotal,
-        line.cost,
-        pendingPurchase ? "PENDING_SUPPLIER_PURCHASE" : "FULFILLED",
-        line.belowMinimum,
+        String(insertedLine.order_line_id),
+        `ON_DEMAND sale line #${insertedLine.order_line_id} for SKU ${matched?.sku ?? insertedLine.product_id} awaiting supplier purchase`,
+        JSON.stringify({
+          order_id: orderId,
+          order_line_id: Number(insertedLine.order_line_id),
+          product_id: Number(insertedLine.product_id),
+          sku: matched?.sku ?? null,
+          warehouse_id: Number(order.warehouse_id),
+          required_base_qty: matched ? matched.quantity * matched.packFactor : null,
+        }),
       ]
     );
   }
@@ -1419,6 +1593,7 @@ export async function updateOrder(
      SET total_pen = $1, global_discount_pen = $7, operational_status = $2, stock_deducted = FALSE,
          credit_limit_exceeded_flag = $8,
          trip_id = NULL, picked_by_user_id = NULL, picked_at = NULL,
+         delivered_by_user_id = NULL, delivered_at = NULL,
          approved_by_user_id = $3, approved_at = $4,
          notes = COALESCE(notes || ' | ', '') || $5
      WHERE order_id = $6`,
@@ -1433,6 +1608,34 @@ export async function updateOrder(
       creditLimitExceededFlag,
     ]
   );
+
+  if (creditLimitExceededFlag && creditLimitDetails) {
+    await upsertCreditLimitAuditFlag(client, actor, {
+      orderId,
+      orderCode: String(order.order_code),
+      customerPartyId:
+        order.customer_party_id !== null && order.customer_party_id !== undefined
+          ? Number(order.customer_party_id)
+          : null,
+      customerName: String(order.customer_name_raw || "CLIENTE"),
+      creditLimitPen: creditLimitDetails.creditLimitPen,
+      openArBalancePen: creditLimitDetails.openArBalancePen,
+      orderTotalPen: totalPen,
+      projectedBalancePen: creditLimitDetails.projectedBalancePen,
+    });
+  } else {
+    await client.query(
+      `UPDATE erp.audit_flags
+       SET status = 'RESOLVED',
+           resolved_at = NOW(),
+           resolved_by = $2
+       WHERE flag_code = 'CREDIT_LIMIT_EXCEEDED'
+         AND entity_table = 'erp.sales_orders'
+         AND entity_id = $1
+         AND status = 'OPEN'`,
+      [String(orderId), actor.username]
+    );
+  }
 
   await recordPriceOverrides(
     client,

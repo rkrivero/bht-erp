@@ -125,6 +125,9 @@ export function validateClosureDateIso(raw?: string | null): string {
   ) {
     throw new ValidationError("Fecha de cierre fuera de calendario");
   }
+  if (process.env.NODE_ENV !== "test" && cleaned > getLimaDateString(0)) {
+    throw new ValidationError("No se puede cerrar una fecha futura");
+  }
   return cleaned;
 }
 
@@ -541,6 +544,22 @@ export async function saveDailyClosure(
     });
   }
 
+  const lockAcctsRes = await client.query<{ account_id: number }>(
+    `SELECT account_id
+     FROM erp.cash_accounts
+     WHERE is_active = TRUE
+       AND account_id = ANY($1::bigint[])
+     ORDER BY account_id ASC
+     FOR UPDATE`,
+    [Array.from(submittedMap.keys())]
+  );
+
+  if (lockAcctsRes.rowCount !== submittedMap.size) {
+    throw new ValidationError(
+      "Una o más cuentas seleccionadas no existen o están inactivas"
+    );
+  }
+
   const activeAcctsRes = await client.query<{
     account_id: number;
     code: string;
@@ -561,16 +580,9 @@ export async function saveDailyClosure(
      FROM erp.cash_accounts ca
      WHERE ca.is_active = TRUE
        AND ca.account_id = ANY($2::bigint[])
-     ORDER BY ca.account_id ASC
-     FOR UPDATE OF ca`,
+     ORDER BY ca.account_id ASC`,
     [closureDate, Array.from(submittedMap.keys()), existingId]
   );
-
-  if (activeAcctsRes.rowCount !== submittedMap.size) {
-    throw new ValidationError(
-      "Una o más cuentas seleccionadas no existen o están inactivas"
-    );
-  }
 
   const preDraft = await getDailyClosureDraft(client, actor, closureDate);
   if (preDraft.accounts.length !== submittedMap.size) {
@@ -799,14 +811,20 @@ export async function saveDailyClosure(
       ]
     );
 
-    if (snap.countedBalancePen !== null) {
+    if (isAccountReconciled) {
       await client.query(
         `UPDATE erp.cash_accounts
          SET last_reconciled_at = NOW(),
              last_reconciled_balance_pen = $2,
              last_reconciled_by_user_id = $3
-         WHERE account_id = $1`,
-        [snap.accountId, snap.countedBalancePen, actor.userId]
+         WHERE account_id = $1
+           AND NOT EXISTS (
+             SELECT 1
+             FROM erp.daily_closures dc
+             WHERE dc.status = 'CLOSED'
+               AND dc.closure_date > $4::date
+           )`,
+        [snap.accountId, snap.countedBalancePen, actor.userId, closureDate]
       );
     }
   }
@@ -817,10 +835,11 @@ export async function saveDailyClosure(
       closure: saved.existingClosure,
       accounts: saved.accounts,
     };
-    await client.query(
+    const auditRes = await client.query<{ audit_id: string; created_at: string }>(
       `INSERT INTO erp.daily_closure_audit_log
          (closure_id, actor_user_id, actor_role, reason, before_data, after_data)
-       VALUES ($1, $2, $3, $4, $5::jsonb, $6::jsonb)`,
+       VALUES ($1, $2, $3, $4, $5::jsonb, $6::jsonb)
+       RETURNING audit_id, created_at::text AS created_at`,
       [
         closureId,
         actor.userId,
@@ -830,7 +849,18 @@ export async function saveDailyClosure(
         JSON.stringify(afterData),
       ]
     );
-    return getDailyClosureDraft(client, actor, closureDate);
+    const auditRow = auditRes.rows[0];
+    if (auditRow) {
+      saved.corrections.unshift({
+        auditId: Number(auditRow.audit_id),
+        actorName: actor.fullName,
+        actorRole: actor.role,
+        reason: correctionReason,
+        beforeData,
+        afterData,
+        createdAt: String(auditRow.created_at),
+      });
+    }
   }
   return saved;
 }
@@ -859,36 +889,94 @@ export async function reopenDailyClosure(
     throw new ValidationError("No existe un cierre cerrado para esta fecha");
   }
 
+  const closureId = Number(row.closure_id);
   const beforeDraft = await getDailyClosureDraft(client, actor, closureDate);
   await client.query(
     `UPDATE erp.daily_closures
      SET status = 'OPEN', updated_at = NOW()
      WHERE closure_id = $1`,
-    [Number(row.closure_id)]
+    [closureId]
   );
+
+  // Reverse any active CONCILIACION_SALDO adjustments posted by this closure so
+  // real-time account balances and next-day drafts do not retain stale variances.
+  await client.query(
+    `INSERT INTO erp.cash_ledger (
+       tx_date, account_id, direction, amount_pen,
+       expense_bucket, expense_category, is_internal_transfer,
+       reference_table, reference_id, description, source_origin,
+       created_by_user_id, reversal_of_ledger_id, is_reversal
+     )
+     SELECT
+       $1::date,
+       cl.account_id,
+       CASE WHEN cl.direction = 'IN' THEN 'OUT'::erp.cash_direction ELSE 'IN'::erp.cash_direction END,
+       cl.amount_pen,
+       CASE WHEN cl.direction = 'IN' THEN 'NON_OPEX_OR_CAPEX'::erp.expense_bucket ELSE NULL END,
+       'CONCILIACION_SALDO',
+       FALSE,
+       'erp.daily_closures',
+       $2,
+       $3,
+       'ERP_APP',
+       $4,
+       cl.ledger_id,
+       TRUE
+     FROM erp.cash_ledger cl
+     WHERE cl.reference_table = 'erp.daily_closures'
+       AND cl.reference_id = $2
+       AND cl.expense_category = 'CONCILIACION_SALDO'
+       AND NOT cl.is_reversal
+       AND NOT EXISTS (
+         SELECT 1 FROM erp.cash_ledger rev
+         WHERE rev.reversal_of_ledger_id = cl.ledger_id
+       )`,
+    [
+      closureDate,
+      String(closureId),
+      `Reversión de ajuste por reapertura de cierre diario ${closureDate}`,
+      actor.userId,
+    ]
+  );
+
   const afterDraft = await getDailyClosureDraft(client, actor, closureDate);
 
   if (beforeDraft.existingClosure && afterDraft.existingClosure) {
-    await client.query(
+    const beforeSnapshot: DailyClosureAuditSnapshot = {
+      closure: beforeDraft.existingClosure,
+      accounts: beforeDraft.accounts,
+    };
+    const afterSnapshot: DailyClosureAuditSnapshot = {
+      closure: afterDraft.existingClosure,
+      accounts: afterDraft.accounts,
+    };
+    const auditReason = `Reapertura del día: ${reason}`;
+    const auditRes = await client.query<{ audit_id: string; created_at: string }>(
       `INSERT INTO erp.daily_closure_audit_log
          (closure_id, actor_user_id, actor_role, reason, before_data, after_data)
-       VALUES ($1, $2, $3, $4, $5::jsonb, $6::jsonb)`,
+       VALUES ($1, $2, $3, $4, $5::jsonb, $6::jsonb)
+       RETURNING audit_id, created_at::text AS created_at`,
       [
-        Number(row.closure_id),
+        closureId,
         actor.userId,
         actor.role,
-        `Reapertura del día: ${reason}`,
-        JSON.stringify({
-          closure: beforeDraft.existingClosure,
-          accounts: beforeDraft.accounts,
-        }),
-        JSON.stringify({
-          closure: afterDraft.existingClosure,
-          accounts: afterDraft.accounts,
-        }),
+        auditReason,
+        JSON.stringify(beforeSnapshot),
+        JSON.stringify(afterSnapshot),
       ]
     );
-    return getDailyClosureDraft(client, actor, closureDate);
+    const auditRow = auditRes.rows[0];
+    if (auditRow) {
+      afterDraft.corrections.unshift({
+        auditId: Number(auditRow.audit_id),
+        actorName: actor.fullName,
+        actorRole: actor.role,
+        reason: auditReason,
+        beforeData: beforeSnapshot,
+        afterData: afterSnapshot,
+        createdAt: String(auditRow.created_at),
+      });
+    }
   }
   return afterDraft;
 }

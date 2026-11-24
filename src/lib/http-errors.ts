@@ -3,7 +3,6 @@ import {
   AuthenticationError,
   AuthorizationError,
   ConflictError,
-  PasswordChangeRequiredError,
   ValidationError,
   type ApiErrorResponse,
 } from "./types";
@@ -29,9 +28,6 @@ export function resolveHttpError(
 ): ResolvedHttpError {
   if (err instanceof AuthenticationError) {
     return { status: 401, error: err.message };
-  }
-  if (err instanceof PasswordChangeRequiredError) {
-    return { status: 428, error: err.message };
   }
   if (err instanceof AuthorizationError) {
     return { status: 403, error: err.message };

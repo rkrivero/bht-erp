@@ -772,6 +772,14 @@ export async function updateCustomer(
   ]);
   const partyId = parsePositiveInt(partyIdInput, "ID de cliente");
 
+  const lockRes = await client.query(
+    `SELECT 1 FROM erp.parties WHERE party_id = $1 FOR UPDATE`,
+    [partyId]
+  );
+  if (lockRes.rowCount === 0) {
+    throw new ValidationError("Cliente no encontrado");
+  }
+
   const existing = await fetchCustomerById(client, partyId);
   if (!existing) {
     throw new ValidationError("Cliente no encontrado");
@@ -807,6 +815,11 @@ export async function updateCustomer(
   }
 
   if (actor.role === "EXTERNAL_SELLER") {
+    if (!existing.is_active) {
+      throw new AuthorizationError(
+        "El vendedor no puede modificar un cliente inactivo"
+      );
+    }
     if (input.isActive !== undefined) {
       throw new AuthorizationError(
         "Solo un socio puede activar o desactivar un cliente"
@@ -1029,10 +1042,60 @@ export async function updateCustomer(
  * List suppliers master data for the Partner Directory (`Directorio > Proveedores`)
  * with read-only AP balance summary linking to `Caja`.
  */
+function mapSupplierDirectoryRow(r: Record<string, unknown>): SupplierDirectoryItem {
+  return {
+    party_id: Number(r.party_id),
+    legal_name: String(r.legal_name),
+    trade_name: r.trade_name ? String(r.trade_name) : null,
+    display_name: String(r.display_name),
+    doc_type: String(r.doc_type || "NONE"),
+    doc_number: r.doc_number ? String(r.doc_number) : null,
+    phone: r.phone ? String(r.phone) : null,
+    email: r.email ? String(r.email) : null,
+    address: r.address ? String(r.address) : null,
+    city_zone: r.city_zone ? String(r.city_zone) : null,
+    notes: r.notes ? String(r.notes) : null,
+    is_active: Boolean(r.is_active),
+    open_ap_balance_pen: Number(r.open_ap_balance_pen ?? 0),
+    open_docs_count: Number(r.open_docs_count ?? 0),
+  };
+}
+
+async function fetchSupplierById(
+  client: PoolClient,
+  partyId: number
+): Promise<SupplierDirectoryItem | null> {
+  const res = await client.query(
+    `SELECT
+       pa.party_id,
+       pa.legal_name,
+       pa.trade_name,
+       COALESCE(pa.trade_name, pa.legal_name) AS display_name,
+       pa.doc_type::text AS doc_type,
+       pa.doc_number,
+       pa.phone,
+       pa.email,
+       pa.address,
+       pa.city_zone,
+       pa.notes,
+       pa.is_active,
+       COALESCE(SUM(ap.balance_due_pen) FILTER (WHERE ap.status IN ('OPEN', 'PARTIAL')), 0)::NUMERIC(14,2) AS open_ap_balance_pen,
+       COUNT(ap.ap_id) FILTER (WHERE ap.status IN ('OPEN', 'PARTIAL'))::int AS open_docs_count
+     FROM erp.parties pa
+     LEFT JOIN erp.ap_obligations ap ON ap.supplier_party_id = pa.party_id
+     WHERE pa.party_id = $1
+       AND pa.party_type IN ('SUPPLIER', 'BOTH')
+     GROUP BY pa.party_id`,
+    [partyId]
+  );
+  if (res.rowCount === 0) return null;
+  return mapSupplierDirectoryRow(res.rows[0]);
+}
+
 export async function listSuppliersDirectory(
   client: PoolClient,
   actor: SessionUser,
-  input: ListSuppliersInput = {}
+  input: ListSuppliersInput & { limit?: number } = {}
 ): Promise<{ suppliers: SupplierDirectoryItem[] }> {
   assertRole(actor, ["PARTNER_ADMIN", "PARTNER_MANAGER"]);
 
@@ -1061,6 +1124,10 @@ export async function listSuppliersDirectory(
     );
   }
 
+  const safeLimit = Math.max(1, Math.min(2000, Math.trunc(input.limit ?? 500)));
+  params.push(safeLimit);
+  const limitParam = `$${params.length}`;
+
   const res = await client.query(
     `SELECT
        pa.party_id,
@@ -1081,27 +1148,13 @@ export async function listSuppliersDirectory(
      LEFT JOIN erp.ap_obligations ap ON ap.supplier_party_id = pa.party_id
      WHERE ${conditions.join(" AND ")}
      GROUP BY pa.party_id
-     ORDER BY pa.is_active DESC, COALESCE(pa.trade_name, pa.legal_name) ASC`,
+     ORDER BY pa.is_active DESC, COALESCE(pa.trade_name, pa.legal_name) ASC
+     LIMIT ${limitParam}`,
     params
   );
 
   return {
-    suppliers: res.rows.map((r) => ({
-      party_id: Number(r.party_id),
-      legal_name: String(r.legal_name),
-      trade_name: r.trade_name ? String(r.trade_name) : null,
-      display_name: String(r.display_name),
-      doc_type: String(r.doc_type || "NONE"),
-      doc_number: r.doc_number ? String(r.doc_number) : null,
-      phone: r.phone ? String(r.phone) : null,
-      email: r.email ? String(r.email) : null,
-      address: r.address ? String(r.address) : null,
-      city_zone: r.city_zone ? String(r.city_zone) : null,
-      notes: r.notes ? String(r.notes) : null,
-      is_active: Boolean(r.is_active),
-      open_ap_balance_pen: Number(r.open_ap_balance_pen ?? 0),
-      open_docs_count: Number(r.open_docs_count ?? 0),
-    })),
+    suppliers: res.rows.map(mapSupplierDirectoryRow),
   };
 }
 
@@ -1134,7 +1187,7 @@ export async function updateSupplier(
      FROM erp.parties pa
      WHERE pa.party_id = $1
        AND pa.party_type IN ('SUPPLIER', 'BOTH')
-     LIMIT 1`,
+     FOR UPDATE`,
     [partyId]
   );
   if (existingRes.rowCount === 0) {
@@ -1226,10 +1279,7 @@ export async function updateSupplier(
       ]
     );
 
-    const { suppliers } = await listSuppliersDirectory(client, actor, {
-      status: "ALL",
-    });
-    const updated = suppliers.find((s) => s.party_id === partyId);
+    const updated = await fetchSupplierById(client, partyId);
     if (!updated) {
       throw new ValidationError("No se pudo recuperar el proveedor actualizado");
     }

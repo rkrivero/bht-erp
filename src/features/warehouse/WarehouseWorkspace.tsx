@@ -247,11 +247,12 @@ export default function WarehouseWorkspace() {
             <div className="flex items-center gap-2">
               <Button
                 variant="outline"
-                size="md"
+                size="sm"
                 onClick={() => router.push("/socios")}
-                className="min-h-[38px] sm:min-h-[40px] px-3.5 text-xs sm:text-sm"
+                className="h-8 sm:h-auto sm:min-h-[40px] px-2.5 sm:px-3.5 text-xs sm:text-sm"
               >
-                Control Operativo
+                <span className="sm:hidden">Control</span>
+                <span className="hidden sm:inline">Control Operativo</span>
               </Button>
               <Button
                 variant="outline"

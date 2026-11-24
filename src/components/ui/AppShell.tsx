@@ -378,6 +378,42 @@ export function AppHeader({
 
   const syncCfg = displaySyncStatus ? SYNC_STATUS_CONFIG[displaySyncStatus] : null;
 
+  const statusBadges = (
+    <>
+      <Badge tone={roleTone} dotColor={roleDotColor}>
+        {roleLabel}
+      </Badge>
+      {syncCfg &&
+        (onSyncClick ? (
+          <button
+            type="button"
+            data-compact="true"
+            onClick={onSyncClick}
+            aria-label={`Estado de sincronización: ${syncCfg.label}. Tocar para actualizar`}
+            className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[11px] font-medium leading-4 whitespace-nowrap transition hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bht-cobalt cursor-pointer ${syncCfg.pillClass}`}
+          >
+            <span
+              className={`h-1.5 w-1.5 rounded-full ${syncCfg.dotClass}`}
+              aria-hidden="true"
+            />
+            <span>{syncCfg.label}</span>
+          </button>
+        ) : (
+          <span
+            role="status"
+            aria-live="polite"
+            className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[11px] font-medium leading-4 whitespace-nowrap ${syncCfg.pillClass}`}
+          >
+            <span
+              className={`h-1.5 w-1.5 rounded-full ${syncCfg.dotClass}`}
+              aria-hidden="true"
+            />
+            <span>{syncCfg.label}</span>
+          </span>
+        ))}
+    </>
+  );
+
   return (
     <header
       className={`sticky top-0 z-30 border-b border-[var(--border-hairline)] bg-white ${withSidebar ? "bht-sidebar-offset" : ""}`}
@@ -397,38 +433,8 @@ export function AppHeader({
             <h1 className="truncate text-[15px] font-semibold leading-tight tracking-[-0.015em] text-bht-ink-deep sm:text-base">
               {title}
             </h1>
-            <div className="flex flex-wrap items-center gap-1.5">
-              <Badge tone={roleTone} dotColor={roleDotColor}>
-                {roleLabel}
-              </Badge>
-              {syncCfg &&
-                (onSyncClick ? (
-                  <button
-                    type="button"
-                    data-compact="true"
-                    onClick={onSyncClick}
-                    aria-label={`Estado de sincronización: ${syncCfg.label}. Tocar para actualizar`}
-                    className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[11px] font-medium leading-4 whitespace-nowrap transition hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bht-cobalt cursor-pointer ${syncCfg.pillClass}`}
-                  >
-                    <span
-                      className={`h-1.5 w-1.5 rounded-full ${syncCfg.dotClass}`}
-                      aria-hidden="true"
-                    />
-                    <span>{syncCfg.label}</span>
-                  </button>
-                ) : (
-                  <span
-                    role="status"
-                    aria-live="polite"
-                    className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[11px] font-medium leading-4 whitespace-nowrap ${syncCfg.pillClass}`}
-                  >
-                    <span
-                      className={`h-1.5 w-1.5 rounded-full ${syncCfg.dotClass}`}
-                      aria-hidden="true"
-                    />
-                    <span>{syncCfg.label}</span>
-                  </span>
-                ))}
+            <div className="hidden sm:flex flex-wrap items-center gap-1.5">
+              {statusBadges}
               {userSubtitle && (
                 <span className="hidden truncate text-xs font-medium text-bht-ink-muted lg:inline">
                   {userSubtitle}
@@ -510,6 +516,9 @@ export function AppHeader({
               </div>
             </div>
           </div>
+        </div>
+        <div className="col-span-2 flex flex-wrap items-center gap-1.5 sm:hidden">
+          {statusBadges}
         </div>
       </div>
     </header>
@@ -669,7 +678,7 @@ export function BottomNav<T extends string>({
                   setMoreOpen(evt.newState === "open");
                 }
               }}
-              className="fixed inset-x-3 bottom-[calc(4.5rem+env(safe-area-inset-bottom,0px))] z-50 mx-auto w-auto max-w-sm rounded-xl border border-bht-slate-line bg-white p-1.5 shadow-bht-elev-17"
+              className="fixed top-auto inset-x-3 bottom-[calc(4.5rem+env(safe-area-inset-bottom,0px))] z-50 mx-auto mt-auto mb-0 w-auto max-w-sm rounded-xl border border-bht-slate-line bg-white p-1.5 shadow-bht-elev-17"
             >
               {extraItems.map((item) => (
                 <button
