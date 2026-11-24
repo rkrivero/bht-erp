@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useDeferredValue, useMemo, useState } from "react";
-import type { PartnerCatalogItem } from "@/components/socios/types";
+import type { PartnerCatalogItem } from "@/features/partners/components/types";
 import { notifyLocalSync } from "@/lib/realtime/useLiveSync";
 import { mutationErrorMessage, postJson, type ShowFeedback } from "./partnerShared";
 import type { PartnerData } from "./usePartnerData";

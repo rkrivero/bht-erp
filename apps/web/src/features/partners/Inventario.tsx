@@ -2,7 +2,7 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
-import { formatPen } from "@/components/socios/types";
+import { formatPen } from "@/features/partners/components/types";
 import { ControlPanel, type ControlPanelFacet } from "@/components/ui/ControlPanel";
 import { EditIcon } from "@/components/ui/Icons";
 import { Badge, Button, Card, SegmentedControl } from "@/components/ui/Primitives";
@@ -15,10 +15,10 @@ import type { RawProductRow } from "@/lib/types";
 import type { ShowFeedback } from "./partnerShared";
 import type { InventoryAttentionFilter, InventoryFlow } from "./useInventoryFlow";
 
-export { InventarioModals } from "@/components/socios/InventarioModals";
+export { InventarioModals } from "@/features/partners/components/InventarioModals";
 
 const PurchaseRegularizationPanel = dynamic(
-  () => import("@/components/socios/PurchaseRegularizationPanel"),
+  () => import("@/features/partners/components/PurchaseRegularizationPanel"),
   {
     loading: () => (
       <Card className="p-8 text-center text-sm text-bht-ink-soft" role="status">

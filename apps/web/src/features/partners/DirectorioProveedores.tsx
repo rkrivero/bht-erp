@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import dynamic from "next/dynamic";
-import { formatPen } from "@/components/socios/types";
+import { formatPen } from "@/features/partners/components/types";
 import { EditIcon, PlusIcon, SearchIcon } from "@/components/ui/Icons";
 import {
   Badge,

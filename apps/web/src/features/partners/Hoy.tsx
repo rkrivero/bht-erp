@@ -2,7 +2,7 @@
 
 import React from "react";
 import { useRouter } from "next/navigation";
-import { formatDatePe, formatPen } from "@/components/socios/types";
+import { formatDatePe, formatPen } from "@/features/partners/components/types";
 import {
   ActivityIcon,
   AlertTriangleIcon,

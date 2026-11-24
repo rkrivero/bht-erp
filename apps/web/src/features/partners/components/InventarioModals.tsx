@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { formatDatePe, formatPen } from "@/components/socios/types";
+import { formatDatePe, formatPen } from "@/features/partners/components/types";
 import {
   Button,
   FieldLabel,

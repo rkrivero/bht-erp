@@ -1,4 +1,4 @@
-import type { CurrentUserInfo } from "@/components/socios/types";
+import type { CurrentUserInfo } from "@/features/partners/components/types";
 import type { WarehouseOrderDto } from "@/lib/contracts";
 import type { CheckedLines, WarehouseStage } from "./types";
 

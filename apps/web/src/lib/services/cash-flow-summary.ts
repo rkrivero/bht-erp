@@ -1,5 +1,5 @@
 import type { PoolClient } from "pg";
-import type { DailyCashFlowSummary } from "@/components/socios/types";
+import type { DailyCashFlowSummary } from "@/features/partners/components/types";
 
 export interface CashAccountFlowBreakdown {
   dayInPen: number;

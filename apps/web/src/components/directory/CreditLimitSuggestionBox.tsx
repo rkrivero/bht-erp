@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Badge, Button } from "@/components/ui/Primitives";
-import { formatPen } from "@/components/socios/types";
+import { formatPen } from "@/features/partners/components/types";
 import { ApiClientError, fetchJson } from "@/lib/api-client";
 
 interface NormalizedCreditSuggestion {

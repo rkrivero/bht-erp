@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { PartnerCatalogItem } from "@/components/socios/types";
+import type { PartnerCatalogItem } from "@/features/partners/components/types";
 import { summarizeInventory } from "@/features/partners/useInventoryFlow";
 
 function product(

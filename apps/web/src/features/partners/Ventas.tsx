@@ -1,10 +1,10 @@
 "use client";
 
 import React, { useEffect, useMemo } from "react";
-import { PartnerQuotesPanel } from "@/components/socios/PartnerQuotesPanel";
-import { PartnerEditQuoteModal } from "@/components/socios/PartnerEditQuoteModal";
-import { OrderDetailSheet } from "@/components/socios/ventas/OrderDetailSheet";
-import { formatPen } from "@/components/socios/types";
+import { PartnerQuotesPanel } from "@/features/partners/components/PartnerQuotesPanel";
+import { PartnerEditQuoteModal } from "@/features/partners/components/PartnerEditQuoteModal";
+import { OrderDetailSheet } from "@/features/partners/components/ventas/OrderDetailSheet";
+import { formatPen } from "@/features/partners/components/types";
 import {
   ControlPanel,
   type ControlPanelFacet,

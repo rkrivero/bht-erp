@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import type { CurrentUserInfo } from "@/components/socios/types";
+import type { CurrentUserInfo } from "@/features/partners/components/types";
 import { ApiClientError, fetchJson } from "@/lib/api-client";
 import type {
   WarehouseOrderDto,

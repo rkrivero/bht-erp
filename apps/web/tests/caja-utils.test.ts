@@ -7,8 +7,8 @@ import {
   isExpenseLedgerEntry,
   resolveYapePlinAccountId,
   type PurchaseLineDraft,
-} from "../src/components/socios/caja/caja-utils";
-import type { CashLedgerEntry } from "../src/components/socios/types";
+} from "../src/features/partners/components/caja/caja-utils";
+import type { CashLedgerEntry } from "../src/features/partners/components/types";
 
 describe("caja utilities & purchase totals", () => {
   const sampleItems: PurchaseLineDraft[] = [

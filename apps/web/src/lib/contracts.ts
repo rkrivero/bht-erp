@@ -16,7 +16,7 @@ import type {
   RecentPurchaseItem,
   SupplierItem,
   UserAccessAuditItem,
-} from "@/components/socios/types";
+} from "@/features/partners/components/types";
 import type {
   SellerCatalogItemDto,
   SellerCustomerDto,

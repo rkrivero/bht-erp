@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { formatPen } from "@/components/socios/types";
+import { formatPen } from "@/features/partners/components/types";
 import {
   AbonoModal,
   DebtorDetailModal,

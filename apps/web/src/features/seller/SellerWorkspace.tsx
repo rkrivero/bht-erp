@@ -29,7 +29,7 @@ import {
   ToastBanner,
 } from "@/components/ui/Primitives";
 import { RecentUndoStrip } from "@/components/shared/RecentUndoStrip";
-import { formatPen } from "@/components/socios/types";
+import { formatPen } from "@/features/partners/components/types";
 import { ApiClientError } from "@/lib/api-client";
 import { notifyLocalSync, useLiveSync } from "@/lib/realtime/useLiveSync";
 import { executeUndoRequest } from "@/lib/undo-client";

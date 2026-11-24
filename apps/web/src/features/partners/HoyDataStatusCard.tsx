@@ -6,7 +6,7 @@ import {
   formatDatePe,
   type DataCutSummary,
   type OperationalQualitySummary,
-} from "@/components/socios/types";
+} from "@/features/partners/components/types";
 import { ChevronRightIcon } from "@/components/ui/Icons";
 import { Badge, Button, Card } from "@/components/ui/Primitives";
 import type { PartnerTab } from "./partnerShared";

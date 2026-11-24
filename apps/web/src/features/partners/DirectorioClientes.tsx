@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
-import { formatPen } from "@/components/socios/types";
+import { formatPen } from "@/features/partners/components/types";
 import { CustomerDetailContent } from "@/components/directory/CustomerDetailContent";
 import { ControlPanel, type ControlPanelFacet } from "@/components/ui/ControlPanel";
 import { PlusIcon } from "@/components/ui/Icons";

@@ -2,7 +2,7 @@ import type { PoolClient } from "pg";
 import type {
   DataCutSummary,
   OperationalQualitySummary,
-} from "@/components/socios/types";
+} from "@/features/partners/components/types";
 import {
   DATA_CUT_SELECT,
   OPERATIONAL_QUALITY_SELECT,

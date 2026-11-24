@@ -32,7 +32,7 @@ import type {
   PendingOnDemandItem,
   RecentPurchaseItem,
   SupplierItem,
-} from "@/components/socios/types";
+} from "@/features/partners/components/types";
 import {
   dispatchSyncScopeInvalidation,
   getBrowserQueryClient,

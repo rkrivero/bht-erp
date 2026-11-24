@@ -1,6 +1,6 @@
 "use client";
 
-import { formatDatePe, formatPen } from "@/components/socios/types";
+import { formatDatePe, formatPen } from "@/features/partners/components/types";
 import { FormSheet } from "@/components/ui/FormSheet";
 import {
   EditIcon,

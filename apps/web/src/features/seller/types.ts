@@ -1,5 +1,5 @@
 import type { Dispatch, SetStateAction } from "react";
-import type { CashAccountItem } from "@/components/socios/types";
+import type { CashAccountItem } from "@/features/partners/components/types";
 import type { UndoActionReceiptDto } from "@/lib/contracts";
 import type { RawOrderWithLines } from "@/lib/types";
 

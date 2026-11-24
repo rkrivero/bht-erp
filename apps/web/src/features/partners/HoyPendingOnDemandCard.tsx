@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { formatPen } from "@/components/socios/types";
+import { formatPen } from "@/features/partners/components/types";
 import { PlusIcon } from "@/components/ui/Icons";
 import { Button, Card } from "@/components/ui/Primitives";
 import type { PartnerData } from "./usePartnerData";

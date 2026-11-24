@@ -34,7 +34,7 @@ import {
 import { Button, ToastBanner } from "@/components/ui/Primitives";
 import { SkeletonCards } from "@/components/ui/Skeleton";
 import { RecentUndoStrip } from "@/components/shared/RecentUndoStrip";
-import { formatPen } from "@/components/socios/types";
+import { formatPen } from "@/features/partners/components/types";
 import { formatRoleEs } from "@/lib/labels-es";
 import {
   notifyLocalSync,
@@ -48,7 +48,7 @@ import {
 } from "@/lib/navigation";
 import { deleteOfflineSnapshotsForActor } from "@/lib/offline/outbox";
 import { useGlobalShortcuts } from "@/lib/useGlobalShortcuts";
-import type { CajaSubTab } from "@/components/socios/caja/caja-utils";
+import type { CajaSubTab } from "@/features/partners/components/caja/caja-utils";
 import type { CustomerDirectoryItem } from "@/lib/services/customers";
 import type { InventorySubView } from "./Inventario";
 import { Hoy } from "./Hoy";

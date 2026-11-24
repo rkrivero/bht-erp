@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import dynamic from "next/dynamic";
-import { formatPen } from "@/components/socios/types";
+import { formatPen } from "@/features/partners/components/types";
 import { Badge, Button, Card, EmptyState } from "@/components/ui/Primitives";
 import type { SellerQuoteDto } from "@/features/seller/types";
 

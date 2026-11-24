@@ -6,7 +6,7 @@ import type {
   OperationalQualitySummary,
   StartupChecklistItem,
   WeeklyCoverageCohort,
-} from "@/components/socios/types";
+} from "@/features/partners/components/types";
 
 export const DATA_CUT_SELECT = `
   json_build_object(

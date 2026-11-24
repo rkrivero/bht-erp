@@ -2,7 +2,7 @@
 
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
-import type { CajaSubTab } from "@/components/socios/caja/caja-utils";
+import type { CajaSubTab } from "@/features/partners/components/caja/caja-utils";
 import { Card } from "@/components/ui/Primitives";
 import type { PartnerData } from "./usePartnerData";
 import type { PartnerTab, PurchaseTarget, ShowFeedback } from "./partnerShared";
@@ -16,11 +16,11 @@ const DeferredSection = () => (
   </Card>
 );
 
-const CajaWorkspace = dynamic(() => import("@/components/socios/caja/CajaWorkspace"), {
+const CajaWorkspace = dynamic(() => import("@/features/partners/components/caja/CajaWorkspace"), {
   loading: DeferredSection,
 });
 const ReportesWorkspace = dynamic(
-  () => import("@/components/socios/reportes/ReportesWorkspace"),
+  () => import("@/features/partners/components/reportes/ReportesWorkspace"),
   {
     loading: DeferredSection,
   }

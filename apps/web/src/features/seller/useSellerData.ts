@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ApiClientError, fetchJson, hasTopLevelKeys } from "@/lib/api-client";
-import type { CashAccountItem, CurrentUserInfo } from "@/components/socios/types";
+import type { CashAccountItem, CurrentUserInfo } from "@/features/partners/components/types";
 import type {
   CollectionsResponseDto,
   CustomerDebtDto,

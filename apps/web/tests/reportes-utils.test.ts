@@ -11,7 +11,7 @@ import {
   formatDeadStockStatusEs,
   formatMaturityBucketEs,
   formatPct,
-} from "../src/components/socios/reportes/reportes-types";
+} from "../src/features/partners/components/reportes/reportes-types";
 
 describe("reportes-types pure helpers", () => {
   it("declares the 6 report sections and 7 CSV export cards", () => {

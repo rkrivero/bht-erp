@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { formatPen } from "@/components/socios/types";
+import { formatPen } from "@/features/partners/components/types";
 import { FormSheet } from "@/components/ui/FormSheet";
 import { Badge, Button } from "@/components/ui/Primitives";
 import {

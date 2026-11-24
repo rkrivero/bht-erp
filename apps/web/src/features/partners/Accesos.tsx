@@ -8,18 +8,18 @@ import type { PartnerData } from "./usePartnerData";
 import type { ShowFeedback } from "./partnerShared";
 
 const UserManagementPanel = dynamic(
-  () => import("@/components/socios/UserManagementPanel"),
+  () => import("@/features/partners/components/UserManagementPanel"),
   {
     loading: () => <SkeletonCards count={2} />,
   }
 );
 
-const AdminUndoPanel = dynamic(() => import("@/components/socios/AdminUndoPanel"), {
+const AdminUndoPanel = dynamic(() => import("@/features/partners/components/AdminUndoPanel"), {
   loading: () => <SkeletonCards count={2} />,
 });
 
 const SystemSettingsPanel = dynamic(
-  () => import("@/components/socios/SystemSettingsPanel"),
+  () => import("@/features/partners/components/SystemSettingsPanel"),
   {
     loading: () => <SkeletonCards count={2} />,
   }
