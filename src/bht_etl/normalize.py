@@ -5,12 +5,11 @@ from __future__ import annotations
 import re
 from collections import defaultdict
 from dataclasses import dataclass, field
-from datetime import date, datetime
+from datetime import date
 from pathlib import Path
 from typing import Any
 
 from bht_etl.config import (
-    ExpenseClassificationConfig,
     PartyAliasEntry,
     ProductAliasEntry,
     load_expense_config,
@@ -21,9 +20,7 @@ from bht_etl.config import (
 from bht_etl.extractors import stable_hash
 from bht_etl.extractors.excel_catalogs import (
     RawCatalogProduct,
-    RawCostCatalogRow,
     RawEntityRow,
-    RawOpeningStockRow,
     RawQuoteHeader,
     RawQuoteLine,
     extract_cost_catalog,

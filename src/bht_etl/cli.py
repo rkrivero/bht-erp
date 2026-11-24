@@ -31,9 +31,9 @@ def _load_sensitive_regexes(root: Path | None) -> list[str]:
     try:
         paths = get_project_paths(root)
         cfg = load_expense_config(paths.config_dir)
-        patterns = [p.pattern for p in cfg.sensitive_row_block_patterns]
+        patterns = [p.pattern for p in cfg.sensitive_patterns]
         return patterns or list(FALLBACK_SENSITIVE_REGEXES)
-    except Exception:
+    except (FileNotFoundError, OSError):
         return list(FALLBACK_SENSITIVE_REGEXES)
 
 
