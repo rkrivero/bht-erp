@@ -1,0 +1,66 @@
+name: ERP quality
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - "feat/**"
+
+concurrency:
+  group: quality-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  BHT_DB_BRANCH: dev
+  DATABASE_URL: postgresql://ci-main-disabled:ci-main-disabled@127.0.0.1:1/unroutable?sslmode=disable
+  NEON_AUTH_BASE_URL: https://auth.invalid/database/auth
+  NEON_AUTH_COOKIE_SECRET: ci-only-nonfunctional-cookie-secret-00000000000000000000
+
+jobs:
+  quality:
+    name: Format, lint, types and build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run format:check
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm run build
+      - run: npm run bundles:check
+
+  vitest:
+    name: Vitest without database credentials
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run test:ci
+
+  playwright:
+    name: Playwright Chromium and PWA
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7

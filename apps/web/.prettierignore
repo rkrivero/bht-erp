@@ -1,0 +1,11 @@
+.next
+node_modules
+.playwright-mcp
+playwright-report
+test-results
+.lighthouse
+.impeccable
+.agent
+.agents
+package-lock.json
+public/sw.js

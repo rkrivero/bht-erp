@@ -1,0 +1,53 @@
+{
+  "name": "bht-neon-erp",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "predev": "npm run generate:sw",
+    "dev": "next dev --port 3000",
+    "clean": "node scripts/clean-next.mjs",
+    "generate:sw": "node scripts/generate-sw.mjs",
+    "prebuild": "npm run generate:sw && node scripts/verify-project.mjs",
+    "build": "next build --webpack",
+    "bundles:check": "node scripts/check-bundles.mjs",
+    "start": "next start --port 3000",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint . --max-warnings=0 && node scripts/check-code-quality.mjs",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "vitest run",
+    "test:ci": "vitest run tests/api-client.test.ts tests/audit-batch1-fixes.test.ts tests/auth-and-sync-unit.test.ts tests/caja-utils.test.ts tests/cash-flow-simplification.test.ts tests/geo-and-customers.test.ts tests/idempotency-unit.test.ts tests/inventory-summary.test.ts tests/navigation.test.ts tests/offline-causal.test.ts tests/product-matching.test.ts tests/pwa-build.test.ts tests/rbac-and-auth.test.ts tests/reportes-utils.test.ts tests/seller-order-draft-reducer.test.ts tests/xlsx-writer.test.ts",
+    "test:e2e": "playwright test",
+    "test:a11y": "playwright test tests/e2e/accessibility.spec.ts",
+    "audit:lighthouse": "lighthouse http://127.0.0.1:3000/login --only-categories=performance,accessibility,best-practices --output=html --output-path=.lighthouse/login.html"
+  },
+  "dependencies": {
+    "@neon/auth": "^0.8.2",
+    "@neon/config": "^1.14.0",
+    "@tanstack/react-query": "^5.108.2",
+    "leaflet": "^1.9.4",
+    "next": "^16.4.6",
+    "pg": "^8.13.1",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "^4.14.0",
+    "@playwright/test": "^1.65.1",
+    "@tailwindcss/postcss": "^4.0.0",
+    "@types/leaflet": "^1.9.22",
+    "@types/node": "^22.10.0",
+    "@types/pg": "^8.11.10",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "eslint": "^9.39.5",
+    "eslint-config-next": "^16.4.6",
+    "lighthouse": "^13.6.0",
+    "postcss": "^8.4.49",
+    "prettier": "^3.10.1",
+    "tailwindcss": "^4.0.0",
+    "typescript": "^5.7.2",
+    "vitest": "^4.1.12"
+  }
+}

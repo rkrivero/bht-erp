@@ -1,0 +1,301 @@
+import { NextRequest, NextResponse } from "next/server";
+import { withAuthenticatedClient, withAuthenticatedTransaction } from "@/lib/auth";
+import { resolveHttpError } from "@/lib/http-errors";
+import { runIdempotentMutation } from "@/lib/idempotency";
+import { isPartnerRole } from "@/lib/rbac";
+import {
+  getCashAccountFlowBreakdown,
+  getCashFlowSummary,
+} from "@/lib/services/cash-flow-summary";
+import { registerCashOutflow } from "@/lib/services/collections-and-treasury";
+import {
+  AP_OBLIGATIONS_DETAIL_SUBQUERY,
+  mapApObligationRow,
+} from "@/lib/services/purchases-and-suppliers";
+import { parseBody, readRawJsonBody } from "@/lib/validation/parse";
+import {
+  parseTreasuryLedgerQuery,
+  treasuryCashOutflowSchema,
+} from "@/lib/validation/treasury.schema";
+
+export const dynamic = "force-dynamic";
+
+const NO_STORE_HEADERS = { "Cache-Control": "no-store" };
+
+const TREASURY_ROLES = ["PARTNER_ADMIN", "PARTNER_MANAGER", "EXTERNAL_SELLER"] as const;
+
+const LEDGER_SELECT_COLUMNS = `
+  cl.ledger_id,
+  cl.tx_date::text AS tx_date,
+  cl.account_id,
+  ca.code AS account_code,
+  ca.name AS account_name,
+  cl.trip_id,
+  rt.trip_code,
+  rt.zone_name AS trip_zone,
+  CASE
+    WHEN $1::boolean THEN COALESCE(pa.trade_name, pa.legal_name)
+    ELSE NULL
+  END AS party_name,
+  cl.direction::text AS direction,
+  cl.amount_pen,
+  cl.expense_bucket::text AS expense_bucket,
+  cl.expense_category,
+  cl.is_internal_transfer,
+  cl.reference_table,
+  cl.reference_id,
+  cl.source_origin::text AS source_origin,
+  cl.created_at::text AS created_at,
+  cl.description
+`;
+
+function mapLedgerRow(r: Record<string, unknown>) {
+  return {
+    ...r,
+    ledger_id: Number(r.ledger_id),
+    account_id: Number(r.account_id),
+    trip_id: r.trip_id !== null && r.trip_id !== undefined ? Number(r.trip_id) : null,
+    amount_pen: Number(r.amount_pen),
+  };
+}
+
+function buildLedgerWhere(partnerAccess: boolean, accountId: number | null) {
+  const conditions: string[] = [];
+  const params: unknown[] = [partnerAccess];
+  if (!partnerAccess) {
+    conditions.push(
+      "cl.expense_bucket = 'ROUTE_OPEX' AND cl.source_origin = 'ERP_APP' AND ca.account_type <> 'PARTNER_CUSTODY'"
+    );
+  }
+  if (accountId !== null) {
+    params.push(accountId);
+    conditions.push(`cl.account_id = $${params.length}`);
+  }
+  const whereSql = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
+  return { whereSql, params };
+}
+
+export async function GET(req: NextRequest) {
+  try {
+    const query = parseTreasuryLedgerQuery(req.nextUrl.searchParams);
+    if (!query.ok) {
+      return NextResponse.json(
+        { error: query.error },
+        { status: 400, headers: NO_STORE_HEADERS }
+      );
+    }
+
+    const data = await withAuthenticatedClient(
+      req,
+      [...TREASURY_ROLES],
+      async (client, actor) => {
+        const partnerAccess = isPartnerRole(actor.role);
+        const { whereSql, params } = buildLedgerWhere(partnerAccess, query.accountId);
+        const limitParam = `$${params.length + 1}`;
+        const offsetParam = `$${params.length + 2}`;
+
+        if (query.ledgerOnly) {
+          const rowsRes = await client.query<Record<string, unknown>>(
+            `SELECT ${LEDGER_SELECT_COLUMNS}
+             FROM erp.cash_ledger cl
+             JOIN erp.cash_accounts ca ON ca.account_id = cl.account_id
+             LEFT JOIN erp.route_trips rt ON rt.trip_id = cl.trip_id
+             LEFT JOIN erp.parties pa ON pa.party_id = cl.party_id
+             ${whereSql}
+             ORDER BY cl.tx_date DESC, cl.ledger_id DESC
+             LIMIT ${limitParam} OFFSET ${offsetParam}`,
+            [...params, query.limit, query.offset]
+          );
+          const countRes = await client.query<{ total_count: number }>(
+            `SELECT COUNT(*)::int AS total_count
+             FROM erp.cash_ledger cl
+             JOIN erp.cash_accounts ca ON ca.account_id = cl.account_id
+             ${whereSql}`,
+            params
+          );
+          const totalCount = Number(countRes.rows[0]?.total_count ?? 0);
+          const ledger = rowsRes.rows.map(mapLedgerRow);
+          return {
+            ledger,
+            totalCount,
+            hasMore: query.offset + ledger.length < totalCount,
+          };
+        }
+
+        const res = await client.query<{
+          ledger: Array<Record<string, unknown>>;
+          accounts: Array<Record<string, unknown>>;
+          ap_obligations: Array<Record<string, unknown>>;
+          suppliers: Array<Record<string, unknown>>;
+        }>(
+          `WITH account_balances AS (
+             SELECT
+               account_id,
+               COALESCE(SUM(CASE WHEN direction = 'IN' THEN amount_pen ELSE -amount_pen END), 0)::NUMERIC(14,2) AS current_balance_pen
+             FROM erp.cash_ledger
+             GROUP BY account_id
+           )
+           SELECT
+             COALESCE((
+               SELECT json_agg(t)
+               FROM (
+                 SELECT ${LEDGER_SELECT_COLUMNS}
+                 FROM erp.cash_ledger cl
+                 JOIN erp.cash_accounts ca ON ca.account_id = cl.account_id
+                 LEFT JOIN erp.route_trips rt ON rt.trip_id = cl.trip_id
+                 LEFT JOIN erp.parties pa ON pa.party_id = cl.party_id
+                 ${whereSql}
+                 ORDER BY cl.tx_date DESC, cl.ledger_id DESC
+                 LIMIT ${limitParam} OFFSET ${offsetParam}
+               ) t
+             ), '[]'::json) AS ledger,
+             COALESCE((
+               SELECT json_agg(t)
+               FROM (
+                 SELECT
+                   ca.account_id,
+                   ca.code,
+                   ca.name,
+                   ca.account_type,
+                   COALESCE(ab.current_balance_pen, 0)::NUMERIC(14,2) AS current_balance_pen
+                 FROM erp.cash_accounts ca
+                 LEFT JOIN account_balances ab ON ab.account_id = ca.account_id
+                 WHERE ca.is_active = TRUE
+                   AND ($1::boolean OR ca.account_type <> 'PARTNER_CUSTODY')
+                 ORDER BY ca.account_id ASC
+               ) t
+             ), '[]'::json) AS accounts,
+             CASE WHEN $1::boolean THEN COALESCE((${AP_OBLIGATIONS_DETAIL_SUBQUERY}), '[]'::json) ELSE '[]'::json END AS ap_obligations,
+             CASE WHEN $1::boolean THEN COALESCE((
+               SELECT json_agg(t)
+               FROM (
+                 SELECT
+                   party_id,
+                   doc_type::text AS doc_type,
+                   doc_number,
+                   legal_name,
+                   trade_name,
+                   COALESCE(trade_name, legal_name) AS display_name,
+                   phone
+                 FROM erp.parties
+                 WHERE party_type IN ('SUPPLIER', 'BOTH')
+                   AND is_active = TRUE
+                 ORDER BY COALESCE(trade_name, legal_name) ASC
+               ) t
+             ), '[]'::json) ELSE '[]'::json END AS suppliers`,
+          [...params, query.limit, query.offset]
+        );
+
+        const bundle = res.rows[0] ?? {
+          ledger: [],
+          accounts: [],
+          ap_obligations: [],
+          suppliers: [],
+        };
+
+        const cashFlowSummary = partnerAccess ? await getCashFlowSummary(client) : null;
+        const accountFlowMap = partnerAccess
+          ? await getCashAccountFlowBreakdown(client)
+          : null;
+
+        return {
+          cashFlowSummary,
+          ledger: (bundle.ledger ?? []).map(mapLedgerRow),
+          apObligations: (bundle.ap_obligations ?? []).map(mapApObligationRow),
+          suppliers: (bundle.suppliers ?? []).map((r) => ({
+            party_id: Number(r.party_id),
+            doc_type: String(r.doc_type),
+            doc_number:
+              r.doc_number !== null && r.doc_number !== undefined
+                ? String(r.doc_number)
+                : null,
+            legal_name: String(r.legal_name),
+            trade_name:
+              r.trade_name !== null && r.trade_name !== undefined
+                ? String(r.trade_name)
+                : null,
+            display_name: String(r.display_name),
+            phone: r.phone !== null && r.phone !== undefined ? String(r.phone) : null,
+          })),
+          accounts: (bundle.accounts ?? []).map((r) => {
+            const accountId = Number(r.account_id);
+            const baseAccount = {
+              account_id: accountId,
+              code: String(r.code),
+              name: String(r.name),
+              account_type: String(r.account_type),
+            };
+            if (!partnerAccess || !accountFlowMap) {
+              return baseAccount;
+            }
+            const flow = accountFlowMap.get(accountId);
+            return {
+              ...baseAccount,
+              current_balance_pen: Number(r.current_balance_pen ?? 0),
+              dayInPen: flow?.dayInPen ?? 0,
+              dayOutPen: flow?.dayOutPen ?? 0,
+              dayTransfersNetPen: flow?.dayTransfersNetPen ?? 0,
+              dayNetPen: flow?.dayNetPen ?? 0,
+              monthInPen: flow?.monthInPen ?? 0,
+              monthOutPen: flow?.monthOutPen ?? 0,
+              monthNetPen: flow?.monthNetPen ?? 0,
+            };
+          }),
+        };
+      }
+    );
+
+    return NextResponse.json(data, { headers: NO_STORE_HEADERS });
+  } catch (err) {
+    const { status, ...payload } = resolveHttpError(
+      err,
+      "Error en caja",
+      "GET /api/treasury"
+    );
+    return NextResponse.json(payload, { status, headers: NO_STORE_HEADERS });
+  }
+}
+
+export async function POST(req: NextRequest) {
+  try {
+    const rawBody = await readRawJsonBody(req);
+
+    const result = await withAuthenticatedTransaction(
+      req,
+      [...TREASURY_ROLES],
+      async (client, actor) => {
+        const body = parseBody(treasuryCashOutflowSchema, rawBody);
+        return runIdempotentMutation(
+          client,
+          req,
+          actor,
+          "treasury:cash_outflow",
+          body,
+          () =>
+            registerCashOutflow(client, actor, {
+              amountPen: body.amountPen,
+              expenseBucket: body.isInternalTransfer
+                ? null
+                : body.expenseBucket || "ROUTE_OPEX",
+              expenseCategory: body.expenseCategory || "GASTO_RUTA",
+              txDate: body.txDate,
+              description: body.description || "",
+              accountId: body.accountId,
+              toAccountId: body.toAccountId,
+              isInternalTransfer: Boolean(body.isInternalTransfer),
+              tripId: body.tripId,
+            })
+        );
+      }
+    );
+
+    return NextResponse.json(result, { headers: NO_STORE_HEADERS });
+  } catch (err) {
+    const { status, ...payload } = resolveHttpError(
+      err,
+      "Error registrando gasto",
+      "POST /api/treasury"
+    );
+    return NextResponse.json(payload, { status, headers: NO_STORE_HEADERS });
+  }
+}
